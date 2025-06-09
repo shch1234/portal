@@ -1,7 +1,6 @@
 package com.weili.example.starter;
 
 import com.ctrip.framework.apollo.spring.annotation.EnableApolloConfig;
-import com.weili.basic.common.utils.CalendarUtil;
 import com.weili.basic.framework.annotation.EnableFeignClientsPlus;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.SpringApplication;
@@ -21,7 +20,7 @@ import java.time.LocalTime;
 public class ExampleApplication {
     public static void main(String[] args) {
         long begin = System.currentTimeMillis();
-        log.info("==========开始启动: " + CalendarUtil.getNowTimeDate());
+        log.info("==========开始启动: " + System.currentTimeMillis());
         SpringApplication app = new SpringApplication(ExampleApplication.class);
         Environment env = app.run(args).getEnvironment();
         String protocol = "http";
@@ -47,6 +46,6 @@ public class ExampleApplication {
                 env.getProperty("server.port", "8080"),
                 env.getActiveProfiles());
         long time = System.currentTimeMillis() - begin;
-        log.info("==========启动完成: " + CalendarUtil.getNowTimeDate() + "; 共花费: " + LocalTime.ofSecondOfDay(time / 1000));
+        log.info("==========启动完成: " + System.currentTimeMillis() + "; 共花费: " + LocalTime.ofSecondOfDay(time / 1000));
     }
 }
