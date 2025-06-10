@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<archetype-descriptor xsi:schemaLocation="https://maven.apache.org/plugins/maven-archetype-plugin/archetype-descriptor/1.1.0 http://maven.apache.org/xsd/archetype-descriptor-1.1.0.xsd" name="weili-framework-example"
+    xmlns="https://maven.apache.org/plugins/maven-archetype-plugin/archetype-descriptor/1.1.0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <fileSets>
+    <fileSet filtered="true" encoding="UTF-8">
+      <directory></directory>
+      <includes>
+        <include>.flattened-pom.xml</include>
+      </includes>
+    </fileSet>
+    <fileSet encoding="UTF-8">
+      <directory></directory>
+      <includes>
+        <include>.gitignore</include>
+        <include>README.md</include>
+      </includes>
+    </fileSet>
+  </fileSets>
+  <modules>
+    <module id="${rootArtifactId}-x-starter" dir="__rootArtifactId__-starter" name="weili-example-starter">
+      <fileSets>
+        <fileSet filtered="true" packaged="true" encoding="UTF-8">
+          <directory>src/main/java</directory>
+          <includes>
+            <include>**/*.java</include>
+          </includes>
+        </fileSet>
+        <fileSet filtered="true" encoding="UTF-8">
+          <directory>src/main/resources</directory>
+          <includes>
+            <include>**/*.xml</include>
+            <include>**/*.properties</include>
+          </includes>
+        </fileSet>
+        <fileSet filtered="true" encoding="UTF-8">
+          <directory></directory>
+          <includes>
+            <include>.flattened-pom.xml</include>
+          </includes>
+        </fileSet>
+      </fileSets>
+    </module>
+    <module id="weili-example-dal" dir="__rootArtifactId__-dal" name="weili-example-dal">
+      <fileSets>
+        <fileSet filtered="true" encoding="UTF-8">
+          <directory></directory>
+          <includes>
+            <include>.flattened-pom.xml</include>
+          </includes>
+        </fileSet>
+      </fileSets>
+    </module>
+    <module id="weili-example-web" dir="__rootArtifactId__-web" name="weili-example-web">
+      <fileSets>
+        <fileSet filtered="true" encoding="UTF-8">
+          <directory></directory>
+          <includes>
+            <include>.flattened-pom.xml</include>
+          </includes>
+        </fileSet>
+      </fileSets>
+    </module>
+    <module id="weili-example-common" dir="__rootArtifactId__-common" name="weili-example-common">
+      <fileSets>
+        <fileSet filtered="true" encoding="UTF-8">
+          <directory></directory>
+          <includes>
+            <include>.flattened-pom.xml</include>
+          </includes>
+        </fileSet>
+      </fileSets>
+    </module>
+    <module id="weili-example-service" dir="__rootArtifactId__-service" name="weili-example-service">
+      <fileSets>
+        <fileSet filtered="true" encoding="UTF-8">
+          <directory></directory>
+          <includes>
+            <include>.flattened-pom.xml</include>
+          </includes>
+        </fileSet>
+      </fileSets>
+    </module>
+    <module id="weili-example-proxy" dir="__rootArtifactId__-proxy" name="weili-example-proxy">
+      <fileSets>
+        <fileSet filtered="true" encoding="UTF-8">
+          <directory></directory>
+          <includes>
+            <include>.flattened-pom.xml</include>
+          </includes>
+        </fileSet>
+      </fileSets>
+    </module>
+  </modules>
+  <requiredProperties>
+    <requiredProperty key="groupId"/>
+    <requiredProperty key="artifactId"/>
+    <requiredProperty key="version">
+      <defaultValue>1.0.0</defaultValue>
+    </requiredProperty>
+  </requiredProperties>
+</archetype-descriptor>
