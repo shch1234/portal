@@ -18,7 +18,7 @@
     </fileSet>
   </fileSets>
   <modules>
-    <module id="${rootArtifactId}-x-starter" dir="__rootArtifactId__-starter" name="weili-example-starter">
+    <module id="${rootArtifactId}-starter" dir="__rootArtifactId__-starter" name="${rootArtifactId}-starter">
       <fileSets>
         <fileSet filtered="true" packaged="true" encoding="UTF-8">
           <directory>src/main/java</directory>
@@ -41,7 +41,7 @@
         </fileSet>
       </fileSets>
     </module>
-    <module id="weili-example-dal" dir="__rootArtifactId__-dal" name="weili-example-dal">
+    <module id="${rootArtifactId}-dal" dir="__rootArtifactId__-dal" name="${rootArtifactId}-dal">
       <fileSets>
         <fileSet filtered="true" encoding="UTF-8">
           <directory></directory>
@@ -51,7 +51,7 @@
         </fileSet>
       </fileSets>
     </module>
-    <module id="weili-example-web" dir="__rootArtifactId__-web" name="weili-example-web">
+    <module id="${rootArtifactId}-web" dir="__rootArtifactId__-web" name="${rootArtifactId}-web">
       <fileSets>
         <fileSet filtered="true" encoding="UTF-8">
           <directory></directory>
@@ -61,7 +61,7 @@
         </fileSet>
       </fileSets>
     </module>
-    <module id="weili-example-common" dir="__rootArtifactId__-common" name="weili-example-common">
+    <module id="${rootArtifactId}-common" dir="__rootArtifactId__-common" name="${rootArtifactId}-common">
       <fileSets>
         <fileSet filtered="true" encoding="UTF-8">
           <directory></directory>
@@ -71,7 +71,7 @@
         </fileSet>
       </fileSets>
     </module>
-    <module id="weili-example-service" dir="__rootArtifactId__-service" name="weili-example-service">
+    <module id="${rootArtifactId}-service" dir="__rootArtifactId__-service" name="${rootArtifactId}-service">
       <fileSets>
         <fileSet filtered="true" encoding="UTF-8">
           <directory></directory>
@@ -81,7 +81,7 @@
         </fileSet>
       </fileSets>
     </module>
-    <module id="weili-example-proxy" dir="__rootArtifactId__-proxy" name="weili-example-proxy">
+    <module id="${rootArtifactId}-proxy" dir="__rootArtifactId__-proxy" name="${rootArtifactId}-proxy">
       <fileSets>
         <fileSet filtered="true" encoding="UTF-8">
           <directory></directory>
