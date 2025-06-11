@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>com.weili.framework.example</groupId>
+  <artifactId>weili-framework-example-archetype</artifactId>
+  <version>1.0.0-SNAPSHOT</version>
+  <packaging>maven-archetype</packaging>
+
+  <name>weili-framework-example-archetype</name>
+
+  <build>
+    <extensions>
+      <extension>
+        <groupId>org.apache.maven.archetype</groupId>
+        <artifactId>archetype-packaging</artifactId>
+        <version>3.2.0</version>
+      </extension>
+    </extensions>
+
+    <pluginManagement>
+      <plugins>
+        <plugin>
+          <artifactId>maven-archetype-plugin</artifactId>
+          <version>3.2.0</version>
+        </plugin>
+      </plugins>
+    </pluginManagement>
+  </build>
+
+  <description>Parent pom providing dependency and plugin management for applications built with Maven</description>
+
+  <url>https://spring.io/projects/spring-boot/weili-boot-parent/weili-framework-example</url>
+
+  <developers>
+    <developer>
+      <name>Spring</name>
+      <email>ask@spring.io</email>
+      <organization>VMware, Inc.</organization>
+      <organizationUrl>https://www.spring.io</organizationUrl>
+    </developer>
+  </developers>
+
+  <licenses>
+    <license>
+      <name>Apache License, Version 2.0</name>
+      <url>https://www.apache.org/licenses/LICENSE-2.0</url>
+    </license>
+  </licenses>
+
+  <scm>
+    <url>https://github.com/spring-projects/spring-boot/weili-boot-parent/weili-framework-example</url>
+  </scm>
+
+  <distributionManagement>
+    <repository>
+      <id>nexus-release</id>
+      <name>nexus-release</name>
+      <url>http://100.100.5.2:9999/repository/maven-releases</url>
+    </repository>
+    <snapshotRepository>
+      <id>nexus-snapshots</id>
+      <name>nexus-snapshots</name>
+      <url>http://100.100.5.2:9999/repository/maven-snapshots</url>
+    </snapshotRepository>
+  </distributionManagement>
+</project>
