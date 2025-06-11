@@ -4,18 +4,39 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <parent>
-        <groupId>com.weili.framework.example</groupId>
+        <groupId>com.weili.example</groupId>
         <artifactId>weili-framework-example</artifactId>
-        <version>1.0.0-SNAPSHOT</version>
+        <version>1.0.0</version>
     </parent>
 
-    <groupId>com.weili.example.starter</groupId>
     <artifactId>weili-example-starter</artifactId>
 
     <properties>
         <maven.deploy.skip>true</maven.deploy.skip>
     </properties>
     <dependencies>
+        <!-- 内部依赖 -->
+        <dependency>
+            <groupId>com.weili.example</groupId>
+            <artifactId>weili-example-starter</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.weili.example</groupId>
+            <artifactId>weili-example-dal</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.weili.example</groupId>
+            <artifactId>weili-example-web</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.weili.example</groupId>
+            <artifactId>weili-example-common</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.weili.example</groupId>
+            <artifactId>weili-example-proxy</artifactId>
+        </dependency>
+
         <dependency>
             <groupId>com.weili.basic.common</groupId>
             <artifactId>weili-basic-common</artifactId>

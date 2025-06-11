@@ -10,9 +10,9 @@
         <version>1.0.0-SNAPSHOT</version>
     </parent>
 
-    <groupId>com.weili.framework.example</groupId>
+    <groupId>com.weili.example</groupId>
     <artifactId>weili-framework-example</artifactId>
-    <version>1.0.0-SNAPSHOT</version>
+    <version>1.0.0</version>
     <packaging>pom</packaging>
 
     <modules>
@@ -22,6 +22,8 @@
         <module>weili-example-common</module>
         <module>weili-example-service</module>
         <module>weili-example-proxy</module>
+        <module>weili-example-web</module>
+        <module>weili-example-web</module>
     </modules>
 
     <properties>
@@ -34,27 +36,27 @@
         <dependencies>
             <!--内部模块依赖-->
             <dependency>
-                <groupId>com.weili.example.starter</groupId>
+                <groupId>com.weili.example</groupId>
                 <artifactId>weili-example-starter</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId>com.weili.example.dal</groupId>
+                <groupId>com.weili.example</groupId>
                 <artifactId>weili-example-dal</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId>com.weili.example.web</groupId>
+                <groupId>com.weili.example</groupId>
                 <artifactId>weili-example-web</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId>com.weili.example.common</groupId>
+                <groupId>com.weili.example</groupId>
                 <artifactId>weili-example-common</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId>com.weili.example.proxy</groupId>
+                <groupId>com.weili.example</groupId>
                 <artifactId>weili-example-proxy</artifactId>
                 <version>${project.version}</version>
             </dependency>
