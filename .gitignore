@@ -154,3 +154,8 @@ release.properties
 dependency-reduced-pom.xml
 buildNumber.properties
 .mvn/timing.properties
+
+
+# 忽略 Maven 生成的 flattened-pom 文件
+*.flattened-pom.xml
+target/flattened-pom.xml
