@@ -18,10 +18,6 @@
         <!-- 内部依赖 -->
         <dependency>
             <groupId>com.weili.example</groupId>
-            <artifactId>weili-example-starter</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.weili.example</groupId>
             <artifactId>weili-example-dal</artifactId>
         </dependency>
         <dependency>
@@ -38,27 +34,27 @@
         </dependency>
 
         <dependency>
-            <groupId>com.weili.basic.common</groupId>
+            <groupId>com.weili.basic</groupId>
             <artifactId>weili-basic-common</artifactId>
         </dependency>
         <dependency>
-            <groupId>com.weili.basic.framework</groupId>
+            <groupId>com.weili.basic</groupId>
             <artifactId>weili-basic-framework</artifactId>
         </dependency>
         <dependency>
-            <groupId>com.weili.basic.apollo</groupId>
+            <groupId>com.weili.basic</groupId>
             <artifactId>weili-basic-apollo</artifactId>
         </dependency>
         <dependency>
-            <groupId>com.weili.basic.redis</groupId>
+            <groupId>com.weili.basic</groupId>
             <artifactId>weili-basic-redis</artifactId>
         </dependency>
         <dependency>
-            <groupId>com.weili.basic.elaticsearch</groupId>
+            <groupId>com.weili.basic</groupId>
             <artifactId>weili-basic-elasticsearch</artifactId>
         </dependency>
         <dependency>
-            <groupId>com.weili.basic.xxljob</groupId>
+            <groupId>com.weili.basic</groupId>
             <artifactId>weili-basic-xxljob</artifactId>
         </dependency>
         <dependency>

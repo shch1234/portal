@@ -22,8 +22,6 @@
         <module>weili-example-common</module>
         <module>weili-example-service</module>
         <module>weili-example-proxy</module>
-        <module>weili-example-web</module>
-        <module>weili-example-web</module>
     </modules>
 
     <properties>
@@ -63,32 +61,32 @@
 
             <!--依赖模块:按需引入-->
             <dependency>
-                <groupId>com.weili.basic.common</groupId>
+                <groupId>com.weili.basic</groupId>
                 <artifactId>weili-basic-common</artifactId>
                 <version>1.0.0-SNAPSHOT</version>
             </dependency>
             <dependency>
-                <groupId>com.weili.basic.framework</groupId>
+                <groupId>com.weili.basic</groupId>
                 <artifactId>weili-basic-framework</artifactId>
                 <version>1.0.0-SNAPSHOT</version>
             </dependency>
             <dependency>
-                <groupId>com.weili.basic.apollo</groupId>
+                <groupId>com.weili.basic</groupId>
                 <artifactId>weili-basic-apollo</artifactId>
                 <version>1.0.0-SNAPSHOT</version>
             </dependency>
             <dependency>
-                <groupId>com.weili.basic.redis</groupId>
+                <groupId>com.weili.basic</groupId>
                 <artifactId>weili-basic-redis</artifactId>
                 <version>1.0.0-SNAPSHOT</version>
             </dependency>
             <dependency>
-                <groupId>com.weili.basic.elaticsearch</groupId>
+                <groupId>com.weili.basic</groupId>
                 <artifactId>weili-basic-elasticsearch</artifactId>
                 <version>1.0.0-SNAPSHOT</version>
             </dependency>
             <dependency>
-                <groupId>com.weili.basic.xxljob</groupId>
+                <groupId>com.weili.basic</groupId>
                 <artifactId>weili-basic-xxljob</artifactId>
                 <version>1.0.0-SNAPSHOT</version>
             </dependency>
