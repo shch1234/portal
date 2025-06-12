@@ -7,7 +7,7 @@
 *.iml
 out
 gen
-
+target/
 
 #===========================
 ### eclipse ###
@@ -156,6 +156,4 @@ buildNumber.properties
 .mvn/timing.properties
 
 
-# 忽略 Maven 生成的 flattened-pom 文件
-*.flattened-pom.xml
-target/flattened-pom.xml
+# 忽略所有 target/ 目录
