@@ -17,17 +17,19 @@
 
     <modules>
         <module>weili-example-starter</module>
+        <module>weili-example-domain</module>
         <module>weili-example-dal</module>
-        <module>weili-example-web</module>
         <module>weili-example-common</module>
         <module>weili-example-service</module>
-        <module>weili-example-proxy</module>
+        <module>weili-example-web</module>
     </modules>
 
     <properties>
         <maven.compiler.source>17</maven.compiler.source>
         <maven.compiler.target>17</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <weili-basic.version>1.0.0-SNAPSHOT</weili-basic.version>
+        <weili.system.version>1.0.0-SNAPSHOT</weili.system.version>
     </properties>
 
     <dependencyManagement>
@@ -55,7 +57,12 @@
             </dependency>
             <dependency>
                 <groupId>com.weili.example</groupId>
-                <artifactId>weili-example-proxy</artifactId>
+                <artifactId>weili-example-service</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.weili.example</groupId>
+                <artifactId>weili-example-domain</artifactId>
                 <version>${project.version}</version>
             </dependency>
 
@@ -63,32 +70,37 @@
             <dependency>
                 <groupId>com.weili.basic</groupId>
                 <artifactId>weili-basic-common</artifactId>
-                <version>1.0.0-SNAPSHOT</version>
+                <version>${weili-basic.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.weili.basic</groupId>
                 <artifactId>weili-basic-framework</artifactId>
-                <version>1.0.0-SNAPSHOT</version>
-            </dependency>
-            <dependency>
-                <groupId>com.weili.basic</groupId>
-                <artifactId>weili-basic-apollo</artifactId>
-                <version>1.0.0-SNAPSHOT</version>
+                <version>${weili-basic.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.weili.basic</groupId>
                 <artifactId>weili-basic-redis</artifactId>
-                <version>1.0.0-SNAPSHOT</version>
-            </dependency>
-            <dependency>
-                <groupId>com.weili.basic</groupId>
-                <artifactId>weili-basic-elasticsearch</artifactId>
-                <version>1.0.0-SNAPSHOT</version>
+                <version>${weili-basic.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.weili.basic</groupId>
                 <artifactId>weili-basic-xxljob</artifactId>
-                <version>1.0.0-SNAPSHOT</version>
+                <version>${weili-basic.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.weili.basic</groupId>
+                <artifactId>weili-basic-apollo</artifactId>
+                <version>${weili-basic.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.weili.system</groupId>
+                <artifactId>weili-service-system-permission</artifactId>
+                <version>${weili.system.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.weili.system</groupId>
+                <artifactId>weili-service-system-security</artifactId>
+                <version>${weili.system.version}</version>
             </dependency>
             <!--三方模块-->
         </dependencies>
@@ -97,15 +109,9 @@
     <build>
         <plugins>
             <plugin>
-                <groupId>org.springframework.boot</groupId>
-                <artifactId>spring-boot-maven-plugin</artifactId>
-                <configuration>
-                    <mainClass>com.weili.example.starter.FrameworkExampleApplication</mainClass>
-                </configuration>
-            </plugin>
-            <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.11.0</version>
                 <configuration>
                     <source>${maven.compiler.source}</source>
                     <target>${maven.compiler.target}</target>
@@ -138,4 +144,17 @@
             </plugin>
         </plugins>
     </build>
+
+    <distributionManagement>
+        <repository>
+            <id>nexus-release</id>
+            <name>nexus-release</name>
+            <url>http://100.100.5.2:9999/repository/maven-releases</url>
+        </repository>
+        <snapshotRepository>
+            <id>nexus-snapshots</id>
+            <name>nexus-snapshots</name>
+            <url>http://100.100.5.2:9999/repository/maven-snapshots</url>
+        </snapshotRepository>
+    </distributionManagement>
 </project>
