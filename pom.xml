@@ -65,6 +65,11 @@
                 <artifactId>weili-example-domain</artifactId>
                 <version>${project.version}</version>
             </dependency>
+            <dependency>
+                <groupId>com.weili.example</groupId>
+                <artifactId>weili-example-task</artifactId>
+                <version>${project.version}</version>
+            </dependency>
 
             <!--依赖模块:按需引入-->
             <dependency>
