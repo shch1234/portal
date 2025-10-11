@@ -97,16 +97,6 @@
                 <artifactId>weili-basic-apollo</artifactId>
                 <version>${weili-basic.version}</version>
             </dependency>
-            <dependency>
-                <groupId>com.weili.system</groupId>
-                <artifactId>weili-service-system-permission</artifactId>
-                <version>${weili.system.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.weili.system</groupId>
-                <artifactId>weili-service-system-security</artifactId>
-                <version>${weili.system.version}</version>
-            </dependency>
             <!--三方模块-->
         </dependencies>
     </dependencyManagement>
