@@ -6,13 +6,29 @@
     <parent>
         <groupId>com.weili.example</groupId>
         <artifactId>weili-framework-example</artifactId>
-        <version>1.0.0</version>
+        <version>${revision}</version>
+        <relativePath>../pom.xml</relativePath>
     </parent>
 
     <artifactId>weili-example-service</artifactId>
 
+    <properties>
+        <maven.deploy.skip>true</maven.deploy.skip>
+    </properties>
+
     <dependencies>
         <!--内部依赖-->
+        <dependency>
+            <groupId>com.weili.example</groupId>
+            <artifactId>weili-example-domain</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.weili.example</groupId>
+            <artifactId>weili-example-dal</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-context</artifactId>
+        </dependency>
     </dependencies>
-
 </project>

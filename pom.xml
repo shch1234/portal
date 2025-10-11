@@ -7,12 +7,12 @@
     <parent>
         <groupId>com.weili.boot</groupId>
         <artifactId>weili-boot-parent</artifactId>
-        <version>1.0.0-SNAPSHOT</version>
+        <version>1.0.0-merge-SNAPSHOT</version>
     </parent>
 
     <groupId>com.weili.example</groupId>
     <artifactId>weili-framework-example</artifactId>
-    <version>1.0.0</version>
+    <version>${revision}</version>
     <packaging>pom</packaging>
 
     <modules>
@@ -22,14 +22,14 @@
         <module>weili-example-common</module>
         <module>weili-example-service</module>
         <module>weili-example-web</module>
+        <module>weili-example-task</module>
     </modules>
 
     <properties>
         <maven.compiler.source>17</maven.compiler.source>
         <maven.compiler.target>17</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <weili-basic.version>1.0.0-SNAPSHOT</weili-basic.version>
-        <weili.system.version>1.0.0-SNAPSHOT</weili.system.version>
+        <weili-basic.version>1.0.0-merge-SNAPSHOT</weili-basic.version>
     </properties>
 
     <dependencyManagement>

@@ -6,7 +6,8 @@
     <parent>
         <groupId>com.weili.example</groupId>
         <artifactId>weili-framework-example</artifactId>
-        <version>1.0.0</version>
+        <version>${revision}</version>
+        <relativePath>../pom.xml</relativePath>
     </parent>
 
     <artifactId>weili-example-starter</artifactId>
@@ -32,6 +33,14 @@
             <groupId>com.weili.example</groupId>
             <artifactId>weili-example-service</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.weili.example</groupId>
+            <artifactId>weili-example-domain</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.weili.example</groupId>
+            <artifactId>weili-example-task</artifactId>
+        </dependency>
 
         <dependency>
             <groupId>com.weili.basic</groupId>
@@ -53,10 +62,14 @@
             <groupId>org.springframework</groupId>
             <artifactId>spring-context</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.weili.basic</groupId>
+            <artifactId>weili-basic-starter</artifactId>
+        </dependency>
     </dependencies>
 
     <build>
-        <finalName>example-service</finalName>
+        <finalName>weili-example-service</finalName>
         <plugins>
             <plugin>
                 <groupId>org.springframework.boot</groupId>
