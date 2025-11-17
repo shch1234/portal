@@ -1,0 +1,28 @@
+package com.weili.iot_portal.domain.permission;
+
+import com.weili.basic.common.model.BaseVO;
+import io.swagger.v3.oas.annotations.media.Schema;
+import lombok.Data;
+import lombok.EqualsAndHashCode;
+
+@Schema(description = "菜单精简信息 Response VO")
+@Data
+@EqualsAndHashCode(callSuper = true)
+public class MenuSimpleRespVO  extends BaseVO {
+
+    @Schema(description = "菜单编号", requiredMode = Schema.RequiredMode.REQUIRED, example = "1024")
+    private Long id;
+
+    @Schema(description = "菜单名称", requiredMode = Schema.RequiredMode.REQUIRED)
+    private String name;
+
+    @Schema(description = "父菜单 ID", requiredMode = Schema.RequiredMode.REQUIRED, example = "1024")
+    private Long parentId;
+
+    @Schema(description = "类型，参见 MenuTypeEnum 枚举类", requiredMode = Schema.RequiredMode.REQUIRED, example = "1")
+    private Integer type;
+
+    private String client;//客户端标识
+
+    private String image;
+}

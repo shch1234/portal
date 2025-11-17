@@ -7,15 +7,15 @@ weili-framework-example 是一个基于微服务架构的示例项目，展示�
 项目结构
 
 ```weili-framework-example/
-├── weili-example-common/           # 公共模块
+├── iot-portal-common/           # 公共模块
 │   ├── src/
 │   └── pom.xml
-├── weili-example-dal/              # 数据访问层
-├── weili-example-domain/           # 领域模型层
-├── weili-example-service/          # 业务服务层
-├── weili-example-starter/          # 启动模块
-├── weili-example-task/             # 任务消费模块
-├── weili-example-web/              # Web控制层
+├── iot-portal-dal/              # 数据访问层
+├── iot-portal-domain/           # 领域模型层
+├── iot-portal-service/          # 业务服务层
+├── iot-portal-starter/          # 启动模块
+├── iot-portal-task/             # 任务消费模块
+├── iot-portal-web/              # Web控制层
 ├── .gitignore
 ├── pom.xml
 └── README.md
@@ -24,39 +24,39 @@ weili-framework-example 是一个基于微服务架构的示例项目，展示�
 
 模块说明
 
-1. weili-example-common 公共工具模块
+1. iot-portal-common 公共工具模块
 
 * 包含项目通用的工具类、常量定义、基础配置等
 * 被其他所有模块依赖
 
-2. weili-example-dal 数据访问层（Data Access Layer）
+2. iot-portal-dal 数据访问层（Data Access Layer）
 
 * 数据库实体类定义（Entity）
 * 数据访问接口（Mapper/Repository）
 * 数据库连接配置
 
-3. weili-example-domain 领域模型层
+3. iot-portal-domain 领域模型层
 
 * 业务领域对象定义(VO/BO/DTO)
 
-4. weili-example-service 业务服务层
+4. iot-portal-service 业务服务层
 
 * 业务逻辑实现
 * 事务管理
 * 服务接口定义
 
-5. weili-example-starter 应用启动模块
+5. iot-portal-starter 应用启动模块
 
 * Spring Boot启动配置
 * 应用配置文件
 * 启动类定义
 
-6. weili-example-task 任务层
+6. iot-portal-task 任务层
 
 * 定时任务、异步任务、批处理任务
 * 消息队列消费任务
 
-7. weili-example-web Web表现层
+7. iot-portal-web Web表现层
 
 * 控制器（Controller）
 * API接口定义

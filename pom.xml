@@ -10,19 +10,19 @@
         <version>1.0.0-merge-SNAPSHOT</version>
     </parent>
 
-    <groupId>com.weili.example</groupId>
-    <artifactId>weili-framework-example</artifactId>
+    <groupId>com.weili.iot.portal</groupId>
+    <artifactId>weili-iot-portal</artifactId>
     <version>${revision}</version>
     <packaging>pom</packaging>
 
     <modules>
-        <module>weili-example-starter</module>
-        <module>weili-example-domain</module>
-        <module>weili-example-dal</module>
-        <module>weili-example-common</module>
-        <module>weili-example-service</module>
-        <module>weili-example-web</module>
-        <module>weili-example-task</module>
+        <module>iot-portal-starter</module>
+        <module>iot-portal-domain</module>
+        <module>iot-portal-dal</module>
+        <module>iot-portal-common</module>
+        <module>iot-portal-service</module>
+        <module>iot-portal-web</module>
+        <module>iot-portal-task</module>
     </modules>
 
     <properties>
@@ -31,44 +31,45 @@
         <maven.compiler.target>17</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <weili-basic.version>1.0.0-merge-SNAPSHOT</weili-basic.version>
+        <spring-maven-plugin.version>3.4.5</spring-maven-plugin.version>
     </properties>
 
     <dependencyManagement>
         <dependencies>
             <!--内部模块依赖-->
             <dependency>
-                <groupId>com.weili.example</groupId>
-                <artifactId>weili-example-starter</artifactId>
+                <groupId>com.weili.iot.portal</groupId>
+                <artifactId>iot-portal-starter</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId>com.weili.example</groupId>
-                <artifactId>weili-example-dal</artifactId>
+                <groupId>com.weili.iot.portal</groupId>
+                <artifactId>iot-portal-dal</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId>com.weili.example</groupId>
-                <artifactId>weili-example-web</artifactId>
+                <groupId>com.weili.iot.portal</groupId>
+                <artifactId>iot-portal-web</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId>com.weili.example</groupId>
-                <artifactId>weili-example-common</artifactId>
+                <groupId>com.weili.iot.portal</groupId>
+                <artifactId>iot-portal-common</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId>com.weili.example</groupId>
-                <artifactId>weili-example-service</artifactId>
+                <groupId>com.weili.iot.portal</groupId>
+                <artifactId>iot-portal-service</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId>com.weili.example</groupId>
-                <artifactId>weili-example-domain</artifactId>
+                <groupId>com.weili.iot.portal</groupId>
+                <artifactId>iot-portal-domain</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId>com.weili.example</groupId>
-                <artifactId>weili-example-task</artifactId>
+                <groupId>com.weili.iot.portal</groupId>
+                <artifactId>iot-portal-task</artifactId>
                 <version>${project.version}</version>
             </dependency>
 
@@ -99,6 +100,11 @@
                 <version>${weili-basic.version}</version>
             </dependency>
             <!--三方模块-->
+            <dependency>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <version>${spring-maven-plugin.version}</version>
+            </dependency>
         </dependencies>
     </dependencyManagement>
 
