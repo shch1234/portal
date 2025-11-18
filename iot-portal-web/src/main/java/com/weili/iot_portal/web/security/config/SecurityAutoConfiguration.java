@@ -2,12 +2,12 @@ package com.weili.iot_portal.web.security.config;
 
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
-import com.weili.iot_portal.service.system.IAuthLoginService;
+import com.weili.iot_portal.service.system.IAuthLoginBizService;
 import com.weili.iot_portal.web.security.context.TransmittableThreadLocalSecurityContextHolderStrategy;
-import com.weili.iot_portal.web.security.handle.TokenAuthenticationFilter;
 import com.weili.iot_portal.web.security.handle.AccessDeniedHandlerImpl;
 import com.weili.iot_portal.web.security.handle.AuthenticationEntryPointImpl;
 import com.weili.iot_portal.web.security.handle.GlobalExceptionHandler;
+import com.weili.iot_portal.web.security.handle.TokenAuthenticationFilter;
 import jakarta.annotation.Resource;
 import jakarta.annotation.security.PermitAll;
 import org.apache.commons.collections4.CollectionUtils;
@@ -75,13 +75,13 @@ public class SecurityAutoConfiguration {
      * 创建并配置Token认证过滤器Bean
      *
      * @param globalExceptionHandler 全局异常处理器，用于处理认证过程中出现的异常
-     * @param authLoginService       认证登录服务，提供用户认证相关业务逻辑
+     * @param authLoginBizService    认证登录服务，提供用户认证相关业务逻辑
      * @return 配置好的TokenAuthenticationFilter实例
      */
     @Bean
     public TokenAuthenticationFilter authenticationTokenFilter(GlobalExceptionHandler globalExceptionHandler,
-                                                               IAuthLoginService authLoginService) {
-        return new TokenAuthenticationFilter(globalExceptionHandler, authLoginService);
+                                                               IAuthLoginBizService authLoginBizService) {
+        return new TokenAuthenticationFilter(globalExceptionHandler, authLoginBizService);
     }
 
     /**

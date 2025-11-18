@@ -1,4 +1,4 @@
-package com.weili.iot_portal.dal.mapper.permission;
+package com.weili.iot_portal.dal.mapper.system;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.weili.iot_portal.dal.dataobject.permission.UserRoleDO;
@@ -10,6 +10,4 @@ import org.apache.ibatis.annotations.Mapper;
  * @Author: luying
  **/
 @Mapper
-public interface UserRoleMapper extends BaseMapper<UserRoleDO> {
-
-}
+public interface UserRoleMapper extends BaseMapper<UserRoleDO> {}

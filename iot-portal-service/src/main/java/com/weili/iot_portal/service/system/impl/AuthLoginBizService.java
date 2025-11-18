@@ -77,4 +77,9 @@ public class AuthLoginBizService implements IAuthLoginBizService {
     public AuthUserInfoRespVO getUserByAccessToken(String accessToken) {
         return null;
     }
+
+    @Override
+    public void logout(String token) {
+        accessTokenCache.delete(token);
+    }
 }
