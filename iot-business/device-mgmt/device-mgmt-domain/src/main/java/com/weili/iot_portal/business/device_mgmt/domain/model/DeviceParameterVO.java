@@ -1,0 +1,30 @@
+package com.weili.iot_portal.business.device_mgmt.domain.model;
+
+import lombok.Data;
+
+import java.util.List;
+
+/**
+ * 设备参数视图
+ */
+@Data
+public class DeviceParameterVO {
+
+    private String deviceId;
+
+    private Double theoreticalCycleHours;
+
+    private Double plannedDowntimeHours;
+
+    private Integer shiftMode;
+
+    private List<String> shiftStartTimes;
+
+    private Long updatedTime;
+
+    private String updatedBy;
+
+    private String remark;
+}
+
+

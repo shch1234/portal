@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.weili.iot.portal</groupId>
+        <artifactId>iot-business-device-mgmt</artifactId>
+        <version>${revision}</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>iot-business-device-mgmt-service</artifactId>
+
+    <dependencies>
+        <!-- 依赖API层 -->
+        <dependency>
+            <groupId>com.weili.iot.portal</groupId>
+            <artifactId>iot-business-device-mgmt-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.weili.iot.portal</groupId>
+            <artifactId>iot-business-device-mgmt-domain</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.weili.iot.portal</groupId>
+            <artifactId>iot-business-device-mgmt-dal</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.weili.iot.portal</groupId>
+            <artifactId>iot-portal-service</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.weili.basic</groupId>
+            <artifactId>weili-basic-framework</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.weili.basic</groupId>
+            <artifactId>weili-basic-common</artifactId>
+        </dependency>
+        <!-- 依赖公共模块API（实现公共接口）-->
+        <dependency>
+            <groupId>com.weili.iot.portal</groupId>
+            <artifactId>iot-business-common-api</artifactId>
+        </dependency>
+    </dependencies>
+</project>
+
+

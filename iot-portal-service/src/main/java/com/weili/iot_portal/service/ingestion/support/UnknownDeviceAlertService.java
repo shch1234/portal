@@ -1,0 +1,58 @@
+package com.weili.iot_portal.service.ingestion.support;
+
+import com.weili.basic.common.util.JsonUtils;
+import com.weili.basic.redis.client.RedisClient;
+import com.weili.iot_portal.common.constant.RedisConstant;
+import jakarta.annotation.Resource;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
+import org.springframework.stereotype.Service;
+
+import java.time.Duration;
+import java.util.concurrent.TimeUnit;
+
+/**
+ * 未识别设备告警服务
+ */
+@Service
+@Slf4j
+public class UnknownDeviceAlertService {
+
+    private static final long DEFAULT_TTL_SECONDS = Duration.ofDays(1).toSeconds();
+
+    @Resource
+    private RedisClient redisClient;
+
+    public void record(String tenantId, String deviceCode, String tbDeviceId, String source) {
+        if (StringUtils.isBlank(deviceCode)) {
+            return;
+        }
+        UnknownDeviceAlert alert = new UnknownDeviceAlert(
+                tenantId,
+                deviceCode,
+                tbDeviceId,
+                StringUtils.defaultIfBlank(source, "unknown"),
+                System.currentTimeMillis()
+        );
+        String key = String.format(RedisConstant.UNKNOWN_DEVICE_ALERT,
+                StringUtils.defaultIfBlank(tenantId, "unknown"),
+                deviceCode,
+                alert.getTimestamp());
+        redisClient.set(key, JsonUtils.toJsonString(alert), DEFAULT_TTL_SECONDS, TimeUnit.SECONDS);
+        log.warn("收到未知设备数据，请检查编号或建档: tenantId={}, deviceCode={}, tbDeviceId={}, source={}",
+                tenantId, deviceCode, tbDeviceId, source);
+    }
+
+    @Data
+    @AllArgsConstructor
+    public static class UnknownDeviceAlert {
+        private String tenantId;
+        private String deviceCode;
+        private String tbDeviceId;
+        private String source;
+        private long timestamp;
+    }
+}
+

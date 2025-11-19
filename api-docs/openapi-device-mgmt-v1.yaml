@@ -1,0 +1,2780 @@
+openapi: 3.0.3
+info:
+  title: 设备管理业务模块 API 文档
+  description: |
+    weili-iot-portal 业务模块中设备管理（device-mgmt）模块的所有 REST API 接口文档。
+    
+    该文档涵盖了设备基础信息、设备类型、设备型号、设备配置、设备参数、设备关系、
+    组织单元、设备指标、实时曲线、报警历史、状态统计、状态甘特图和产量统计等功能的接口。
+  version: 1.0.0
+  contact:
+    name: API Support
+
+servers:
+  - url: /api/device-mgmt/v1
+    description: 设备管理 API 基础路径
+
+tags:
+  - name: 设备管理-设备基础信息
+    description: 设备基础信息的增删改查接口
+  - name: 设备管理-设备类型
+    description: 设备类型的增删改查接口
+  - name: 设备管理-设备型号
+    description: 设备型号的增删改查接口
+  - name: 设备管理-设备配置
+    description: 设备配置的增删改查接口
+  - name: 设备管理-设备参数
+    description: 设备参数的查询和更新接口
+  - name: 设备管理-设备关系
+    description: 设备关系的增删改查接口
+  - name: 设备管理-组织单元
+    description: 组织单元的增删改查接口
+  - name: 设备管理-设备指标
+    description: 设备指标查询接口
+  - name: 设备管理-实时曲线
+    description: 设备实时曲线查询接口
+  - name: 设备管理-报警历史
+    description: 报警历史查询接口
+  - name: 设备管理-状态统计
+    description: 设备状态统计查询接口
+  - name: 设备管理-状态时间线
+    description: 设备状态甘特图查询接口
+  - name: 设备管理-产量统计
+    description: 产量统计查询接口
+  - name: 设备管理-设备列表
+    description: 设备列表查询接口
+  - name: 设备管理-刀具信息
+    description: 刀具信息查询接口
+  - name: 设备管理-程序信息
+    description: 程序信息查询接口
+  - name: 设备管理-轴坐标
+    description: 轴坐标查询接口
+
+paths:
+  # ========== 设备基础信息接口 ==========
+  /device-base-info:
+    post:
+      tags:
+        - 设备管理-设备基础信息
+      summary: 创建设备基础信息
+      operationId: createDeviceBaseInfo
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeviceBaseInfoCreateReq'
+      responses:
+        '200':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResultDeviceBaseInfoVO'
+  
+  /device-base-info/{id}:
+    get:
+      tags:
+        - 设备管理-设备基础信息
+      summary: 根据 ID 查询设备基础信息
+      operationId: getDeviceBaseInfoById
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 设备基础信息 ID
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResultDeviceBaseInfoVO'
+    
+    put:
+      tags:
+        - 设备管理-设备基础信息
+      summary: 更新设备基础信息
+      operationId: updateDeviceBaseInfo
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 设备基础信息 ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeviceBaseInfoUpdateReq'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResultDeviceBaseInfoVO'
+    
+    delete:
+      tags:
+        - 设备管理-设备基础信息
+      summary: 删除设备基础信息
+      operationId: deleteDeviceBaseInfo
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 设备基础信息 ID
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResultBoolean'
+  
+  /device-base-info/page:
+    post:
+      tags:
+        - 设备管理-设备基础信息
+      summary: 分页查询设备基础信息
+      operationId: pageDeviceBaseInfo
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeviceBaseInfoQueryReq'
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResultPageResultDeviceBaseInfoVO'
+
+  # ========== 设备列表接口 ==========
+  /devices/list:
+    post:
+      tags:
+        - 设备管理-设备列表
+      summary: 查询设备列表
+      operationId: listDevices
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeviceBaseInfoQueryReq'
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResultPageResultDeviceBaseInfoListVO'
+
+  # ========== 设备类型接口 ==========
+  /device-types:
+    post:
+      tags:
+        - 设备管理-设备类型
+      summary: 创建设备类型
+      operationId: createDeviceType
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeviceTypeCreateReq'
+      responses:
+        '200':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResultDeviceTypeVO'
+  
+  /device-types/{id}:
+    get:
+      tags:
+        - 设备管理-设备类型
+      summary: 查询设备类型详情
+      operationId: getDeviceTypeById
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 设备类型 ID
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResultDeviceTypeVO'
+    
+    put:
+      tags:
+        - 设备管理-设备类型
+      summary: 更新设备类型
+      operationId: updateDeviceType
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 设备类型 ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeviceTypeUpdateReq'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResultDeviceTypeVO'
+    
+    delete:
+      tags:
+        - 设备管理-设备类型
+      summary: 删除设备类型
+      operationId: deleteDeviceType
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 设备类型 ID
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResultBoolean'
+  
+  /device-types/page:
+    post:
+      tags:
+        - 设备管理-设备类型
+      summary: 分页查询设备类型
+      operationId: pageDeviceType
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeviceTypeQueryReq'
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResultPageResultDeviceTypeVO'
+
+  # ========== 设备型号接口 ==========
+  /device-models:
+    post:
+      tags:
+        - 设备管理-设备型号
+      summary: 创建设备型号
+      operationId: createDeviceModel
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeviceModelCreateReq'
+      responses:
+        '200':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResultDeviceModelVO'
+  
+  /device-models/{id}:
+    get:
+      tags:
+        - 设备管理-设备型号
+      summary: 查询设备型号详情
+      operationId: getDeviceModelById
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 设备型号 ID
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResultDeviceModelVO'
+    
+    put:
+      tags:
+        - 设备管理-设备型号
+      summary: 更新设备型号
+      operationId: updateDeviceModel
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 设备型号 ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeviceModelUpdateReq'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResultDeviceModelVO'
+    
+    delete:
+      tags:
+        - 设备管理-设备型号
+      summary: 删除设备型号
+      operationId: deleteDeviceModel
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 设备型号 ID
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResultBoolean'
+  
+  /device-models/page:
+    post:
+      tags:
+        - 设备管理-设备型号
+      summary: 分页查询设备型号
+      operationId: pageDeviceModel
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeviceModelQueryReq'
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResultPageResultDeviceModelVO'
+
+  # ========== 设备配置接口 ==========
+  /device-configurations:
+    post:
+      tags:
+        - 设备管理-设备配置
+      summary: 创建设备配置
+      operationId: createDeviceConfiguration
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeviceConfigurationCreateReq'
+      responses:
+        '200':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResultDeviceConfigurationVO'
+  
+  /device-configurations/{id}:
+    get:
+      tags:
+        - 设备管理-设备配置
+      summary: 根据配置ID查询
+      operationId: getDeviceConfigurationById
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 设备配置 ID
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResultDeviceConfigurationVO'
+    
+    put:
+      tags:
+        - 设备管理-设备配置
+      summary: 更新设备配置
+      operationId: updateDeviceConfiguration
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 设备配置 ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeviceConfigurationUpdateReq'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResultDeviceConfigurationVO'
+    
+    delete:
+      tags:
+        - 设备管理-设备配置
+      summary: 删除设备配置
+      operationId: deleteDeviceConfiguration
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 设备配置 ID
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResultBoolean'
+  
+  /device-configurations/by-device-id/{deviceId}:
+    get:
+      tags:
+        - 设备管理-设备配置
+      summary: 根据设备ID查询配置
+      operationId: getDeviceConfigurationByDeviceId
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: deviceId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 设备 ID
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResultDeviceConfigurationVO'
+  
+  /device-configurations/page:
+    post:
+      tags:
+        - 设备管理-设备配置
+      summary: 分页查询设备配置
+      operationId: pageDeviceConfiguration
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeviceConfigurationQueryReq'
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResultPageResultDeviceConfigurationVO'
+
+  # ========== 设备参数接口 ==========
+  /devices/{deviceId}/parameters:
+    get:
+      tags:
+        - 设备管理-设备参数
+      summary: 获取当前设备参数
+      operationId: getDeviceParameters
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: deviceId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 设备 ID
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResultDeviceParameterVO'
+    
+    put:
+      tags:
+        - 设备管理-设备参数
+      summary: 更新设备参数
+      operationId: updateDeviceParameters
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: deviceId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 设备 ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeviceParameterUpdateReq'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResultDeviceParameterVO'
+  
+  /devices/{deviceId}/parameters/history:
+    post:
+      tags:
+        - 设备管理-设备参数
+      summary: 查询设备参数历史
+      operationId: getDeviceParameterHistory
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: deviceId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 设备 ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeviceParameterHistoryReq'
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResultDeviceParameterHistoryVO'
+
+  # ========== 设备关系接口 ==========
+  /device-relations:
+    post:
+      tags:
+        - 设备管理-设备关系
+      summary: 创建设备关系
+      operationId: createDeviceRelation
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeviceRelationCreateReq'
+      responses:
+        '200':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResultDeviceRelationVO'
+  
+  /device-relations/{id}:
+    get:
+      tags:
+        - 设备管理-设备关系
+      summary: 查询设备关系详情
+      operationId: getDeviceRelationById
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 设备关系 ID
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResultDeviceRelationVO'
+    
+    put:
+      tags:
+        - 设备管理-设备关系
+      summary: 更新设备关系
+      operationId: updateDeviceRelation
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 设备关系 ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeviceRelationUpdateReq'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResultDeviceRelationVO'
+    
+    delete:
+      tags:
+        - 设备管理-设备关系
+      summary: 删除设备关系
+      operationId: deleteDeviceRelation
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 设备关系 ID
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResultBoolean'
+  
+  /device-relations/page:
+    post:
+      tags:
+        - 设备管理-设备关系
+      summary: 分页查询设备关系
+      operationId: pageDeviceRelation
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeviceRelationQueryReq'
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResultPageResultDeviceRelationVO'
+
+  # ========== 组织单元接口 ==========
+  /organization-units:
+    post:
+      tags:
+        - 设备管理-组织单元
+      summary: 创建组织单元
+      operationId: createOrganizationUnit
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrganizationUnitCreateReq'
+      responses:
+        '200':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResultOrganizationUnitVO'
+  
+  /organization-units/{id}:
+    get:
+      tags:
+        - 设备管理-组织单元
+      summary: 查询组织单元详情
+      operationId: getOrganizationUnitById
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 组织单元 ID
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResultOrganizationUnitVO'
+    
+    put:
+      tags:
+        - 设备管理-组织单元
+      summary: 更新组织单元
+      operationId: updateOrganizationUnit
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 组织单元 ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrganizationUnitUpdateReq'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResultOrganizationUnitVO'
+    
+    delete:
+      tags:
+        - 设备管理-组织单元
+      summary: 删除组织单元
+      operationId: deleteOrganizationUnit
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 组织单元 ID
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResultBoolean'
+  
+  /organization-units/page:
+    post:
+      tags:
+        - 设备管理-组织单元
+      summary: 分页查询组织单元
+      operationId: pageOrganizationUnit
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrganizationUnitQueryReq'
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResultPageResultOrganizationUnitVO'
+
+  # ========== 设备指标接口 ==========
+  /devices/{deviceId}/metrics/current:
+    get:
+      tags:
+        - 设备管理-设备指标
+      summary: 获取当前班次指标
+      operationId: getCurrentMetrics
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: deviceId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 设备 ID
+        - name: metricCodes
+          in: query
+          required: false
+          description: 需要返回的指标代码，未传则返回全部指标
+          schema:
+            type: array
+            items:
+              type: string
+          style: form
+          explode: true
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResultDeviceMetricHistoryVO'
+  
+  /devices/{deviceId}/metrics/shifts-history:
+    post:
+      tags:
+        - 设备管理-设备指标
+      summary: 查询历史班次指标
+      operationId: getShiftMetrics
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: deviceId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 设备 ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeviceMetricHistoryReq'
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResultDeviceMetricHistoryVO'
+
+  # ========== 设备曲线接口 ==========
+  /devices/{deviceId}/curve/spindle/load:
+    get:
+      tags:
+        - 设备管理-实时曲线
+      summary: 实时主轴负载曲线
+      operationId: getRealtimeSpindleLoad
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: deviceId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 设备 ID
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResultRealtimeCurveVO'
+  
+  /devices/{deviceId}/curve/spindle/load/history:
+    get:
+      tags:
+        - 设备管理-实时曲线
+      summary: 历史主轴负载曲线
+      operationId: getHistorySpindleLoad
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: deviceId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 设备 ID
+        - name: startTs
+          in: query
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: 开始时间戳（毫秒）
+        - name: endTs
+          in: query
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: 结束时间戳（毫秒）
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResultRealtimeCurveVO'
+  
+  /devices/{deviceId}/curve/spindle/speed:
+    get:
+      tags:
+        - 设备管理-实时曲线
+      summary: 实时主轴转速曲线
+      operationId: getRealtimeSpindleSpeed
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: deviceId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 设备 ID
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResultRealtimeCurveVO'
+  
+  /devices/{deviceId}/curve/spindle/speed/history:
+    get:
+      tags:
+        - 设备管理-实时曲线
+      summary: 历史主轴转速曲线
+      operationId: getHistorySpindleSpeed
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: deviceId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 设备 ID
+        - name: startTs
+          in: query
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: 开始时间戳（毫秒）
+        - name: endTs
+          in: query
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: 结束时间戳（毫秒）
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResultRealtimeCurveVO'
+  
+  /devices/{deviceId}/curve/feed-rate:
+    get:
+      tags:
+        - 设备管理-实时曲线
+      summary: 实时进给率曲线
+      operationId: getRealtimeFeedRate
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: deviceId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 设备 ID
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResultRealtimeCurveVO'
+  
+  /devices/{deviceId}/curve/feed-rate/history:
+    get:
+      tags:
+        - 设备管理-实时曲线
+      summary: 历史进给率曲线
+      operationId: getHistoryFeedRate
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: deviceId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 设备 ID
+        - name: startTs
+          in: query
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: 开始时间戳（毫秒）
+        - name: endTs
+          in: query
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: 结束时间戳（毫秒）
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResultRealtimeCurveVO'
+  
+  /devices/{deviceId}/curve/feed-rate/override:
+    get:
+      tags:
+        - 设备管理-实时曲线
+      summary: 实时进给倍率
+      operationId: getRealtimeFeedOverride
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: deviceId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 设备 ID
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResultRealtimeMetricValueVO'
+
+  # ========== 轴坐标接口 ==========
+  /devices/{deviceId}/axis-coordinates:
+    get:
+      tags:
+        - 设备管理-轴坐标
+      summary: 查询当前轴坐标
+      operationId: getCurrentAxisCoordinates
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: deviceId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 设备 ID
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResultAxisCoordinateListVO'
+
+  # ========== 报警历史接口 ==========
+  /devices/{deviceId}/alarms/current:
+    get:
+      tags:
+        - 设备管理-报警历史
+      summary: 查询进行中的报警
+      operationId: getCurrentAlarms
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: deviceId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 设备 ID
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResultAlarmHistoryVO'
+  
+  /devices/{deviceId}/alarms/history:
+    post:
+      tags:
+        - 设备管理-报警历史
+      summary: 分页查询历史报警
+      operationId: getAlarmHistory
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: deviceId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 设备 ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AlarmHistoryQueryReq'
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResultAlarmHistoryVO'
+
+  # ========== 刀具信息接口 ==========
+  /devices/{deviceId}/tool/current:
+    get:
+      tags:
+        - 设备管理-刀具信息
+      summary: 查询当前刀具信息
+      operationId: getCurrentToolInfo
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: deviceId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 设备 ID
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResultCurrentToolInfoVO'
+  
+  /devices/{deviceId}/tool/usage/history:
+    get:
+      tags:
+        - 设备管理-刀具信息
+      summary: 查询刀具使用记录
+      operationId: getToolUsageHistory
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: deviceId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 设备 ID
+        - name: startTs
+          in: query
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: 开始时间戳（毫秒）
+        - name: endTs
+          in: query
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: 结束时间戳（毫秒）
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 500
+          description: 返回记录数量限制，默认200
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResultToolUsageHistoryVO'
+  
+  /devices/{deviceId}/tool/compensation:
+    get:
+      tags:
+        - 设备管理-刀具信息
+      summary: 查询刀具补偿列表
+      operationId: getToolCompensation
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: deviceId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 设备 ID
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResultToolCompensationVO'
+
+  # ========== 程序信息接口 ==========
+  /devices/{deviceId}/program/info:
+    get:
+      tags:
+        - 设备管理-程序信息
+      summary: 查询当前程序信息
+      operationId: getCurrentProgramInfo
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: deviceId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 设备 ID
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResultProgramInfoVO'
+  
+  /devices/{deviceId}/program/g-code:
+    get:
+      tags:
+        - 设备管理-程序信息
+      summary: 查询G代码
+      operationId: getGCode
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: deviceId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 设备 ID
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResultProgramCodeVO'
+  
+  /devices/{deviceId}/program/m-code:
+    get:
+      tags:
+        - 设备管理-程序信息
+      summary: 查询M代码
+      operationId: getMCode
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: deviceId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 设备 ID
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResultProgramCodeVO'
+
+  # ========== 状态统计接口 ==========
+  /devices/{deviceId}/state-stats/current-shift:
+    get:
+      tags:
+        - 设备管理-状态统计
+      summary: 获取当前班次状态统计
+      operationId: getCurrentShiftStats
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: deviceId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 设备 ID
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResultStateStatsVO'
+  
+  /devices/{deviceId}/state-stats:
+    get:
+      tags:
+        - 设备管理-状态统计
+      summary: 查询历史状态统计
+      operationId: getHistoryStats
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: deviceId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 设备 ID
+        - name: startTs
+          in: query
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: 开始时间戳（毫秒）
+        - name: endTs
+          in: query
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: 结束时间戳（毫秒）
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResultStateStatsVO'
+
+  # ========== 状态甘特接口 ==========
+  /devices/{deviceId}/state-gantt/current-shift:
+    get:
+      tags:
+        - 设备管理-状态时间线
+      summary: 查询当前班次状态甘特
+      operationId: getCurrentShiftGantt
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: deviceId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 设备 ID
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResultStateGanttVO'
+  
+  /devices/{deviceId}/state-gantt:
+    get:
+      tags:
+        - 设备管理-状态时间线
+      summary: 查询历史状态甘特
+      operationId: getHistoryGantt
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: deviceId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 设备 ID
+        - name: startTs
+          in: query
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: 开始时间戳（毫秒）
+        - name: endTs
+          in: query
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: 结束时间戳（毫秒）
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResultStateGanttVO'
+
+  # ========== 产量统计接口 ==========
+  /devices/{deviceId}/production/current-shift:
+    get:
+      tags:
+        - 设备管理-产量统计
+      summary: 查询当前班次产量
+      operationId: getCurrentShiftProduction
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: deviceId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 设备 ID
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResultProductionHistoryVO'
+  
+  /devices/{deviceId}/production/shifts-history:
+    post:
+      tags:
+        - 设备管理-产量统计
+      summary: 查询班次产量历史
+      operationId: getProductionHistory
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: deviceId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 设备 ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductionHistoryReq'
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResultProductionHistoryVO'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT 认证令牌
+
+  schemas:
+    # ========== 通用响应模型 ==========
+    CommonResult:
+      type: object
+      properties:
+        code:
+          type: integer
+          description: 响应码
+        message:
+          type: string
+          description: 响应消息
+        data:
+          type: object
+          description: 响应数据
+    
+    CommonResultDeviceBaseInfoVO:
+      allOf:
+        - $ref: '#/components/schemas/CommonResult'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/DeviceBaseInfoVO'
+    
+    CommonResultDeviceTypeVO:
+      allOf:
+        - $ref: '#/components/schemas/CommonResult'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/DeviceTypeVO'
+    
+    CommonResultDeviceModelVO:
+      allOf:
+        - $ref: '#/components/schemas/CommonResult'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/DeviceModelVO'
+    
+    CommonResultDeviceConfigurationVO:
+      allOf:
+        - $ref: '#/components/schemas/CommonResult'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/DeviceConfigurationVO'
+    
+    CommonResultDeviceParameterVO:
+      allOf:
+        - $ref: '#/components/schemas/CommonResult'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/DeviceParameterVO'
+    
+    CommonResultDeviceParameterHistoryVO:
+      allOf:
+        - $ref: '#/components/schemas/CommonResult'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/DeviceParameterHistoryVO'
+    
+    CommonResultDeviceRelationVO:
+      allOf:
+        - $ref: '#/components/schemas/CommonResult'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/DeviceRelationVO'
+    
+    CommonResultOrganizationUnitVO:
+      allOf:
+        - $ref: '#/components/schemas/CommonResult'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/OrganizationUnitVO'
+    
+    CommonResultDeviceMetricHistoryVO:
+      allOf:
+        - $ref: '#/components/schemas/CommonResult'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/DeviceMetricHistoryVO'
+    
+    CommonResultRealtimeCurveVO:
+      allOf:
+        - $ref: '#/components/schemas/CommonResult'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/RealtimeCurveVO'
+    
+    CommonResultAlarmHistoryVO:
+      allOf:
+        - $ref: '#/components/schemas/CommonResult'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/AlarmHistoryVO'
+    
+    CommonResultStateStatsVO:
+      allOf:
+        - $ref: '#/components/schemas/CommonResult'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/StateStatsVO'
+    
+    CommonResultStateGanttVO:
+      allOf:
+        - $ref: '#/components/schemas/CommonResult'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/StateGanttVO'
+    
+    CommonResultProductionHistoryVO:
+      allOf:
+        - $ref: '#/components/schemas/CommonResult'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/ProductionHistoryVO'
+    
+    CommonResultBoolean:
+      allOf:
+        - $ref: '#/components/schemas/CommonResult'
+        - type: object
+          properties:
+            data:
+              type: boolean
+    
+    PageResult:
+      type: object
+      properties:
+        list:
+          type: array
+          items:
+            type: object
+        total:
+          type: integer
+          description: 总记录数
+        pageNo:
+          type: integer
+          description: 当前页码
+        pageSize:
+          type: integer
+          description: 每页条数
+    
+    CommonResultPageResultDeviceBaseInfoVO:
+      allOf:
+        - $ref: '#/components/schemas/CommonResult'
+        - type: object
+          properties:
+            data:
+              allOf:
+                - $ref: '#/components/schemas/PageResult'
+                - type: object
+                  properties:
+                    list:
+                      type: array
+                      items:
+                        $ref: '#/components/schemas/DeviceBaseInfoVO'
+    
+    CommonResultPageResultDeviceTypeVO:
+      allOf:
+        - $ref: '#/components/schemas/CommonResult'
+        - type: object
+          properties:
+            data:
+              allOf:
+                - $ref: '#/components/schemas/PageResult'
+                - type: object
+                  properties:
+                    list:
+                      type: array
+                      items:
+                        $ref: '#/components/schemas/DeviceTypeVO'
+    
+    CommonResultPageResultDeviceModelVO:
+      allOf:
+        - $ref: '#/components/schemas/CommonResult'
+        - type: object
+          properties:
+            data:
+              allOf:
+                - $ref: '#/components/schemas/PageResult'
+                - type: object
+                  properties:
+                    list:
+                      type: array
+                      items:
+                        $ref: '#/components/schemas/DeviceModelVO'
+    
+    CommonResultPageResultDeviceConfigurationVO:
+      allOf:
+        - $ref: '#/components/schemas/CommonResult'
+        - type: object
+          properties:
+            data:
+              allOf:
+                - $ref: '#/components/schemas/PageResult'
+                - type: object
+                  properties:
+                    list:
+                      type: array
+                      items:
+                        $ref: '#/components/schemas/DeviceConfigurationVO'
+    
+    CommonResultPageResultDeviceRelationVO:
+      allOf:
+        - $ref: '#/components/schemas/CommonResult'
+        - type: object
+          properties:
+            data:
+              allOf:
+                - $ref: '#/components/schemas/PageResult'
+                - type: object
+                  properties:
+                    list:
+                      type: array
+                      items:
+                        $ref: '#/components/schemas/DeviceRelationVO'
+    
+    CommonResultPageResultOrganizationUnitVO:
+      allOf:
+        - $ref: '#/components/schemas/CommonResult'
+        - type: object
+          properties:
+            data:
+              allOf:
+                - $ref: '#/components/schemas/PageResult'
+                - type: object
+                  properties:
+                    list:
+                      type: array
+                      items:
+                        $ref: '#/components/schemas/OrganizationUnitVO'
+
+    # ========== 设备基础信息模型 ==========
+    DeviceBaseInfoVO:
+      type: object
+      properties:
+        id:
+          type: string
+          description: 设备基础信息 ID
+        tenantId:
+          type: string
+          description: 租户 ID
+        tbDeviceId:
+          type: string
+          description: ThingsBoard 设备 ID
+        deviceCode:
+          type: string
+          description: 设备编号
+        deviceName:
+          type: string
+          description: 设备名称
+        deviceTypeId:
+          type: string
+          description: 设备类型 ID
+        deviceModelId:
+          type: string
+          description: 设备型号 ID
+        deviceTypeName:
+          type: string
+          description: 设备类型名称
+        deviceSubTypeName:
+          type: string
+          description: 设备子类型名称
+        modelName:
+          type: string
+          description: 型号名称
+        manufacturer:
+          type: string
+          description: 制造商
+        factoryId:
+          type: string
+          description: 厂区 ID
+        workshopId:
+          type: string
+          description: 车间 ID
+        productionLineId:
+          type: string
+          description: 产线 ID
+        factoryName:
+          type: string
+          description: 厂区名称
+        workshopName:
+          type: string
+          description: 车间名称
+        productionLineName:
+          type: string
+          description: 产线名称
+        deviceStatus:
+          type: string
+          description: 设备状态
+        isMonitored:
+          type: boolean
+          description: 是否监控
+        extraProperties:
+          type: object
+          additionalProperties: true
+          description: 扩展属性
+        remarks:
+          type: string
+          description: 备注
+        createdTime:
+          type: integer
+          format: int64
+          description: 创建时间（毫秒时间戳）
+        updatedTime:
+          type: integer
+          format: int64
+          description: 更新时间（毫秒时间戳）
+        createdBy:
+          type: string
+          description: 创建人
+        updatedBy:
+          type: string
+          description: 更新人
+    
+    DeviceBaseInfoCreateReq:
+      type: object
+      required:
+        - deviceCode
+        - deviceName
+        - deviceTypeId
+        - deviceModelId
+        - organizationUnitId
+      properties:
+        deviceCode:
+          type: string
+          description: 设备编号
+        deviceName:
+          type: string
+          description: 设备名称
+        deviceTypeId:
+          type: string
+          description: 设备类型 ID
+        deviceModelId:
+          type: string
+          description: 设备型号 ID
+        organizationUnitId:
+          type: string
+          description: 组织单元（厂区/部门）ID
+        tbDeviceId:
+          type: string
+          description: TB 设备 ID
+        deviceTypeName:
+          type: string
+          description: 设备类型名称
+        deviceSubTypeName:
+          type: string
+          description: 设备子类型名称
+        modelName:
+          type: string
+          description: 型号名称
+        manufacturer:
+          type: string
+          description: 制造商
+        factoryId:
+          type: string
+          description: 厂区 ID
+        workshopId:
+          type: string
+          description: 车间 ID
+        productionLineId:
+          type: string
+          description: 产线 ID
+        factoryName:
+          type: string
+          description: 厂区名称
+        workshopName:
+          type: string
+          description: 车间名称
+        productionLineName:
+          type: string
+          description: 产线名称
+        deviceStatus:
+          type: string
+          description: 设备状态
+        isMonitored:
+          type: boolean
+          description: 是否监控
+        remarks:
+          type: string
+          description: 备注
+        extraProperties:
+          type: object
+          additionalProperties: true
+          description: 扩展属性
+    
+    DeviceBaseInfoUpdateReq:
+      type: object
+      required:
+        - deviceCode
+        - deviceName
+        - deviceTypeId
+        - deviceModelId
+      properties:
+        id:
+          type: string
+          description: 设备基础信息 ID
+        deviceCode:
+          type: string
+          description: 设备编号
+        deviceName:
+          type: string
+          description: 设备名称
+        deviceTypeId:
+          type: string
+          description: 设备类型 ID
+        deviceModelId:
+          type: string
+          description: 设备型号 ID
+        tbDeviceId:
+          type: string
+          description: TB 设备 ID
+        deviceTypeName:
+          type: string
+          description: 设备类型名称
+        deviceSubTypeName:
+          type: string
+          description: 设备子类型名称
+        modelName:
+          type: string
+          description: 型号名称
+        manufacturer:
+          type: string
+          description: 制造商
+        factoryId:
+          type: string
+          description: 厂区 ID
+        workshopId:
+          type: string
+          description: 车间 ID
+        productionLineId:
+          type: string
+          description: 产线 ID
+        factoryName:
+          type: string
+          description: 厂区名称
+        workshopName:
+          type: string
+          description: 车间名称
+        productionLineName:
+          type: string
+          description: 产线名称
+        deviceStatus:
+          type: string
+          description: 设备状态
+        isMonitored:
+          type: boolean
+          description: 是否监控
+        remarks:
+          type: string
+          description: 备注
+        extraProperties:
+          type: object
+          additionalProperties: true
+          description: 扩展属性
+    
+    DeviceBaseInfoQueryReq:
+      type: object
+      required:
+        - pageNo
+        - pageSize
+      properties:
+        deviceCodeLike:
+          type: string
+          description: 设备编号模糊查询
+        deviceNameLike:
+          type: string
+          description: 设备名称模糊查询
+        deviceTypeIds:
+          type: array
+          items:
+            type: string
+          description: 设备类型 ID 列表
+        deviceModelIds:
+          type: array
+          items:
+            type: string
+          description: 设备型号 ID 列表
+        factoryIds:
+          type: array
+          items:
+            type: string
+          description: 厂区 ID 列表
+        workshopIds:
+          type: array
+          items:
+            type: string
+          description: 车间 ID 列表
+        productionLineIds:
+          type: array
+          items:
+            type: string
+          description: 产线 ID 列表
+        deviceStatuses:
+          type: array
+          items:
+            type: string
+          description: 设备状态列表
+        deviceSubTypeNames:
+          type: array
+          items:
+            type: string
+          description: 设备子类型名称列表
+        hasAlarm:
+          type: boolean
+          description: 是否有报警（true=仅查询有报警的设备，false=仅查询无报警的设备，不传=不过滤）
+        isMonitored:
+          type: boolean
+          description: 是否监控
+        pageNo:
+          type: integer
+          minimum: 1
+          description: 页码
+        pageSize:
+          type: integer
+          minimum: 1
+          maximum: 200
+          description: 每页条数
+        sortBy:
+          type: string
+          description: 排序字段
+        sortDirection:
+          type: string
+          enum: [ASC, DESC]
+          description: 排序方向
+
+    # ========== 其他模型（简化定义） ==========
+    DeviceTypeVO:
+      type: object
+      description: 设备类型视图对象
+      properties:
+        id:
+          type: string
+        tenantId:
+          type: string
+        typeCode:
+          type: string
+          description: 类型编码
+        typeName:
+          type: string
+          description: 类型名称
+        parentId:
+          type: string
+          description: 父类型 ID
+    
+    DeviceTypeCreateReq:
+      type: object
+      description: 创建设备类型请求
+    
+    DeviceTypeUpdateReq:
+      type: object
+      description: 更新设备类型请求
+    
+    DeviceTypeQueryReq:
+      type: object
+      required:
+        - pageNo
+        - pageSize
+      properties:
+        pageNo:
+          type: integer
+          minimum: 1
+        pageSize:
+          type: integer
+          minimum: 1
+          maximum: 200
+    
+    DeviceModelVO:
+      type: object
+      description: 设备型号视图对象
+    
+    DeviceModelCreateReq:
+      type: object
+      description: 创建设备型号请求
+    
+    DeviceModelUpdateReq:
+      type: object
+      description: 更新设备型号请求
+    
+    DeviceModelQueryReq:
+      type: object
+      required:
+        - pageNo
+        - pageSize
+      properties:
+        pageNo:
+          type: integer
+          minimum: 1
+        pageSize:
+          type: integer
+          minimum: 1
+          maximum: 200
+    
+    DeviceConfigurationVO:
+      type: object
+      description: 设备配置视图对象
+    
+    DeviceConfigurationCreateReq:
+      type: object
+      description: 创建设备配置请求
+    
+    DeviceConfigurationUpdateReq:
+      type: object
+      description: 更新设备配置请求
+    
+    DeviceConfigurationQueryReq:
+      type: object
+      required:
+        - pageNo
+        - pageSize
+      properties:
+        pageNo:
+          type: integer
+          minimum: 1
+        pageSize:
+          type: integer
+          minimum: 1
+          maximum: 200
+    
+    DeviceParameterVO:
+      type: object
+      description: 设备参数视图对象
+    
+    DeviceParameterUpdateReq:
+      type: object
+      description: 更新设备参数请求
+    
+    DeviceParameterHistoryReq:
+      type: object
+      description: 设备参数历史查询请求
+      properties:
+        deviceId:
+          type: string
+        startTs:
+          type: integer
+          format: int64
+        endTs:
+          type: integer
+          format: int64
+    
+    DeviceParameterHistoryVO:
+      type: object
+      description: 设备参数历史视图对象
+    
+    DeviceRelationVO:
+      type: object
+      description: 设备关系视图对象
+    
+    DeviceRelationCreateReq:
+      type: object
+      description: 创建设备关系请求
+    
+    DeviceRelationUpdateReq:
+      type: object
+      description: 更新设备关系请求
+    
+    DeviceRelationQueryReq:
+      type: object
+      required:
+        - pageNo
+        - pageSize
+      properties:
+        pageNo:
+          type: integer
+          minimum: 1
+        pageSize:
+          type: integer
+          minimum: 1
+          maximum: 200
+    
+    OrganizationUnitVO:
+      type: object
+      description: 组织单元视图对象
+    
+    OrganizationUnitCreateReq:
+      type: object
+      description: 创建组织单元请求
+    
+    OrganizationUnitUpdateReq:
+      type: object
+      description: 更新组织单元请求
+    
+    OrganizationUnitQueryReq:
+      type: object
+      required:
+        - pageNo
+        - pageSize
+      properties:
+        pageNo:
+          type: integer
+          minimum: 1
+        pageSize:
+          type: integer
+          minimum: 1
+          maximum: 200
+    
+    DeviceMetricHistoryReq:
+      type: object
+      description: 设备指标历史查询请求
+      required:
+        - pageNo
+        - pageSize
+      properties:
+        deviceId:
+          type: string
+        startTs:
+          type: integer
+          format: int64
+        endTs:
+          type: integer
+          format: int64
+        metricCodes:
+          type: array
+          items:
+            type: string
+          description: 指定需要返回的指标代码，未传返回全部
+        granularity:
+          type: string
+          description: 预留字段，默认按班次
+        pageNo:
+          type: integer
+          minimum: 1
+        pageSize:
+          type: integer
+          minimum: 1
+          maximum: 200
+    
+    DeviceMetricHistoryVO:
+      type: object
+      description: 设备指标历史视图对象
+      properties:
+        metrics:
+          type: array
+          items:
+            $ref: '#/components/schemas/DeviceMetricShiftVO'
+        total:
+          type: integer
+          format: int64
+        pageNo:
+          type: integer
+        pageSize:
+          type: integer
+        totalPages:
+          type: integer
+
+    DeviceMetricShiftVO:
+      type: object
+      description: 单个班次的指标数据
+      properties:
+        shiftId:
+          type: string
+        shiftStartTs:
+          type: integer
+          format: int64
+        shiftEndTs:
+          type: integer
+          format: int64
+        calculatedTime:
+          type: integer
+          format: int64
+          description: 指标计算完成时间
+        values:
+          type: array
+          items:
+            $ref: '#/components/schemas/DeviceMetricValueVO'
+
+    DeviceMetricValueVO:
+      type: object
+      description: 指标值
+      properties:
+        code:
+          type: string
+          description: 指标代码，如 oee/timeAvailability 等
+        name:
+          type: string
+          description: 指标名称
+        unit:
+          type: string
+          description: 单位
+        value:
+          type: number
+          format: double
+          description: 指标数值
+    
+    RealtimeCurveVO:
+      type: object
+      description: 实时曲线视图对象
+      properties:
+        deviceId:
+          type: string
+          description: 设备ID
+        metricName:
+          type: string
+          description: 指标名称（如主轴负载、主轴转速、进给率）
+        unit:
+          type: string
+          description: 单位
+        points:
+          type: array
+          items:
+            type: object
+            properties:
+              ts:
+                type: integer
+                format: int64
+                description: 时间戳（毫秒）
+              value:
+                type: number
+                format: double
+                description: 指标值
+        latestTs:
+          type: integer
+          format: int64
+          description: 最新数据时间戳（毫秒）
+    
+    AlarmHistoryQueryReq:
+      type: object
+      description: 报警历史查询请求
+      required:
+        - pageNo
+        - pageSize
+      properties:
+        deviceId:
+          type: string
+        pageNo:
+          type: integer
+          minimum: 1
+        pageSize:
+          type: integer
+          minimum: 1
+          maximum: 200
+        startTs:
+          type: integer
+          format: int64
+        endTs:
+          type: integer
+          format: int64
+    
+    AlarmHistoryVO:
+      type: object
+      description: 报警历史视图对象
+    
+    StateStatsVO:
+      type: object
+      description: 状态统计视图对象
+    
+    StateGanttVO:
+      type: object
+      description: 状态甘特图视图对象
+    
+    ProductionHistoryReq:
+      type: object
+      description: 产量历史查询请求
+      properties:
+        deviceId:
+          type: string
+        startTs:
+          type: integer
+          format: int64
+        endTs:
+          type: integer
+          format: int64
+    
+    ProductionHistoryVO:
+      type: object
+      description: 产量历史视图对象
+    
+    # ========== 设备列表模型 ==========
+    DeviceBaseInfoListVO:
+      type: object
+      description: 设备列表视图对象
+      properties:
+        id:
+          type: string
+          description: 设备ID
+        deviceCode:
+          type: string
+          description: 设备编号（威力编号）
+        deviceName:
+          type: string
+          description: 设备名称
+        deviceTypeName:
+          type: string
+          description: 设备类型名称
+        deviceSubTypeName:
+          type: string
+          description: 设备子类型名称
+        modelName:
+          type: string
+          description: 型号名称
+        workshopName:
+          type: string
+          description: 车间名称
+        currentStatus:
+          type: string
+          description: 当前状态（加工中/待机/故障/关机）
+    
+    # ========== 刀具信息模型 ==========
+    CurrentToolInfoVO:
+      type: object
+      description: 当前刀具信息视图对象
+      properties:
+        toolNumber:
+          type: string
+          description: 刀具号
+        toolHolderNumber:
+          type: string
+          description: 刀套号
+        lengthComp:
+          type: number
+          format: double
+          description: 长度补偿
+        radiusComp:
+          type: number
+          format: double
+          description: 半径补偿
+        lengthWear:
+          type: number
+          format: double
+          description: 长度磨损
+        radiusWear:
+          type: number
+          format: double
+          description: 半径磨损
+        ts:
+          type: integer
+          format: int64
+          description: 时间戳（毫秒）
+    
+    ToolUsageHistoryVO:
+      type: object
+      description: 刀具使用记录视图对象
+      properties:
+        deviceId:
+          type: string
+          description: 设备ID
+        startTs:
+          type: integer
+          format: int64
+          description: 查询开始时间戳
+        endTs:
+          type: integer
+          format: int64
+          description: 查询结束时间戳
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ToolUsageItemVO'
+    
+    ToolUsageItemVO:
+      type: object
+      description: 刀具使用记录项
+      properties:
+        toolNumber:
+          type: string
+          description: 刀具号
+        toolHolderNumber:
+          type: string
+          description: 刀套号
+        startTs:
+          type: integer
+          format: int64
+          description: 开始使用时间戳（毫秒）
+        endTs:
+          type: integer
+          format: int64
+          description: 结束使用时间戳（毫秒）
+        durationMs:
+          type: integer
+          format: int64
+          description: 持续时长（毫秒）
+    
+    ToolCompensationVO:
+      type: object
+      description: 刀具补偿列表视图对象
+      properties:
+        length:
+          type: array
+          items:
+            $ref: '#/components/schemas/ToolCompensationSlotVO'
+          description: 长度补偿列表
+        radius:
+          type: array
+          items:
+            $ref: '#/components/schemas/ToolCompensationSlotVO'
+          description: 半径补偿列表
+    
+    ToolCompensationSlotVO:
+      type: object
+      description: 刀具补偿槽位视图对象
+      properties:
+        slot:
+          type: integer
+          description: 补偿号（槽位号）
+        shape:
+          type: number
+          format: double
+          description: 形状补偿值
+        wear:
+          type: number
+          format: double
+          description: 磨损补偿值
+        ts:
+          type: integer
+          format: int64
+          description: 更新时间戳（毫秒）
+    
+    # ========== 程序信息模型 ==========
+    ProgramInfoVO:
+      type: object
+      description: 程序信息视图对象
+      properties:
+        programName:
+          type: string
+          description: 程序名
+        programPath:
+          type: string
+          description: 程序路径
+        currentLine:
+          type: string
+          description: 当前执行代码行
+        ts:
+          type: integer
+          format: int64
+          description: 时间戳（毫秒）
+    
+    ProgramCodeVO:
+      type: object
+      description: 程序代码视图对象
+      properties:
+        codeType:
+          type: string
+          enum: [G_CODE, M_CODE]
+          description: 代码类型
+        lines:
+          type: array
+          items:
+            type: string
+          description: 代码行列表
+        ts:
+          type: integer
+          format: int64
+          description: 时间戳（毫秒）
+    
+    # ========== 轴坐标模型 ==========
+    AxisCoordinateListVO:
+      type: object
+      description: 轴坐标列表视图对象
+      properties:
+        deviceId:
+          type: string
+          description: 设备ID
+        ts:
+          type: integer
+          format: int64
+          description: 时间戳（毫秒）
+        axes:
+          type: array
+          items:
+            $ref: '#/components/schemas/AxisCoordinateVO'
+    
+    AxisCoordinateVO:
+      type: object
+      description: 轴坐标视图对象
+      properties:
+        axisName:
+          type: string
+          description: 轴名称（如X、Y、Z等）
+        absoluteCoordinate:
+          type: number
+          format: double
+          description: 绝对坐标
+        relativeCoordinate:
+          type: number
+          format: double
+          description: 相对坐标
+        machineCoordinate:
+          type: number
+          format: double
+          description: 机械坐标
+        remainingCoordinate:
+          type: number
+          format: double
+          description: 剩余坐标
+    
+    # ========== 实时曲线扩展模型 ==========
+    RealtimeMetricValueVO:
+      type: object
+      description: 实时指标值视图对象
+      properties:
+        value:
+          type: number
+          format: double
+          description: 指标值
+        ts:
+          type: integer
+          format: int64
+          description: 时间戳（毫秒）
+    
+    # ========== CommonResult 包装模型 ==========
+    CommonResultDeviceBaseInfoListVO:
+      allOf:
+        - $ref: '#/components/schemas/CommonResult'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/PageResultDeviceBaseInfoListVO'
+    
+    PageResultDeviceBaseInfoListVO:
+      allOf:
+        - $ref: '#/components/schemas/PageResult'
+        - type: object
+          properties:
+            list:
+              type: array
+              items:
+                $ref: '#/components/schemas/DeviceBaseInfoListVO'
+    
+    CommonResultCurrentToolInfoVO:
+      allOf:
+        - $ref: '#/components/schemas/CommonResult'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/CurrentToolInfoVO'
+    
+    CommonResultToolUsageHistoryVO:
+      allOf:
+        - $ref: '#/components/schemas/CommonResult'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/ToolUsageHistoryVO'
+    
+    CommonResultToolCompensationVO:
+      allOf:
+        - $ref: '#/components/schemas/CommonResult'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/ToolCompensationVO'
+    
+    CommonResultProgramInfoVO:
+      allOf:
+        - $ref: '#/components/schemas/CommonResult'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/ProgramInfoVO'
+    
+    CommonResultProgramCodeVO:
+      allOf:
+        - $ref: '#/components/schemas/CommonResult'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/ProgramCodeVO'
+    
+    CommonResultAxisCoordinateListVO:
+      allOf:
+        - $ref: '#/components/schemas/CommonResult'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/AxisCoordinateListVO'
+    
+    CommonResultRealtimeMetricValueVO:
+      allOf:
+        - $ref: '#/components/schemas/CommonResult'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/RealtimeMetricValueVO'
+    
+    # ========== 通用分页模型 ==========
+    PageResult:
+      type: object
+      description: 分页结果基类
+      properties:
+        total:
+          type: integer
+          format: int64
+          description: 总记录数
+        pageNo:
+          type: integer
+          description: 当前页码
+        pageSize:
+          type: integer
+          description: 每页条数
+        totalPages:
+          type: integer
+          description: 总页数
+

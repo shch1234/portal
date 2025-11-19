@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.weili.iot.portal</groupId>
+        <artifactId>iot-business-efficiency-mgmt</artifactId>
+        <version>${revision}</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>iot-business-efficiency-mgmt-service</artifactId>
+    <packaging>jar</packaging>
+    <description>Efficiency management service layer - 效率管理服务层</description>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.weili.iot.portal</groupId>
+            <artifactId>iot-business-efficiency-mgmt-domain</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.weili.iot.portal</groupId>
+            <artifactId>iot-business-efficiency-mgmt-dal</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.weili.iot.portal</groupId>
+            <artifactId>iot-business-efficiency-mgmt-api</artifactId>
+        </dependency>
+        <!-- 依赖公共模块API（通过接口调用班次服务）-->
+        <dependency>
+            <groupId>com.weili.iot.portal</groupId>
+            <artifactId>iot-business-common-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.weili.basic</groupId>
+            <artifactId>weili-basic-framework</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.weili.basic</groupId>
+            <artifactId>weili-basic-common</artifactId>
+        </dependency>
+    </dependencies>
+</project>
+

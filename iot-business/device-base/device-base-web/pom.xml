@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.weili.iot.portal</groupId>
+        <artifactId>iot-business-device-base</artifactId>
+        <version>${revision}</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>iot-business-device-base-web</artifactId>
+    <packaging>jar</packaging>
+    <description>Device base data web layer - 设备基础数据Web层</description>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.weili.iot.portal</groupId>
+            <artifactId>iot-business-device-base-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.weili.iot.portal</groupId>
+            <artifactId>iot-business-device-base-service</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.weili.basic</groupId>
+            <artifactId>weili-basic-framework</artifactId>
+        </dependency>
+    </dependencies>
+</project>
+

@@ -1,0 +1,41 @@
+package com.weili.iot_portal.business.device_mgmt.service.support;
+
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+/**
+ * 班次时间范围
+ */
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class ShiftTimeRange {
+    /**
+     * 班次编码
+     */
+    private String shiftCode;
+
+    /**
+     * 班次名称
+     */
+    private String shiftName;
+
+    /**
+     * 班次开始时间戳（毫秒）
+     */
+    private Long startTs;
+
+    /**
+     * 班次结束时间戳（毫秒）
+     */
+    private Long endTs;
+
+    /**
+     * 班次持续时长（毫秒）
+     */
+    private Long durationMs;
+}
+

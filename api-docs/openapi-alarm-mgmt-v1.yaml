@@ -1,0 +1,529 @@
+openapi: 3.0.3
+info:
+  title: 报警管理业务模块 API 文档
+  description: |
+    weili-iot-portal 业务模块中报警管理（alarm-mgmt）模块的所有 REST API 接口文档。
+    
+    该文档涵盖了报警统计、报警列表查询等功能的接口。
+    
+    对应业务需求：
+    - 4.3.1 当前报警设备数量
+    - 4.3.2 报警列表
+  version: 1.0.0
+  contact:
+    name: API Support
+
+servers:
+  - url: /api/v1/alarm
+    description: 报警管理 API 基础路径
+
+tags:
+  - name: 报警管理-报警统计
+    description: 报警统计相关接口
+  - name: 报警管理-报警列表
+    description: 报警列表查询相关接口
+
+paths:
+  # ========== 报警统计接口 ==========
+  /statistics/current-count:
+    get:
+      tags:
+        - 报警管理-报警统计
+      summary: 获取当前报警设备数量
+      description: |
+        统计指定工厂（或车间）内所有正在报警的设备个数。
+        
+        **注意**：
+        - 一台设备可能有多个报警，但只统计设备个数（去重）
+        - 实时性：10秒刷新
+      operationId: getCurrentAlarmDeviceCount
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: tenantId
+          in: query
+          required: true
+          schema:
+            type: string
+          description: 租户ID
+        - name: factoryId
+          in: query
+          required: true
+          schema:
+            type: string
+          description: 工厂ID（必填）
+        - name: workshopId
+          in: query
+          required: false
+          schema:
+            type: string
+          description: 车间ID（可选，如果不填则查询该工厂下所有车间的报警设备）
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResultCurrentAlarmDeviceCountVO'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /statistics/current-devices:
+    post:
+      tags:
+        - 报警管理-报警统计
+      summary: 查询当前报警设备列表
+      description: |
+        查询正在报警的设备列表，每个设备显示其报警数量。支持车间筛选和分页。
+        
+        **注意**：
+        - 返回的是设备级别的汇总信息（每个设备的报警数量）
+        - 如需查看详细的报警列表，请使用 `/list/current` 或 `/list/query` 接口
+      operationId: getCurrentAlarmDeviceList
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: tenantId
+          in: query
+          required: true
+          schema:
+            type: string
+          description: 租户ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CurrentAlarmDeviceQueryReq'
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResultPageResultAlarmDeviceItemVO'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # ========== 报警列表接口 ==========
+  /list/current:
+    get:
+      tags:
+        - 报警管理-报警列表
+      summary: 查询当前正在报警的列表
+      description: |
+        查询所有正在报警的设备的报警详情列表。
+        
+        **使用场景**：
+        - 用于点击"当前报警设备数量"后展示所有正在报警的设备及其报警内容
+        - 如果一个设备有多条报警，会返回多条记录
+        
+        **筛选条件**：
+        - 自动筛选：isActive = true（仅显示正在报警的记录）
+        
+        **返回字段**：
+        - 设备编号、设备类型/子类型、报警号、报警内容、开始时间、持续时间等
+      operationId: getCurrentAlarmList
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: tenantId
+          in: query
+          required: true
+          schema:
+            type: string
+          description: 租户ID
+        - name: factoryId
+          in: query
+          required: true
+          schema:
+            type: string
+          description: 工厂ID（必填）
+        - name: workshopId
+          in: query
+          required: false
+          schema:
+            type: string
+          description: 车间ID（可选，如果不填则查询该工厂下所有车间的报警）
+        - name: pageNo
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 1
+          description: 分页页码（默认1）
+        - name: pageSize
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 10
+          description: 分页大小（默认10）
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResultPageResultAlarmItemVO'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /list/query:
+    post:
+      tags:
+        - 报警管理-报警列表
+      summary: 查询报警列表（完整筛选）
+      description: |
+        查询报警详情列表，支持按设备编号、时间范围、是否报警中等条件筛选。
+        
+        **筛选条件**：
+        - 设备编号（支持多个，逗号分隔）
+        - 时间范围（开始时间、结束时间）
+        - 是否报警中（true/false/null）
+        - 报警级别（支持多个，逗号分隔）
+        - 工厂ID、车间ID（用于数据隔离）
+        
+        **返回字段**：
+        - 设备编号、设备类型/子类型、报警号、报警内容、开始时间、结束时间、持续时间、是否报警中
+        
+        **特殊处理**：
+        - 进行中报警：结束时间显示null，持续时间实时累加
+      operationId: getAlarmList
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: tenantId
+          in: query
+          required: true
+          schema:
+            type: string
+          description: 租户ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AlarmListQueryReq'
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResultPageResultAlarmItemVO'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+components:
+  schemas:
+    # ========== 请求模型 ==========
+    CurrentAlarmDeviceQueryReq:
+      type: object
+      description: 当前报警设备查询请求
+      required:
+        - factoryId
+      properties:
+        factoryId:
+          type: string
+          description: 工厂ID（必填）
+        workshopId:
+          type: string
+          description: 车间ID（可选，如果不填则查询该工厂下所有车间的报警设备）
+        pageNo:
+          type: integer
+          default: 1
+          description: 分页页码（默认1）
+        pageSize:
+          type: integer
+          default: 10
+          description: 分页大小（默认10）
+
+    AlarmListQueryReq:
+      type: object
+      description: 报警列表查询请求
+      required:
+        - factoryId
+      properties:
+        factoryId:
+          type: string
+          description: 工厂ID（必填，用于数据隔离）
+        workshopId:
+          type: string
+          description: 车间ID（可选，如果不填则查询该工厂下所有车间的报警）
+        deviceCodes:
+          type: string
+          description: |
+            设备编号（可选，支持多个，用逗号分隔）
+            示例：CNC001,CNC002
+        startTime:
+          type: integer
+          format: int64
+          description: 时间范围-开始时间（毫秒时间戳，可选）
+        endTime:
+          type: integer
+          format: int64
+          description: 时间范围-结束时间（毫秒时间戳，可选）
+        isActive:
+          type: boolean
+          description: |
+            是否报警中（可选）
+            - true：仅显示未结束记录（is_active = true）
+            - false：仅显示已结束记录（is_active = false）
+            - null：显示所有记录
+        alarmLevels:
+          type: string
+          description: |
+            报警级别（可选，支持多个，用逗号分隔）
+            示例：ERROR,CRITICAL
+            可选值：INFO、WARNING、ERROR、CRITICAL
+        pageNo:
+          type: integer
+          default: 1
+          description: 分页页码（默认1）
+        pageSize:
+          type: integer
+          default: 10
+          description: 分页大小（默认10）
+
+    # ========== 响应模型 ==========
+    CurrentAlarmDeviceCountVO:
+      type: object
+      description: 当前报警设备数量VO
+      properties:
+        factoryId:
+          type: string
+          description: 工厂ID
+        factoryName:
+          type: string
+          description: 工厂名称
+        workshopId:
+          type: string
+          description: 车间ID（可选，如果按车间查询）
+        workshopName:
+          type: string
+          description: 车间名称（可选，如果按车间查询）
+        deviceCount:
+          type: integer
+          description: 当前报警设备数量（去重后的设备个数）
+
+    AlarmDeviceItemVO:
+      type: object
+      description: 报警设备项VO（列表中的单个设备）
+      properties:
+        deviceId:
+          type: string
+          description: 设备ID
+        deviceCode:
+          type: string
+          description: 设备编号（威力编号）
+        deviceName:
+          type: string
+          description: 设备名称
+        deviceType:
+          type: string
+          description: 设备类型
+        deviceSubType:
+          type: string
+          description: 设备子类型
+        workshopName:
+          type: string
+          description: 车间名称
+        alarmCount:
+          type: integer
+          description: 当前报警数量（该设备正在报警的个数）
+        latestAlarmStartTs:
+          type: integer
+          format: int64
+          description: 最新报警开始时间（毫秒时间戳）
+
+    AlarmItemVO:
+      type: object
+      description: 报警项VO（报警列表中的单条报警记录）
+      properties:
+        alarmId:
+          type: string
+          description: 报警记录ID
+        deviceId:
+          type: string
+          description: 设备ID
+        deviceCode:
+          type: string
+          description: 设备编号（威力编号）
+        deviceName:
+          type: string
+          description: 设备名称
+        deviceType:
+          type: string
+          description: 设备类型
+        deviceSubType:
+          type: string
+          description: 设备子类型
+        alarmCode:
+          type: string
+          description: 报警号
+        alarmText:
+          type: string
+          description: 报警内容
+        alarmLevel:
+          type: string
+          enum:
+            - INFO
+            - WARNING
+            - ERROR
+            - CRITICAL
+          description: 报警级别
+        startTime:
+          type: integer
+          format: int64
+          description: 开始时间（毫秒时间戳）
+        endTime:
+          type: integer
+          format: int64
+          nullable: true
+          description: 结束时间（毫秒时间戳，进行中的报警为null）
+        durationMs:
+          type: integer
+          format: int64
+          description: 持续时间（毫秒，进行中的报警实时计算）
+        isActive:
+          type: boolean
+          description: 是否报警中（true：报警进行中；false：报警已结束）
+        startShiftDate:
+          type: string
+          format: date
+          description: 开始班次日期
+        startShiftCode:
+          type: string
+          description: 开始班次编码
+        endShiftDate:
+          type: string
+          format: date
+          nullable: true
+          description: 结束班次日期（报警进行中时为null）
+        endShiftCode:
+          type: string
+          nullable: true
+          description: 结束班次编码（报警进行中时为null）
+
+    # ========== 通用响应模型 ==========
+    CommonResult:
+      type: object
+      description: 通用响应结果
+      properties:
+        code:
+          type: integer
+          description: 响应码（200表示成功）
+        message:
+          type: string
+          description: 响应消息
+        timestamp:
+          type: integer
+          format: int64
+          description: 时间戳
+
+    PageResult:
+      type: object
+      description: 分页结果基类
+      properties:
+        total:
+          type: integer
+          format: int64
+          description: 总记录数
+        pageNo:
+          type: integer
+          description: 当前页码
+        pageSize:
+          type: integer
+          description: 每页条数
+        totalPages:
+          type: integer
+          description: 总页数
+        records:
+          type: array
+          description: 数据列表
+
+    # ========== 响应包装模型 ==========
+    CommonResultCurrentAlarmDeviceCountVO:
+      allOf:
+        - $ref: '#/components/schemas/CommonResult'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/CurrentAlarmDeviceCountVO'
+
+    CommonResultPageResultAlarmDeviceItemVO:
+      allOf:
+        - $ref: '#/components/schemas/CommonResult'
+        - type: object
+          properties:
+            data:
+              allOf:
+                - $ref: '#/components/schemas/PageResult'
+                - type: object
+                  properties:
+                    records:
+                      type: array
+                      items:
+                        $ref: '#/components/schemas/AlarmDeviceItemVO'
+
+    CommonResultPageResultAlarmItemVO:
+      allOf:
+        - $ref: '#/components/schemas/CommonResult'
+        - type: object
+          properties:
+            data:
+              allOf:
+                - $ref: '#/components/schemas/PageResult'
+                - type: object
+                  properties:
+                    records:
+                      type: array
+                      items:
+                        $ref: '#/components/schemas/AlarmItemVO'
+
+  responses:
+    BadRequest:
+      description: 请求参数错误
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/CommonResult'
+
+    Unauthorized:
+      description: 未授权访问
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/CommonResult'
+
+    InternalServerError:
+      description: 服务器内部错误
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/CommonResult'
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT Bearer Token认证
+

@@ -12,7 +12,8 @@ import org.springframework.transaction.annotation.EnableTransactionManagement;
  */
 @Slf4j
 @MapperScan({
-        "com.weili.iot_portal.dal.mapper"
+        "com.weili.iot_portal.dal.mapper",
+        "com.weili.iot_portal.business.device_mgmt.dal.mapper"
 })
 @ComponentScan(basePackages = {"com.weili.basic", "com.weili.iot_portal"})
 @EnableTransactionManagement

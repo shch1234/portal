@@ -42,6 +42,22 @@
             <artifactId>iot-portal-task</artifactId>
         </dependency>
         <dependency>
+            <groupId>com.weili.iot.portal</groupId>
+            <artifactId>iot-business-device-mgmt-web</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.weili.iot.portal</groupId>
+            <artifactId>iot-portal-data-sync-consumer</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.weili.iot.portal</groupId>
+            <artifactId>iot-portal-data-sync-client</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.weili.iot.portal</groupId>
+            <artifactId>iot-portal-data-sync-scheduler</artifactId>
+        </dependency>
+        <dependency>
             <groupId>com.weili.basic</groupId>
             <artifactId>weili-basic-common</artifactId>
         </dependency>
