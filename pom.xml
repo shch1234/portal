@@ -99,6 +99,11 @@
                 <artifactId>weili-basic-apollo</artifactId>
                 <version>${weili-basic.version}</version>
             </dependency>
+            <dependency>
+                <groupId>com.weili.basic</groupId>
+                <artifactId>weili-basic-oauth2</artifactId>
+                <version>${weili-basic.version}</version>
+            </dependency>
             <!--三方模块-->
             <dependency>
                 <groupId>org.springframework.boot</groupId>

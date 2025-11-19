@@ -39,6 +39,10 @@
             <groupId>org.springframework.security</groupId>
             <artifactId>spring-security-config</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.weili.basic</groupId>
+            <artifactId>weili-basic-oauth2</artifactId>
+        </dependency>
     </dependencies>
 
 </project>
