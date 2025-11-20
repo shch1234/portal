@@ -43,11 +43,11 @@ public class LoginUserBizService implements ILoginUserBizService {
 
     @Override
     @Transactional
-    public Long createUser() {
+    public void createUser() {
         Oauth2UserDetail loginUser = SecurityContextUtils.getLoginUser();
         LoginUserDO loginUserDO = loginUserRepository.getByUserId(loginUser.getUserId());
         if (loginUserDO != null) {
-            return loginUser.getUserId();
+            return;
         }
         loginUserDO = new LoginUserDO();
         loginUserDO.setUserId(loginUser.getUserId());
@@ -64,7 +64,6 @@ public class LoginUserBizService implements ILoginUserBizService {
         //默认系统管理员
         RoleDO roleDO = userRoleBizService.getRole(RoleCodeEnum.systemAdmin.name());
         userRoleBizService.batchAddUserRole(loginUser.getUserId(), Collections.singletonList(roleDO.getId()));
-        return loginUser.getUserId();
     }
 
 
@@ -80,8 +79,8 @@ public class LoginUserBizService implements ILoginUserBizService {
     }
 
     @Override
-    public LoginUserRespVO get(Long id) {
-        LoginUserDO oldRow = loginUserRepository.getByUserId(id);
+    public LoginUserRespVO get(Long userId) {
+        LoginUserDO oldRow = loginUserRepository.getByUserId(userId);
         return BeanUtils.toBean(oldRow, LoginUserRespVO.class);
     }
 

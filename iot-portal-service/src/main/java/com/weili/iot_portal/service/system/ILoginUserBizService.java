@@ -20,12 +20,12 @@ public interface ILoginUserBizService {
     /**
      * 创建用户
      */
-    Long createUser();
+    void createUser();
 
     /**
      * 修改用户
      */
     void update(LoginUserSaveReqVO reqVO);
 
-    LoginUserRespVO get(Long id);
+    LoginUserRespVO get(Long userId);
 }

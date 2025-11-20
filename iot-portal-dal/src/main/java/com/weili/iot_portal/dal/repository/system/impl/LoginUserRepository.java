@@ -71,9 +71,7 @@ public class LoginUserRepository extends ServiceImpl<LoginUserMapper, LoginUserD
     @Override
     public LoginUserDO getByUserId(Long userId) {
         LambdaQueryWrapperX<LoginUserDO> queryWrapper = new LambdaQueryWrapperX<>();
-        queryWrapper.eq(LoginUserDO::getId, userId)
-                .or()
-                .eq(LoginUserDO::getJobNumber, userId);
+        queryWrapper.eq(LoginUserDO::getUserId, userId);
         return super.getOne(queryWrapper);
     }
 }

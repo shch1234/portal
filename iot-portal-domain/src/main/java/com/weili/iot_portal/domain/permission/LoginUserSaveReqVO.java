@@ -3,7 +3,6 @@ package com.weili.iot_portal.domain.permission;
 import com.weili.basic.common.model.BaseVO;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -24,18 +23,6 @@ public class LoginUserSaveReqVO extends BaseVO {
     @Schema(description = "用户id")
     @NotNull
     private Long userId;
-
-    @Schema(description = "工号")
-    @NotNull
-    private Integer jobNumber;
-    @Schema(description = "用户名称")
-    @NotNull
-    @Size(max = 50, message = "用户名称长度不能超过25")
-    private String userName;
-    @Schema(description = "手机号")
-    private String mobile;
-    @Schema (description = "部门id")
-    private Long deptId;
     @Schema(description = "关联角色id列表")
     @NotNull
     private List<Long> roleList;
