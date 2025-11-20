@@ -4,7 +4,7 @@ import com.weili.basic.common.model.CommonResult;
 import com.weili.basic.common.util.BeanUtils;
 import com.weili.basic.framework.annotation.ApiInterceptor;
 import com.weili.iot_portal.common.enums.StatusEnum;
-import com.weili.iot_portal.dal.dataobject.permission.MenuDO;
+import com.weili.iot_portal.dal.dataobject.system.MenuDO;
 import com.weili.iot_portal.domain.permission.MenuListReqVO;
 import com.weili.iot_portal.domain.permission.MenuRespVO;
 import com.weili.iot_portal.domain.permission.MenuSaveVO;

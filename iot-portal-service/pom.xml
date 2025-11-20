@@ -29,5 +29,9 @@
             <groupId>com.weili.basic</groupId>
             <artifactId>weili-basic-framework</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.weili.basic</groupId>
+            <artifactId>weili-basic-oauth2</artifactId>
+        </dependency>
     </dependencies>
 </project>

@@ -6,7 +6,7 @@ import com.google.common.collect.Lists;
 import com.weili.basic.common.util.CollectionUtils;
 import com.weili.iot_portal.common.enums.RoleCodeEnum;
 import com.weili.iot_portal.common.enums.StatusEnum;
-import com.weili.iot_portal.dal.dataobject.permission.RoleDO;
+import com.weili.iot_portal.dal.dataobject.system.RoleDO;
 import com.weili.iot_portal.dal.repository.system.IRoleRepository;
 import com.weili.iot_portal.service.system.IMenuBizService;
 import com.weili.iot_portal.service.system.IPermissionBizService;

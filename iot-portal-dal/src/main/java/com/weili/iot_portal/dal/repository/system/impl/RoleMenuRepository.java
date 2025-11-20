@@ -3,7 +3,7 @@ package com.weili.iot_portal.dal.repository.system.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.weili.basic.framework.mybatis.query.LambdaQueryWrapperX;
-import com.weili.iot_portal.dal.dataobject.permission.RoleMenuDO;
+import com.weili.iot_portal.dal.dataobject.system.RoleMenuDO;
 import com.weili.iot_portal.dal.mapper.system.RoleMenuMapper;
 import com.weili.iot_portal.dal.repository.system.IRoleMenuRepository;
 import org.springframework.stereotype.Repository;

@@ -56,11 +56,8 @@ public class DictBizService implements IDictBizService {
 
     @Override
     public Long createDictType(DictTypeSaveReqVO createReqVO) {
-        // 校验字典类型的名字的唯一性
         validateDictTypeNameUnique(null, createReqVO.getName());
-        // 校验字典类型的类型的唯一性
         validateDictTypeUnique(null, createReqVO.getType());
-        // 插入字典类型
         DictTypeDO dictType = BeanUtils.toBean(createReqVO, DictTypeDO.class);
         dictTypeRepository.create(dictType);
         return dictType.getId();
@@ -68,26 +65,19 @@ public class DictBizService implements IDictBizService {
 
     @Override
     public void updateDictType(DictTypeSaveReqVO updateReqVO) {
-        // 校验自己存在
         validateDictTypeExists(updateReqVO.getId());
-        // 校验字典类型的名字的唯一性
         validateDictTypeNameUnique(updateReqVO.getId(), updateReqVO.getName());
-        // 校验字典类型的类型的唯一性
         validateDictTypeUnique(updateReqVO.getId(), updateReqVO.getType());
-        // 更新字典类型
         DictTypeDO updateObj = BeanUtils.toBean(updateReqVO, DictTypeDO.class);
         dictTypeRepository.update(updateObj);
     }
 
     @Override
     public void deleteDictType(Long id) {
-        // 校验是否存在
         DictTypeDO dictType = validateDictTypeExists(id);
-        // 校验是否有字典数据
         if (getDictDataCountByDictType(dictType.getType()) > 0) {
             throw new ServiceException(ErrorCodeConstants.DICT_TYPE_HAS_CHILDREN);
         }
-        // 删除字典类型
         dictTypeRepository.delete(id);
     }
 
@@ -98,12 +88,8 @@ public class DictBizService implements IDictBizService {
 
     @Override
     public Long createDictData(DictDataSaveReqVO createReqVO) {
-        // 校验字典类型有效
         validateDictTypeExists(createReqVO.getDictType());
-        // 校验字典数据的值的唯一性
         validateDictDataValueUnique(null, createReqVO.getDictType(), createReqVO.getValue());
-
-        // 插入字典类型
         DictDataDO dictData = BeanUtils.toBean(createReqVO, DictDataDO.class);
         dictDataRepository.create(dictData);
         return dictData.getId();
@@ -111,14 +97,9 @@ public class DictBizService implements IDictBizService {
 
     @Override
     public void updateDictData(DictDataSaveReqVO updateReqVO) {
-        // 校验自己存在
         validateDictDataExists(updateReqVO.getId());
-        // 校验字典类型有效
         validateDictTypeExists(updateReqVO.getDictType());
-        // 校验字典数据的值的唯一性
         validateDictDataValueUnique(updateReqVO.getId(), updateReqVO.getDictType(), updateReqVO.getValue());
-
-        // 更新字典类型
         DictDataDO updateObj = BeanUtils.toBean(updateReqVO, DictDataDO.class);
         dictDataRepository.update(updateObj);
     }
@@ -150,10 +131,7 @@ public class DictBizService implements IDictBizService {
 
     @Override
     public void deleteDictData(Long id) {
-        // 校验是否存在
         validateDictDataExists(id);
-
-        // 删除字典数据
         dictDataRepository.delete(id);
     }
 
@@ -168,7 +146,6 @@ public class DictBizService implements IDictBizService {
         if (dictType == null) {
             return;
         }
-        // 如果 id 为空，说明不用比较是否为相同 id 的字典类型
         if (id == null) {
             throw new ServiceException(ErrorCodeConstants.DICT_TYPE_NAME_DUPLICATE);
         }
@@ -185,7 +162,6 @@ public class DictBizService implements IDictBizService {
         if (dictType == null) {
             return;
         }
-        // 如果 id 为空，说明不用比较是否为相同 id 的字典类型
         if (id == null) {
             throw new ServiceException(ErrorCodeConstants.DICT_TYPE_TYPE_DUPLICATE);
         }
@@ -211,7 +187,6 @@ public class DictBizService implements IDictBizService {
         if (dictData == null) {
             return;
         }
-        // 如果 id 为空，说明不用比较是否为相同 id 的字典数据
         if (id == null) {
             throw new ServiceException(ErrorCodeConstants.DICT_DATA_VALUE_DUPLICATE);
         }

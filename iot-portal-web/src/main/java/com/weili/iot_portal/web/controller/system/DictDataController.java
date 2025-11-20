@@ -119,7 +119,7 @@ public class DictDataController {
     }
 
     @Operation(summary = "查询字典类型详细")
-    @Parameter(name = "id", description = "编号", required = true, example = "1024")
+    @Parameter(name = "id", description = "编号", required = true)
     @GetMapping(value = "/dict-type/get")
     public CommonResult<DictTypeRespVO> getDictType(@RequestParam("id") Long id) {
         DictTypeDO dictType = dictBizService.getDictType(id);

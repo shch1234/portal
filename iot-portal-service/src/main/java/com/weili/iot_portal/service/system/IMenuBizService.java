@@ -1,6 +1,6 @@
 package com.weili.iot_portal.service.system;
 
-import com.weili.iot_portal.dal.dataobject.permission.MenuDO;
+import com.weili.iot_portal.dal.dataobject.system.MenuDO;
 import com.weili.iot_portal.domain.permission.MenuListReqVO;
 import com.weili.iot_portal.domain.permission.MenuSaveVO;
 

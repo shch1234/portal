@@ -11,8 +11,8 @@ import com.weili.basic.common.util.BeanUtils;
 import com.weili.iot_portal.common.enums.BizErrorCodeEnum;
 import com.weili.iot_portal.common.enums.RoleCodeEnum;
 import com.weili.iot_portal.common.enums.StatusEnum;
-import com.weili.iot_portal.dal.dataobject.permission.RoleDO;
-import com.weili.iot_portal.dal.dataobject.permission.UserRoleDO;
+import com.weili.iot_portal.dal.dataobject.system.RoleDO;
+import com.weili.iot_portal.dal.dataobject.system.UserRoleDO;
 import com.weili.iot_portal.dal.ddd.RolePageQuery;
 import com.weili.iot_portal.dal.repository.system.IRoleRepository;
 import com.weili.iot_portal.dal.repository.system.IUserRoleRepository;
@@ -84,6 +84,11 @@ public class UserRoleBizService implements IUserRoleBizService {
     @Override
     public RoleDO getRole(Long id) {
         return roleRepository.selectById(id);
+    }
+
+    @Override
+    public RoleDO getRole(String roleKey) {
+        return roleRepository.selectByCode(roleKey);
     }
 
     @Override
@@ -159,6 +164,27 @@ public class UserRoleBizService implements IUserRoleBizService {
         RoleDO update = BeanUtils.toBean(updateReqVO, RoleDO.class);
         roleRepository.update(update);
     }
+
+    @Override
+    public void batchAddUserRole(Long userId, List<Long> roleIds) {
+        if (userId == null || CollectionUtils.isEmpty(roleIds)) {
+            return;
+        }
+        //角色
+        List<UserRoleDO> list = roleIds.stream().map(r -> {
+            UserRoleDO roleDO = new UserRoleDO();
+            roleDO.setUserId(userId);
+            roleDO.setRoleId(r);
+            return roleDO;
+        }).toList();
+        userRoleRepository.batchCreate(list);
+    }
+
+    @Override
+    public void deleteByUserId(Long userId) {
+        userRoleRepository.deleteListByUserId(userId);
+    }
+
 
     @Override
     @Transactional

@@ -1,6 +1,6 @@
 package com.weili.iot_portal.dal.repository.system;
 
-import com.weili.iot_portal.dal.dataobject.permission.RoleMenuDO;
+import com.weili.iot_portal.dal.dataobject.system.RoleMenuDO;
 
 import java.util.List;
 

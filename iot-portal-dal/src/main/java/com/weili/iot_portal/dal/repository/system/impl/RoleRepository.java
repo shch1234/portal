@@ -5,7 +5,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.weili.basic.common.model.PageResult;
 import com.weili.basic.framework.mybatis.query.LambdaQueryWrapperX;
-import com.weili.iot_portal.dal.dataobject.permission.RoleDO;
+import com.weili.iot_portal.dal.dataobject.system.RoleDO;
 import com.weili.iot_portal.dal.ddd.RolePageQuery;
 import com.weili.iot_portal.dal.mapper.system.RoleMapper;
 import com.weili.iot_portal.dal.repository.system.IRoleRepository;

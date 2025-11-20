@@ -1,7 +1,7 @@
 
 package com.weili.iot_portal.dal.repository.system;
 
-import com.weili.iot_portal.dal.dataobject.permission.UserRoleDO;
+import com.weili.iot_portal.dal.dataobject.system.UserRoleDO;
 
 import java.util.Collection;
 import java.util.List;
@@ -16,8 +16,6 @@ public interface IUserRoleRepository {
     void batchCreate(List<UserRoleDO> list);
 
     List<UserRoleDO> selectListByUserId(Long userId);
-
-    List<UserRoleDO> selectListByUserIds(List<Long> userIds);
 
     void deleteListByUserIdAndRoleIdIds(Long userId, Collection<Long> roleIds);
 

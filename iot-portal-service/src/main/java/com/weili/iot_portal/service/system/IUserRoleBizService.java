@@ -1,7 +1,7 @@
 package com.weili.iot_portal.service.system;
 
 import com.weili.basic.common.model.PageResult;
-import com.weili.iot_portal.dal.dataobject.permission.RoleDO;
+import com.weili.iot_portal.dal.dataobject.system.RoleDO;
 import com.weili.iot_portal.domain.permission.RolePageReqVO;
 import com.weili.iot_portal.domain.permission.RoleSaveReqVO;
 
@@ -72,6 +72,8 @@ public interface IUserRoleBizService {
      */
     RoleDO getRole(Long id);
 
+    RoleDO getRole(String roleKey);
+
     /**
      * 分页查询角色列表
      *
@@ -108,5 +110,9 @@ public interface IUserRoleBizService {
      * @param updateReqVO 角色更新请求参数
      */
     void updateRole(RoleSaveReqVO updateReqVO);
+
+    void batchAddUserRole(Long id, List<Long> roleList);
+
+    void deleteByUserId(Long id);
 
 }

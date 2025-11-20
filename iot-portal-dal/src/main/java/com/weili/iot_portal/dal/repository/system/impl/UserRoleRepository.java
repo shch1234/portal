@@ -3,7 +3,7 @@ package com.weili.iot_portal.dal.repository.system.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.weili.basic.framework.mybatis.query.LambdaQueryWrapperX;
-import com.weili.iot_portal.dal.dataobject.permission.UserRoleDO;
+import com.weili.iot_portal.dal.dataobject.system.UserRoleDO;
 import com.weili.iot_portal.dal.mapper.system.UserRoleMapper;
 import com.weili.iot_portal.dal.repository.system.IUserRoleRepository;
 import org.apache.commons.collections4.CollectionUtils;
@@ -28,11 +28,6 @@ public class UserRoleRepository extends ServiceImpl<UserRoleMapper, UserRoleDO> 
     @Override
     public List<UserRoleDO> selectListByUserId(Long userId) {
         return super.list(new LambdaQueryWrapper<UserRoleDO>().eq(UserRoleDO::getUserId, userId));
-    }
-
-    @Override
-    public List<UserRoleDO> selectListByUserIds(List<Long> userIds) {
-        return super.list(new LambdaQueryWrapperX<UserRoleDO>().in(UserRoleDO::getUserId, userIds));
     }
 
     @Override

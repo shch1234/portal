@@ -9,9 +9,9 @@ import com.weili.basic.common.util.BeanUtils;
 import com.weili.iot_portal.common.enums.MenuTypeEnum;
 import com.weili.iot_portal.common.enums.RoleCodeEnum;
 import com.weili.iot_portal.common.enums.StatusEnum;
-import com.weili.iot_portal.dal.dataobject.permission.MenuDO;
-import com.weili.iot_portal.dal.dataobject.permission.RoleDO;
-import com.weili.iot_portal.dal.dataobject.permission.RoleMenuDO;
+import com.weili.iot_portal.dal.dataobject.system.MenuDO;
+import com.weili.iot_portal.dal.dataobject.system.RoleDO;
+import com.weili.iot_portal.dal.dataobject.system.RoleMenuDO;
 import com.weili.iot_portal.dal.ddd.MenuListQuery;
 import com.weili.iot_portal.dal.repository.system.IMenuRepository;
 import com.weili.iot_portal.dal.repository.system.IRoleMenuRepository;
@@ -29,7 +29,7 @@ import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static com.weili.iot_portal.dal.dataobject.permission.MenuDO.ID_ROOT;
+import static com.weili.iot_portal.dal.dataobject.system.MenuDO.ID_ROOT;
 
 
 /**

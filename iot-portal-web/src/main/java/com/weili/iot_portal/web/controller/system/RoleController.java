@@ -4,7 +4,7 @@ import com.weili.basic.common.model.CommonResult;
 import com.weili.basic.common.model.PageResult;
 import com.weili.basic.common.util.BeanUtils;
 import com.weili.basic.framework.annotation.ApiInterceptor;
-import com.weili.iot_portal.dal.dataobject.permission.RoleDO;
+import com.weili.iot_portal.dal.dataobject.system.RoleDO;
 import com.weili.iot_portal.domain.permission.RolePageReqVO;
 import com.weili.iot_portal.domain.permission.RoleRespVO;
 import com.weili.iot_portal.domain.permission.RoleSaveReqVO;

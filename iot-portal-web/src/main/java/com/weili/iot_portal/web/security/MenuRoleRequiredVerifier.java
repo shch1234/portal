@@ -1,11 +1,11 @@
-package com.weili.iot_portal.web.security.verifier;
+package com.weili.iot_portal.web.security;
 
+import com.weili.basic.authorization.security.SecurityContextUtils;
 import com.weili.basic.common.exception.BaseException;
 import com.weili.iot_portal.common.enums.BizErrorCodeEnum;
 import com.weili.iot_portal.service.system.IPermissionBizService;
 import com.weili.iot_portal.web.annotation.PermRequired;
 import com.weili.iot_portal.web.aspect.IPermRequiredVerifier;
-import com.weili.iot_portal.web.security.context.SecurityFrameworkContext;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -29,7 +29,7 @@ public class MenuRoleRequiredVerifier implements IPermRequiredVerifier {
         if (StringUtils.isEmpty(permRequired.permission()) && permRequired.permissions().length == 0) {
             throw new BaseException(BizErrorCodeEnum.PERMISSION_ERROR.getCode(), "用户没有当前菜单操作权限");
         }
-        Long userId = SecurityFrameworkContext.getLoginUserId();
+        Long userId = SecurityContextUtils.getUserid();
         if (userId == null) {
             throw new BaseException(BizErrorCodeEnum.PERMISSION_ERROR.getCode(), "用户UserId是空");
         }

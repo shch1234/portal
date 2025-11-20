@@ -1,6 +1,5 @@
-package com.weili.iot_portal.web.security.handle;
+package com.weili.iot_portal.web.security;
 
-import cn.hutool.core.exceptions.ExceptionUtil;
 import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 import com.weili.basic.common.exception.BaseException;
 import com.weili.basic.common.exception.ServiceException;
@@ -12,6 +11,7 @@ import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.stereotype.Component;
 import org.springframework.validation.BindException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
@@ -30,49 +30,8 @@ import static com.weili.basic.common.enums.ErrorCodeConstants.*;
 @RestControllerAdvice
 @AllArgsConstructor
 @Slf4j
+@Component
 public class GlobalExceptionHandler {
-
-    /**
-     * 处理所有异常，主要是提供给 Filter 使用
-     * 因为 Filter 不走 SpringMVC 的流程，但是我们又需要兜底处理异常，所以这里提供一个全量的异常处理过程，保持逻辑统一。
-     *
-     * @param request 请求
-     * @param ex      异常
-     * @return 通用返回
-     */
-    public CommonResult<?> allExceptionHandler(HttpServletRequest request, Throwable ex) {
-        if (ex instanceof MissingServletRequestParameterException) {
-            return missingServletRequestParameterExceptionHandler((MissingServletRequestParameterException) ex);
-        }
-        if (ex instanceof MethodArgumentTypeMismatchException) {
-            return methodArgumentTypeMismatchExceptionHandler((MethodArgumentTypeMismatchException) ex);
-        }
-        if (ex instanceof MethodArgumentNotValidException) {
-            return methodArgumentNotValidExceptionExceptionHandler((MethodArgumentNotValidException) ex);
-        }
-        if (ex instanceof BindException) {
-            return bindExceptionHandler((BindException) ex);
-        }
-        if (ex instanceof ConstraintViolationException) {
-            return constraintViolationExceptionHandler((ConstraintViolationException) ex);
-        }
-        if (ex instanceof NoHandlerFoundException) {
-            return noHandlerFoundExceptionHandler((NoHandlerFoundException) ex);
-        }
-        if (ex instanceof HttpRequestMethodNotSupportedException) {
-            return httpRequestMethodNotSupportedExceptionHandler((HttpRequestMethodNotSupportedException) ex);
-        }
-        if (ex instanceof ServiceException) {
-            return serviceExceptionHandler((ServiceException) ex);
-        }
-        if (ex instanceof BaseException) {
-            return BaseExceptionHandler((BaseException) ex);
-        }
-        if (ex instanceof AccessDeniedException) {
-            return accessDeniedExceptionHandler(request, (AccessDeniedException) ex);
-        }
-        return defaultExceptionHandler(ex);
-    }
 
     /**
      * 处理 SpringMVC 请求参数缺失
@@ -141,7 +100,6 @@ public class GlobalExceptionHandler {
         return CommonResult.error(BAD_REQUEST.getCode(), String.format("请求参数不正确:%s", constraintViolation.getMessage()));
     }
 
-
     /**
      * 处理 SpringMVC 请求地址不存在
      * <p>
@@ -154,7 +112,6 @@ public class GlobalExceptionHandler {
         log.warn("[noHandlerFoundExceptionHandler]", ex);
         return CommonResult.error(NOT_FOUND.getCode(), String.format("请求地址不存在:%s", ex.getRequestURL()));
     }
-
 
     /**
      * 处理 SpringMVC 请求方法不正确
@@ -190,7 +147,7 @@ public class GlobalExceptionHandler {
      * 处理业务异常 BaseException
      */
     @ExceptionHandler(value = BaseException.class)
-    public CommonResult<?> BaseExceptionHandler(BaseException ex) {
+    public CommonResult<?> baseExceptionHandler(BaseException ex) {
         return CommonResult.error(INTERNAL_SERVER_ERROR.getCode(), ex.getMessage());
     }
 
@@ -199,39 +156,8 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(value = Exception.class)
     public CommonResult<?> defaultExceptionHandler(Throwable ex) {
-        // 情况一：处理表不存在的异常
-        CommonResult<?> tableNotExistsResult = handleTableNotExists(ex);
-        if (tableNotExistsResult != null) {
-            return tableNotExistsResult;
-        }
         log.error("[defaultExceptionHandler]", ex);
         return CommonResult.error(INTERNAL_SERVER_ERROR.getCode(), INTERNAL_SERVER_ERROR.getMsg());
-    }
-
-    /**
-     * 处理 Table 不存在的异常情况
-     *
-     * @param ex 异常
-     * @return 如果是 Table 不存在的异常，则返回对应的 CommonResult
-     */
-    private CommonResult<?> handleTableNotExists(Throwable ex) {
-        String message = ExceptionUtil.getRootCauseMessage(ex);
-        if (!message.contains("doesn't exist")) {
-            return null;
-        }
-        // 1. 数据报表
-        if (message.contains("report_")) {
-            log.error("[报表模块 sdt-module-report - 表结构未导入][参考 https://cloud.iocoder.cn/report/ 开启]");
-            return CommonResult.error(NOT_IMPLEMENTED.getCode(),
-                    "[报表模块 sdt-module-report - 表结构未导入][参考 https://cloud.iocoder.cn/report/ 开启]");
-        }
-        // 2. 工作流
-        if (message.contains("bpm_")) {
-            log.error("[工作流模块 sdt-module-bpm - 表结构未导入][参考 https://cloud.iocoder.cn/bpm/ 开启]");
-            return CommonResult.error(NOT_IMPLEMENTED.getCode(),
-                    "[工作流模块 sdt-module-bpm - 表结构未导入][参考 https://cloud.iocoder.cn/bpm/ 开启]");
-        }
-        return null;
     }
 
 }
