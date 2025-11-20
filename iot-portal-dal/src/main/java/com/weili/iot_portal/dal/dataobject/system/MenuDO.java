@@ -73,12 +73,7 @@ public class MenuDO extends BaseSimpleDO {
      * 组件名
      */
     private String componentName;
-    /**
-     * pch5 app 客户端标识
-     */
-    private String client;
 
-    private String image;
     /**
      * 状态
      * <p>
@@ -93,13 +88,6 @@ public class MenuDO extends BaseSimpleDO {
      */
     private Boolean visible;
 
-    /**
-     * 是否缓存
-     * <p>
-     * 只有菜单、目录使用，否使用 Vue 路由的 keep-alive 特性
-     * 注意：如果开启缓存，则必须填写 {@link #componentName} 属性，否则无法缓存
-     */
-    private Boolean keepAlive;
     /**
      * 是否总是显示
      * <p>
