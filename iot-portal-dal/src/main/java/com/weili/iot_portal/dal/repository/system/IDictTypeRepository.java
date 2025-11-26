@@ -2,7 +2,7 @@ package com.weili.iot_portal.dal.repository.system;
 
 import com.weili.basic.common.model.PageResult;
 import com.weili.iot_portal.dal.dataobject.system.DictTypeDO;
-import com.weili.iot_portal.dal.ddd.DictTypePageQuery;
+import com.weili.iot_portal.dal.ddd.system.DictTypePageQuery;
 
 import java.util.List;
 

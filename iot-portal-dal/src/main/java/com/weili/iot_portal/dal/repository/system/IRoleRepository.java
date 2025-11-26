@@ -2,7 +2,7 @@ package com.weili.iot_portal.dal.repository.system;
 
 import com.weili.basic.common.model.PageResult;
 import com.weili.iot_portal.dal.dataobject.system.RoleDO;
-import com.weili.iot_portal.dal.ddd.RolePageQuery;
+import com.weili.iot_portal.dal.ddd.system.RolePageQuery;
 
 import java.util.List;
 

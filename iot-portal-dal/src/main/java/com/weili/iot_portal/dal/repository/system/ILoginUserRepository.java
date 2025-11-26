@@ -2,7 +2,7 @@ package com.weili.iot_portal.dal.repository.system;
 
 import com.weili.basic.common.model.PageResult;
 import com.weili.iot_portal.dal.dataobject.system.LoginUserDO;
-import com.weili.iot_portal.dal.ddd.LoginUserPageQuery;
+import com.weili.iot_portal.dal.ddd.system.LoginUserPageQuery;
 
 
 /**

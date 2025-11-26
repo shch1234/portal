@@ -1,6 +1,38 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="Encoding" defaultCharsetForPropertiesFiles="UTF-8">
+    <file url="file://$PROJECT_DIR$/iot-business/alarm-mgmt/alarm-mgmt-api/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/iot-business/alarm-mgmt/alarm-mgmt-api/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/iot-business/alarm-mgmt/alarm-mgmt-dal/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/iot-business/alarm-mgmt/alarm-mgmt-dal/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/iot-business/alarm-mgmt/alarm-mgmt-domain/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/iot-business/alarm-mgmt/alarm-mgmt-domain/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/iot-business/alarm-mgmt/alarm-mgmt-service/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/iot-business/alarm-mgmt/alarm-mgmt-service/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/iot-business/alarm-mgmt/alarm-mgmt-web/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/iot-business/alarm-mgmt/alarm-mgmt-web/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/iot-business/alarm-mgmt/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/iot-business/alarm-mgmt/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/iot-business/common/common-api/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/iot-business/common/common-api/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/iot-business/common/common-domain/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/iot-business/common/common-domain/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/iot-business/common/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/iot-business/common/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/iot-business/device-base/device-base-api/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/iot-business/device-base/device-base-api/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/iot-business/device-base/device-base-dal/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/iot-business/device-base/device-base-dal/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/iot-business/device-base/device-base-domain/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/iot-business/device-base/device-base-domain/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/iot-business/device-base/device-base-service/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/iot-business/device-base/device-base-service/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/iot-business/device-base/device-base-web/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/iot-business/device-base/device-base-web/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/iot-business/device-base/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/iot-business/device-base/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/iot-business/device-mgmt/device-mgmt-api/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/iot-business/device-mgmt/device-mgmt-api/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/iot-business/device-mgmt/device-mgmt-dal/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/iot-business/device-mgmt/device-mgmt-dal/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/iot-business/device-mgmt/device-mgmt-domain/src/main/java" charset="UTF-8" />
@@ -11,8 +43,34 @@
     <file url="file://$PROJECT_DIR$/iot-business/device-mgmt/device-mgmt-web/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/iot-business/device-mgmt/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/iot-business/device-mgmt/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/iot-business/digital-screen/digital-screen-api/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/iot-business/digital-screen/digital-screen-api/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/iot-business/digital-screen/digital-screen-domain/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/iot-business/digital-screen/digital-screen-domain/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/iot-business/digital-screen/digital-screen-service/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/iot-business/digital-screen/digital-screen-service/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/iot-business/digital-screen/digital-screen-web/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/iot-business/digital-screen/digital-screen-web/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/iot-business/digital-screen/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/iot-business/digital-screen/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/iot-business/efficiency-mgmt/efficiency-mgmt-api/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/iot-business/efficiency-mgmt/efficiency-mgmt-api/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/iot-business/efficiency-mgmt/efficiency-mgmt-dal/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/iot-business/efficiency-mgmt/efficiency-mgmt-dal/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/iot-business/efficiency-mgmt/efficiency-mgmt-domain/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/iot-business/efficiency-mgmt/efficiency-mgmt-domain/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/iot-business/efficiency-mgmt/efficiency-mgmt-service/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/iot-business/efficiency-mgmt/efficiency-mgmt-service/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/iot-business/efficiency-mgmt/efficiency-mgmt-web/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/iot-business/efficiency-mgmt/efficiency-mgmt-web/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/iot-business/efficiency-mgmt/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/iot-business/efficiency-mgmt/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/iot-business/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/iot-business/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/iot-portal-api/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/iot-portal-api/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/iot-portal-biz-alarm/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/iot-portal-biz-alarm/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/iot-portal-common/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/iot-portal-common/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/iot-portal-dal/src/main/java" charset="UTF-8" />
@@ -27,6 +85,8 @@
     <file url="file://$PROJECT_DIR$/iot-portal-data-sync/sync-scheduler/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/iot-portal-domain/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/iot-portal-domain/src/main/resources" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/iot-portal-service-device/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/iot-portal-service-device/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/iot-portal-service/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/iot-portal-service/src/main/resources" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/iot-portal-starter/src/main/java" charset="UTF-8" />

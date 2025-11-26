@@ -4,8 +4,8 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.weili.basic.framework.mybatis.query.LambdaQueryWrapperX;
 import com.weili.iot_portal.dal.dataobject.system.UserRoleDO;
-import com.weili.iot_portal.dal.mapper.system.UserRoleMapper;
 import com.weili.iot_portal.dal.repository.system.IUserRoleRepository;
+import com.weili.iot_portal.dal.mapper.system.UserRoleMapper;
 import org.apache.commons.collections4.CollectionUtils;
 import org.springframework.stereotype.Repository;
 

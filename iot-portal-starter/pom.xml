@@ -4,7 +4,7 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <parent>
-        <groupId>com.weili.iot.portal</groupId>
+        <groupId>com.weili.iot-portal</groupId>
         <artifactId>weili-iot-portal</artifactId>
         <version>${revision}</version>
         <relativePath>../pom.xml</relativePath>
@@ -18,44 +18,32 @@
     <dependencies>
         <!-- 内部依赖 -->
         <dependency>
-            <groupId>com.weili.iot.portal</groupId>
+            <groupId>com.weili.iot-portal</groupId>
             <artifactId>iot-portal-dal</artifactId>
         </dependency>
         <dependency>
-            <groupId>com.weili.iot.portal</groupId>
+            <groupId>com.weili.iot-portal</groupId>
             <artifactId>iot-portal-web</artifactId>
         </dependency>
         <dependency>
-            <groupId>com.weili.iot.portal</groupId>
+            <groupId>com.weili.iot-portal</groupId>
             <artifactId>iot-portal-common</artifactId>
         </dependency>
         <dependency>
-            <groupId>com.weili.iot.portal</groupId>
+            <groupId>com.weili.iot-portal</groupId>
             <artifactId>iot-portal-service</artifactId>
         </dependency>
         <dependency>
-            <groupId>com.weili.iot.portal</groupId>
+            <groupId>com.weili.iot-portal</groupId>
             <artifactId>iot-portal-domain</artifactId>
         </dependency>
         <dependency>
-            <groupId>com.weili.iot.portal</groupId>
+            <groupId>com.weili.iot-portal</groupId>
+            <artifactId>iot-portal-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.weili.iot-portal</groupId>
             <artifactId>iot-portal-task</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.weili.iot.portal</groupId>
-            <artifactId>iot-business-device-mgmt-web</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.weili.iot.portal</groupId>
-            <artifactId>iot-portal-data-sync-consumer</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.weili.iot.portal</groupId>
-            <artifactId>iot-portal-data-sync-client</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.weili.iot.portal</groupId>
-            <artifactId>iot-portal-data-sync-scheduler</artifactId>
         </dependency>
         <dependency>
             <groupId>com.weili.basic</groupId>

@@ -3,7 +3,7 @@ package com.weili.iot_portal.dal.repository.system;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.weili.basic.common.model.PageResult;
 import com.weili.iot_portal.dal.dataobject.system.DictDataDO;
-import com.weili.iot_portal.dal.ddd.DictDataPageQuery;
+import com.weili.iot_portal.dal.ddd.system.DictDataPageQuery;
 
 import java.util.Collection;
 import java.util.List;

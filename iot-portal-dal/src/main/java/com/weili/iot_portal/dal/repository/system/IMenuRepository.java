@@ -1,7 +1,7 @@
 package com.weili.iot_portal.dal.repository.system;
 
 import com.weili.iot_portal.dal.dataobject.system.MenuDO;
-import com.weili.iot_portal.dal.ddd.MenuListQuery;
+import com.weili.iot_portal.dal.ddd.system.MenuListQuery;
 
 import java.util.List;
 

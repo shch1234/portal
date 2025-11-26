@@ -24,4 +24,11 @@ public class ApolloConstant {
         return ConfigService.getAppConfig().getProperty("fdfs.download.service", "");
     }
 
+    public static String getTBServiceUrl() {
+        return ConfigService.getAppConfig().getProperty("tb.service.url", "http://192.168.70.124:8080");
+    }
+
+    public static String getTBToken() {
+        return ConfigService.getAppConfig().getProperty("tb.service.token", "");
+    }
 }

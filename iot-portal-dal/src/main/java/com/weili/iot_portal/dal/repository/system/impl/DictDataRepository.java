@@ -6,9 +6,9 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.weili.basic.common.model.PageResult;
 import com.weili.basic.framework.mybatis.query.LambdaQueryWrapperX;
 import com.weili.iot_portal.dal.dataobject.system.DictDataDO;
-import com.weili.iot_portal.dal.ddd.DictDataPageQuery;
-import com.weili.iot_portal.dal.mapper.system.DictDataMapper;
+import com.weili.iot_portal.dal.ddd.system.DictDataPageQuery;
 import com.weili.iot_portal.dal.repository.system.IDictDataRepository;
+import com.weili.iot_portal.dal.mapper.system.DictDataMapper;
 import org.springframework.stereotype.Repository;
 
 import java.util.Arrays;

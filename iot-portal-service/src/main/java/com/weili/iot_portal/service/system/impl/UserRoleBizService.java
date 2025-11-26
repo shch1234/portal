@@ -13,7 +13,7 @@ import com.weili.iot_portal.common.enums.RoleCodeEnum;
 import com.weili.iot_portal.common.enums.StatusEnum;
 import com.weili.iot_portal.dal.dataobject.system.RoleDO;
 import com.weili.iot_portal.dal.dataobject.system.UserRoleDO;
-import com.weili.iot_portal.dal.ddd.RolePageQuery;
+import com.weili.iot_portal.dal.ddd.system.RolePageQuery;
 import com.weili.iot_portal.dal.repository.system.IRoleRepository;
 import com.weili.iot_portal.dal.repository.system.IUserRoleRepository;
 import com.weili.iot_portal.domain.permission.RolePageReqVO;

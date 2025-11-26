@@ -12,7 +12,7 @@ import com.weili.iot_portal.common.enums.StatusEnum;
 import com.weili.iot_portal.dal.dataobject.system.MenuDO;
 import com.weili.iot_portal.dal.dataobject.system.RoleDO;
 import com.weili.iot_portal.dal.dataobject.system.RoleMenuDO;
-import com.weili.iot_portal.dal.ddd.MenuListQuery;
+import com.weili.iot_portal.dal.ddd.system.MenuListQuery;
 import com.weili.iot_portal.dal.repository.system.IMenuRepository;
 import com.weili.iot_portal.dal.repository.system.IRoleMenuRepository;
 import com.weili.iot_portal.dal.repository.system.IRoleRepository;

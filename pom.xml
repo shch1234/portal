@@ -10,7 +10,7 @@
         <version>1.0.0-iam-SNAPSHOT</version>
     </parent>
 
-    <groupId>com.weili.iot.portal</groupId>
+    <groupId>com.weili.iot-portal</groupId>
     <artifactId>weili-iot-portal</artifactId>
     <version>${revision}</version>
     <packaging>pom</packaging>
@@ -23,8 +23,7 @@
         <module>iot-portal-service</module>
         <module>iot-portal-web</module>
         <module>iot-portal-task</module>
-        <module>iot-business</module>
-        <module>iot-portal-data-sync</module>
+        <module>iot-portal-api</module>
     </modules>
 
     <properties>
@@ -32,7 +31,7 @@
         <maven.compiler.source>17</maven.compiler.source>
         <maven.compiler.target>17</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <weili-basic.version>1.0.0-merge-SNAPSHOT</weili-basic.version>
+        <weili-basic.version>1.0.0-iam-SNAPSHOT</weili-basic.version>
         <spring-maven-plugin.version>3.4.5</spring-maven-plugin.version>
     </properties>
 
@@ -40,189 +39,43 @@
         <dependencies>
             <!--内部模块依赖-->
             <dependency>
-                <groupId>com.weili.iot.portal</groupId>
+                <groupId>com.weili.iot-portal</groupId>
                 <artifactId>iot-portal-starter</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId>com.weili.iot.portal</groupId>
+                <groupId>com.weili.iot-portal</groupId>
                 <artifactId>iot-portal-dal</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId>com.weili.iot.portal</groupId>
+                <groupId>com.weili.iot-portal</groupId>
                 <artifactId>iot-portal-web</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId>com.weili.iot.portal</groupId>
+                <groupId>com.weili.iot-portal</groupId>
                 <artifactId>iot-portal-common</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId>com.weili.iot.portal</groupId>
+                <groupId>com.weili.iot-portal</groupId>
                 <artifactId>iot-portal-service</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId>com.weili.iot.portal</groupId>
+                <groupId>com.weili.iot-portal</groupId>
                 <artifactId>iot-portal-domain</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId>com.weili.iot.portal</groupId>
+                <groupId>com.weili.iot-portal</groupId>
                 <artifactId>iot-portal-task</artifactId>
                 <version>${project.version}</version>
             </dependency>
-            <!--业务模块 - 设备管理-->
             <dependency>
-                <groupId>com.weili.iot.portal</groupId>
-                <artifactId>iot-business-device-mgmt-api</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.weili.iot.portal</groupId>
-                <artifactId>iot-business-device-mgmt-domain</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.weili.iot.portal</groupId>
-                <artifactId>iot-business-device-mgmt-dal</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.weili.iot.portal</groupId>
-                <artifactId>iot-business-device-mgmt-service</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.weili.iot.portal</groupId>
-                <artifactId>iot-business-device-mgmt-web</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <!--业务模块 - 设备基础数据-->
-            <dependency>
-                <groupId>com.weili.iot.portal</groupId>
-                <artifactId>iot-business-device-base-api</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.weili.iot.portal</groupId>
-                <artifactId>iot-business-device-base-domain</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.weili.iot.portal</groupId>
-                <artifactId>iot-business-device-base-dal</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.weili.iot.portal</groupId>
-                <artifactId>iot-business-device-base-service</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.weili.iot.portal</groupId>
-                <artifactId>iot-business-device-base-web</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <!--业务模块 - 报警管理-->
-            <dependency>
-                <groupId>com.weili.iot.portal</groupId>
-                <artifactId>iot-business-alarm-mgmt-api</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.weili.iot.portal</groupId>
-                <artifactId>iot-business-alarm-mgmt-domain</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.weili.iot.portal</groupId>
-                <artifactId>iot-business-alarm-mgmt-dal</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.weili.iot.portal</groupId>
-                <artifactId>iot-business-alarm-mgmt-service</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.weili.iot.portal</groupId>
-                <artifactId>iot-business-alarm-mgmt-web</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <!--业务模块 - 公共模块-->
-            <dependency>
-                <groupId>com.weili.iot.portal</groupId>
-                <artifactId>iot-business-common-api</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.weili.iot.portal</groupId>
-                <artifactId>iot-business-common-domain</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <!--业务模块 - 效率管理-->
-            <dependency>
-                <groupId>com.weili.iot.portal</groupId>
-                <artifactId>iot-business-efficiency-mgmt-api</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.weili.iot.portal</groupId>
-                <artifactId>iot-business-efficiency-mgmt-domain</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.weili.iot.portal</groupId>
-                <artifactId>iot-business-efficiency-mgmt-dal</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.weili.iot.portal</groupId>
-                <artifactId>iot-business-efficiency-mgmt-service</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.weili.iot.portal</groupId>
-                <artifactId>iot-business-efficiency-mgmt-web</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <!--业务模块 - 数字大屏-->
-            <dependency>
-                <groupId>com.weili.iot.portal</groupId>
-                <artifactId>iot-business-digital-screen-api</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.weili.iot.portal</groupId>
-                <artifactId>iot-business-digital-screen-domain</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.weili.iot.portal</groupId>
-                <artifactId>iot-business-digital-screen-service</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.weili.iot.portal</groupId>
-                <artifactId>iot-business-digital-screen-web</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.weili.iot.portal</groupId>
-                <artifactId>iot-portal-data-sync-consumer</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.weili.iot.portal</groupId>
-                <artifactId>iot-portal-data-sync-client</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.weili.iot.portal</groupId>
-                <artifactId>iot-portal-data-sync-scheduler</artifactId>
+                <groupId>com.weili.iot-portal</groupId>
+                <artifactId>iot-portal-api</artifactId>
                 <version>${project.version}</version>
             </dependency>
 
