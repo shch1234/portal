@@ -33,3 +33,33 @@ build/
 
 ### Mac OS ###
 .DS_Store
+
+### Java / JVM ###
+*.class
+*.log
+*.log.*
+*.ctxt
+hs_err_pid*
+replay_pid*.hprof
+*.hprof
+
+### Build Artifacts ###
+**/target/
+**/out/
+bin/
+logs/
+tmp/
+*.tmp
+
+### Dependency & Package Managers ###
+node_modules/
+
+### Environment Files ###
+.env
+.env.*
+
+### Editors ###
+*.sw?
+*.swo
+*.orig
+*.rej

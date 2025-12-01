@@ -22,6 +22,7 @@ import org.springframework.transaction.annotation.EnableTransactionManagement;
         ))
 @EnableTransactionManagement
 @SpringBootApplication
+@ComponentScan(basePackages = {"com.weili.iot_portal"})
 public class IotPortalApplication extends WeiLiSpringApplication {
     public static void main(String[] args) {
         WeiLiSpringApplication.run(IotPortalApplication.class, args);
