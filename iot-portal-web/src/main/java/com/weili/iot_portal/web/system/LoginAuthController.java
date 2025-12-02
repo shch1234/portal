@@ -39,7 +39,7 @@ import static com.weili.basic.common.model.CommonResult.success;
  */
 @Tag(name = "用户管理")
 @RestController
-@RequestMapping("/system/user")
+@RequestMapping("/system/auth")
 @Slf4j
 public class LoginAuthController {
 
