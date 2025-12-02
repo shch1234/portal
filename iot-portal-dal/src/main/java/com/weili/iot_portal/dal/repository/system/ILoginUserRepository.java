@@ -20,5 +20,8 @@ public interface ILoginUserRepository {
 
     PageResult<LoginUserDO> selectPage(LoginUserPageQuery query);
 
-    LoginUserDO getByUserId(Long userId);
+    LoginUserDO getById(Long id);
+
+    LoginUserDO getByEmpId(Long id);
+
 }
