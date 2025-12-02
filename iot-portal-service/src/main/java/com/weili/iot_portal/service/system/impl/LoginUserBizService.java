@@ -50,7 +50,7 @@ public class LoginUserBizService implements ILoginUserBizService {
             return;
         }
         loginUserDO = new LoginUserDO();
-        loginUserDO.setUserId(loginUser.getUserId());
+        loginUserDO.setUserId(Long.valueOf(loginUser.getEmpId()));
         loginUserDO.setJobNumber(loginUser.getEmpId());
         loginUserDO.setUsername(loginUser.getUserName());
         loginUserDO.setMobile(loginUser.getPhone());
