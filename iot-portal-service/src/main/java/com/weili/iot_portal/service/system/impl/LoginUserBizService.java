@@ -58,8 +58,10 @@ public class LoginUserBizService implements ILoginUserBizService {
         loginUserDO.setCreateTime(LocalDateTime.now());
         loginUserDO.setUpdateTime(LocalDateTime.now());
         loginUserDO.setLoginTime(LocalDateTime.now());
-        String deptId = SecurityContextUtils.getDept().getDeptId();
-        loginUserDO.setDeptId(Long.valueOf(deptId));
+        if (SecurityContextUtils.getDept() != null) {
+            String deptId = SecurityContextUtils.getDept().getDeptId();
+            loginUserDO.setDeptId(Long.valueOf(deptId));
+        }
         loginUserRepository.create(loginUserDO);
         //默认系统管理员
         RoleDO roleDO = userRoleBizService.getRole(RoleCodeEnum.systemAdmin.name());
