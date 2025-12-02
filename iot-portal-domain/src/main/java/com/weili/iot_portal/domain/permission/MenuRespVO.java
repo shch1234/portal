@@ -22,10 +22,6 @@ public class MenuRespVO  extends BaseVO {
     @Size(max = 50, message = "菜单名称长度不能超过50个字符")
     private String name;
 
-    @Schema(description = "客户端标识", requiredMode = Schema.RequiredMode.REQUIRED)
-    @NotBlank(message = "客户端标识不能为空")
-    private String client;
-
     private String image;
 
     @Schema(description = "权限标识,仅菜单类型为按钮时，才需要传递", example = "sys:menu:add")

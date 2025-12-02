@@ -22,7 +22,5 @@ public class MenuSimpleRespVO  extends BaseVO {
     @Schema(description = "类型，参见 MenuTypeEnum 枚举类", requiredMode = Schema.RequiredMode.REQUIRED, example = "1")
     private Integer type;
 
-    private String client;//客户端标识
-
     private String image;
 }
