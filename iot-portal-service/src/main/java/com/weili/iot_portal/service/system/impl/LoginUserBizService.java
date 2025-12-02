@@ -65,7 +65,7 @@ public class LoginUserBizService implements ILoginUserBizService {
         loginUserRepository.create(loginUserDO);
         //默认系统管理员
         RoleDO roleDO = userRoleBizService.getRole(RoleCodeEnum.systemAdmin.name());
-        userRoleBizService.batchAddUserRole(loginUser.getUserId(), Collections.singletonList(roleDO.getId()));
+        userRoleBizService.batchAddUserRole(loginUserDO.getId(), Collections.singletonList(roleDO.getId()));
         return loginUserDO.getId();
     }
 
@@ -82,8 +82,8 @@ public class LoginUserBizService implements ILoginUserBizService {
     }
 
     @Override
-    public LoginUserRespVO getById(Long userId) {
-        LoginUserDO oldRow = loginUserRepository.getById(userId);
+    public LoginUserRespVO getById(Long id) {
+        LoginUserDO oldRow = loginUserRepository.getById(id);
         return BeanUtils.toBean(oldRow, LoginUserRespVO.class);
     }
 
