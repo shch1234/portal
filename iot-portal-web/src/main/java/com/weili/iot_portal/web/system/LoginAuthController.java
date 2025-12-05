@@ -3,7 +3,6 @@ package com.weili.iot_portal.web.system;
 import com.weili.basic.authorization.security.SecurityContextUtils;
 import com.weili.basic.common.model.CommonResult;
 import com.weili.basic.common.model.PageResult;
-import com.weili.basic.common.util.BeanUtils;
 import com.weili.basic.framework.annotation.ApiInterceptor;
 import com.weili.basic.oauth2.oidc.Oauth2UserDetail;
 import com.weili.iot_portal.dal.dataobject.system.MenuDO;
@@ -39,7 +38,7 @@ import static com.weili.basic.common.model.CommonResult.success;
  */
 @Tag(name = "用户管理")
 @RestController
-@RequestMapping("/system/user")
+@RequestMapping("/system/auth")
 @Slf4j
 public class LoginAuthController {
 
@@ -56,9 +55,17 @@ public class LoginAuthController {
     @ApiInterceptor
     public CommonResult<Map<String, AuthUserInfoRespVO>> getUserInfo() {
         Oauth2UserDetail loginUser = SecurityContextUtils.getLoginUser();
+        Long userId = loginUserBizService.createUser();
+        AuthUserInfoRespVO infoRespVO = new AuthUserInfoRespVO();
+        infoRespVO.setUserId(userId);
+        infoRespVO.setJobNumber(loginUser.getEmpId());
+        Oauth2UserDetail.Dept dept = SecurityContextUtils.getDept();
+        if (dept != null) {
+            infoRespVO.setDeptId(Long.valueOf(dept.getDeptId()));
+            infoRespVO.setDeptName(dept.getDeptName());
+        }
         Map<String, AuthUserInfoRespVO> result = new HashMap<>();
-        result.put("user", BeanUtils.toBean(loginUser, AuthUserInfoRespVO.class));
-        loginUserBizService.createUser();
+        result.put("user", infoRespVO);
         return CommonResult.success(result);
     }
 
@@ -68,8 +75,8 @@ public class LoginAuthController {
     @ApiInterceptor
     public CommonResult<AuthPermissionRespVO> getPermission() {
         Oauth2UserDetail loginUser = SecurityContextUtils.getLoginUser();
-        Long userId = loginUser.getUserId();
-        List<RoleDO> roleList = userRoleBizService.getRoleByUserId(userId);
+        LoginUserRespVO respVO = loginUserBizService.getByEmpId(loginUser.getEmpId());
+        List<RoleDO> roleList = userRoleBizService.getRoleByUserId(respVO.getId());
         if (CollectionUtils.isEmpty(roleList)) {
             log.warn("未查询到用户角色信息");
             return CommonResult.success(AuthLoginConvert.INSTANCE.convertNoUser(Collections.emptyList(), Collections.emptyList()));
@@ -99,7 +106,7 @@ public class LoginAuthController {
     @Parameter(name = "id", description = "用户id", required = true)
     @ApiInterceptor
     public CommonResult<LoginUserRespVO> getUser(@RequestParam("id") Long id) {
-        return CommonResult.success(loginUserBizService.get(id));
+        return CommonResult.success(loginUserBizService.getById(id));
     }
 
     @PutMapping("/update")

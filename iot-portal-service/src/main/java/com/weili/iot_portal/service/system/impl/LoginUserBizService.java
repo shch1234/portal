@@ -43,11 +43,11 @@ public class LoginUserBizService implements ILoginUserBizService {
 
     @Override
     @Transactional
-    public void createUser() {
+    public Long createUser() {
         Oauth2UserDetail loginUser = SecurityContextUtils.getLoginUser();
-        LoginUserDO loginUserDO = loginUserRepository.getByUserId(loginUser.getUserId());
+        LoginUserDO loginUserDO = loginUserRepository.getByEmpId(Long.valueOf(loginUser.getEmpId()));
         if (loginUserDO != null) {
-            return;
+            return loginUserDO.getId();
         }
         loginUserDO = new LoginUserDO();
         loginUserDO.setUserId(loginUser.getUserId());
@@ -58,19 +58,22 @@ public class LoginUserBizService implements ILoginUserBizService {
         loginUserDO.setCreateTime(LocalDateTime.now());
         loginUserDO.setUpdateTime(LocalDateTime.now());
         loginUserDO.setLoginTime(LocalDateTime.now());
-        String deptId = SecurityContextUtils.getDept().getDeptId();
-        loginUserDO.setDeptId(Long.valueOf(deptId));
+        if (SecurityContextUtils.getDept() != null) {
+            String deptId = SecurityContextUtils.getDept().getDeptId();
+            loginUserDO.setDeptId(Long.valueOf(deptId));
+        }
         loginUserRepository.create(loginUserDO);
         //默认系统管理员
         RoleDO roleDO = userRoleBizService.getRole(RoleCodeEnum.systemAdmin.name());
-        userRoleBizService.batchAddUserRole(loginUser.getUserId(), Collections.singletonList(roleDO.getId()));
+        userRoleBizService.batchAddUserRole(loginUserDO.getId(), Collections.singletonList(roleDO.getId()));
+        return loginUserDO.getId();
     }
 
 
     @Override
     @Transactional
     public void update(LoginUserSaveReqVO reqVO) {
-        LoginUserDO oldRow = loginUserRepository.getByUserId(reqVO.getUserId());
+        LoginUserDO oldRow = loginUserRepository.getById(reqVO.getUserId());
         if (oldRow == null) {
             throw new BaseException(BizErrorCodeEnum.PERMISSION_ERROR);
         }
@@ -79,8 +82,14 @@ public class LoginUserBizService implements ILoginUserBizService {
     }
 
     @Override
-    public LoginUserRespVO get(Long userId) {
-        LoginUserDO oldRow = loginUserRepository.getByUserId(userId);
+    public LoginUserRespVO getById(Long id) {
+        LoginUserDO oldRow = loginUserRepository.getById(id);
+        return BeanUtils.toBean(oldRow, LoginUserRespVO.class);
+    }
+
+    @Override
+    public LoginUserRespVO getByEmpId(String empId) {
+        LoginUserDO oldRow = loginUserRepository.getByEmpId(Long.parseLong(empId));
         return BeanUtils.toBean(oldRow, LoginUserRespVO.class);
     }
 

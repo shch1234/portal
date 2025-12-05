@@ -18,8 +18,6 @@ public class MenuListReqVO  extends BaseVO {
     @Schema(description = "展示状态，参见 StatusEnum 枚举类", example = "1")
     private Integer status;
 
-    private String client;//客户端标识
-
     private String image;
 
     private Set<Long> menuIds;

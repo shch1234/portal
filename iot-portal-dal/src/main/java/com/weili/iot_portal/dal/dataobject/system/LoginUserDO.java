@@ -1,5 +1,7 @@
 package com.weili.iot_portal.dal.dataobject.system;
 
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.weili.basic.framework.mybatis.domain.BaseSimpleDO;
 import lombok.Data;
@@ -22,6 +24,7 @@ public class LoginUserDO extends BaseSimpleDO {
     /**
      * 用户ID
      */
+    @TableId(type = IdType.AUTO)
     private Long id;
 
     /**

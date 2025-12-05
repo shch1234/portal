@@ -3,6 +3,8 @@ package com.weili.iot_portal.web.security;
 import com.weili.basic.authorization.security.SecurityContextUtils;
 import com.weili.basic.common.exception.BaseException;
 import com.weili.iot_portal.common.enums.BizErrorCodeEnum;
+import com.weili.iot_portal.domain.permission.LoginUserRespVO;
+import com.weili.iot_portal.service.system.ILoginUserBizService;
 import com.weili.iot_portal.service.system.IPermissionBizService;
 import com.weili.iot_portal.web.annotation.PermRequired;
 import com.weili.iot_portal.web.aspect.IPermRequiredVerifier;
@@ -22,6 +24,8 @@ import org.springframework.stereotype.Service;
 public class MenuRoleRequiredVerifier implements IPermRequiredVerifier {
 
     @Resource
+    private ILoginUserBizService loginUserBizService;
+    @Resource
     private IPermissionBizService permissionBizService;
 
     @Override
@@ -31,7 +35,14 @@ public class MenuRoleRequiredVerifier implements IPermRequiredVerifier {
         }
         Long userId = SecurityContextUtils.getUserid();
         if (userId == null) {
-            throw new BaseException(BizErrorCodeEnum.PERMISSION_ERROR.getCode(), "用户UserId是空");
+            //兼容一下
+            LoginUserRespVO userRespVO = loginUserBizService.getByEmpId(SecurityContextUtils.getEmpId());
+            if (userRespVO != null) {
+                userId = userRespVO.getId();
+            }
+            if (userId == null) {
+                throw new BaseException(BizErrorCodeEnum.PERMISSION_ERROR.getCode(), "用户UserId是空");
+            }
         }
         String permission = permRequired.permission();
         boolean hasPermission;
