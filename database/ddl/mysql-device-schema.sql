@@ -611,5 +611,57 @@ CREATE INDEX idx_factory_metric_oee ON factory_metric_summary (org_factory_id, a
 CREATE INDEX idx_factory_metric_utilization ON factory_metric_summary (org_factory_id, average_utilization_rate DESC);
 CREATE INDEX idx_factory_metric_production ON factory_metric_summary (org_factory_id, total_production_count DESC);
 
+-- ============================================================
+-- 19. Webhook 收件箱与失败日志
+-- 说明：
+--   1. webhook_inbox：业务Webhook收件箱，等待异步处理/重试
+--   2. webhook_fail_log：处理失败记录，支持人工介入与恢复
+-- ============================================================
+CREATE TABLE IF NOT EXISTS webhook_inbox (
+    id               BIGINT NOT NULL PRIMARY KEY COMMENT '主键ID（雪花算法）',
+    message_id       VARCHAR(100) NOT NULL COMMENT '消息唯一ID（幂等）',
+    tenant_id        CHAR(36) NOT NULL COMMENT '租户UUID',
+    device_id        CHAR(36) DEFAULT NULL COMMENT 'TB设备ID',
+    device_code      VARCHAR(100) NOT NULL COMMENT '设备编号（必填）',
+    event_type       VARCHAR(50) NOT NULL COMMENT '事件类型',
+    webhook_category VARCHAR(20) NOT NULL COMMENT '分类：BUSINESS/REALTIME',
+    payload          JSON NOT NULL COMMENT '事件载荷（eventData/telemetryData/metadata/transactionInfo）',
+    status           VARCHAR(20) DEFAULT 'PENDING' COMMENT '状态：PENDING/PROCESSING/SUCCESS/FAILED',
+    process_count    INT DEFAULT 0 COMMENT '处理次数',
+    next_retry_time  datetime DEFAULT NULL COMMENT '下一次重试时间',
+    last_error       TEXT COMMENT '最后一次错误信息',
+    received_time    datetime DEFAULT CURRENT_TIMESTAMP NOT NULL COMMENT '接收时间',
+    processed_time   datetime DEFAULT NULL COMMENT '处理完成时间',
+    created_time     datetime DEFAULT CURRENT_TIMESTAMP NOT NULL COMMENT '创建时间',
+    updated_time     datetime DEFAULT CURRENT_TIMESTAMP NOT NULL ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='Webhook 收件箱表：业务数据入箱等待异步处理';
+
+CREATE UNIQUE INDEX uk_webhook_inbox_message_id ON webhook_inbox (message_id);
+CREATE INDEX idx_webhook_inbox_status_retry ON webhook_inbox (status, next_retry_time);
+CREATE INDEX idx_webhook_inbox_device_code ON webhook_inbox (device_code);
+
+CREATE TABLE IF NOT EXISTS webhook_fail_log (
+    id            BIGINT NOT NULL PRIMARY KEY COMMENT '主键ID（雪花算法）',
+    message_id    VARCHAR(100) NOT NULL COMMENT '消息唯一ID',
+    tenant_id     CHAR(36) NOT NULL COMMENT '租户UUID',
+    device_id     CHAR(36) DEFAULT NULL COMMENT 'TB设备ID',
+    device_code   VARCHAR(100) NOT NULL COMMENT '设备编号',
+    event_type    VARCHAR(50) NOT NULL COMMENT '事件类型',
+    payload       JSON NOT NULL COMMENT '完整载荷（冗余）',
+    error_type    VARCHAR(50) NOT NULL COMMENT '错误类型：PROCESS/RETRY/VALIDATION等',
+    error_message TEXT NOT NULL COMMENT '错误详情',
+    need_manual   TINYINT(1) DEFAULT 0 COMMENT '是否需要人工处理',
+    retry_count   INT DEFAULT 0 COMMENT '已重试次数',
+    recovered     TINYINT(1) DEFAULT 0 COMMENT '是否已恢复/重新入箱',
+    failed_time   datetime DEFAULT CURRENT_TIMESTAMP NOT NULL COMMENT '失败时间',
+    created_time  datetime DEFAULT CURRENT_TIMESTAMP NOT NULL COMMENT '创建时间',
+    updated_time  datetime DEFAULT CURRENT_TIMESTAMP NOT NULL ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='Webhook 失败日志表：记录处理失败或需人工介入的消息';
+
+CREATE INDEX idx_webhook_fail_message_id ON webhook_fail_log (message_id);
+CREATE INDEX idx_webhook_fail_recovered ON webhook_fail_log (recovered, need_manual);
+
 SET FOREIGN_KEY_CHECKS = 1;
 

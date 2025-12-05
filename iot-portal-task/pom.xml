@@ -25,5 +25,10 @@
             <groupId>com.weili.iot-portal</groupId>
             <artifactId>iot-portal-domain</artifactId>
         </dependency>
+        <!-- XXL-Job 核心依赖 -->
+        <dependency>
+            <groupId>com.weili.basic</groupId>
+            <artifactId>weili-basic-xxljob</artifactId>
+        </dependency>
     </dependencies>
 </project>

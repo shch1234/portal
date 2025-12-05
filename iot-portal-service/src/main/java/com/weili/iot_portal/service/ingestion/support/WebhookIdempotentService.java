@@ -1,10 +1,11 @@
 package com.weili.iot_portal.service.ingestion.support;
 
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Webhook 幂等服务
@@ -12,9 +13,11 @@ import java.util.concurrent.ConcurrentHashMap;
 @Component
 public class WebhookIdempotentService {
 
-    private static final long DEFAULT_TTL_MS = Duration.ofMinutes(10).toMillis();
+    private static final String KEY_PREFIX = "webhook:idempotent:";
+    private static final long DEFAULT_TTL_SECONDS = Duration.ofHours(24).getSeconds();
 
-    private final ConcurrentHashMap<String, Long> processedMessages = new ConcurrentHashMap<>();
+    @Autowired
+    private RedisTemplate<String, String> redisTemplate;
 
     /**
      * 尝试消费消息
@@ -25,17 +28,10 @@ public class WebhookIdempotentService {
         if (StringUtils.isBlank(messageId)) {
             return true;
         }
-        long now = System.currentTimeMillis();
-        Long previous = processedMessages.putIfAbsent(messageId, now);
-        if (previous != null) {
-            return false;
-        }
-        cleanup(now);
-        return true;
-    }
-
-    private void cleanup(long now) {
-        processedMessages.entrySet().removeIf(entry -> now - entry.getValue() > DEFAULT_TTL_MS);
+        String key = KEY_PREFIX + messageId;
+        Boolean success = redisTemplate.opsForValue()
+                .setIfAbsent(key, "1", Duration.ofSeconds(DEFAULT_TTL_SECONDS));
+        return Boolean.TRUE.equals(success);
     }
 }
 
