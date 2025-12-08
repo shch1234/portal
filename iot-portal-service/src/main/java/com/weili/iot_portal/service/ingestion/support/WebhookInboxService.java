@@ -107,14 +107,14 @@ public class WebhookInboxService {
 
     public void markProcessing(WebhookInboxDO inbox) {
         inbox.setStatus("PROCESSING");
-        inbox.setUpdatedTime(LocalDateTime.now());
+        inbox.setUpdateTime(LocalDateTime.now());
         inboxMapper.updateById(inbox);
     }
 
     public void markSuccess(WebhookInboxDO inbox) {
         inbox.setStatus("SUCCESS");
         inbox.setProcessedTime(LocalDateTime.now());
-        inbox.setUpdatedTime(LocalDateTime.now());
+        inbox.setUpdateTime(LocalDateTime.now());
         inboxMapper.updateById(inbox);
     }
 
@@ -124,7 +124,7 @@ public class WebhookInboxService {
         inbox.setStatus("FAILED");
         inbox.setLastError(errorMessage);
         inbox.setNextRetryTime(calculateNextRetryTime(currentRetry + 1));
-        inbox.setUpdatedTime(LocalDateTime.now());
+        inbox.setUpdateTime(LocalDateTime.now());
         inboxMapper.updateById(inbox);
     }
 
@@ -140,7 +140,7 @@ public class WebhookInboxService {
         inbox.setStatus("FAILED");
         inbox.setLastError(errorMessage);
         inbox.setNextRetryTime(null);
-        inbox.setUpdatedTime(LocalDateTime.now());
+        inbox.setUpdateTime(LocalDateTime.now());
         inboxMapper.updateById(inbox);
     }
 

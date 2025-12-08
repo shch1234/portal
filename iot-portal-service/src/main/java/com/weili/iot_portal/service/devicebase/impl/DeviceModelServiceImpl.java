@@ -166,7 +166,7 @@ public class DeviceModelServiceImpl implements DeviceModelService {
         return typeCodes.stream()
                 .map(code -> deviceTypeRepository.findByTypeCode(tenantId, code).orElse(null))
                 .filter(Objects::nonNull)
-                .collect(Collectors.toMap(DeviceTypeDO::getTypeCode, DeviceTypeDO::getTypeName));
+                .collect(Collectors.toMap(DeviceTypeDO::getTypeCode, DeviceTypeDO::getTypeDictValue));
     }
 }
 

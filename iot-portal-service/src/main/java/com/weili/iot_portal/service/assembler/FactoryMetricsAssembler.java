@@ -25,9 +25,9 @@ public class FactoryMetricsAssembler {
 
         // 提取指标值
         if (current != null && current.getMetrics() != null) {
-            Map<String, BigDecimal> metrics = current.getMetrics();
-            vo.setAverageOee(metrics.get("averageOee"));
-            vo.setAverageUtilizationRate(metrics.get("averageUtilizationRate"));
+              Map<String, Object> metrics = current.getMetrics();
+            vo.setAverageOee(getBigDecimalValue(metrics.get("averageOee")));
+            vo.setAverageUtilizationRate(getBigDecimalValue(metrics.get("averageUtilizationRate")));
         }
 
         // 转换历史趋势
@@ -57,12 +57,32 @@ public class FactoryMetricsAssembler {
 
         // 提取指标值
         if (item.getMetrics() != null) {
-            Map<String, BigDecimal> metrics = item.getMetrics();
-            vo.setAverageOee(metrics.get("averageOee"));
-            vo.setAverageUtilizationRate(metrics.get("averageUtilizationRate"));
+            Map<String, Object> metrics = item.getMetrics();
+            vo.setAverageOee(getBigDecimalValue(metrics.get("averageOee")));
+            vo.setAverageUtilizationRate(getBigDecimalValue(metrics.get("averageUtilizationRate")));
         }
 
         return vo;
+    }
+
+    /**
+     * 从 Map 中安全获取 BigDecimal 值
+     */
+    private static BigDecimal getBigDecimalValue(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof BigDecimal) {
+            return (BigDecimal) value;
+        }
+        if (value instanceof Number) {
+            return BigDecimal.valueOf(((Number) value).doubleValue());
+        }
+        try {
+            return new BigDecimal(value.toString());
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     /**

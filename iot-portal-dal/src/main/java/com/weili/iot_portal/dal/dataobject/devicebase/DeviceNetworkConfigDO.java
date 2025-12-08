@@ -1,6 +1,7 @@
 package com.weili.iot_portal.dal.dataobject.devicebase;
 
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
@@ -41,6 +42,10 @@ public class DeviceNetworkConfigDO extends BaseDO {
 
     private String protocol;
 
+    /**
+     * 连接参数（JSON，对应 connection_params 列）
+     */
+    @TableField(typeHandler = JacksonTypeHandler.class)
     private Map<String, Object> connectionParams;
 
     private Long effectiveStartTs;

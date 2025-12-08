@@ -26,11 +26,15 @@ public class DeviceLocationDO extends BaseDO {
     @TableId(type = IdType.INPUT)
     private String id;
 
-    @TableField("tenant_uuid")
-    private String tenantId;
+    /**
+     * 租户UUID（对应 tenant_uuid 列）
+     */
+    private String tenantUuid;
 
-    @TableField("device_info_id")
-    private String deviceId;
+    /**
+     * 设备信息ID（对应 device_info_id 列）
+     */
+    private String deviceInfoId;
 
     private String locationCode;
 

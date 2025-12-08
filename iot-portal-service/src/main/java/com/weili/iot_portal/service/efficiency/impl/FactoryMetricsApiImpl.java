@@ -175,7 +175,7 @@ public class FactoryMetricsApiImpl implements FactoryMetricApi {
         result.setIsFinalized(false);  // 当前班次未结束，标记为未最终确定
 
         // 设置指标值
-        Map<String, BigDecimal> metrics = new HashMap<>();
+        Map<String, Object> metrics = new HashMap<>();
         metrics.put("averageOee", averageOee);
         metrics.put("averageUtilizationRate", averageUtilizationRate);
         result.setMetrics(metrics);
@@ -266,7 +266,7 @@ public class FactoryMetricsApiImpl implements FactoryMetricApi {
         result.setDeviceCount(0);
         result.setIsFinalized(false);
 
-        Map<String, BigDecimal> metrics = new HashMap<>();
+        Map<String, Object> metrics = new HashMap<>();
         metrics.put("averageOee", BigDecimal.ZERO);
         metrics.put("averageUtilizationRate", BigDecimal.ZERO);
         result.setMetrics(metrics);

@@ -56,14 +56,14 @@ public class DeviceBaseInfoController {
     @Operation(summary = "分页查询设备基础信息")
     public CommonResult<PageResult<DeviceBaseInfoVO>> page(@Valid @RequestBody DeviceBaseInfoQueryReq request) {
         String tenantId = SecurityFrameworkContext.getLoginTenantId();
-        return CommonResult.success(deviceBaseInfoService.page(tenantId, request.getFactoryId(), request));
+        return CommonResult.success(deviceBaseInfoService.page(tenantId, request.getOrgFactoryId(), request));
     }
 
     @PostMapping("/list")
     @Operation(summary = "分页查询设备列表（含列表展示字段）")
     public CommonResult<PageResult<DeviceBaseInfoListVO>> list(@Valid @RequestBody DeviceBaseInfoQueryReq request) {
        String tenantId = SecurityFrameworkContext.getLoginTenantId();
-        return CommonResult.success(deviceBaseInfoService.list(tenantId, request.getFactoryId(), request));
+        return CommonResult.success(deviceBaseInfoService.list(tenantId, request.getOrgFactoryId(), request));
     }
 
     @DeleteMapping("/{id}")

@@ -66,7 +66,7 @@ public class ShiftQueryApiImpl implements ShiftQueryApi {
         // 如果指定了车间，则过滤车间设备
         if (StringUtils.hasText(workshopId)) {
             devices = devices.stream()
-                    .filter(device -> workshopId.equals(device.getWorkshopId()))
+                    .filter(device -> workshopId.equals(device.getOrgWorkshopId()))
                     .toList();
         }
         
