@@ -43,13 +43,16 @@ public class DeviceStateTimelineRepositoryImpl implements DeviceStateTimelineRep
         return records;
     }
 
+    /**
+     * 构建基础查询条件（对应 device_state_record 表的字段）
+     */
     private LambdaQueryWrapper<DeviceStateTimelineDO> baseQuery(String tenantId, String deviceId) {
         LambdaQueryWrapper<DeviceStateTimelineDO> wrapper = new LambdaQueryWrapper<>();
         if (StringUtils.isNotBlank(tenantId)) {
-            wrapper.eq(DeviceStateTimelineDO::getTenantId, tenantId);
+            wrapper.eq(DeviceStateTimelineDO::getTenantUuid, tenantId);
         }
         if (StringUtils.isNotBlank(deviceId)) {
-            wrapper.eq(DeviceStateTimelineDO::getDeviceId, deviceId);
+            wrapper.eq(DeviceStateTimelineDO::getDeviceInfoId, deviceId);
         }
         return wrapper;
     }

@@ -35,7 +35,7 @@ public class OrganizationUnitRepositoryImpl implements OrganizationUnitRepositor
 
     @Override
     public List<OrganizationUnitDO> findByParentId(String tenantId, String parentId) {
-        return mapper.selectList(tenantScope(tenantId).eq(OrganizationUnitDO::getParentId, parentId));
+        return mapper.selectList(tenantScope(tenantId).eq(OrganizationUnitDO::getOrgParentId, parentId));
     }
 
     @Override
@@ -50,21 +50,21 @@ public class OrganizationUnitRepositoryImpl implements OrganizationUnitRepositor
 
     @Override
     public PageResult<OrganizationUnitDO> selectPage(OrganizationUnitPageQuery query) {
-        LambdaQueryWrapper<OrganizationUnitDO> wrapper = tenantScope(query.getTenantId());
+        LambdaQueryWrapper<OrganizationUnitDO> wrapper = tenantScope(query.getTenantUuid());
         if (StringUtils.isNotBlank(query.getUnitCodeLike())) {
             wrapper.like(OrganizationUnitDO::getUnitCode, query.getUnitCodeLike());
         }
         if (StringUtils.isNotBlank(query.getUnitNameLike())) {
             wrapper.like(OrganizationUnitDO::getUnitName, query.getUnitNameLike());
         }
-        if (query.getUnitTypes() != null && !query.getUnitTypes().isEmpty()) {
-            wrapper.in(OrganizationUnitDO::getUnitType, query.getUnitTypes());
+        if (query.getUnitTypeValues() != null && !query.getUnitTypeValues().isEmpty()) {
+            wrapper.in(OrganizationUnitDO::getUnitTypeValue, query.getUnitTypeValues());
         }
-        if (StringUtils.isNotBlank(query.getParentId())) {
-            wrapper.eq(OrganizationUnitDO::getParentId, query.getParentId());
+        if (StringUtils.isNotBlank(query.getOrgParentId())) {
+            wrapper.eq(OrganizationUnitDO::getOrgParentId, query.getOrgParentId());
         }
-        if (query.getLevel() != null) {
-            wrapper.eq(OrganizationUnitDO::getLevel, query.getLevel());
+        if (query.getLevelNo() != null) {
+            wrapper.eq(OrganizationUnitDO::getLevelNo, query.getLevelNo());
         }
         if (query.getIsActive() != null) {
             wrapper.eq(OrganizationUnitDO::getIsActive, query.getIsActive());
@@ -92,9 +92,12 @@ public class OrganizationUnitRepositoryImpl implements OrganizationUnitRepositor
         return mapper.delete(tenantScope(tenantId).eq(OrganizationUnitDO::getId, id)) > 0;
     }
 
+    /**
+     * 构建租户范围查询条件
+     */
     private LambdaQueryWrapper<OrganizationUnitDO> tenantScope(String tenantId) {
         LambdaQueryWrapper<OrganizationUnitDO> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(OrganizationUnitDO::getTenantId, tenantId);
+        wrapper.eq(OrganizationUnitDO::getTenantUuid, tenantId);
         return wrapper;
     }
 
@@ -107,7 +110,7 @@ public class OrganizationUnitRepositoryImpl implements OrganizationUnitRepositor
         wrapper.orderBy(true, asc, switch (sortBy) {
             case "unitCode" -> OrganizationUnitDO::getUnitCode;
             case "unitName" -> OrganizationUnitDO::getUnitName;
-            case "level" -> OrganizationUnitDO::getLevel;
+            case "levelNo" -> OrganizationUnitDO::getLevelNo;
             case "createdTime" -> OrganizationUnitDO::getCreateTime;
             case "updatedTime" -> OrganizationUnitDO::getUpdateTime;
             default -> OrganizationUnitDO::getSortOrder;

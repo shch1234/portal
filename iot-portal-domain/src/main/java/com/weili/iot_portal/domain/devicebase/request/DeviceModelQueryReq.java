@@ -17,7 +17,7 @@ public class DeviceModelQueryReq {
 
     private String modelNameLike;
 
-    private List<String> deviceTypeIds;
+    private List<String> deviceTypeCodes;
 
     private String manufacturer;
 

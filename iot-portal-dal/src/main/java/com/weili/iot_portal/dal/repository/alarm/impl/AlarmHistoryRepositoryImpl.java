@@ -50,13 +50,16 @@ public class AlarmHistoryRepositoryImpl implements AlarmHistoryRepository {
         return new PageResult<>(result.getRecords(), result.getTotal());
     }
 
+    /**
+     * 构建基础查询条件（对应 device_alarm_history 表的字段）
+     */
     private LambdaQueryWrapper<AlarmHistoryDO> baseQuery(String tenantId, String deviceId) {
         LambdaQueryWrapper<AlarmHistoryDO> wrapper = new LambdaQueryWrapper<>();
         if (StringUtils.isNotBlank(tenantId)) {
-            wrapper.eq(AlarmHistoryDO::getTenantId, tenantId);
+            wrapper.eq(AlarmHistoryDO::getTenantUuid, tenantId);
         }
         if (StringUtils.isNotBlank(deviceId)) {
-            wrapper.eq(AlarmHistoryDO::getDeviceId, deviceId);
+            wrapper.eq(AlarmHistoryDO::getDeviceInfoId, deviceId);
         }
         return wrapper;
     }

@@ -47,13 +47,16 @@ public class DeviceMetricsShiftRepositoryImpl implements DeviceMetricsShiftRepos
         return new PageResult<>(result.getRecords(), result.getTotal());
     }
 
+    /**
+     * 构建基础查询条件（对应 device_metrics_summary 表的字段）
+     */
     private LambdaQueryWrapper<DeviceMetricsShiftDO> baseQuery(String tenantId, String deviceId) {
         LambdaQueryWrapper<DeviceMetricsShiftDO> wrapper = new LambdaQueryWrapper<>();
         if (StringUtils.isNotBlank(tenantId)) {
-            wrapper.eq(DeviceMetricsShiftDO::getTenantId, tenantId);
+            wrapper.eq(DeviceMetricsShiftDO::getTenantUuid, tenantId);
         }
         if (StringUtils.isNotBlank(deviceId)) {
-            wrapper.eq(DeviceMetricsShiftDO::getDeviceId, deviceId);
+            wrapper.eq(DeviceMetricsShiftDO::getDeviceInfoId, deviceId);
         }
         return wrapper;
     }

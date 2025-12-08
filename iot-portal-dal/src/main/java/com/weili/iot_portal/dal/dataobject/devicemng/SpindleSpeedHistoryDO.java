@@ -10,7 +10,7 @@ import lombok.EqualsAndHashCode;
 import java.io.Serial;
 
 /**
- * 主轴转速历史 DO
+ * 主轴转速历史数据对象（对应 device_spindle_speed_history 表）
  */
 @Data
 @EqualsAndHashCode(callSuper = true)
@@ -23,19 +23,23 @@ public class SpindleSpeedHistoryDO extends BaseSimpleDO {
     @TableId(type = IdType.INPUT)
     private String id;
 
-    private String tenantId;
-
-    private String deviceId;
-
-    private String factoryId;
+    /**
+     * 租户UUID（对应 tenant_uuid 列）
+     */
+    private String tenantUuid;
 
     /**
-     * 点位时间戳
+     * 设备ID（关联 device_info.id，对应 device_info_id 列）
+     */
+    private String deviceInfoId;
+
+    /**
+     * 采样时间戳（秒，Unix时间戳，对应 sample_ts 列）
      */
     private Long sampleTs;
 
     /**
-     * 转速
+     * 转速（对应 speed 列）
      */
     private Double speed;
 }

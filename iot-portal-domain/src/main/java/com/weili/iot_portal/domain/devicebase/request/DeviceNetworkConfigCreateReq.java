@@ -1,25 +1,15 @@
-package com.weili.iot_portal.domain.devicebase;
+package com.weili.iot_portal.domain.devicebase.request;
 
+import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
-import lombok.experimental.Accessors;
 
-import java.time.LocalDateTime;
 import java.util.Map;
 
-/**
- * 设备配置视图对象
- */
 @Data
-@Accessors(chain = true)
-public class DeviceConfigurationVO {
+public class DeviceNetworkConfigCreateReq {
 
-    private String id;
-
+    @NotBlank(message = "设备ID不能为空")
     private String deviceId;
-
-    private String deviceCode;
-
-    private String deviceName;
 
     private String ipAddress;
 
@@ -40,11 +30,5 @@ public class DeviceConfigurationVO {
     private String locationDescription;
 
     private Map<String, Object> coordinates;
-
-    private LocalDateTime createTime;
-
-    private LocalDateTime updateTime;
-
-    private String updatedBy;
 }
 

@@ -34,12 +34,14 @@ public class SpindleSpeedHistoryProcessor implements RealtimeIngestionProcessor 
         spindleSpeedHistoryRepository.insertBatch(batch);
     }
 
+    /**
+     * 构建主轴转速历史 DO（对应 device_spindle_speed_history 表的字段）
+     */
     private SpindleSpeedHistoryDO buildDO(RealtimeIngestionEvent event, RealtimeCurvePointVO point) {
         SpindleSpeedHistoryDO record = new SpindleSpeedHistoryDO();
         record.setId(UUID.randomUUID().toString());
-        record.setTenantId(event.getTenantId());
-        record.setDeviceId(event.getDeviceId());
-        record.setFactoryId(event.getFactoryId());
+        record.setTenantUuid(event.getTenantId());
+        record.setDeviceInfoId(event.getDeviceId());
         record.setSampleTs(point.getTs());
         record.setSpeed(point.getValue());
         return record;

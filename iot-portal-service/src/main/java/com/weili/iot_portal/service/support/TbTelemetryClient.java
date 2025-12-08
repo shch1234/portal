@@ -181,9 +181,19 @@ public class TbTelemetryClient {
         }
     }
 
+    /**
+     * 遥测数据点（对应 ThingsBoard 返回的时间序列数据点）
+     */
     @Data
+    @lombok.AllArgsConstructor
     public static class TelemetryPoint {
+        /**
+         * 时间戳（毫秒）
+         */
         private final long ts;
+        /**
+         * 数值
+         */
         private final double value;
     }
 }

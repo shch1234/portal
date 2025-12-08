@@ -10,7 +10,7 @@ import lombok.EqualsAndHashCode;
 import java.io.Serial;
 
 /**
- * 进给率历史 DO
+ * 进给率历史数据对象（对应 device_feed_rate_history 表）
  */
 @Data
 @EqualsAndHashCode(callSuper = true)
@@ -23,14 +23,24 @@ public class FeedRateHistoryDO extends BaseSimpleDO {
     @TableId(type = IdType.INPUT)
     private String id;
 
-    private String tenantId;
+    /**
+     * 租户UUID（对应 tenant_uuid 列）
+     */
+    private String tenantUuid;
 
-    private String deviceId;
+    /**
+     * 设备ID（关联 device_info.id，对应 device_info_id 列）
+     */
+    private String deviceInfoId;
 
-    private String factoryId;
-
+    /**
+     * 采样时间戳（秒，Unix时间戳，对应 sample_ts 列）
+     */
     private Long sampleTs;
 
+    /**
+     * 进给率（对应 feed_rate 列）
+     */
     private Double feedRate;
 }
 

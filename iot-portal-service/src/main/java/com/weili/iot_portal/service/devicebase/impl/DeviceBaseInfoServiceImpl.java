@@ -25,7 +25,7 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * 设备基础信息服务实现（主数据管理）
+ * 设备信息服务实现（对应 device_info 表，主数据管理）
  */
 @Service
 @RequiredArgsConstructor
@@ -37,22 +37,31 @@ public class DeviceBaseInfoServiceImpl implements DeviceBaseInfoService {
     @Transactional(rollbackFor = Exception.class)
     public DeviceBaseInfoVO create(String tenantId, DeviceBaseInfoCreateReq request) {
         ensureTenant(tenantId);
-        ensureFactory(request.getFactoryId());
+        // 从请求中获取厂区ID（organizationUnitId 映射到 orgFactoryId）
+        String factoryId = request.getOrgFactoryId();
+        if (StringUtils.hasText(request.getOrganizationUnitId())) {
+            factoryId = request.getOrganizationUnitId();
+        }
+        ensureFactory(factoryId);
         validateUnique(tenantId, request.getDeviceCode(), request.getTbDeviceId(), null);
 
         DeviceBaseInfoDO entity = DeviceBaseInfoAssembler.fromCreateReq(request, () -> UUID.randomUUID().toString());
-        entity.setTenantId(tenantId);
+        entity.setTenantUuid(tenantId);
+        // 确保 orgFactoryId 被设置
+        if (StringUtils.hasText(factoryId)) {
+            entity.setOrgFactoryId(factoryId);
+        }
         deviceBaseInfoRepository.insert(entity);
         return DeviceBaseInfoAssembler.toVO(entity);
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public DeviceBaseInfoVO update(String tenantId,  DeviceBaseInfoUpdateReq request) {
+    public DeviceBaseInfoVO update(String tenantId, DeviceBaseInfoUpdateReq request) {
         ensureTenant(tenantId);
-        ensureFactory(request.getFactoryId());
+        ensureFactory(request.getOrgFactoryId());
         DeviceBaseInfoDO entity = deviceBaseInfoRepository.findById(tenantId, request.getId())
-                .orElseThrow(() -> new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "设备基础信息不存在"));
+                .orElseThrow(() -> new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "设备信息不存在"));
         validateUnique(tenantId, request.getDeviceCode(), request.getTbDeviceId(), request.getId());
         DeviceBaseInfoAssembler.copyForUpdate(request, entity);
         deviceBaseInfoRepository.update(entity);
@@ -64,7 +73,7 @@ public class DeviceBaseInfoServiceImpl implements DeviceBaseInfoService {
         ensureTenant(tenantId);
         ensureFactory(factoryId);
         DeviceBaseInfoDO entity = deviceBaseInfoRepository.findById(tenantId, id)
-                .orElseThrow(() -> new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "设备基础信息不存在"));
+                .orElseThrow(() -> new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "设备信息不存在"));
         ensureDeviceBelongsToFactory(entity, factoryId);
         return DeviceBaseInfoAssembler.toVO(entity);
     }
@@ -74,7 +83,7 @@ public class DeviceBaseInfoServiceImpl implements DeviceBaseInfoService {
         ensureTenant(tenantId);
         return deviceBaseInfoRepository.findByDeviceCode(tenantId, deviceCode)
                 .map(DeviceBaseInfoAssembler::toVO)
-                .orElseThrow(() -> new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "设备基础信息不存在"));
+                .orElseThrow(() -> new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "设备信息不存在"));
     }
 
     @Override
@@ -108,17 +117,20 @@ public class DeviceBaseInfoServiceImpl implements DeviceBaseInfoService {
         return deviceBaseInfoRepository.deleteById(tenantId, id);
     }
 
+    /**
+     * 构建分页查询条件（对应 device_info 表的字段）
+     */
     private DeviceBaseInfoPageQuery buildPageQuery(String tenantId, String factoryId, DeviceBaseInfoQueryReq request) {
         DeviceBaseInfoPageQuery query = new DeviceBaseInfoPageQuery();
-        query.setTenantId(tenantId);
+        query.setTenantUuid(tenantId);
         query.setDeviceCodeLike(request.getDeviceCodeLike());
         query.setDeviceNameLike(request.getDeviceNameLike());
-        query.setDeviceTypeIds(request.getDeviceTypeIds());
+        query.setDeviceTypeCodes(request.getDeviceTypeCodes());
         query.setDeviceSubTypeNames(request.getDeviceSubTypeNames());
         query.setDeviceModelIds(request.getDeviceModelIds());
-        query.setFactoryIds(mergeIds(request.getFactoryIds(), factoryId));
-        query.setWorkshopIds(request.getWorkshopIds());
-        query.setProductionLineIds(request.getProductionLineIds());
+        query.setOrgFactoryIds(mergeIds(request.getOrgFactoryIds(), factoryId));
+        query.setOrgWorkshopIds(request.getOrgWorkshopIds());
+        query.setOrgProductionLineIds(request.getOrgProductionLineIds());
         query.setDeviceStatuses(request.getDeviceStatuses());
         query.setIsMonitored(request.getIsMonitored());
         query.setHasAlarm(request.getHasAlarm());
@@ -129,6 +141,9 @@ public class DeviceBaseInfoServiceImpl implements DeviceBaseInfoService {
         return query;
     }
 
+    /**
+     * 合并ID列表（用于合并查询条件中的厂区ID）
+     */
     private List<String> mergeIds(List<String> ids, String appendId) {
         if (!StringUtils.hasText(appendId)) {
             return ids;
@@ -144,6 +159,9 @@ public class DeviceBaseInfoServiceImpl implements DeviceBaseInfoService {
         return copy;
     }
 
+    /**
+     * 验证设备编号和TB设备ID的唯一性（对应 device_info 表的 device_code 和 tb_device_id）
+     */
     private void validateUnique(String tenantId, String deviceCode, String tbDeviceId, String excludeId) {
         if (StringUtils.hasText(deviceCode) && deviceBaseInfoRepository.existsByDeviceCode(tenantId, deviceCode, excludeId)) {
             throw new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "设备编号已存在");
@@ -153,25 +171,33 @@ public class DeviceBaseInfoServiceImpl implements DeviceBaseInfoService {
         }
     }
 
+    /**
+     * 确保租户ID不为空（对应 device_info 表的 tenant_uuid）
+     */
     private void ensureTenant(String tenantId) {
         if (!StringUtils.hasText(tenantId)) {
             throw new ServiceException(ErrorCodeConstants.UNAUTHORIZED.getCode(), "未获取到租户信息");
         }
     }
 
+    /**
+     * 确保厂区ID不为空（对应 device_info 表的 org_factory_id）
+     */
     private void ensureFactory(String factoryId) {
         if (!StringUtils.hasText(factoryId)) {
             throw new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "未获取到工厂信息，请先选择工厂");
         }
     }
 
+    /**
+     * 确保设备属于指定厂区（对应 device_info 表的 org_factory_id）
+     */
     private void ensureDeviceBelongsToFactory(DeviceBaseInfoDO device, String factoryId) {
         if (device == null) {
             return;
         }
-        if (factoryId != null && !factoryId.equals(device.getFactoryId())) {
+        if (factoryId != null && !factoryId.equals(device.getOrgFactoryId())) {
             throw new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "设备不属于当前工厂");
         }
     }
 }
-

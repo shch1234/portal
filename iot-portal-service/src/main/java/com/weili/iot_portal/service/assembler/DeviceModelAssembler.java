@@ -17,10 +17,10 @@ public final class DeviceModelAssembler {
     public static DeviceModelDO fromCreateReq(String tenantId, DeviceModelCreateReq request) {
         DeviceModelDO entity = new DeviceModelDO();
         entity.setId(UUID.randomUUID().toString());
-        entity.setTenantId(tenantId);
+        entity.setTenantUuid(tenantId);
         entity.setModelCode(request.getModelCode());
         entity.setModelName(request.getModelName());
-        entity.setDeviceTypeId(request.getDeviceTypeId());
+        entity.setDeviceTypeCode(request.getDeviceTypeCode());
         entity.setManufacturer(request.getManufacturer());
         entity.setSpecifications(request.getSpecifications());
         entity.setTypeSpecificAttrs(request.getTypeSpecificAttrs());
@@ -33,7 +33,7 @@ public final class DeviceModelAssembler {
                 .setId(entity.getId())
                 .setModelCode(entity.getModelCode())
                 .setModelName(entity.getModelName())
-                .setDeviceTypeId(entity.getDeviceTypeId())
+                .setDeviceTypeCode(entity.getDeviceTypeCode())
                 .setDeviceTypeName(deviceTypeName)
                 .setManufacturer(entity.getManufacturer())
                 .setSpecifications(entity.getSpecifications())

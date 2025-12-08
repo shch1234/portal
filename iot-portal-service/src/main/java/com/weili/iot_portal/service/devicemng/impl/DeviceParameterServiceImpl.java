@@ -93,6 +93,9 @@ public class DeviceParameterServiceImpl implements DeviceParameterService {
         return vo;
     }
 
+    /**
+     * 过期当前配置并插入新配置（对应 device_param_config 表的字段）
+     */
     private void expireAndInsert(String tenantId, String deviceId,
                                  String parameterType,
                                  Double parameterValue,
@@ -102,8 +105,8 @@ public class DeviceParameterServiceImpl implements DeviceParameterService {
 
         DeviceParameterDO entity = new DeviceParameterDO();
         entity.setId(IdWorker.getIdStr());
-        entity.setTenantId(tenantId);
-        entity.setDeviceId(deviceId);
+        entity.setTenantUuid(tenantId);
+        entity.setDeviceInfoId(deviceId);
         entity.setParameterType(parameterType);
         entity.setParameterValue(parameterValue == null ? null : BigDecimal.valueOf(parameterValue));
         entity.setParameterText(parameterText);

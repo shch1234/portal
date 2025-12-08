@@ -1,12 +1,10 @@
 package com.weili.iot_portal.dal.dataobject.devicebase;
 
 import com.baomidou.mybatisplus.annotation.IdType;
-import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
 import com.weili.basic.framework.mybatis.domain.BaseDO;
-import com.weili.basic.framework.mybatis.domain.BaseSimpleDO;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
@@ -14,12 +12,12 @@ import java.io.Serial;
 import java.util.Map;
 
 /**
- * 设备配置数据对象
+ * device_network_config 表对应的 DO
  */
 @Data
 @EqualsAndHashCode(callSuper = true)
-@TableName(value = "biz_device_base.device_configuration", autoResultMap = true)
-public class DeviceConfigurationDO extends BaseDO {
+@TableName(value = "device_network_config", autoResultMap = true)
+public class DeviceNetworkConfigDO extends BaseDO {
 
     @Serial
     private static final long serialVersionUID = 7639847559023457653L;
@@ -27,9 +25,9 @@ public class DeviceConfigurationDO extends BaseDO {
     @TableId(type = IdType.INPUT)
     private String id;
 
-    private String tenantId;
+    private String tenantUuid;
 
-    private String deviceId;
+    private String deviceInfoId;
 
     private String ipAddress;
 
@@ -43,15 +41,15 @@ public class DeviceConfigurationDO extends BaseDO {
 
     private String protocol;
 
-    @TableField(typeHandler = JacksonTypeHandler.class)
     private Map<String, Object> connectionParams;
 
-    private String locationCode;
+    private Long effectiveStartTs;
 
-    private String locationDescription;
+    private Long effectiveEndTs;
 
-    @TableField(typeHandler = JacksonTypeHandler.class)
-    private Map<String, Object> coordinates;
+    private Boolean isActive;
+
+    private String description;
 
     private String updatedBy;
 }

@@ -19,11 +19,11 @@ public final class DeviceTypeAssembler {
     public static DeviceTypeDO fromCreateReq(String tenantId, DeviceTypeCreateReq request) {
         DeviceTypeDO entity = new DeviceTypeDO();
         entity.setId(UUID.randomUUID().toString());
-        entity.setTenantId(tenantId);
+        entity.setTenantUuid(tenantId);
         entity.setTypeCode(request.getTypeCode());
-        entity.setTypeName(request.getTypeName());
+        entity.setTypeDictValue(request.getTypeDictValue());
         entity.setParentTypeId(request.getParentTypeId());
-        entity.setLevel(request.getLevel());
+        entity.setLevelNo(request.getLevelNo());
         entity.setCategory(request.getCategory());
         entity.setDescription(request.getDescription());
         entity.setIcon(request.getIcon());
@@ -33,20 +33,23 @@ public final class DeviceTypeAssembler {
         return entity;
     }
 
-    public static DeviceTypeVO toVO(DeviceTypeDO entity, String parentTypeName) {
+    public static DeviceTypeVO toVO(DeviceTypeDO entity, String parentTypeDictValue) {
         return new DeviceTypeVO()
                 .setId(entity.getId())
                 .setTypeCode(entity.getTypeCode())
-                .setTypeName(entity.getTypeName())
+                .setTypeDictValue(entity.getTypeDictValue())
                 .setParentTypeId(entity.getParentTypeId())
-                .setParentTypeName(parentTypeName)
-                .setLevel(entity.getLevel())
+                .setParentTypeCode(entity.getParentTypeCode())
+                .setParentDictValue(parentTypeDictValue != null ? parentTypeDictValue : entity.getParentDictValue())
+                .setLevelNo(entity.getLevelNo())
                 .setCategory(entity.getCategory())
                 .setDescription(entity.getDescription())
                 .setIcon(entity.getIcon())
                 .setCustomFields(entity.getCustomFields())
                 .setIsActive(entity.getIsActive())
-                .setSortOrder(entity.getSortOrder());
+                .setSortOrder(entity.getSortOrder())
+                .setCreateTime(entity.getCreateTime())
+                .setUpdateTime(entity.getUpdateTime());
     }
 
     private static Long toEpochMilli(java.time.LocalDateTime time) {

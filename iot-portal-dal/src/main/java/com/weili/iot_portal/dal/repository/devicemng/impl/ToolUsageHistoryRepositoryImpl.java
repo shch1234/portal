@@ -31,11 +31,14 @@ public class ToolUsageHistoryRepositoryImpl implements ToolUsageHistoryRepositor
         list.forEach(mapper::insert);
     }
 
+    /**
+     * 按时间范围查询刀具使用记录（对应 device_tool_record 表的字段）
+     */
     @Override
     public List<ToolUsageHistoryDO> selectByRange(String tenantId, String deviceId, Long startTs, Long endTs, Integer limit) {
         LambdaQueryWrapper<ToolUsageHistoryDO> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(ToolUsageHistoryDO::getTenantId, tenantId)
-                .eq(ToolUsageHistoryDO::getDeviceId, deviceId);
+        wrapper.eq(ToolUsageHistoryDO::getTenantUuid, tenantId)
+                .eq(ToolUsageHistoryDO::getDeviceInfoId, deviceId);
         if (startTs != null) {
             wrapper.ge(ToolUsageHistoryDO::getStartTs, startTs);
         }

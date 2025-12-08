@@ -44,16 +44,20 @@ public class AlarmHistoryAssembler {
         return vo;
     }
 
+    /**
+     * 将 DO 转换为 Item VO（对应 device_alarm_history 表的字段，时长单位：秒）
+     */
     private static AlarmHistoryItemVO toItem(AlarmHistoryDO record) {
         AlarmHistoryItemVO item = new AlarmHistoryItemVO();
         item.setAlarmId(record.getId());
-        item.setDeviceId(record.getDeviceId());
+        item.setDeviceId(record.getDeviceInfoId());
         item.setAlarmCode(record.getAlarmCode());
         item.setAlarmText(record.getAlarmText());
         item.setAlarmLevel(record.getAlarmLevel());
         item.setStartTs(record.getStartTs());
         item.setEndTs(record.getEndTs());
-        item.setDurationMs(record.getDurationMs());
+        // 直接使用秒，不进行转换
+        item.setDurationMs(record.getDurationS() != null ? record.getDurationS().longValue() : null);
         item.setInProgress(Boolean.TRUE.equals(record.getIsActive()));
         return item;
     }

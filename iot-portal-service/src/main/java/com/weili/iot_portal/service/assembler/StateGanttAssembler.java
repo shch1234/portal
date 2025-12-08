@@ -28,13 +28,16 @@ public class StateGanttAssembler {
         return vo;
     }
 
+    /**
+     * 将 DO 转换为 Segment VO（对应 device_state_record 表的字段，时长单位：秒）
+     */
     private static StateGanttSegmentVO toSegment(DeviceStateTimelineDO record) {
         StateGanttSegmentVO vo = new StateGanttSegmentVO();
         vo.setId(record.getId());
-        vo.setState(DeviceStateEnum.of(record.getState()));
+        vo.setState(DeviceStateEnum.of(record.getStateCode()));
         vo.setStartTs(record.getStartTs());
         vo.setEndTs(record.getEndTs());
-        vo.setDurationMs(record.getDurationMs());
+        vo.setDurationMs(record.getDurationS() != null ? record.getDurationS().longValue() : null);
         return vo;
     }
 }

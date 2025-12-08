@@ -34,12 +34,14 @@ public class FeedRateHistoryProcessor implements RealtimeIngestionProcessor {
         feedRateHistoryRepository.insertBatch(batch);
     }
 
+    /**
+     * 构建进给率历史 DO（对应 device_feed_rate_history 表的字段）
+     */
     private FeedRateHistoryDO buildDO(RealtimeIngestionEvent event, RealtimeCurvePointVO point) {
         FeedRateHistoryDO record = new FeedRateHistoryDO();
         record.setId(UUID.randomUUID().toString());
-        record.setTenantId(event.getTenantId());
-        record.setDeviceId(event.getDeviceId());
-        record.setFactoryId(event.getFactoryId());
+        record.setTenantUuid(event.getTenantId());
+        record.setDeviceInfoId(event.getDeviceId());
         record.setSampleTs(point.getTs());
         record.setFeedRate(point.getValue());
         return record;

@@ -15,35 +15,39 @@ public final class OrganizationUnitAssembler {
     private OrganizationUnitAssembler() {
     }
 
-    public static OrganizationUnitDO fromCreateReq(String tenantId,OrganizationUnitCreateReq request, String path) {
+    /**
+     * 从创建请求转换为 DO（对应 device_org_relation 表）
+     */
+    public static OrganizationUnitDO fromCreateReq(String tenantId, OrganizationUnitCreateReq request, String path) {
         OrganizationUnitDO entity = new OrganizationUnitDO();
         entity.setId(UUID.randomUUID().toString());
-        entity.setTenantId(tenantId);
+        entity.setTenantUuid(tenantId);
         entity.setUnitCode(request.getUnitCode());
         entity.setUnitName(request.getUnitName());
-        entity.setUnitType(request.getUnitType());
-        entity.setParentId(request.getParentId());
-        entity.setLevel(request.getLevel());
+        entity.setUnitTypeValue(request.getUnitTypeValue());
+        entity.setOrgParentId(request.getOrgParentId());
+        entity.setLevelNo(request.getLevelNo());
         entity.setPath(path);
         entity.setDescription(request.getDescription());
-        entity.setLocation(request.getLocation());
         entity.setIsActive(request.getIsActive() == null ? Boolean.TRUE : request.getIsActive());
         entity.setSortOrder(request.getSortOrder() == null ? 0 : request.getSortOrder());
         return entity;
     }
 
+    /**
+     * 从 DO 转换为 VO（对应 device_org_relation 表）
+     */
     public static OrganizationUnitVO toVO(OrganizationUnitDO entity, String parentName) {
         return new OrganizationUnitVO()
                 .setId(entity.getId())
                 .setUnitCode(entity.getUnitCode())
                 .setUnitName(entity.getUnitName())
-                .setUnitType(entity.getUnitType())
-                .setParentId(entity.getParentId())
+                .setUnitTypeValue(entity.getUnitTypeValue())
+                .setOrgParentId(entity.getOrgParentId())
                 .setParentName(parentName)
-                .setLevel(entity.getLevel())
+                .setLevelNo(entity.getLevelNo())
                 .setPath(entity.getPath())
                 .setDescription(entity.getDescription())
-                .setLocation(entity.getLocation())
                 .setIsActive(entity.getIsActive())
                 .setSortOrder(entity.getSortOrder())
                 .setCreateTime(entity.getCreateTime())

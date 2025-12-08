@@ -42,13 +42,17 @@ public class ToolUsageServiceImpl implements ToolUsageService {
         return vo;
     }
 
+    /**
+     * 将 DO 转换为 Item VO（对应 device_tool_record 表的字段，时长单位：秒）
+     */
     private ToolUsageItemVO convert(ToolUsageHistoryDO record) {
         ToolUsageItemVO vo = new ToolUsageItemVO();
-        vo.setToolNumber(record.getToolNumber());
-        vo.setToolHolderNumber(record.getToolHolderNumber());
+        vo.setToolNumber(record.getToolNo());
+        vo.setToolHolderNumber(record.getToolMagazineNo());
         vo.setStartTs(record.getStartTs());
         vo.setEndTs(record.getEndTs());
-        vo.setDurationMs(record.getDurationMs());
+        // 直接使用秒，不进行转换
+        vo.setDurationMs(record.getDurationS() != null ? record.getDurationS().longValue() : null);
         return vo;
     }
 }

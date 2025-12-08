@@ -5,11 +5,8 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
-/**
- * 设备配置分页查询请求
- */
 @Data
-public class DeviceConfigurationQueryReq {
+public class DeviceNetworkConfigQueryReq {
 
     private String ipAddress;
 

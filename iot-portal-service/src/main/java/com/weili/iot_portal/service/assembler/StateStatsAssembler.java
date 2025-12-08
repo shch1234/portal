@@ -44,12 +44,21 @@ public class StateStatsAssembler {
         return vo;
     }
 
+    /**
+     * 累加各状态的时长（对应 device_state_summary 表的字段，单位：秒）
+     */
     private static void accumulateDurations(DeviceStateSummaryDO summary, Map<DeviceStateEnum, Long> durationMap) {
-        mergeDuration(durationMap, DeviceStateEnum.WORKING, summary.getWorkingDurationMs());
-        mergeDuration(durationMap, DeviceStateEnum.RUNNING, summary.getWorkingDurationMs());
-        mergeDuration(durationMap, DeviceStateEnum.STANDBY, summary.getStandbyDurationMs());
-        mergeDuration(durationMap, DeviceStateEnum.FAULT, summary.getFaultDurationMs());
-        mergeDuration(durationMap, DeviceStateEnum.SHUTDOWN, summary.getShutdownDurationMs());
+        // 直接使用秒，不进行转换
+        Long workingS = summary.getWorkingDurationS() != null ? summary.getWorkingDurationS().longValue() : null;
+        Long standbyS = summary.getStandbyDurationS() != null ? summary.getStandbyDurationS().longValue() : null;
+        Long faultS = summary.getFaultDurationS() != null ? summary.getFaultDurationS().longValue() : null;
+        Long shutdownS = summary.getShutdownDurationS() != null ? summary.getShutdownDurationS().longValue() : null;
+        
+        mergeDuration(durationMap, DeviceStateEnum.WORKING, workingS);
+        mergeDuration(durationMap, DeviceStateEnum.RUNNING, workingS);
+        mergeDuration(durationMap, DeviceStateEnum.STANDBY, standbyS);
+        mergeDuration(durationMap, DeviceStateEnum.FAULT, faultS);
+        mergeDuration(durationMap, DeviceStateEnum.SHUTDOWN, shutdownS);
     }
 
     private static void mergeDuration(Map<DeviceStateEnum, Long> map, DeviceStateEnum state, Long value) {

@@ -48,18 +48,20 @@ public class ToolUsageWebhookServiceImpl implements ToolUsageWebhookService {
                 identity.getDeviceId(), identity.getFactoryId(), batch.size(), request.getTbDeviceId());
     }
 
+    /**
+     * 构建刀具使用记录 DO（对应 device_tool_record 表的字段，时长单位：秒）
+     */
     private ToolUsageHistoryDO buildDO(DeviceIdentityCacheService.DeviceIdentity identity,
                                        ToolUsageWebhookRequest request,
                                        ToolUsageWebhookRequest.ToolUsageItem item) {
         ToolUsageHistoryDO record = new ToolUsageHistoryDO();
-        record.setTenantId(request.getTenantId());
-        record.setDeviceId(identity.getDeviceId());
-        record.setFactoryId(identity.getFactoryId());
-        record.setToolNumber(item.getToolNumber());
-        record.setToolHolderNumber(item.getToolHolderNumber());
+        record.setTenantUuid(request.getTenantId());
+        record.setDeviceInfoId(identity.getDeviceId());
+        record.setToolNo(item.getToolNumber());
+        record.setToolMagazineNo(item.getToolHolderNumber());
         record.setStartTs(item.getStartTs());
         record.setEndTs(item.getEndTs());
-        record.setDurationMs(item.getDurationMs());
+        record.setDurationS(item.getDurationMs() != null ? (int) (item.getDurationMs() / 1000) : null);
         return record;
     }
 }

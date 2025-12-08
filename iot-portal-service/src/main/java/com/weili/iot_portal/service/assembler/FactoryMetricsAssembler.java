@@ -42,7 +42,7 @@ public class FactoryMetricsAssembler {
     }
 
     /**
-     * DO转趋势VO
+     * DO转趋势VO（对应 factory_metric_summary 表的字段）
      */
     public static FactoryMetricsTrendVO toTrendVO(FactoryMetricsShiftDO item) {
         if (item == null) {
@@ -50,7 +50,7 @@ public class FactoryMetricsAssembler {
         }
         
         FactoryMetricsTrendVO vo = FactoryMetricsTrendVO.builder()
-                .shiftDate(item.getShiftDate())
+                .shiftDate(item.getShiftDate() != null ? item.getShiftDate().toString() : null)
                 .shiftCode(item.getShiftCode())
                 .shiftName(parseShiftName(item.getShiftCode()))
                 .build();

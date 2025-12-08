@@ -17,7 +17,7 @@ import java.util.Map;
  */
 @Data
 @EqualsAndHashCode(callSuper = true)
-@TableName(value = "device_base_model", autoResultMap = true)
+@TableName(value = "device_model", autoResultMap = true)
 public class DeviceModelDO extends BaseDO {
 
     @Serial
@@ -26,13 +26,19 @@ public class DeviceModelDO extends BaseDO {
     @TableId(type = IdType.INPUT)
     private String id;
 
-    private String tenantId;
+    /**
+     * 租户UUID，对应 tenant_uuid
+     */
+    private String tenantUuid;
 
     private String modelCode;
 
     private String modelName;
 
-    private String deviceTypeId;
+    /**
+     * 设备类型编码，对应 device_type_code
+     */
+    private String deviceTypeCode;
 
     private String manufacturer;
 
@@ -42,6 +48,9 @@ public class DeviceModelDO extends BaseDO {
     @TableField(typeHandler = JacksonTypeHandler.class)
     private Map<String, Object> typeSpecificAttrs;
 
+    /**
+     * 是否启用，对应 is_active
+     */
     private Boolean isActive;
 
 }

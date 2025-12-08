@@ -5,34 +5,64 @@ import lombok.Data;
 import java.util.List;
 
 /**
- * 设备基础信息分页查询条件
+ * 设备信息分页查询条件（对应 device_info 表）
  */
 @Data
 public class DeviceBaseInfoPageQuery {
 
-    private String tenantId;
-
-    private String deviceCodeLike;
-
-    private String deviceNameLike;
-
-    private List<String> deviceTypeIds;
+    /**
+     * 租户UUID（对应 tenant_uuid）
+     */
+    private String tenantUuid;
 
     /**
-     * 设备子类型名称列表
+     * 设备编号模糊查询（对应 device_code）
+     */
+    private String deviceCodeLike;
+
+    /**
+     * 设备名称模糊查询（对应 device_name）
+     */
+    private String deviceNameLike;
+
+    /**
+     * 设备类型编码列表（对应 device_type_code）
+     */
+    private List<String> deviceTypeCodes;
+
+    /**
+     * 设备子类型名称列表（对应 device_sub_type_name，冗余字段）
      */
     private List<String> deviceSubTypeNames;
 
+    /**
+     * 设备型号ID列表（对应 device_model_id）
+     */
     private List<String> deviceModelIds;
 
-    private List<String> factoryIds;
+    /**
+     * 厂区ID列表（对应 org_factory_id）
+     */
+    private List<String> orgFactoryIds;
 
-    private List<String> workshopIds;
+    /**
+     * 车间ID列表（对应 org_workshop_id）
+     */
+    private List<String> orgWorkshopIds;
 
-    private List<String> productionLineIds;
+    /**
+     * 产线ID列表（对应 org_production_line_id）
+     */
+    private List<String> orgProductionLineIds;
 
+    /**
+     * 设备状态列表（对应 device_status）
+     */
     private List<String> deviceStatuses;
 
+    /**
+     * 是否监控（对应 is_monitored）
+     */
     private Boolean isMonitored;
 
     /**

@@ -10,15 +10,15 @@ import java.util.List;
 @Data
 public class DeviceTypePageQuery {
 
-    private String tenantId;
+    private String tenantUuid;
 
     private String typeCodeLike;
 
-    private String typeNameLike;
+    private String typeDictValueLike;
 
     private String parentTypeId;
 
-    private Integer level;
+    private Integer levelNo;
 
     private List<String> categories;
 

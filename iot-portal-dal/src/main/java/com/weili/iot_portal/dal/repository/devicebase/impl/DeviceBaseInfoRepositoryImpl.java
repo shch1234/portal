@@ -64,21 +64,21 @@ public class DeviceBaseInfoRepositoryImpl implements DeviceBaseInfoRepository {
     @Override
     public List<DeviceBaseInfoDO> findByFactoryId(String tenantId, String factoryId) {
         return mapper.selectList(tenantScope(tenantId)
-                .eq(DeviceBaseInfoDO::getFactoryId, factoryId));
+                .eq(DeviceBaseInfoDO::getOrgFactoryId, factoryId));
     }
 
     @Override
     public PageResult<DeviceBaseInfoDO> selectPage(DeviceBaseInfoPageQuery query) {
         Page<DeviceBaseInfoDO> page = new Page<>(query.getPageNo(), query.getPageSize());
-        LambdaQueryWrapper<DeviceBaseInfoDO> wrapper = tenantScope(query.getTenantId());
+        LambdaQueryWrapper<DeviceBaseInfoDO> wrapper = tenantScope(query.getTenantUuid());
         if (StringUtils.isNotBlank(query.getDeviceCodeLike())) {
             wrapper.like(DeviceBaseInfoDO::getDeviceCode, query.getDeviceCodeLike());
         }
         if (StringUtils.isNotBlank(query.getDeviceNameLike())) {
             wrapper.like(DeviceBaseInfoDO::getDeviceName, query.getDeviceNameLike());
         }
-        if (query.getDeviceTypeIds() != null && !query.getDeviceTypeIds().isEmpty()) {
-            wrapper.in(DeviceBaseInfoDO::getDeviceTypeId, query.getDeviceTypeIds());
+        if (query.getDeviceTypeCodes() != null && !query.getDeviceTypeCodes().isEmpty()) {
+            wrapper.in(DeviceBaseInfoDO::getDeviceTypeCode, query.getDeviceTypeCodes());
         }
         if (query.getDeviceSubTypeNames() != null && !query.getDeviceSubTypeNames().isEmpty()) {
             wrapper.in(DeviceBaseInfoDO::getDeviceSubTypeName, query.getDeviceSubTypeNames());
@@ -86,14 +86,14 @@ public class DeviceBaseInfoRepositoryImpl implements DeviceBaseInfoRepository {
         if (query.getDeviceModelIds() != null && !query.getDeviceModelIds().isEmpty()) {
             wrapper.in(DeviceBaseInfoDO::getDeviceModelId, query.getDeviceModelIds());
         }
-        if (query.getFactoryIds() != null && !query.getFactoryIds().isEmpty()) {
-            wrapper.in(DeviceBaseInfoDO::getFactoryId, query.getFactoryIds());
+        if (query.getOrgFactoryIds() != null && !query.getOrgFactoryIds().isEmpty()) {
+            wrapper.in(DeviceBaseInfoDO::getOrgFactoryId, query.getOrgFactoryIds());
         }
-        if (query.getWorkshopIds() != null && !query.getWorkshopIds().isEmpty()) {
-            wrapper.in(DeviceBaseInfoDO::getWorkshopId, query.getWorkshopIds());
+        if (query.getOrgWorkshopIds() != null && !query.getOrgWorkshopIds().isEmpty()) {
+            wrapper.in(DeviceBaseInfoDO::getOrgWorkshopId, query.getOrgWorkshopIds());
         }
-        if (query.getProductionLineIds() != null && !query.getProductionLineIds().isEmpty()) {
-            wrapper.in(DeviceBaseInfoDO::getProductionLineId, query.getProductionLineIds());
+        if (query.getOrgProductionLineIds() != null && !query.getOrgProductionLineIds().isEmpty()) {
+            wrapper.in(DeviceBaseInfoDO::getOrgProductionLineId, query.getOrgProductionLineIds());
         }
         if (query.getDeviceStatuses() != null && !query.getDeviceStatuses().isEmpty()) {
             wrapper.in(DeviceBaseInfoDO::getDeviceStatus, query.getDeviceStatuses());
@@ -124,9 +124,12 @@ public class DeviceBaseInfoRepositoryImpl implements DeviceBaseInfoRepository {
         return mapper.delete(tenantScope(tenantId).eq(DeviceBaseInfoDO::getId, id)) > 0;
     }
 
+    /**
+     * 构建租户范围查询条件（对应 device_info 表的 tenant_uuid 列）
+     */
     private LambdaQueryWrapper<DeviceBaseInfoDO> tenantScope(String tenantId) {
         LambdaQueryWrapper<DeviceBaseInfoDO> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(DeviceBaseInfoDO::getTenantId, tenantId);
+        wrapper.eq(DeviceBaseInfoDO::getTenantUuid, tenantId);
         return wrapper;
     }
 

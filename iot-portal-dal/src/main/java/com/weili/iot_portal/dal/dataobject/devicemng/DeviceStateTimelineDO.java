@@ -14,11 +14,12 @@ import java.time.LocalDate;
 import java.util.Map;
 
 /**
- * 设备状态时间线 DO
+ * 设备状态明细数据对象（对应 device_state_record 表）
+ * 用于状态时间线与甘特图
  */
 @Data
 @EqualsAndHashCode(callSuper = true)
-@TableName(value = "device_state_timeline", autoResultMap = true)
+@TableName(value = "device_state_record", autoResultMap = true)
 public class DeviceStateTimelineDO extends BaseSimpleDO {
 
     @Serial
@@ -27,25 +28,58 @@ public class DeviceStateTimelineDO extends BaseSimpleDO {
     @TableId(type = IdType.INPUT)
     private String id;
 
-    private String tenantId;
+    /**
+     * 租户UUID（对应 tenant_uuid 列）
+     */
+    private String tenantUuid;
 
-    private String deviceId;
+    /**
+     * 设备ID（关联 device_info.id，对应 device_info_id 列）
+     */
+    private String deviceInfoId;
 
-    private String state;
+    /**
+     * 设备状态编码（对应 state_code 列）
+     * 如：WORKING-加工中 STANDBY-待机 FAULT-故障 SHUTDOWN-关机
+     */
+    private String stateCode;
 
+    /**
+     * 状态开始时间戳（秒，Unix时间戳，对应 start_ts 列）
+     */
     private Long startTs;
 
+    /**
+     * 状态结束时间戳（秒，Unix时间戳，NULL表示进行中，对应 end_ts 列）
+     */
     private Long endTs;
 
-    private Long durationMs;
+    /**
+     * 持续时长（秒，对应 duration_s 列）
+     */
+    private Integer durationS;
 
+    /**
+     * 所属班次日期（对应 shift_date 列）
+     */
     private LocalDate shiftDate;
 
+    /**
+     * 班次编码（对应 shift_code 列）
+     * 如：SHIFT_1-一班 SHIFT_2-二班 SHIFT_3-三班
+     */
     private String shiftCode;
 
+    /**
+     * 扩展属性（JSON，对应 properties 列）
+     * 如：故障代码、工件号等
+     */
     @TableField(typeHandler = JacksonTypeHandler.class)
     private Map<String, Object> properties;
 
+    /**
+     * 是否完整片段：1-完整 0-跨班切分或数据缺失（对应 is_complete 列）
+     */
     private Boolean isComplete;
 }
 

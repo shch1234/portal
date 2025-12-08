@@ -47,10 +47,10 @@ public class DeviceIdentityCacheService {
         }
         DeviceBaseInfoDO device = deviceBaseInfoRepository.findByDeviceCode(tenantId, deviceCode)
                 .orElseGet(() -> handleUnknownDevice(tenantId, deviceCode, tbDeviceId, source));
-        if (StringUtils.isBlank(device.getFactoryId())) {
+        if (StringUtils.isBlank(device.getOrgFactoryId())) {
             throw new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "设备未关联工厂");
         }
-        DeviceIdentity identity = new DeviceIdentity(device.getId(), device.getFactoryId());
+        DeviceIdentity identity = new DeviceIdentity(device.getId(), device.getOrgFactoryId());
         cache(deviceCode, identity);
         return identity;
     }
@@ -61,15 +61,18 @@ public class DeviceIdentityCacheService {
                 "设备未建档，请检查设备编号或在组织架构中新增设备");
     }
 
+    /**
+     * 刷新设备身份缓存（对应 device_info 表的 org_factory_id）
+     */
     public void refresh(DeviceBaseInfoDO device) {
         if (device == null || StringUtils.isBlank(device.getDeviceCode())) {
             return;
         }
-        if (StringUtils.isBlank(device.getFactoryId())) {
+        if (StringUtils.isBlank(device.getOrgFactoryId())) {
             evict(device.getDeviceCode());
             return;
         }
-        cache(device.getDeviceCode(), new DeviceIdentity(device.getId(), device.getFactoryId()));
+        cache(device.getDeviceCode(), new DeviceIdentity(device.getId(), device.getOrgFactoryId()));
     }
 
     public void refresh(DeviceBaseInfoDO device, String oldDeviceCode) {

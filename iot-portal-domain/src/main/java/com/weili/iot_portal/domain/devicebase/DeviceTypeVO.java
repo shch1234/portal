@@ -17,13 +17,16 @@ public class DeviceTypeVO {
 
     private String typeCode;
 
-    private String typeName;
+    /** 类型字典值，对应 type_dict_value */
+    private String typeDictValue;
 
     private String parentTypeId;
 
-    private String parentTypeName;
+    private String parentTypeCode;
 
-    private Integer level;
+    private String parentDictValue;
+
+    private Integer levelNo;
 
     private String category;
 
@@ -37,7 +40,7 @@ public class DeviceTypeVO {
 
     private Integer sortOrder;
 
-    private LocalDateTime cr;
+    private LocalDateTime createTime;
 
     private LocalDateTime updateTime;
 }

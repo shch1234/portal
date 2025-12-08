@@ -1,6 +1,7 @@
 package com.weili.iot_portal.dal.dataobject.devicemng;
 
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
@@ -12,11 +13,12 @@ import java.io.Serial;
 import java.util.List;
 
 /**
- * 班次配置 DO
+ * 设备班次配置数据对象（对应 device_shift_config 表）
+ * 存储设备级班次定义（支持2班制/3班制）
  */
 @Data
 @EqualsAndHashCode(callSuper = true)
-@TableName(value = "device_shift_configuration", autoResultMap = true)
+@TableName(value = "device_shift_config", autoResultMap = true)
 public class ShiftConfigurationDO extends BaseSimpleDO {
 
     @Serial
@@ -25,39 +27,116 @@ public class ShiftConfigurationDO extends BaseSimpleDO {
     @TableId(type = IdType.INPUT)
     private String id;
 
-    private String tenantId;
-
-    private String deviceId;
+    /**
+     * 租户UUID（对应 tenant_uuid 列）
+     */
+    private String tenantUuid;
 
     /**
-     * 班次模式：2（2班制）、3（3班制）
+     * 设备ID（关联 device_info.id，对应 device_info_id 列）
+     */
+    private String deviceInfoId;
+
+    /**
+     * 班次数量：2-2班制 3-3班制（对应 shift_mode 列）
      */
     private Integer shiftMode;
 
     /**
-     * 班次定义（JSON数组）
+     * 班次定义（JSON数组，计算字段，不对应数据库列）
      */
-    @com.baomidou.mybatisplus.annotation.TableField(typeHandler = JacksonTypeHandler.class)
+    @TableField(exist = false)
     private List<ShiftDefinition> shifts;
 
     /**
-     * 生效开始时间
+     * 班次1编码：SHIFT_1（对应 shift_1_code 列）
+     */
+    private String shift1Code;
+
+    /**
+     * 班次1名称：一班/早班（对应 shift_1_name 列）
+     */
+    private String shift1Name;
+
+    /**
+     * 班次1开始时间：08:00:00（对应 shift_1_start_time 列）
+     */
+    private String shift1StartTime;
+
+    /**
+     * 班次1结束时间：16:00:00（对应 shift_1_end_time 列）
+     */
+    private String shift1EndTime;
+
+    /**
+     * 班次1时长（秒，对应 shift_1_duration_s 列）
+     */
+    private Integer shift1DurationS;
+
+    /**
+     * 班次2编码：SHIFT_2（对应 shift_2_code 列）
+     */
+    private String shift2Code;
+
+    /**
+     * 班次2名称：二班/中班（对应 shift_2_name 列）
+     */
+    private String shift2Name;
+
+    /**
+     * 班次2开始时间：16:00:00（对应 shift_2_start_time 列）
+     */
+    private String shift2StartTime;
+
+    /**
+     * 班次2结束时间：00:00:00（对应 shift_2_end_time 列）
+     */
+    private String shift2EndTime;
+
+    /**
+     * 班次2时长（秒，对应 shift_2_duration_s 列）
+     */
+    private Integer shift2DurationS;
+
+    /**
+     * 班次3编码：SHIFT_3（仅3班制时使用，对应 shift_3_code 列）
+     */
+    private String shift3Code;
+
+    /**
+     * 班次3名称：三班/晚班（仅3班制时使用，对应 shift_3_name 列）
+     */
+    private String shift3Name;
+
+    /**
+     * 班次3开始时间（仅3班制时使用，对应 shift_3_start_time 列）
+     */
+    private String shift3StartTime;
+
+    /**
+     * 班次3结束时间（仅3班制时使用，对应 shift_3_end_time 列）
+     */
+    private String shift3EndTime;
+
+    /**
+     * 班次3时长（秒，仅3班制时使用，对应 shift_3_duration_s 列）
+     */
+    private Integer shift3DurationS;
+
+    /**
+     * 生效开始时间戳（秒，Unix时间戳，对应 effective_start_ts 列）
      */
     private Long effectiveStartTs;
 
     /**
-     * 生效结束时间（NULL表示当前生效）
+     * 生效结束时间戳（秒，Unix时间戳，NULL表示当前生效，对应 effective_end_ts 列）
      */
     private Long effectiveEndTs;
 
     /**
-     * 是否启用
+     * 是否启用：1-启用 0-停用（对应 is_active 列）
      */
     private Boolean isActive;
-
-    private String createdBy;
-
-    private String updatedBy;
 
     /**
      * 班次定义内部类

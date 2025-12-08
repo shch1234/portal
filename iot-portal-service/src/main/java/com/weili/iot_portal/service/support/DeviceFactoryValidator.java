@@ -56,12 +56,12 @@ public class DeviceFactoryValidator {
         DeviceBaseInfoDO device = deviceBaseInfoRepository.findById(tenantId, deviceId)
                 .orElseThrow(() -> new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "设备不存在"));
 
-        if (StringUtils.isBlank(device.getFactoryId())) {
+        if (StringUtils.isBlank(device.getOrgFactoryId())) {
             throw new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "设备未关联工厂");
         }
 
-        deviceFactoryCacheService.cache(device.getId(), device.getFactoryId());
-        return device.getFactoryId();
+        deviceFactoryCacheService.cache(device.getId(), device.getOrgFactoryId());
+        return device.getOrgFactoryId();
     }
 
     /**

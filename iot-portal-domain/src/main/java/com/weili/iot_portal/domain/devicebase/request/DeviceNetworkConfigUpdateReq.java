@@ -5,11 +5,8 @@ import lombok.Data;
 
 import java.util.Map;
 
-/**
- * 更新设备配置请求
- */
 @Data
-public class DeviceConfigurationUpdateReq {
+public class DeviceNetworkConfigUpdateReq {
 
     @NotBlank(message = "配置ID不能为空")
     private String id;

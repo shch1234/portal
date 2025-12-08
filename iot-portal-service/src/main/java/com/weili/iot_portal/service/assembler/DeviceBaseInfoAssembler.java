@@ -15,13 +15,16 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
- * 设备基础信息转换器
+ * 设备信息转换器（对应 device_info 表）
  */
 public final class DeviceBaseInfoAssembler {
 
     private DeviceBaseInfoAssembler() {
     }
 
+    /**
+     * 从创建请求构建 DO 对象
+     */
     public static DeviceBaseInfoDO fromCreateReq(DeviceBaseInfoBaseReq req, Supplier<String> idSupplier) {
         DeviceBaseInfoDO entity = new DeviceBaseInfoDO();
         entity.setId(Optional.ofNullable(idSupplier).map(Supplier::get).orElseGet(() -> UUID.randomUUID().toString()));
@@ -29,23 +32,29 @@ public final class DeviceBaseInfoAssembler {
         return entity;
     }
 
+    /**
+     * 从更新请求复制字段到 DO 对象
+     */
     public static void copyForUpdate(DeviceBaseInfoBaseReq req, DeviceBaseInfoDO target) {
         applyCommonFields(req, target);
     }
 
+    /**
+     * 应用公共字段（对应 device_info 表的字段）
+     */
     private static void applyCommonFields(DeviceBaseInfoBaseReq req, DeviceBaseInfoDO target) {
         target.setDeviceCode(req.getDeviceCode());
         target.setDeviceName(req.getDeviceName());
-        target.setDeviceTypeId(req.getDeviceTypeId());
+        target.setDeviceTypeCode(req.getDeviceTypeCode());
         target.setDeviceModelId(req.getDeviceModelId());
         target.setTbDeviceId(req.getTbDeviceId());
         target.setDeviceTypeName(req.getDeviceTypeName());
         target.setDeviceSubTypeName(req.getDeviceSubTypeName());
         target.setModelName(req.getModelName());
         target.setManufacturer(req.getManufacturer());
-        target.setFactoryId(req.getFactoryId());
-        target.setWorkshopId(req.getWorkshopId());
-        target.setProductionLineId(req.getProductionLineId());
+        target.setOrgFactoryId(req.getOrgFactoryId());
+        target.setOrgWorkshopId(req.getOrgWorkshopId());
+        target.setOrgProductionLineId(req.getOrgProductionLineId());
         target.setFactoryName(req.getFactoryName());
         target.setWorkshopName(req.getWorkshopName());
         target.setProductionLineName(req.getProductionLineName());

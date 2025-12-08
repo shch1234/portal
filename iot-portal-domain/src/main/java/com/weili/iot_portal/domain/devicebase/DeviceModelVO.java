@@ -19,7 +19,7 @@ public class DeviceModelVO {
 
     private String modelName;
 
-    private String deviceTypeId;
+    private String deviceTypeCode;
 
     private String deviceTypeName;
 

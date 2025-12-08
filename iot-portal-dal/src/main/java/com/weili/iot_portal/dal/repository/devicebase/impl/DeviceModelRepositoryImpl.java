@@ -44,15 +44,15 @@ public class DeviceModelRepositoryImpl implements DeviceModelRepository {
 
     @Override
     public PageResult<DeviceModelDO> selectPage(DeviceModelPageQuery query) {
-        LambdaQueryWrapper<DeviceModelDO> wrapper = tenantScope(query.getTenantId());
+        LambdaQueryWrapper<DeviceModelDO> wrapper = tenantScope(query.getTenantUuid());
         if (StringUtils.isNotBlank(query.getModelCodeLike())) {
             wrapper.like(DeviceModelDO::getModelCode, query.getModelCodeLike());
         }
         if (StringUtils.isNotBlank(query.getModelNameLike())) {
             wrapper.like(DeviceModelDO::getModelName, query.getModelNameLike());
         }
-        if (query.getDeviceTypeIds() != null && !query.getDeviceTypeIds().isEmpty()) {
-            wrapper.in(DeviceModelDO::getDeviceTypeId, query.getDeviceTypeIds());
+        if (query.getDeviceTypeCodes() != null && !query.getDeviceTypeCodes().isEmpty()) {
+            wrapper.in(DeviceModelDO::getDeviceTypeCode, query.getDeviceTypeCodes());
         }
         if (StringUtils.isNotBlank(query.getManufacturer())) {
             wrapper.like(DeviceModelDO::getManufacturer, query.getManufacturer());
@@ -85,7 +85,7 @@ public class DeviceModelRepositoryImpl implements DeviceModelRepository {
 
     private LambdaQueryWrapper<DeviceModelDO> tenantScope(String tenantId) {
         LambdaQueryWrapper<DeviceModelDO> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(DeviceModelDO::getTenantId, tenantId);
+        wrapper.eq(DeviceModelDO::getTenantUuid, tenantId);
         return wrapper;
     }
 

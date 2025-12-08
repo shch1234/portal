@@ -8,21 +8,39 @@ import lombok.Data;
 import java.util.List;
 
 /**
- * 组织单元分页查询请求
+ * 组织单元分页查询请求（对应 device_org_relation 表）
  */
 @Data
 public class OrganizationUnitQueryReq {
 
+    /**
+     * 单元编码模糊查询
+     */
     private String unitCodeLike;
 
+    /**
+     * 单元名称模糊查询
+     */
     private String unitNameLike;
 
-    private List<String> unitTypes;
+    /**
+     * 单元类型值列表（FACTORY/WORKSHOP/PRODUCTION_LINE）
+     */
+    private List<String> unitTypeValues;
 
-    private String parentId;
+    /**
+     * 父级组织ID
+     */
+    private String orgParentId;
 
-    private Integer level;
+    /**
+     * 层级：1厂区、2车间、3产线
+     */
+    private Integer levelNo;
 
+    /**
+     * 是否启用
+     */
     private Boolean isActive;
 
     @NotNull(message = "页码不能为空")
@@ -38,4 +56,3 @@ public class OrganizationUnitQueryReq {
 
     private String sortDirection;
 }
-

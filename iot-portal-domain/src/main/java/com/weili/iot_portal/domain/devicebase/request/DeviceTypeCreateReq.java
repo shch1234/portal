@@ -15,8 +15,8 @@ public class DeviceTypeCreateReq {
     @NotBlank(message = "类型编码不能为空")
     private String typeCode;
 
-    @NotBlank(message = "类型名称不能为空")
-    private String typeName;
+    @NotBlank(message = "类型字典值不能为空")
+    private String typeDictValue;
 
     /**
      * 父级类型 ID，可为空
@@ -24,7 +24,7 @@ public class DeviceTypeCreateReq {
     private String parentTypeId;
 
     @NotNull(message = "层级不能为空")
-    private Integer level;
+    private Integer levelNo;
 
     private String category;
 

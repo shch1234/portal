@@ -17,7 +17,7 @@ import java.util.Map;
  */
 @Data
 @EqualsAndHashCode(callSuper = true)
-@TableName(value = "device_type", autoResultMap = true)
+@TableName(value = "device_type_relation", autoResultMap = true)
 public class DeviceTypeDO extends BaseSimpleDO {
 
     @Serial
@@ -26,15 +26,25 @@ public class DeviceTypeDO extends BaseSimpleDO {
     @TableId(type = IdType.INPUT)
     private String id;
 
-    private String tenantId;
+    /** 租户UUID，对应 tenant_uuid */
+    private String tenantUuid;
 
     private String typeCode;
 
-    private String typeName;
+    /** 类型字典值，对应 type_dict_value */
+    private String typeDictValue;
 
+    /** 父类型ID，对应 parent_type_id */
     private String parentTypeId;
 
-    private Integer level;
+    /** 父类型编码，对应 parent_type_code */
+    private String parentTypeCode;
+
+    /** 父类型字典值，对应 parent_dict_value */
+    private String parentDictValue;
+
+    /** 层级，对应 level_no */
+    private Integer levelNo;
 
     private String category;
 
@@ -45,12 +55,10 @@ public class DeviceTypeDO extends BaseSimpleDO {
     @TableField(typeHandler = JacksonTypeHandler.class)
     private Map<String, Object> customFields;
 
+    /** 是否启用，对应 is_active */
     private Boolean isActive;
 
+    /** 排序号，对应 sort_order */
     private Integer sortOrder;
-
-    private String createdBy;
-
-    private String updatedBy;
 }
 

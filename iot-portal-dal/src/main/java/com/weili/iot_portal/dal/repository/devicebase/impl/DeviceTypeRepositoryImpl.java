@@ -51,18 +51,18 @@ public class DeviceTypeRepositoryImpl implements DeviceTypeRepository {
 
     @Override
     public PageResult<DeviceTypeDO> selectPage(DeviceTypePageQuery query) {
-        LambdaQueryWrapper<DeviceTypeDO> wrapper = tenantScope(query.getTenantId());
+        LambdaQueryWrapper<DeviceTypeDO> wrapper = tenantScope(query.getTenantUuid());
         if (StringUtils.isNotBlank(query.getTypeCodeLike())) {
             wrapper.like(DeviceTypeDO::getTypeCode, query.getTypeCodeLike());
         }
-        if (StringUtils.isNotBlank(query.getTypeNameLike())) {
-            wrapper.like(DeviceTypeDO::getTypeName, query.getTypeNameLike());
+        if (StringUtils.isNotBlank(query.getTypeDictValueLike())) {
+            wrapper.like(DeviceTypeDO::getTypeDictValue, query.getTypeDictValueLike());
         }
         if (StringUtils.isNotBlank(query.getParentTypeId())) {
             wrapper.eq(DeviceTypeDO::getParentTypeId, query.getParentTypeId());
         }
-        if (query.getLevel() != null) {
-            wrapper.eq(DeviceTypeDO::getLevel, query.getLevel());
+        if (query.getLevelNo() != null) {
+            wrapper.eq(DeviceTypeDO::getLevelNo, query.getLevelNo());
         }
         if (query.getCategories() != null && !query.getCategories().isEmpty()) {
             wrapper.in(DeviceTypeDO::getCategory, query.getCategories());
@@ -95,7 +95,7 @@ public class DeviceTypeRepositoryImpl implements DeviceTypeRepository {
 
     private LambdaQueryWrapper<DeviceTypeDO> tenantScope(String tenantId) {
         LambdaQueryWrapper<DeviceTypeDO> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(DeviceTypeDO::getTenantId, tenantId);
+        wrapper.eq(DeviceTypeDO::getTenantUuid, tenantId);
         return wrapper;
     }
 
@@ -116,8 +116,8 @@ public class DeviceTypeRepositoryImpl implements DeviceTypeRepository {
     private SFunction<DeviceTypeDO, ?> getOrderByColumn(String sortBy) {
         return switch (sortBy) {
             case "typeCode" -> DeviceTypeDO::getTypeCode;
-            case "typename" -> DeviceTypeDO::getTypeName;
-            case "level" -> DeviceTypeDO::getLevel;
+            case "typeDictValue" -> DeviceTypeDO::getTypeDictValue;
+            case "levelNo" -> DeviceTypeDO::getLevelNo;
             case "createdTime" -> DeviceTypeDO::getCreateTime;
             case "updatedTime" -> DeviceTypeDO::getUpdateTime;
             default -> DeviceTypeDO::getSortOrder;

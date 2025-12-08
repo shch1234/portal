@@ -17,8 +17,8 @@ public class DeviceModelCreateReq {
     @NotBlank(message = "型号名称不能为空")
     private String modelName;
 
-    @NotBlank(message = "设备类型不能为空")
-    private String deviceTypeId;
+    @NotBlank(message = "设备类型编码不能为空")
+    private String deviceTypeCode;
 
     private String manufacturer;
 

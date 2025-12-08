@@ -31,11 +31,14 @@ public class FeedRateHistoryRepositoryImpl implements FeedRateHistoryRepository 
         list.forEach(mapper::insert);
     }
 
+    /**
+     * 按时间范围查询进给率历史（对应 device_feed_rate_history 表的字段）
+     */
     @Override
     public List<FeedRateHistoryDO> selectByRange(String tenantId, String deviceId, Long startTs, Long endTs, Integer limit) {
         LambdaQueryWrapper<FeedRateHistoryDO> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(FeedRateHistoryDO::getTenantId, tenantId)
-                .eq(FeedRateHistoryDO::getDeviceId, deviceId);
+        wrapper.eq(FeedRateHistoryDO::getTenantUuid, tenantId)
+                .eq(FeedRateHistoryDO::getDeviceInfoId, deviceId);
         if (startTs != null) {
             wrapper.ge(FeedRateHistoryDO::getSampleTs, startTs);
         }

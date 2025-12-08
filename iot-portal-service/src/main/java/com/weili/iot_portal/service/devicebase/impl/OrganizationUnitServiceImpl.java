@@ -38,7 +38,7 @@ public class OrganizationUnitServiceImpl implements OrganizationUnitService {
         ensureTenant(tenantId);
         validateCreate(request);
         checkUnitCodeUnique(tenantId, request.getUnitCode());
-        String path = buildPath(tenantId, request.getParentId(), request.getUnitCode());
+        String path = buildPath(tenantId, request.getOrgParentId(), request.getUnitCode());
 
         OrganizationUnitDO entity = OrganizationUnitAssembler.fromCreateReq(tenantId, request, path);
         LocalDateTime now = LocalDateTime.now();
@@ -46,7 +46,7 @@ public class OrganizationUnitServiceImpl implements OrganizationUnitService {
         entity.setUpdateTime(now);
         organizationUnitRepository.insert(entity);
 
-        String parentName = resolveParentName(tenantId, entity.getParentId());
+        String parentName = resolveParentName(tenantId, entity.getOrgParentId());
         return OrganizationUnitAssembler.toVO(entity, parentName);
     }
 
@@ -63,9 +63,6 @@ public class OrganizationUnitServiceImpl implements OrganizationUnitService {
         if (request.getDescription() != null) {
             entity.setDescription(request.getDescription());
         }
-        if (request.getLocation() != null) {
-            entity.setLocation(request.getLocation());
-        }
         if (request.getIsActive() != null) {
             entity.setIsActive(request.getIsActive());
         }
@@ -75,7 +72,7 @@ public class OrganizationUnitServiceImpl implements OrganizationUnitService {
         entity.setUpdateTime(LocalDateTime.now());
         organizationUnitRepository.update(entity);
 
-        String parentName = resolveParentName(tenantId, entity.getParentId());
+        String parentName = resolveParentName(tenantId, entity.getOrgParentId());
         return OrganizationUnitAssembler.toVO(entity, parentName);
     }
 
@@ -84,7 +81,7 @@ public class OrganizationUnitServiceImpl implements OrganizationUnitService {
         ensureTenant(tenantId);
         OrganizationUnitDO entity = organizationUnitRepository.findById(tenantId, id)
                 .orElseThrow(() -> new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "组织单元不存在"));
-        String parentName = resolveParentName(tenantId, entity.getParentId());
+        String parentName = resolveParentName(tenantId, entity.getOrgParentId());
         return OrganizationUnitAssembler.toVO(entity, parentName);
     }
 
@@ -92,12 +89,12 @@ public class OrganizationUnitServiceImpl implements OrganizationUnitService {
     public PageResult<OrganizationUnitVO> page(String tenantId, OrganizationUnitQueryReq request) {
         ensureTenant(tenantId);
         OrganizationUnitPageQuery query = new OrganizationUnitPageQuery();
-        query.setTenantId(tenantId);
+        query.setTenantUuid(tenantId);
         query.setUnitCodeLike(request.getUnitCodeLike());
         query.setUnitNameLike(request.getUnitNameLike());
-        query.setUnitTypes(request.getUnitTypes());
-        query.setParentId(request.getParentId());
-        query.setLevel(request.getLevel());
+        query.setUnitTypeValues(request.getUnitTypeValues());
+        query.setOrgParentId(request.getOrgParentId());
+        query.setLevelNo(request.getLevelNo());
         query.setIsActive(request.getIsActive());
         query.setPageNo(request.getPageNo());
         query.setPageSize(request.getPageSize());
@@ -107,7 +104,7 @@ public class OrganizationUnitServiceImpl implements OrganizationUnitService {
         PageResult<OrganizationUnitDO> pageResult = organizationUnitRepository.selectPage(query);
         Map<String, String> parentNameCache = buildParentNameCache(tenantId, pageResult.getList());
         List<OrganizationUnitVO> list = pageResult.getList().stream()
-                .map(item -> OrganizationUnitAssembler.toVO(item, parentNameCache.get(item.getParentId())))
+                .map(item -> OrganizationUnitAssembler.toVO(item, parentNameCache.get(item.getOrgParentId())))
                 .collect(Collectors.toList());
         return new PageResult<>(list, pageResult.getTotal());
     }
@@ -132,10 +129,10 @@ public class OrganizationUnitServiceImpl implements OrganizationUnitService {
         if (StringUtils.isBlank(request.getUnitName())) {
             throw new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "单元名称不能为空");
         }
-        if (StringUtils.isBlank(request.getUnitType())) {
-            throw new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "单元类型不能为空");
+        if (StringUtils.isBlank(request.getUnitTypeValue())) {
+            throw new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "单元类型值不能为空");
         }
-        if (request.getLevel() == null) {
+        if (request.getLevelNo() == null) {
             throw new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "层级不能为空");
         }
     }
@@ -164,9 +161,12 @@ public class OrganizationUnitServiceImpl implements OrganizationUnitService {
                 .orElse(null);
     }
 
+    /**
+     * 构建父级名称缓存（用于批量查询优化）
+     */
     private Map<String, String> buildParentNameCache(String tenantId, List<OrganizationUnitDO> records) {
         List<String> parentIds = records.stream()
-                .map(OrganizationUnitDO::getParentId)
+                .map(OrganizationUnitDO::getOrgParentId)
                 .filter(StringUtils::isNotBlank)
                 .distinct().toList();
         if (parentIds.isEmpty()) {

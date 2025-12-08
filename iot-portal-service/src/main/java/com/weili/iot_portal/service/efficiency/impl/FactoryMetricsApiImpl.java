@@ -162,11 +162,11 @@ public class FactoryMetricsApiImpl implements FactoryMetricApi {
         BigDecimal averageOee = FactoryMetricsAssembler.calculateAverageOee(aggregationData);
         BigDecimal averageUtilizationRate = FactoryMetricsAssembler.calculateAverageUtilizationRate(aggregationData);
 
-        // 构建返回对象
+        // 构建返回对象（对应 factory_metric_summary 表的字段）
         FactoryMetricsShiftDO result = new FactoryMetricsShiftDO();
-        result.setTenantId(tenantId);
-        result.setFactoryId(factoryId);
-        result.setShiftDate(shiftDate);
+        result.setTenantUuid(tenantId);
+        result.setOrgFactoryId(factoryId);
+        result.setShiftDate(LocalDate.parse(shiftDate, DateTimeFormatter.ISO_LOCAL_DATE));
         result.setShiftCode(shiftCode);
         result.setShiftStartTs(shiftRange.getStartTs());
         result.setShiftEndTs(shiftRange.getEndTs());
@@ -249,13 +249,16 @@ public class FactoryMetricsApiImpl implements FactoryMetricApi {
     /**
      * 创建空指标对象（当没有设备或数据时）
      */
+    /**
+     * 创建空指标对象（对应 factory_metric_summary 表的字段）
+     */
     private FactoryMetricsShiftDO createEmptyMetrics(String tenantId, String factoryId,
                                                      String shiftDate, String shiftCode,
                                                      ShiftTimeRangeVO shiftRange) {
         FactoryMetricsShiftDO result = new FactoryMetricsShiftDO();
-        result.setTenantId(tenantId);
-        result.setFactoryId(factoryId);
-        result.setShiftDate(shiftDate);
+        result.setTenantUuid(tenantId);
+        result.setOrgFactoryId(factoryId);
+        result.setShiftDate(LocalDate.parse(shiftDate, DateTimeFormatter.ISO_LOCAL_DATE));
         result.setShiftCode(shiftCode);
         result.setShiftStartTs(shiftRange.getStartTs());
         result.setShiftEndTs(shiftRange.getEndTs());

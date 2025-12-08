@@ -4,7 +4,7 @@ import com.weili.basic.common.exception.ServiceException;
 import com.weili.iot_portal.api.device.DeviceBaseDataApi;
 import com.weili.iot_portal.dal.dataobject.devicebase.DeviceBaseInfoDO;
 import com.weili.iot_portal.dal.repository.devicebase.DeviceBaseInfoRepository;
-import com.weili.iot_portal.dal.repository.devicebase.DeviceConfigurationRepository;
+import com.weili.iot_portal.dal.repository.devicebase.DeviceNetworkConfigRepository;
 import com.weili.iot_portal.domain.devicebase.DeviceBaseInfoVO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -23,7 +23,7 @@ import java.util.stream.Collectors;
 public class DeviceBaseDataApiImpl implements DeviceBaseDataApi {
 
     private final DeviceBaseInfoRepository deviceBaseInfoRepository;
-    private final DeviceConfigurationRepository deviceConfigurationRepository;
+    private final DeviceNetworkConfigRepository deviceNetworkConfigRepository;
 
     @Override
     public DeviceBaseInfoVO getDeviceById(String tenantId, String factoryId, String deviceId) {
@@ -32,8 +32,8 @@ public class DeviceBaseDataApiImpl implements DeviceBaseDataApi {
                         com.weili.basic.common.enums.ErrorCodeConstants.DEFAULT_ERROR.getCode(),
                         "设备不存在"));
         
-        // 验证设备是否属于指定工厂
-        if (factoryId != null && !factoryId.equals(device.getFactoryId())) {
+        // 验证设备是否属于指定工厂（对应 device_info 表的 org_factory_id）
+        if (factoryId != null && !factoryId.equals(device.getOrgFactoryId())) {
             throw new ServiceException(
                     com.weili.basic.common.enums.ErrorCodeConstants.DEFAULT_ERROR.getCode(),
                     "设备不属于指定工厂");
@@ -49,8 +49,8 @@ public class DeviceBaseDataApiImpl implements DeviceBaseDataApi {
                         com.weili.basic.common.enums.ErrorCodeConstants.DEFAULT_ERROR.getCode(),
                         "设备不存在"));
         
-        // 验证设备是否属于指定工厂
-        if (factoryId != null && !factoryId.equals(device.getFactoryId())) {
+        // 验证设备是否属于指定工厂（对应 device_info 表的 org_factory_id）
+        if (factoryId != null && !factoryId.equals(device.getOrgFactoryId())) {
             throw new ServiceException(
                     com.weili.basic.common.enums.ErrorCodeConstants.DEFAULT_ERROR.getCode(),
                     "设备不属于指定工厂");
@@ -78,10 +78,10 @@ public class DeviceBaseDataApiImpl implements DeviceBaseDataApi {
     public List<DeviceBaseInfoVO> getDevicesByFactory(String tenantId, String factoryId, String workshopId) {
         List<DeviceBaseInfoDO> devices = deviceBaseInfoRepository.findByFactoryId(tenantId, factoryId);
         
-        // 如果指定了车间，则过滤车间设备
+        // 如果指定了车间，则过滤车间设备（对应 device_info 表的 org_workshop_id）
         if (workshopId != null && !workshopId.isEmpty()) {
             devices = devices.stream()
-                    .filter(device -> workshopId.equals(device.getWorkshopId()))
+                    .filter(device -> workshopId.equals(device.getOrgWorkshopId()))
                     .collect(Collectors.toList());
         }
         
@@ -101,30 +101,32 @@ public class DeviceBaseDataApiImpl implements DeviceBaseDataApi {
     }
 
     /**
-     * 将内部DO转换为公共VO
+     * 将内部DO转换为公共VO（对应 device_info 表的字段）
      */
     private DeviceBaseInfoVO convertToCommonVO(DeviceBaseInfoDO device) {
         var builder = DeviceBaseInfoVO.builder()
                 .id(device.getId())
+                .tenantUuid(device.getTenantUuid())
                 .tbDeviceId(device.getTbDeviceId())
                 .deviceCode(device.getDeviceCode())
                 .deviceName(device.getDeviceName())
-                .deviceTypeId(device.getDeviceTypeId())
+                .deviceTypeCode(device.getDeviceTypeCode())
                 .deviceTypeName(device.getDeviceTypeName())
                 .deviceSubTypeName(device.getDeviceSubTypeName())
                 .deviceModelId(device.getDeviceModelId())
                 .modelName(device.getModelName())
                 .manufacturer(device.getManufacturer())
-                .factoryId(device.getFactoryId())
+                .orgFactoryId(device.getOrgFactoryId())
                 .factoryName(device.getFactoryName())
-                .workshopId(device.getWorkshopId())
+                .orgWorkshopId(device.getOrgWorkshopId())
                 .workshopName(device.getWorkshopName())
-                .productionLineId(device.getProductionLineId())
+                .orgProductionLineId(device.getOrgProductionLineId())
                 .productionLineName(device.getProductionLineName())
                 .deviceStatus(device.getDeviceStatus())
                 .isMonitored(device.getIsMonitored());
 
-        deviceConfigurationRepository.findByDeviceId(device.getTenantId(), device.getId())
+        // 读取当前生效的网络配置，便于调用方展示 IP / MAC
+        deviceNetworkConfigRepository.findByDeviceInfoId(device.getTenantUuid(), device.getId())
                 .ifPresent(config -> builder
                         .ipAddress(config.getIpAddress())
                         .macAddress(config.getMacAddress()));

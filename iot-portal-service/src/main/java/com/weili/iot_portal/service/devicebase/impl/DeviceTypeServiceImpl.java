@@ -45,8 +45,8 @@ public class DeviceTypeServiceImpl implements DeviceTypeService {
         entity.setUpdateTime(now);
         repository.insert(entity);
 
-        String parentTypeName = resolveParentName(tenantId, entity.getParentTypeId());
-        return DeviceTypeAssembler.toVO(entity, parentTypeName);
+        String parentTypeDictValue = resolveParentDictValue(tenantId, entity.getParentTypeId());
+        return DeviceTypeAssembler.toVO(entity, parentTypeDictValue);
     }
 
     @Override
@@ -56,8 +56,8 @@ public class DeviceTypeServiceImpl implements DeviceTypeService {
         DeviceTypeDO entity = repository.findById(tenantId, request.getId())
                 .orElseThrow(() -> new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "设备类型不存在"));
 
-        if (StringUtils.isNotBlank(request.getTypeName())) {
-            entity.setTypeName(request.getTypeName());
+        if (StringUtils.isNotBlank(request.getTypeDictValue())) {
+            entity.setTypeDictValue(request.getTypeDictValue());
         }
         if (request.getDescription() != null) {
             entity.setDescription(request.getDescription());
@@ -78,8 +78,8 @@ public class DeviceTypeServiceImpl implements DeviceTypeService {
 
         repository.update(entity);
 
-        String parentTypeName = resolveParentName(tenantId, entity.getParentTypeId());
-        return DeviceTypeAssembler.toVO(entity, parentTypeName);
+        String parentTypeDictValue = resolveParentDictValue(tenantId, entity.getParentTypeId());
+        return DeviceTypeAssembler.toVO(entity, parentTypeDictValue);
     }
 
     @Override
@@ -87,19 +87,19 @@ public class DeviceTypeServiceImpl implements DeviceTypeService {
         ensureTenant(tenantId);
         DeviceTypeDO entity = repository.findById(tenantId, id)
                 .orElseThrow(() -> new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "设备类型不存在"));
-        String parentTypeName = resolveParentName(tenantId, entity.getParentTypeId());
-        return DeviceTypeAssembler.toVO(entity, parentTypeName);
+        String parentTypeDictValue = resolveParentDictValue(tenantId, entity.getParentTypeId());
+        return DeviceTypeAssembler.toVO(entity, parentTypeDictValue);
     }
 
     @Override
     public PageResult<DeviceTypeVO> page(String tenantId, DeviceTypeQueryReq request) {
         ensureTenant(tenantId);
         DeviceTypePageQuery query = new DeviceTypePageQuery();
-        query.setTenantId(tenantId);
+        query.setTenantUuid(tenantId);
         query.setTypeCodeLike(request.getTypeCodeLike());
-        query.setTypeNameLike(request.getTypeNameLike());
+        query.setTypeDictValueLike(request.getTypeDictValueLike());
         query.setParentTypeId(request.getParentTypeId());
-        query.setLevel(request.getLevel());
+        query.setLevelNo(request.getLevelNo());
         query.setCategories(request.getCategories());
         query.setIsActive(request.getIsActive());
         query.setPageNo(request.getPageNo());
@@ -108,7 +108,7 @@ public class DeviceTypeServiceImpl implements DeviceTypeService {
         query.setSortDirection(request.getSortDirection());
 
         PageResult<DeviceTypeDO> pageResult = repository.selectPage(query);
-        Map<String, String> parentNameCache = buildParentNameCache(tenantId, pageResult.getList());
+        Map<String, String> parentNameCache = buildParentDictCache(tenantId, pageResult.getList());
         List<DeviceTypeVO> list = pageResult.getList().stream()
                 .map(item -> DeviceTypeAssembler.toVO(item, parentNameCache.get(item.getParentTypeId())))
                 .collect(Collectors.toList());
@@ -132,10 +132,10 @@ public class DeviceTypeServiceImpl implements DeviceTypeService {
         if (StringUtils.isBlank(request.getTypeCode())) {
             throw new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "类型编码不能为空");
         }
-        if (StringUtils.isBlank(request.getTypeName())) {
-            throw new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "类型名称不能为空");
+        if (StringUtils.isBlank(request.getTypeDictValue())) {
+            throw new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "类型字典值不能为空");
         }
-        if (request.getLevel() == null || request.getLevel() < 1) {
+        if (request.getLevelNo() == null || request.getLevelNo() < 1) {
             throw new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "层级不合法");
         }
     }
@@ -154,16 +154,16 @@ public class DeviceTypeServiceImpl implements DeviceTypeService {
         }
     }
 
-    private String resolveParentName(String tenantId, String parentId) {
+    private String resolveParentDictValue(String tenantId, String parentId) {
         if (StringUtils.isBlank(parentId)) {
             return null;
         }
         return repository.findById(tenantId, parentId)
-                .map(DeviceTypeDO::getTypeName)
+                .map(DeviceTypeDO::getTypeDictValue)
                 .orElse(null);
     }
 
-    private Map<String, String> buildParentNameCache(String tenantId, List<DeviceTypeDO> records) {
+    private Map<String, String> buildParentDictCache(String tenantId, List<DeviceTypeDO> records) {
         List<String> parentIds = records.stream()
                 .map(DeviceTypeDO::getParentTypeId)
                 .filter(StringUtils::isNotBlank)
@@ -175,7 +175,7 @@ public class DeviceTypeServiceImpl implements DeviceTypeService {
         return parentIds.stream()
                 .map(id -> repository.findById(tenantId, id).orElse(null))
                 .filter(item -> item != null)
-                .collect(Collectors.toMap(DeviceTypeDO::getId, DeviceTypeDO::getTypeName));
+                .collect(Collectors.toMap(DeviceTypeDO::getId, DeviceTypeDO::getTypeDictValue));
     }
 }
 

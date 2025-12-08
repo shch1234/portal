@@ -14,7 +14,7 @@ public class DeviceTypeUpdateReq {
     @NotBlank(message = "设备类型ID不能为空")
     private String id;
 
-    private String typeName;
+    private String typeDictValue;
 
     private String description;
 

@@ -10,13 +10,13 @@ import java.util.List;
 @Data
 public class DeviceModelPageQuery {
 
-    private String tenantId;
+    private String tenantUuid;
 
     private String modelCodeLike;
 
     private String modelNameLike;
 
-    private List<String> deviceTypeIds;
+    private List<String> deviceTypeCodes;
 
     private String manufacturer;
 

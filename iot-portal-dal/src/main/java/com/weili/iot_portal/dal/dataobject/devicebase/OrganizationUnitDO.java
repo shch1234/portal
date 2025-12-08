@@ -4,18 +4,18 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.weili.basic.framework.mybatis.domain.BaseDO;
-import com.weili.basic.framework.mybatis.domain.BaseSimpleDO;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
 import java.io.Serial;
 
 /**
- * 组织单元数据对象
+ * 组织单元数据对象（对应 device_org_relation 表）
+ * 用于描述设备所在的组织单元，如厂区、车间、产线
  */
 @Data
 @EqualsAndHashCode(callSuper = true)
-@TableName(value = "device_base_organization_unit")
+@TableName(value = "device_org_relation")
 public class OrganizationUnitDO extends BaseDO {
 
     @Serial
@@ -24,26 +24,54 @@ public class OrganizationUnitDO extends BaseDO {
     @TableId(type = IdType.INPUT)
     private String id;
 
-    private String tenantId;
+    /**
+     * 租户UUID（对应 tenant_uuid 列）
+     */
+    private String tenantUuid;
 
+    /**
+     * 组织单元编码（租户内唯一，对应 unit_code 列）
+     */
     private String unitCode;
 
+    /**
+     * 组织单元名称（对应 unit_name 列）
+     */
     private String unitName;
 
-    private String unitType;
+    /**
+     * 组织单元类型值（system_dict_data.value，FACTORY/WORKSHOP/PRODUCTION_LINE，对应 unit_type_value 列）
+     */
+    private String unitTypeValue;
 
-    private String parentId;
+    /**
+     * 父级组织ID（关联 device_org_relation.id，对应 org_parent_id 列）
+     */
+    private String orgParentId;
 
-    private Integer level;
+    /**
+     * 层级：1厂区、2车间、3产线（对应 level_no 列）
+     */
+    private Integer levelNo;
 
+    /**
+     * 层级路径（物化路径模式）：使用 unit_code 组合，以 / 分隔（对应 path 列）
+     */
     private String path;
 
+    /**
+     * 描述信息（对应 description 列）
+     */
     private String description;
 
-    private String location;
-
+    /**
+     * 是否启用（对应 is_active 列）
+     */
     private Boolean isActive;
 
+    /**
+     * 排序号（越小越靠前，对应 sort_order 列）
+     */
     private Integer sortOrder;
 
 }
