@@ -153,6 +153,7 @@ CREATE TABLE IF NOT EXISTS device_network_config (
     id                  BIGINT NOT NULL PRIMARY KEY COMMENT '主键ID（雪花算法）',
     tenant_uuid         CHAR(36) NOT NULL COMMENT '租户UUID（关联 tenant.id）',
     device_info_id      BIGINT NOT NULL COMMENT '设备ID（关联 device_info.id）',
+    org_factory_id      BIGINT COMMENT '所属厂区ID（关联 device_org_relation.id，冗余字段，优化查询性能）',
     
     -- ========== 网络配置字段 ==========
     ip_address          VARCHAR(50) COMMENT 'IP地址',
@@ -181,6 +182,7 @@ CREATE TABLE IF NOT EXISTS device_network_config (
 CREATE INDEX idx_network_config_device ON device_network_config (device_info_id);
 CREATE INDEX idx_network_config_active ON device_network_config (device_info_id, is_active);
 CREATE INDEX idx_network_config_effective ON device_network_config (device_info_id, effective_start_ts);
+CREATE INDEX idx_network_config_factory ON device_network_config (org_factory_id, is_active);
 
 -- ============================================================
 -- 6. 设备位置信息表 device_location
@@ -195,6 +197,7 @@ CREATE TABLE IF NOT EXISTS device_location (
     id                  BIGINT NOT NULL PRIMARY KEY COMMENT '主键ID（雪花算法）',
     tenant_uuid         CHAR(36) NOT NULL COMMENT '租户UUID（关联 tenant.id）',
     device_info_id      BIGINT NOT NULL COMMENT '设备ID（关联 device_info.id）',
+    org_factory_id      BIGINT COMMENT '所属厂区ID（关联 device_org_relation.id，冗余字段，优化查询性能）',
     
     -- ========== 位置信息字段 ==========
     location_code       VARCHAR(100) COMMENT '位置编码（物理位置编码，如：A区-1层-01号位，区别于device_info中的逻辑位置）',
@@ -226,6 +229,7 @@ CREATE INDEX idx_location_device ON device_location (device_info_id);
 CREATE INDEX idx_location_active ON device_location (device_info_id, is_active);
 CREATE INDEX idx_location_effective ON device_location (device_info_id, effective_start_ts);
 CREATE INDEX idx_location_coords ON device_location (longitude, latitude);
+CREATE INDEX idx_location_factory ON device_location (org_factory_id, is_active);
 
 -- ============================================================
 -- 7. 设备关系表 device_relation
@@ -266,6 +270,7 @@ CREATE TABLE IF NOT EXISTS device_state_record (
     id              BIGINT NOT NULL PRIMARY KEY COMMENT '主键ID（雪花算法）',
     tenant_uuid     CHAR(36) NOT NULL COMMENT '租户UUID（关联 tenant.id）',
     device_info_id  BIGINT NOT NULL COMMENT '设备ID（关联 device_info.id）',
+    org_factory_id  BIGINT COMMENT '所属厂区ID（关联 device_org_relation.id，冗余字段，优化查询性能）',
     state_code      VARCHAR(50) NOT NULL COMMENT '设备状态编码：WORKING-加工中 STANDBY-待机 FAULT-故障 SHUTDOWN-关机',
     start_ts        BIGINT NOT NULL COMMENT '状态开始时间戳（秒，Unix时间戳）',
     end_ts          BIGINT DEFAULT NULL COMMENT '状态结束时间戳（秒，Unix时间戳，NULL表示进行中）',
@@ -280,6 +285,8 @@ CREATE TABLE IF NOT EXISTS device_state_record (
 CREATE INDEX idx_state_record_device ON device_state_record (device_info_id, start_ts);
 CREATE INDEX idx_state_record_shift ON device_state_record (device_info_id, shift_date, shift_code);
 CREATE INDEX idx_state_record_open ON device_state_record (device_info_id, end_ts);
+CREATE INDEX idx_state_record_factory_time ON device_state_record (org_factory_id, start_ts);
+CREATE INDEX idx_state_record_factory_shift ON device_state_record (org_factory_id, shift_date, shift_code);
 
 -- ============================================================
 -- 9. 设备状态汇总表 device_state_summary
@@ -288,6 +295,7 @@ CREATE TABLE IF NOT EXISTS device_state_summary (
     id                  BIGINT NOT NULL PRIMARY KEY COMMENT '主键ID（雪花算法）',
     tenant_uuid         CHAR(36) NOT NULL COMMENT '租户UUID（关联 tenant.id）',
     device_info_id      BIGINT NOT NULL COMMENT '设备ID（关联 device_info.id）',
+    org_factory_id      BIGINT COMMENT '所属厂区ID（关联 device_org_relation.id，冗余字段，优化查询性能）',
     summary_date        DATE NOT NULL COMMENT '汇总日期',
     shift_code          VARCHAR(50) NOT NULL COMMENT '班次编码：SHIFT_1-一班 SHIFT_2-二班 SHIFT_3-三班',
     shift_start_ts      BIGINT NOT NULL COMMENT '班次开始时间戳（秒，Unix时间戳）',
@@ -313,6 +321,8 @@ CREATE TABLE IF NOT EXISTS device_state_summary (
 CREATE INDEX idx_state_summary_device ON device_state_summary (device_info_id, summary_date);
 CREATE INDEX idx_state_summary_time_range ON device_state_summary (device_info_id, shift_start_ts, shift_end_ts);
 CREATE INDEX idx_state_summary_finalized_device ON device_state_summary (device_info_id, is_finalized, calculated_time DESC);
+CREATE INDEX idx_state_summary_factory_date ON device_state_summary (org_factory_id, summary_date);
+CREATE INDEX idx_state_summary_factory_time_range ON device_state_summary (org_factory_id, shift_start_ts, shift_end_ts);
 
 -- ============================================================
 -- 10. 设备刀具使用记录表 device_tool_record
@@ -321,6 +331,7 @@ CREATE TABLE IF NOT EXISTS device_tool_record (
     id              BIGINT NOT NULL PRIMARY KEY COMMENT '主键ID（雪花算法）',
     tenant_uuid     CHAR(36) NOT NULL COMMENT '租户UUID（关联 tenant.id）',
     device_info_id  BIGINT NOT NULL COMMENT '设备ID（关联 device_info.id）',
+    org_factory_id  BIGINT COMMENT '所属厂区ID（关联 device_org_relation.id，冗余字段，优化查询性能）',
     tool_id         VARCHAR(100) COMMENT '刀具编号（刀具唯一标识，用于追踪刀具生命周期）',
     tool_no         VARCHAR(50) NOT NULL COMMENT '刀号（刀具在刀库中的位置号，如T01、T02等）',
     tool_magazine_no VARCHAR(50) COMMENT '刀套号',
@@ -339,14 +350,39 @@ CREATE TABLE IF NOT EXISTS device_tool_record (
 CREATE INDEX idx_tool_record_device ON device_tool_record (device_info_id, start_ts);
 CREATE INDEX idx_tool_record_tool_no ON device_tool_record (device_info_id, tool_no);
 CREATE INDEX idx_tool_record_tool_id ON device_tool_record (tool_id, start_ts);
+CREATE INDEX idx_tool_record_factory_time ON device_tool_record (org_factory_id, start_ts);
 
 -- ============================================================
--- 11. 设备报警历史表 device_alarm_history
+-- 11. 设备刀补补偿记录表 device_tool_compensation
+--    版本化覆盖：同一设备+刀补号仅一条 active=1，有变更则关闭旧记录插入新记录
+-- ============================================================
+CREATE TABLE IF NOT EXISTS device_tool_compensation (
+    id              BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    tenant_uuid     CHAR(36) NOT NULL COMMENT '租户UUID（关联 tenant.id）',
+    device_info_id  BIGINT NOT NULL COMMENT '设备ID（关联 device_info.id）',
+    org_factory_id  BIGINT COMMENT '所属厂区ID（关联 device_org_relation.id，冗余字段，优化查询性能）',
+    tool_holder_no  VARCHAR(64) NOT NULL COMMENT '刀补号（唯一标识）',
+    comp_value_json JSON NOT NULL COMMENT '补偿值（结构化JSON，含各轴补偿）',
+    version         INT NOT NULL DEFAULT 1 COMMENT '版本号（覆盖时+1）',
+    start_ts        BIGINT NOT NULL COMMENT '生效开始时间戳（秒，Unix时间戳）',
+    end_ts          BIGINT DEFAULT NULL COMMENT '生效结束时间戳（秒，NULL表示当前有效）',
+    active          TINYINT(1) NOT NULL DEFAULT 1 COMMENT '是否当前有效：1-有效 0-历史',
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_tool_comp_active (device_info_id, tool_holder_no, active),
+    KEY idx_tool_comp_time (device_info_id, tool_holder_no, start_ts),
+    KEY idx_tool_comp_factory (org_factory_id, tool_holder_no, active),
+    KEY idx_tool_comp_tenant (tenant_uuid, device_info_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='设备刀补补偿记录表（版本化，保留历史生效区间）';
+
+-- ============================================================
+-- 12. 设备报警历史表 device_alarm_history
 -- ============================================================
 CREATE TABLE IF NOT EXISTS device_alarm_history (
     id              BIGINT NOT NULL PRIMARY KEY COMMENT '主键ID（雪花算法）',
     tenant_uuid     CHAR(36) NOT NULL COMMENT '租户UUID（关联 tenant.id）',
     device_info_id  BIGINT NOT NULL COMMENT '设备ID（关联 device_info.id）',
+    org_factory_id  BIGINT COMMENT '所属厂区ID（关联 device_org_relation.id，冗余字段，优化查询性能）',
     alarm_code      VARCHAR(100) NOT NULL COMMENT '报警编号',
     alarm_text      TEXT COMMENT '报警内容',
     alarm_level     VARCHAR(50) COMMENT '报警级别：INFO-信息 WARNING-警告 ERROR-错误 CRITICAL-严重',
@@ -365,6 +401,8 @@ CREATE TABLE IF NOT EXISTS device_alarm_history (
 CREATE INDEX idx_alarm_history_device ON device_alarm_history (device_info_id, start_ts);
 CREATE INDEX idx_alarm_history_code ON device_alarm_history (device_info_id, alarm_code);
 CREATE INDEX idx_alarm_history_active ON device_alarm_history (device_info_id, is_active);
+CREATE INDEX idx_alarm_history_factory_time ON device_alarm_history (org_factory_id, start_ts);
+CREATE INDEX idx_alarm_history_factory_active ON device_alarm_history (org_factory_id, is_active);
 
 -- ============================================================
 -- 12. 设备产量明细表 device_production_record
@@ -373,6 +411,7 @@ CREATE TABLE IF NOT EXISTS device_production_record (
     id              BIGINT NOT NULL PRIMARY KEY COMMENT '主键ID（雪花算法）',
     tenant_uuid     CHAR(36) NOT NULL COMMENT '租户UUID（关联 tenant.id）',
     device_info_id  BIGINT NOT NULL COMMENT '设备ID（关联 device_info.id）',
+    org_factory_id  BIGINT COMMENT '所属厂区ID（关联 device_org_relation.id，冗余字段，优化查询性能）',
     start_ts        BIGINT COMMENT '开始加工时间戳（秒，Unix时间戳，可选）',
     end_ts          BIGINT NOT NULL COMMENT '生产完成时间戳（秒，Unix时间戳，用于判定归属班次）',
     duration_s      INT COMMENT '加工周期时长（秒，从开始加工到完成的时间）',
@@ -390,6 +429,8 @@ CREATE TABLE IF NOT EXISTS device_production_record (
 
 CREATE INDEX idx_production_record_device ON device_production_record (device_info_id, end_ts);
 CREATE INDEX idx_production_record_shift ON device_production_record (device_info_id, shift_date, shift_code);
+CREATE INDEX idx_production_record_factory_time ON device_production_record (org_factory_id, end_ts);
+CREATE INDEX idx_production_record_factory_shift ON device_production_record (org_factory_id, shift_date, shift_code);
 
 -- ============================================================
 -- 13. 设备产量汇总表 device_production_summary
@@ -398,6 +439,7 @@ CREATE TABLE IF NOT EXISTS device_production_summary (
     id              BIGINT NOT NULL PRIMARY KEY COMMENT '主键ID（雪花算法）',
     tenant_uuid     CHAR(36) NOT NULL COMMENT '租户UUID（关联 tenant.id）',
     device_info_id  BIGINT NOT NULL COMMENT '设备ID（关联 device_info.id）',
+    org_factory_id  BIGINT COMMENT '所属厂区ID（关联 device_org_relation.id，冗余字段，优化查询性能）',
     shift_date      DATE NOT NULL COMMENT '班次日期',
     shift_code      VARCHAR(50) NOT NULL COMMENT '班次编码：SHIFT_1-一班 SHIFT_2-二班 SHIFT_3-三班',
     shift_start_ts  BIGINT NOT NULL COMMENT '班次开始时间戳（秒，Unix时间戳）',
@@ -415,6 +457,8 @@ CREATE TABLE IF NOT EXISTS device_production_summary (
 
 CREATE INDEX idx_production_summary_device ON device_production_summary (device_info_id, shift_date);
 CREATE INDEX idx_production_summary_time_range ON device_production_summary (device_info_id, shift_start_ts, shift_end_ts);
+CREATE INDEX idx_production_summary_factory_date ON device_production_summary (org_factory_id, shift_date);
+CREATE INDEX idx_production_summary_factory_time_range ON device_production_summary (org_factory_id, shift_start_ts, shift_end_ts);
 
 -- ============================================================
 -- 14. 设备参数配置表 device_param_config
@@ -423,6 +467,7 @@ CREATE TABLE IF NOT EXISTS device_param_config (
     id                  BIGINT NOT NULL PRIMARY KEY COMMENT '主键ID（雪花算法）',
     tenant_uuid         CHAR(36) NOT NULL COMMENT '租户UUID（关联 tenant.id）',
     device_info_id      BIGINT NOT NULL COMMENT '设备ID（关联 device_info.id）',
+    org_factory_id      BIGINT COMMENT '所属厂区ID（关联 device_org_relation.id，冗余字段，优化查询性能）',
     parameter_type      VARCHAR(100) NOT NULL COMMENT '参数类型：THEORETICAL_CYCLE-理论节拍 PLANNED_DOWNTIME-计划停机时间等',
     parameter_value     DECIMAL(10,4) COMMENT '参数值（数值型）',
     parameter_unit      VARCHAR(50) COMMENT '单位：HOUR-小时 MINUTE-分钟 SECOND-秒 PIECE-件等',
@@ -441,6 +486,7 @@ CREATE TABLE IF NOT EXISTS device_param_config (
 
 CREATE INDEX idx_device_param_config_device ON device_param_config (device_info_id, parameter_type);
 CREATE INDEX idx_device_param_config_effective ON device_param_config (device_info_id, effective_start_ts);
+CREATE INDEX idx_device_param_config_factory ON device_param_config (org_factory_id, parameter_type, is_active);
 
 -- ============================================================
 -- 15. 设备程序状态表 device_program_status （机床程序先不存储）
@@ -476,6 +522,7 @@ CREATE TABLE IF NOT EXISTS device_metrics_summary (
     id                  BIGINT NOT NULL PRIMARY KEY COMMENT '主键ID（雪花算法）',
     tenant_uuid         CHAR(36) NOT NULL COMMENT '租户UUID（关联 tenant.id）',
     device_info_id      BIGINT NOT NULL COMMENT '设备ID（关联 device_info.id）',
+    org_factory_id      BIGINT COMMENT '所属厂区ID（关联 device_org_relation.id，冗余字段，优化查询性能）',
     shift_date          DATE NOT NULL COMMENT '班次日期',
     shift_code          VARCHAR(50) NOT NULL COMMENT '班次编码：SHIFT_1-一班 SHIFT_2-二班 SHIFT_3-三班',
     shift_start_ts      BIGINT NOT NULL COMMENT '班次开始时间戳（秒，Unix时间戳）',
@@ -518,6 +565,9 @@ CREATE INDEX idx_metrics_summary_finalized_device ON device_metrics_summary (dev
 CREATE INDEX idx_metrics_summary_oee ON device_metrics_summary (device_info_id, oee DESC);
 CREATE INDEX idx_metrics_summary_utilization ON device_metrics_summary (device_info_id, utilization_rate DESC);
 CREATE INDEX idx_metrics_summary_production ON device_metrics_summary (device_info_id, production_count DESC);
+CREATE INDEX idx_metrics_summary_factory_date ON device_metrics_summary (org_factory_id, shift_date);
+CREATE INDEX idx_metrics_summary_factory_time_range ON device_metrics_summary (org_factory_id, shift_start_ts, shift_end_ts);
+CREATE INDEX idx_metrics_summary_factory_oee ON device_metrics_summary (org_factory_id, oee DESC);
 
 -- ============================================================
 -- 17. 设备班次配置表 device_shift_config
@@ -526,6 +576,7 @@ CREATE TABLE IF NOT EXISTS device_shift_config (
     id              BIGINT NOT NULL PRIMARY KEY COMMENT '主键ID（雪花算法）',
     tenant_uuid     CHAR(36) NOT NULL COMMENT '租户UUID（关联 tenant.id）',
     device_info_id  BIGINT NOT NULL COMMENT '设备ID（关联 device_info.id）',
+    org_factory_id  BIGINT COMMENT '所属厂区ID（关联 device_org_relation.id，冗余字段，优化查询性能）',
     shift_mode      INT NOT NULL DEFAULT 2 COMMENT '班次数量：2-2班制 3-3班制',
     
     -- 班次1（必填）
@@ -562,6 +613,7 @@ CREATE TABLE IF NOT EXISTS device_shift_config (
 
 CREATE INDEX idx_shift_config_device ON device_shift_config (device_info_id, effective_start_ts);
 CREATE INDEX idx_shift_config_active_effective ON device_shift_config (device_info_id, is_active, effective_start_ts DESC, effective_end_ts);
+CREATE INDEX idx_shift_config_factory ON device_shift_config (org_factory_id, effective_start_ts);
 
 -- ============================================================
 -- 18. 工厂级指标汇总表 factory_metric_summary

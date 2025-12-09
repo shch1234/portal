@@ -39,6 +39,11 @@ public class DeviceStateTimelineDO extends BaseSimpleDO {
     private String deviceInfoId;
 
     /**
+     * 所属厂区ID（关联 device_org_relation.id，冗余字段，优化查询性能，对应 org_factory_id 列）
+     */
+    private String orgFactoryId;
+
+    /**
      * 设备状态编码（对应 state_code 列）
      * 如：WORKING-加工中 STANDBY-待机 FAULT-故障 SHUTDOWN-关机
      */

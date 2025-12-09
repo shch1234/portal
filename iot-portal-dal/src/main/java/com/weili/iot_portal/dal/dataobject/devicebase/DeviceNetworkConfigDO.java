@@ -30,6 +30,11 @@ public class DeviceNetworkConfigDO extends BaseDO {
 
     private String deviceInfoId;
 
+    /**
+     * 所属厂区ID（关联 device_org_relation.id，冗余字段，优化查询性能，对应 org_factory_id 列）
+     */
+    private String orgFactoryId;
+
     private String ipAddress;
 
     private Integer port;

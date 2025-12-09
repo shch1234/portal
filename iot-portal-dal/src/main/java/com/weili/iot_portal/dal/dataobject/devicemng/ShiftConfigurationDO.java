@@ -38,6 +38,11 @@ public class ShiftConfigurationDO extends BaseSimpleDO {
     private String deviceInfoId;
 
     /**
+     * 所属厂区ID（关联 device_org_relation.id，冗余字段，优化查询性能，对应 org_factory_id 列）
+     */
+    private String orgFactoryId;
+
+    /**
      * 班次数量：2-2班制 3-3班制（对应 shift_mode 列）
      */
     private Integer shiftMode;

@@ -3,10 +3,9 @@ package com.weili.iot_portal.service.ingestion.support;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.weili.basic.common.exception.ServiceException;
 import com.weili.iot_portal.dal.dataobject.devicebase.DeviceBaseInfoDO;
-import com.weili.iot_portal.dal.dataobject.ingestion.WebhookFailLogDO;
 import com.weili.iot_portal.dal.dataobject.ingestion.WebhookInboxDO;
-import com.weili.iot_portal.dal.mapper.ingestion.WebhookFailLogMapper;
 import com.weili.iot_portal.dal.mapper.ingestion.WebhookInboxMapper;
+import com.weili.iot_portal.service.ingestion.WebhookFailLogService;
 import com.weili.iot_portal.domain.ingestion.WebhookRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -29,7 +28,7 @@ public class WebhookInboxService {
     private WebhookInboxMapper inboxMapper;
 
     @Autowired
-    private WebhookFailLogMapper failLogMapper;
+    private WebhookFailLogService webhookFailLogService;
 
     @Autowired
     private ObjectMapper objectMapper;
@@ -55,8 +54,8 @@ public class WebhookInboxService {
 
         WebhookInboxDO inbox = new WebhookInboxDO();
         inbox.setMessageId(request.getMessageId());
-        inbox.setTenantId(request.getTenantId());
-        inbox.setDeviceId(request.getDeviceId());
+        inbox.setTenantUuid(request.getTenantId());
+        inbox.setTbDeviceId(request.getDeviceId());
         inbox.setDeviceCode(request.getDeviceCode());
         inbox.setEventType(request.getEventType());
         inbox.setWebhookCategory(request.getWebhookCategory());
@@ -65,30 +64,6 @@ public class WebhookInboxService {
         inbox.setProcessCount(0);
         inbox.setReceivedTime(LocalDateTime.now());
         inboxMapper.insert(inbox);
-    }
-
-    public void recordFail(WebhookRequest request, String errorMessage, boolean needManual) {
-        try {
-            WebhookFailLogDO fail = new WebhookFailLogDO();
-            fail.setMessageId(request != null ? request.getMessageId() : null);
-            fail.setTenantId(request != null ? request.getTenantId() : null);
-            fail.setDeviceId(request != null ? request.getDeviceId() : null);
-            fail.setDeviceCode(request != null ? request.getDeviceCode() : null);
-            fail.setEventType(request != null ? request.getEventType() : null);
-            if (request != null) {
-                Map<String, Object> payload = objectMapper.convertValue(request, Map.class);
-                fail.setPayload(payload);
-            }
-            fail.setErrorType("PROCESS");
-            fail.setErrorMessage(errorMessage);
-            fail.setNeedManual(needManual);
-            fail.setRetryCount(0);
-            fail.setRecovered(false);
-            fail.setFailedTime(LocalDateTime.now());
-            failLogMapper.insert(fail);
-        } catch (Exception ex) {
-            log.error("记录 webhook 失败日志异常", ex);
-        }
     }
 
     /**

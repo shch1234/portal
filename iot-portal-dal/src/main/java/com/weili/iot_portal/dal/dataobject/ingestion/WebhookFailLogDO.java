@@ -36,12 +36,12 @@ public class WebhookFailLogDO extends BaseDO {
     /**
      * 租户UUID（对应 tenant_id 列）
      */
-    private String tenantId;
+    private String tenantUuid;
 
     /**
      * TB设备ID（对应 device_id 列）
      */
-    private String deviceId;
+    private String tbDeviceId;
 
     /**
      * 设备编号（对应 device_code 列）
