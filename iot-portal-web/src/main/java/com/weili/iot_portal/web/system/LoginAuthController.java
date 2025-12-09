@@ -52,7 +52,6 @@ public class LoginAuthController {
 
     @GetMapping("/get-info")
     @Operation(summary = "获取登录用户的信息")
-    @ApiInterceptor
     public CommonResult<Map<String, AuthUserInfoRespVO>> getUserInfo() {
         Oauth2UserDetail loginUser = SecurityContextUtils.getLoginUser();
         Long userId = loginUserBizService.createUser();
@@ -72,7 +71,6 @@ public class LoginAuthController {
 
     @GetMapping("/get-permission")
     @Operation(summary = "获取用户角色权限信息")
-    @ApiInterceptor
     public CommonResult<AuthPermissionRespVO> getPermission() {
         Oauth2UserDetail loginUser = SecurityContextUtils.getLoginUser();
         LoginUserRespVO respVO = loginUserBizService.getByEmpId(loginUser.getEmpId());
@@ -95,7 +93,6 @@ public class LoginAuthController {
 
     @GetMapping("/page")
     @Operation(summary = "获得用户分页列表")
-    @ApiInterceptor
     public CommonResult<PageResult<LoginUserRespVO>> getUserPage(@Valid LoginUserPageReqVO pageReqVO) {
         PageResult<LoginUserRespVO> pageResult = loginUserBizService.selectPage(pageReqVO);
         return CommonResult.success(pageResult);
@@ -104,14 +101,12 @@ public class LoginAuthController {
     @GetMapping("/get")
     @Operation(summary = "获得用户详情")
     @Parameter(name = "id", description = "用户id", required = true)
-    @ApiInterceptor
     public CommonResult<LoginUserRespVO> getUser(@RequestParam("id") Long id) {
         return CommonResult.success(loginUserBizService.getById(id));
     }
 
     @PutMapping("/update")
     @Operation(summary = "更新用户关联角色")
-    @ApiInterceptor
     @PermRequired(permission = "system:user:update")
     public CommonResult<Boolean> update(@Valid @RequestBody LoginUserSaveReqVO reqVO) {
         loginUserBizService.update(reqVO);
