@@ -101,8 +101,19 @@ public class WebhookHandlerRegistry {
     }
 
     private Pattern patternToRegex(String pattern) {
-        String escaped = Pattern.quote(pattern).replace("\\*", ".*");
-        return Pattern.compile("^" + escaped + "$");
+        // 将通配符模式转换为正则表达式
+        // 例如：EVENT_* -> ^EVENT_.*$
+        // 需要转义正则特殊字符（除了*），然后将*替换为.*
+        StringBuilder regex = new StringBuilder();
+        for (char c : pattern.toCharArray()) {
+            if (c == '*') {
+                regex.append(".*");
+            } else {
+                // 转义正则特殊字符
+                regex.append(Pattern.quote(String.valueOf(c)));
+            }
+        }
+        return Pattern.compile("^" + regex + "$");
     }
 
     private record PatternHandler(Pattern pattern, WebhookEventHandler handler) {

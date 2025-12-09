@@ -31,9 +31,19 @@ public abstract class PatternWebhookEventHandler implements WebhookEventHandler 
     }
 
     private static String wildcardToRegex(String pattern) {
-        // 将 * 转为 .*
-        String escaped = Pattern.quote(pattern).replace("\\*", ".*");
-        return "^" + escaped + "$";
+        // 将通配符模式转换为正则表达式
+        // 例如：EVENT_* -> ^EVENT_.*$
+        // 需要转义正则特殊字符（除了*），然后将*替换为.*
+        StringBuilder regex = new StringBuilder();
+        for (char c : pattern.toCharArray()) {
+            if (c == '*') {
+                regex.append(".*");
+            } else {
+                // 转义正则特殊字符
+                regex.append(Pattern.quote(String.valueOf(c)));
+            }
+        }
+        return "^" + regex + "$";
     }
 }
 

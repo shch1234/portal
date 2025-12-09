@@ -50,11 +50,7 @@ public class DeviceAlarmEventHandler implements WebhookEventHandler {
         }
 
         List<Map<String, Object>> alarms = extractAlarms(eventData);
-        if (alarms.isEmpty()) {
-            log.info("DEVICE_ALARM 事件中无报警数据，跳过");
-            return;
-        }
-
+        
         // 解析设备身份
         DeviceIdentityCacheService.DeviceIdentity identity = deviceIdentityCacheService
                 .resolveByDeviceCode(request.getTenantId(), request.getDeviceCode(),
@@ -75,6 +71,7 @@ public class DeviceAlarmEventHandler implements WebhookEventHandler {
         Set<String> incomingCodes = new HashSet<>();
 
         // 新增或更新现有（相同 code 视为同一条报警）
+        // 如果alarms为空，incomingCodes也为空，后续会关闭所有活跃报警
         for (Map<String, Object> alarm : alarms) {
             String code = toStr(alarm.get("alarmCode"));
             if (StringUtils.isBlank(code)) {
@@ -118,6 +115,11 @@ public class DeviceAlarmEventHandler implements WebhookEventHandler {
         }
 
         // 消失的报警：关闭
+        // 如果alarms为空（incomingCodes为空），则关闭所有活跃报警
+        if (alarms.isEmpty()) {
+            log.info("DEVICE_ALARM 事件中无报警数据，关闭所有活跃报警: deviceInfoId={}, activeCount={}", 
+                    deviceInfoId, activeByCode.size());
+        }
         for (DeviceAlarmHistoryDO existing : activeByCode.values()) {
             if (!incomingCodes.contains(existing.getAlarmCode())) {
                 existing.setEndTs(eventTs);
