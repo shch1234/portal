@@ -1,4 +1,4 @@
-package com.weili.iot_portal.service.validator;
+package com.weili.iot_portal.service.shift;
 
 import com.weili.basic.common.enums.ErrorCodeConstants;
 import com.weili.basic.common.exception.ServiceException;

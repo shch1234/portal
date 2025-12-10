@@ -7,7 +7,7 @@ import com.weili.iot_portal.dal.repository.device.DeviceShiftConfigRepository;
 import com.weili.iot_portal.service.shift.IShiftConfigService;
 import com.weili.iot_portal.service.shift.model.ShiftInfo;
 import com.weili.iot_portal.service.shift.model.ShiftTimeRange;
-import com.weili.iot_portal.service.validator.DeviceFactoryValidator;
+import com.weili.iot_portal.service.shift.DeviceFactoryValidator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 

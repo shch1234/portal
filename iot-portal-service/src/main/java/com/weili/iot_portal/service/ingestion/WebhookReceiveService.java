@@ -1,4 +1,4 @@
-package com.weili.iot_portal.service.webhook;
+package com.weili.iot_portal.service.ingestion;
 
 import com.weili.basic.common.exception.ServiceException;
 import com.weili.iot_portal.dal.dataobject.device.DeviceInfoDO;
