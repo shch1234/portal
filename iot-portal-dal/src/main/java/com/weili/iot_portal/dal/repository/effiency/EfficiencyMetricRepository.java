@@ -12,7 +12,6 @@ public interface EfficiencyMetricRepository {
      * 查询效率指标列表总数
      */
     long countDeviceMetrics(
-            String tenantId,
             String factoryId,
             String workshopId,
             String metricCode,
@@ -23,7 +22,6 @@ public interface EfficiencyMetricRepository {
      * 查询效率指标列表（分页、排序）
      */
     PageResult<DeviceEfficiencyMetricDO> selectDeviceMetrics(
-            String tenantId,
             String factoryId,
             String workshopId,
             String metricCode,

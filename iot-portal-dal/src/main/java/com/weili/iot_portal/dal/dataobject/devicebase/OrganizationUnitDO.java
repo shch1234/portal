@@ -25,12 +25,7 @@ public class OrganizationUnitDO extends BaseDO {
     private String id;
 
     /**
-     * 租户UUID（对应 tenant_uuid 列）
-     */
-    private String tenantUuid;
-
-    /**
-     * 组织单元编码（租户内唯一，对应 unit_code 列）
+     * 组织单元编码（全局唯一，对应 unit_code 列）
      */
     private String unitCode;
 

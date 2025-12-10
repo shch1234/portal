@@ -16,8 +16,8 @@ public class ToolCompensationQueryService {
     /**
      * 查询设备的所有有效刀补记录（可按工厂过滤）
      */
-    public List<ToolCompensationDO> listActive(String tenantId, String factoryId, String deviceId) {
-        return toolCompensationRepository.findActiveByDevice(tenantId, factoryId, deviceId);
+    public List<ToolCompensationDO> listActive(String factoryId, String deviceId) {
+        return toolCompensationRepository.findActiveByDevice(factoryId, deviceId);
     }
 }
 

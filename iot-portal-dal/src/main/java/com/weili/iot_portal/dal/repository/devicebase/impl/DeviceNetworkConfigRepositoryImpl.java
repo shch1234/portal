@@ -26,18 +26,21 @@ public class DeviceNetworkConfigRepositoryImpl implements DeviceNetworkConfigRep
     private final DeviceBaseInfoRepository deviceBaseInfoRepository;
 
     @Override
-    public Optional<DeviceNetworkConfigDO> findById(String tenantId, String id) {
-        return Optional.ofNullable(mapper.selectOne(tenantScope(tenantId).eq(DeviceNetworkConfigDO::getId, id)));
+    public Optional<DeviceNetworkConfigDO> findById(String id) {
+        return Optional.ofNullable(mapper.selectOne(new LambdaQueryWrapper<DeviceNetworkConfigDO>()
+                .eq(DeviceNetworkConfigDO::getId, id)));
     }
 
     @Override
-    public Optional<DeviceNetworkConfigDO> findByDeviceInfoId(String tenantId, String deviceInfoId) {
-        return Optional.ofNullable(mapper.selectOne(tenantScope(tenantId).eq(DeviceNetworkConfigDO::getDeviceInfoId, deviceInfoId)));
+    public Optional<DeviceNetworkConfigDO> findByDeviceInfoId(String deviceInfoId) {
+        return Optional.ofNullable(mapper.selectOne(new LambdaQueryWrapper<DeviceNetworkConfigDO>()
+                .eq(DeviceNetworkConfigDO::getDeviceInfoId, deviceInfoId)
+                .eq(DeviceNetworkConfigDO::getIsActive, true)));
     }
 
     @Override
-    public boolean existsByDeviceInfoId(String tenantId, String deviceInfoId, String excludeId) {
-        LambdaQueryWrapper<DeviceNetworkConfigDO> wrapper = tenantScope(tenantId)
+    public boolean existsByDeviceInfoId(String deviceInfoId, String excludeId) {
+        LambdaQueryWrapper<DeviceNetworkConfigDO> wrapper = new LambdaQueryWrapper<DeviceNetworkConfigDO>()
                 .eq(DeviceNetworkConfigDO::getDeviceInfoId, deviceInfoId);
         if (StringUtils.isNotBlank(excludeId)) {
             wrapper.ne(DeviceNetworkConfigDO::getId, excludeId);
@@ -47,10 +50,10 @@ public class DeviceNetworkConfigRepositoryImpl implements DeviceNetworkConfigRep
 
     @Override
     public PageResult<DeviceNetworkConfigDO> selectPage(DeviceNetworkConfigPageQuery query) {
-        LambdaQueryWrapper<DeviceNetworkConfigDO> wrapper = tenantScope(query.getTenantId());
+        LambdaQueryWrapper<DeviceNetworkConfigDO> wrapper = new LambdaQueryWrapper<>();
 
         if (StringUtils.isNotBlank(query.getFactoryId())) {
-            List<String> deviceIds = deviceBaseInfoRepository.findByFactoryId(query.getTenantId(), query.getFactoryId())
+            List<String> deviceIds = deviceBaseInfoRepository.findByFactoryId(query.getFactoryId())
                     .stream()
                     .map(DeviceBaseInfoDO::getId)
                     .collect(Collectors.toList());
@@ -88,14 +91,9 @@ public class DeviceNetworkConfigRepositoryImpl implements DeviceNetworkConfigRep
     }
 
     @Override
-    public boolean deleteById(String tenantId, String id) {
-        return mapper.delete(tenantScope(tenantId).eq(DeviceNetworkConfigDO::getId, id)) > 0;
-    }
-
-    private LambdaQueryWrapper<DeviceNetworkConfigDO> tenantScope(String tenantId) {
-        LambdaQueryWrapper<DeviceNetworkConfigDO> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(DeviceNetworkConfigDO::getTenantUuid, tenantId);
-        return wrapper;
+    public boolean deleteById(String id) {
+        return mapper.delete(new LambdaQueryWrapper<DeviceNetworkConfigDO>()
+                .eq(DeviceNetworkConfigDO::getId, id)) > 0;
     }
 
     private void applySort(LambdaQueryWrapper<DeviceNetworkConfigDO> wrapper, String sortBy, String sortDirection) {

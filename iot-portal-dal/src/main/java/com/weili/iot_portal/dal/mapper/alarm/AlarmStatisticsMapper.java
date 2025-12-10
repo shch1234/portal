@@ -17,13 +17,11 @@ public interface AlarmStatisticsMapper {
     /**
      * 统计当前报警设备数量（按车间）
      * 
-     * @param tenantId 租户ID
      * @param factoryId 工厂ID
      * @param workshopId 车间ID（可选，null表示查询该工厂下所有车间）
      * @return 设备统计列表（每个设备一条记录）
      */
     List<AlarmDeviceStatisticsDO> countCurrentAlarmDevices(
-            @Param("tenantId") String tenantId,
             @Param("factoryId") String factoryId,
             @Param("workshopId") String workshopId
     );
@@ -31,7 +29,6 @@ public interface AlarmStatisticsMapper {
     /**
      * 查询当前报警设备列表（分页，按车间筛选）
      * 
-     * @param tenantId 租户ID
      * @param factoryId 工厂ID
      * @param workshopId 车间ID（可选，null表示查询该工厂下所有车间）
      * @param offset 偏移量
@@ -39,7 +36,6 @@ public interface AlarmStatisticsMapper {
      * @return 设备统计列表
      */
     List<AlarmDeviceStatisticsDO> selectCurrentAlarmDevices(
-            @Param("tenantId") String tenantId,
             @Param("factoryId") String factoryId,
             @Param("workshopId") String workshopId,
             @Param("offset") long offset,
@@ -49,13 +45,11 @@ public interface AlarmStatisticsMapper {
     /**
      * 统计当前报警设备总数量（用于分页）
      * 
-     * @param tenantId 租户ID
      * @param factoryId 工厂ID
      * @param workshopId 车间ID（可选，null表示查询该工厂下所有车间）
      * @return 设备数量
      */
     long countCurrentAlarmDeviceTotal(
-            @Param("tenantId") String tenantId,
             @Param("factoryId") String factoryId,
             @Param("workshopId") String workshopId
     );

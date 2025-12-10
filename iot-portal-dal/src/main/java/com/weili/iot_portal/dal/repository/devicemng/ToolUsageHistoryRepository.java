@@ -8,12 +8,12 @@ public interface ToolUsageHistoryRepository {
 
     void insertBatch(List<ToolUsageHistoryDO> list);
 
-    List<ToolUsageHistoryDO> selectByRange(String tenantId, String deviceId, Long startTs, Long endTs, Integer limit);
+    List<ToolUsageHistoryDO> selectByRange(String deviceId, Long startTs, Long endTs, Integer limit);
 
     /**
-     * 查询设备最新的“进行中”刀具记录（end_ts IS NULL）
+     * 查询设备最新的"进行中"刀具记录（end_ts IS NULL）
      */
-    ToolUsageHistoryDO findLatestOngoing(String tenantId, String deviceId);
+    ToolUsageHistoryDO findLatestOngoing(String deviceId);
 
     /**
      * 插入单条记录

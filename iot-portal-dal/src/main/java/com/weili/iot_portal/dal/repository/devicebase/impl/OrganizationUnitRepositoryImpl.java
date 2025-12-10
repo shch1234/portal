@@ -24,23 +24,23 @@ public class OrganizationUnitRepositoryImpl implements OrganizationUnitRepositor
     private final OrganizationUnitMapper mapper;
 
     @Override
-    public Optional<OrganizationUnitDO> findById(String tenantId, String id) {
-        return Optional.ofNullable(mapper.selectOne(tenantScope(tenantId).eq(OrganizationUnitDO::getId, id)));
+    public Optional<OrganizationUnitDO> findById(String id) {
+        return Optional.ofNullable(mapper.selectOne(new LambdaQueryWrapper<OrganizationUnitDO>().eq(OrganizationUnitDO::getId, id)));
     }
 
     @Override
-    public Optional<OrganizationUnitDO> findByUnitCode(String tenantId, String unitCode) {
-        return Optional.ofNullable(mapper.selectOne(tenantScope(tenantId).eq(OrganizationUnitDO::getUnitCode, unitCode)));
+    public Optional<OrganizationUnitDO> findByUnitCode(String unitCode) {
+        return Optional.ofNullable(mapper.selectOne(new LambdaQueryWrapper<OrganizationUnitDO>().eq(OrganizationUnitDO::getUnitCode, unitCode)));
     }
 
     @Override
-    public List<OrganizationUnitDO> findByParentId(String tenantId, String parentId) {
-        return mapper.selectList(tenantScope(tenantId).eq(OrganizationUnitDO::getOrgParentId, parentId));
+    public List<OrganizationUnitDO> findByParentId(String parentId) {
+        return mapper.selectList(new LambdaQueryWrapper<OrganizationUnitDO>().eq(OrganizationUnitDO::getOrgParentId, parentId));
     }
 
     @Override
-    public boolean existsByUnitCode(String tenantId, String unitCode, String excludeId) {
-        LambdaQueryWrapper<OrganizationUnitDO> wrapper = tenantScope(tenantId)
+    public boolean existsByUnitCode(String unitCode, String excludeId) {
+        LambdaQueryWrapper<OrganizationUnitDO> wrapper = new LambdaQueryWrapper<OrganizationUnitDO>()
                 .eq(OrganizationUnitDO::getUnitCode, unitCode);
         if (StringUtils.isNotBlank(excludeId)) {
             wrapper.ne(OrganizationUnitDO::getId, excludeId);
@@ -50,7 +50,7 @@ public class OrganizationUnitRepositoryImpl implements OrganizationUnitRepositor
 
     @Override
     public PageResult<OrganizationUnitDO> selectPage(OrganizationUnitPageQuery query) {
-        LambdaQueryWrapper<OrganizationUnitDO> wrapper = tenantScope(query.getTenantUuid());
+        LambdaQueryWrapper<OrganizationUnitDO> wrapper = new LambdaQueryWrapper<>();
         if (StringUtils.isNotBlank(query.getUnitCodeLike())) {
             wrapper.like(OrganizationUnitDO::getUnitCode, query.getUnitCodeLike());
         }
@@ -88,17 +88,8 @@ public class OrganizationUnitRepositoryImpl implements OrganizationUnitRepositor
     }
 
     @Override
-    public boolean deleteById(String tenantId, String id) {
-        return mapper.delete(tenantScope(tenantId).eq(OrganizationUnitDO::getId, id)) > 0;
-    }
-
-    /**
-     * 构建租户范围查询条件
-     */
-    private LambdaQueryWrapper<OrganizationUnitDO> tenantScope(String tenantId) {
-        LambdaQueryWrapper<OrganizationUnitDO> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(OrganizationUnitDO::getTenantUuid, tenantId);
-        return wrapper;
+    public boolean deleteById(String id) {
+        return mapper.delete(new LambdaQueryWrapper<OrganizationUnitDO>().eq(OrganizationUnitDO::getId, id)) > 0;
     }
 
     private void applySort(LambdaQueryWrapper<OrganizationUnitDO> wrapper, String sortBy, String sortDirection) {

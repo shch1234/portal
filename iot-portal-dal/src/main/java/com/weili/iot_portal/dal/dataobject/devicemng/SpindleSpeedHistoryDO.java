@@ -24,12 +24,8 @@ public class SpindleSpeedHistoryDO extends BaseSimpleDO {
     private String id;
 
     /**
-     * 租户UUID（对应 tenant_uuid 列）
-     */
-    private String tenantUuid;
-
-    /**
      * 设备ID（关联 device_info.id，对应 device_info_id 列）
+     * 可通过 device_info.tb_device_id 查询 ThingsBoard 获取租户信息
      */
     private String deviceInfoId;
 

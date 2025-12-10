@@ -39,15 +39,13 @@ public class RealTimeDataController {
     @GetMapping("/state")
     public CommonResult<RealTimeStateVO> getState(@RequestParam("factoryId") String factoryId,
                                                   @RequestParam("deviceId") String deviceId) {
-        String tenantId = SecurityFrameworkContext.getLoginTenantId();
-        String key = formatStateKey(tenantId, factoryId, deviceId);
+        String key = formatStateKey(factoryId, deviceId);
         Map<String, String> payload = realTimeCacheService.getHash(key);
         if (payload == null || payload.isEmpty()) {
             return CommonResult.success(null);
         }
 
         RealTimeStateVO vo = new RealTimeStateVO();
-        vo.setTenantId(tenantId);
         vo.setFactoryId(factoryId);
         vo.setDeviceId(deviceId);
         vo.setState(payload.get("state"));
@@ -71,15 +69,13 @@ public class RealTimeDataController {
     @GetMapping("/metrics")
     public CommonResult<RealTimeMetricsVO> getMetrics(@RequestParam("factoryId") String factoryId,
                                                       @RequestParam("deviceId") String deviceId) {
-        String tenantId = SecurityFrameworkContext.getLoginTenantId();
-        String key = formatMetricKey(tenantId, factoryId, deviceId);
+        String key = formatMetricKey(factoryId, deviceId);
         Map<String, String> payload = realTimeCacheService.getHash(key);
         if (payload == null || payload.isEmpty()) {
             return CommonResult.success(null);
         }
 
         RealTimeMetricsVO vo = new RealTimeMetricsVO();
-        vo.setTenantId(tenantId);
         vo.setFactoryId(factoryId);
         vo.setDeviceId(deviceId);
         vo.setSource(payload.get("source"));
@@ -100,13 +96,11 @@ public class RealTimeDataController {
     @GetMapping("/online")
     public CommonResult<RealTimeOnlineVO> getOnline(@RequestParam("factoryId") String factoryId,
                                                     @RequestParam("deviceId") String deviceId) {
-        String tenantId = SecurityFrameworkContext.getLoginTenantId();
-        String key = formatOnlineKey(tenantId, factoryId, deviceId);
+        String key = formatOnlineKey(factoryId, deviceId);
         boolean online = realTimeCacheService.hasKey(key);
         Long ttl = realTimeCacheService.getTtlSeconds(key);
 
         RealTimeOnlineVO vo = new RealTimeOnlineVO();
-        vo.setTenantId(tenantId);
         vo.setFactoryId(factoryId);
         vo.setDeviceId(deviceId);
         vo.setOnline(online);
@@ -118,15 +112,13 @@ public class RealTimeDataController {
     @GetMapping("/axis")
     public CommonResult<RealTimeAxisVO> getAxis(@RequestParam("factoryId") String factoryId,
                                                 @RequestParam("deviceId") String deviceId) {
-        String tenantId = SecurityFrameworkContext.getLoginTenantId();
-        String key = formatAxisKey(tenantId, factoryId, deviceId);
+        String key = formatAxisKey(factoryId, deviceId);
         Map<String, String> payload = realTimeCacheService.getHash(key);
         if (payload == null || payload.isEmpty()) {
             return CommonResult.success(null);
         }
 
         RealTimeAxisVO vo = new RealTimeAxisVO();
-        vo.setTenantId(tenantId);
         vo.setFactoryId(factoryId);
         vo.setDeviceId(deviceId);
         vo.setSource(payload.get("source"));
@@ -143,16 +135,14 @@ public class RealTimeDataController {
     @GetMapping("/tool")
     public CommonResult<RealTimeToolVO> getTool(@RequestParam("factoryId") String factoryId,
                                                 @RequestParam("deviceId") String deviceId) {
-        String tenantId = SecurityFrameworkContext.getLoginTenantId();
         String key = String.format(RedisConstant.RT_TOOL,
-                defaultBlank(tenantId), defaultBlank(factoryId), defaultBlank(deviceId));
+                defaultBlank(factoryId), defaultBlank(deviceId));
         Map<String, String> payload = realTimeCacheService.getHash(key);
         if (payload == null || payload.isEmpty()) {
             return CommonResult.success(null);
         }
 
         RealTimeToolVO vo = new RealTimeToolVO();
-        vo.setTenantId(tenantId);
         vo.setFactoryId(factoryId);
         vo.setDeviceId(deviceId);
         vo.setSource(payload.get("source"));
@@ -168,16 +158,14 @@ public class RealTimeDataController {
     @GetMapping("/program")
     public CommonResult<RealTimeProgramVO> getProgram(@RequestParam("factoryId") String factoryId,
                                                       @RequestParam("deviceId") String deviceId) {
-        String tenantId = SecurityFrameworkContext.getLoginTenantId();
         String key = String.format(RedisConstant.RT_PROGRAM,
-                defaultBlank(tenantId), defaultBlank(factoryId), defaultBlank(deviceId));
+                defaultBlank(factoryId), defaultBlank(deviceId));
         Map<String, String> payload = realTimeCacheService.getHash(key);
         if (payload == null || payload.isEmpty()) {
             return CommonResult.success(null);
         }
 
         RealTimeProgramVO vo = new RealTimeProgramVO();
-        vo.setTenantId(tenantId);
         vo.setFactoryId(factoryId);
         vo.setDeviceId(deviceId);
         vo.setProgramName(payload.get("programName"));
@@ -216,20 +204,20 @@ public class RealTimeDataController {
         return StringUtils.defaultIfBlank(v, "none");
     }
 
-    private String formatStateKey(String tenantId, String factoryId, String deviceId) {
-        return String.format(RedisConstant.RT_STATE, defaultBlank(tenantId), defaultBlank(factoryId), defaultBlank(deviceId));
+    private String formatStateKey(String factoryId, String deviceId) {
+        return String.format(RedisConstant.RT_STATE, defaultBlank(factoryId), defaultBlank(deviceId));
     }
 
-    private String formatMetricKey(String tenantId, String factoryId, String deviceId) {
-        return String.format(RedisConstant.RT_METRIC, defaultBlank(tenantId), defaultBlank(factoryId), defaultBlank(deviceId));
+    private String formatMetricKey(String factoryId, String deviceId) {
+        return String.format(RedisConstant.RT_METRIC, defaultBlank(factoryId), defaultBlank(deviceId));
     }
 
-    private String formatOnlineKey(String tenantId, String factoryId, String deviceId) {
-        return String.format(RedisConstant.RT_ONLINE, defaultBlank(tenantId), defaultBlank(factoryId), defaultBlank(deviceId));
+    private String formatOnlineKey(String factoryId, String deviceId) {
+        return String.format(RedisConstant.RT_ONLINE, defaultBlank(factoryId), defaultBlank(deviceId));
     }
 
-    private String formatAxisKey(String tenantId, String factoryId, String deviceId) {
-        return String.format(RedisConstant.RT_AXIS, defaultBlank(tenantId), defaultBlank(factoryId), defaultBlank(deviceId));
+    private String formatAxisKey(String factoryId, String deviceId) {
+        return String.format(RedisConstant.RT_AXIS, defaultBlank(factoryId), defaultBlank(deviceId));
     }
 }
 

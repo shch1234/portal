@@ -22,8 +22,8 @@ public class DeviceMetricsShiftRepositoryImpl implements DeviceMetricsShiftRepos
     private final DeviceMetricsShiftMapper mapper;
 
     @Override
-    public Optional<DeviceMetricsShiftDO> selectLatestFinalized(String tenantId, String deviceId) {
-        LambdaQueryWrapper<DeviceMetricsShiftDO> wrapper = baseQuery(tenantId, deviceId)
+    public Optional<DeviceMetricsShiftDO> selectLatestFinalized(String deviceId) {
+        LambdaQueryWrapper<DeviceMetricsShiftDO> wrapper = baseQuery(deviceId)
                 .eq(DeviceMetricsShiftDO::getIsFinalized, Boolean.TRUE)
                 .orderByDesc(DeviceMetricsShiftDO::getShiftStartTs)
                 .last("limit 1");
@@ -31,9 +31,9 @@ public class DeviceMetricsShiftRepositoryImpl implements DeviceMetricsShiftRepos
     }
 
     @Override
-    public PageResult<DeviceMetricsShiftDO> selectPage(String tenantId, String deviceId,
+    public PageResult<DeviceMetricsShiftDO> selectPage(String deviceId,
                                                        Long startTs, Long endTs, int pageNo, int pageSize) {
-        LambdaQueryWrapper<DeviceMetricsShiftDO> wrapper = baseQuery(tenantId, deviceId);
+        LambdaQueryWrapper<DeviceMetricsShiftDO> wrapper = baseQuery(deviceId);
         if (startTs != null) {
             wrapper.ge(DeviceMetricsShiftDO::getShiftStartTs, startTs);
         }
@@ -50,11 +50,8 @@ public class DeviceMetricsShiftRepositoryImpl implements DeviceMetricsShiftRepos
     /**
      * 构建基础查询条件（对应 device_metrics_summary 表的字段）
      */
-    private LambdaQueryWrapper<DeviceMetricsShiftDO> baseQuery(String tenantId, String deviceId) {
+    private LambdaQueryWrapper<DeviceMetricsShiftDO> baseQuery(String deviceId) {
         LambdaQueryWrapper<DeviceMetricsShiftDO> wrapper = new LambdaQueryWrapper<>();
-        if (StringUtils.isNotBlank(tenantId)) {
-            wrapper.eq(DeviceMetricsShiftDO::getTenantUuid, tenantId);
-        }
         if (StringUtils.isNotBlank(deviceId)) {
             wrapper.eq(DeviceMetricsShiftDO::getDeviceInfoId, deviceId);
         }

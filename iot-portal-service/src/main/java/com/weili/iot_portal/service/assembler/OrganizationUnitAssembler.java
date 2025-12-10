@@ -18,10 +18,9 @@ public final class OrganizationUnitAssembler {
     /**
      * 从创建请求转换为 DO（对应 device_org_relation 表）
      */
-    public static OrganizationUnitDO fromCreateReq(String tenantId, OrganizationUnitCreateReq request, String path) {
+    public static OrganizationUnitDO fromCreateReq(OrganizationUnitCreateReq request, String path) {
         OrganizationUnitDO entity = new OrganizationUnitDO();
         entity.setId(UUID.randomUUID().toString());
-        entity.setTenantUuid(tenantId);
         entity.setUnitCode(request.getUnitCode());
         entity.setUnitName(request.getUnitName());
         entity.setUnitTypeValue(request.getUnitTypeValue());

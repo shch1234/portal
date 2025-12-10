@@ -19,14 +19,14 @@ public class FactoryMetricsRepositoryImpl implements FactoryMetricsRepository {
     private final FactoryMetricsMapper factoryMetricsMapper;
 
     @Override
-    public Optional<FactoryMetricsShiftDO> findByShift(String tenantId, String factoryId, String shiftDate, String shiftCode) {
-        FactoryMetricsShiftDO result = factoryMetricsMapper.selectFactoryMetrics(tenantId, factoryId, shiftDate, shiftCode);
+    public Optional<FactoryMetricsShiftDO> findByShift(String factoryId, String shiftDate, String shiftCode) {
+        FactoryMetricsShiftDO result = factoryMetricsMapper.selectFactoryMetrics(factoryId, shiftDate, shiftCode);
         return Optional.ofNullable(result);
     }
 
     @Override
-    public List<FactoryMetricsShiftDO> findHistory(String tenantId, String factoryId, String startDate, String endDate) {
-        return factoryMetricsMapper.selectFactoryMetricsHistory(tenantId, factoryId, startDate, endDate);
+    public List<FactoryMetricsShiftDO> findHistory(String factoryId, String startDate, String endDate) {
+        return factoryMetricsMapper.selectFactoryMetricsHistory(factoryId, startDate, endDate);
     }
 }
 

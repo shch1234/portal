@@ -42,7 +42,7 @@ public interface AlarmWebSocketService {
      * @param workshopId 车间ID（可选，null表示推送整个工厂）
      * @param count 报警数量统计
      */
-    void pushAlarmCountChanged(String tenantId, String factoryId, String workshopId, CurrentAlarmDeviceCountVO count);
+    void pushAlarmCountChanged(String factoryId, String workshopId, CurrentAlarmDeviceCountVO count);
 
     /**
      * 获取订阅该键的所有会话ID
@@ -60,6 +60,6 @@ public interface AlarmWebSocketService {
      * @param workshopId 车间ID（可选）
      * @return 订阅键
      */
-    String buildSubscriptionKey(String tenantId, String factoryId, String workshopId);
+    String buildSubscriptionKey(String factoryId, String workshopId);
 }
 

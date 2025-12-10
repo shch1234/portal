@@ -25,20 +25,18 @@ public class AlarmStatisticsController {
     @Operation(summary = "获取当前报警设备数量", description = "统计指定工厂（或车间）内所有正在报警的设备个数。注意：一台设备可能有多个报警，但只统计设备个数（去重）。")
     @GetMapping("/current-count")
     public CommonResult<CurrentAlarmDeviceCountVO> getCurrentAlarmDeviceCount(
-            @RequestParam("tenantId") String tenantId,
             @RequestParam("factoryId") String factoryId,
             @RequestParam(value = "workshopId", required = false) String workshopId) {
         CurrentAlarmDeviceCountVO result = alarmStatisticsService.getCurrentAlarmDeviceCount(
-                tenantId, factoryId, workshopId);
+                factoryId, workshopId);
         return CommonResult.success(result);
     }
 
     @Operation(summary = "查询当前报警设备列表", description = "查询正在报警的设备列表，每个设备显示其报警数量。支持车间筛选和分页。")
     @PostMapping("/current-devices")
     public CommonResult<PageResult<AlarmDeviceItemVO>> getCurrentAlarmDeviceList(
-            @RequestParam("tenantId") String tenantId,
             @RequestBody CurrentAlarmDeviceQueryReq request) {
-        PageResult<AlarmDeviceItemVO> result = alarmStatisticsService.getCurrentAlarmDeviceList(tenantId, request);
+        PageResult<AlarmDeviceItemVO> result = alarmStatisticsService.getCurrentAlarmDeviceList(request);
         return CommonResult.success(result);
     }
 }

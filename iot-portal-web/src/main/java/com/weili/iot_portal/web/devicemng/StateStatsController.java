@@ -27,9 +27,8 @@ public class StateStatsController {
     @PreAuthorize("hasPermission(null, 'device:state:view')")
     @Operation(summary = "获取当前班次状态统计")
     public CommonResult<StateStatsVO> getCurrentShiftStats(@RequestParam("deviceId") String deviceId) {
-        String tenantId = SecurityFrameworkContext.getLoginTenantId();
         String factoryId = SecurityFrameworkContext.getLoginFactoryId();
-        return CommonResult.success(stateStatsService.getCurrentShiftStats(tenantId, factoryId, deviceId));
+        return CommonResult.success(stateStatsService.getCurrentShiftStats(factoryId, deviceId));
     }
 
     @GetMapping("/history")
@@ -39,9 +38,8 @@ public class StateStatsController {
     public CommonResult<StateStatsVO> getHistoryStats(@RequestParam("deviceId") String deviceId,
                                                       @RequestParam("startTs") Long startTs,
                                                       @RequestParam("endTs") Long endTs) {
-        String tenantId = SecurityFrameworkContext.getLoginTenantId();
         String factoryId = SecurityFrameworkContext.getLoginFactoryId();
-        return CommonResult.success(stateStatsService.getHistoryStats(tenantId, factoryId, deviceId, startTs, endTs));
+        return CommonResult.success(stateStatsService.getHistoryStats(factoryId, deviceId, startTs, endTs));
     }
 }
 

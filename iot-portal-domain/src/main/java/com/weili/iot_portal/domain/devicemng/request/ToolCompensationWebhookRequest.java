@@ -16,9 +16,6 @@ public class ToolCompensationWebhookRequest {
     private String messageId;
 
     @NotBlank
-    private String tenantId;
-
-    @NotBlank
     private String deviceCode;
 
     private String tbDeviceId;

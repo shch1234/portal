@@ -11,8 +11,10 @@ import java.util.List;
 public class DeviceBaseInfoPageQuery {
 
     /**
-     * 租户UUID（对应 tenant_uuid）
+     * 租户UUID（已删除，设备信息不再按租户隔离）
+     * 如需按租户过滤，需要通过 tb_device_id 查询 ThingsBoard 获取租户信息
      */
+    @Deprecated
     private String tenantUuid;
 
     /**

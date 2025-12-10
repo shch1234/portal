@@ -33,8 +33,8 @@ public class RealtimeCurveServiceImpl implements RealtimeCurveService {
     private final FeedRateHistoryRepository feedRateHistoryRepository;
 
     @Override
-    public RealtimeCurveVO getRealtimeSpindleLoad(String tenantId, String factoryId, String deviceId) {
-        deviceFactoryValidator.ensureDeviceBelongsToFactory(tenantId, factoryId, deviceId);
+    public RealtimeCurveVO getRealtimeSpindleLoad(String factoryId, String deviceId) {
+        deviceFactoryValidator.ensureDeviceBelongsToFactory(factoryId, deviceId);
         long endTs = System.currentTimeMillis();
         long startTs = endTs - 10 * 60 * 1000L;
         List<TbTelemetryClient.TelemetryPoint> points = telemetryClient
@@ -43,8 +43,8 @@ public class RealtimeCurveServiceImpl implements RealtimeCurveService {
     }
 
     @Override
-    public RealtimeCurveVO getHistorySpindleLoad(String tenantId, String factoryId, String deviceId, Long startTs, Long endTs) {
-        deviceFactoryValidator.ensureDeviceBelongsToFactory(tenantId, factoryId, deviceId);
+    public RealtimeCurveVO getHistorySpindleLoad(String factoryId, String deviceId, Long startTs, Long endTs) {
+        deviceFactoryValidator.ensureDeviceBelongsToFactory(factoryId, deviceId);
         if (startTs == null || endTs == null || startTs >= endTs) {
             throw new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "无效的时间范围");
         }
@@ -54,44 +54,44 @@ public class RealtimeCurveServiceImpl implements RealtimeCurveService {
     }
 
     @Override
-    public RealtimeCurveVO getRealtimeSpindleSpeed(String tenantId, String factoryId, String deviceId) {
-        deviceFactoryValidator.ensureDeviceBelongsToFactory(tenantId, factoryId, deviceId);
+    public RealtimeCurveVO getRealtimeSpindleSpeed(String factoryId, String deviceId) {
+        deviceFactoryValidator.ensureDeviceBelongsToFactory(factoryId, deviceId);
         return spindleSpeedCache.getLatest(deviceId)
                 .orElseThrow(() -> new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(),
                         "暂未收到主轴转速数据，请稍后重试"));
     }
 
     @Override
-    public RealtimeCurveVO getHistorySpindleSpeed(String tenantId, String factoryId, String deviceId, Long startTs, Long endTs) {
-        deviceFactoryValidator.ensureDeviceBelongsToFactory(tenantId, factoryId, deviceId);
+    public RealtimeCurveVO getHistorySpindleSpeed(String factoryId, String deviceId, Long startTs, Long endTs) {
+        deviceFactoryValidator.ensureDeviceBelongsToFactory(factoryId, deviceId);
         if (startTs == null || endTs == null || startTs >= endTs) {
             throw new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "无效的时间范围");
         }
         return RealtimeCurveAssembler.toVOFromHistory("spindleSpeed",
-                spindleSpeedHistoryRepository.selectByRange(tenantId, deviceId, startTs, endTs, 2000));
+                spindleSpeedHistoryRepository.selectByRange(deviceId, startTs, endTs, 2000));
     }
 
     @Override
-    public RealtimeCurveVO getRealtimeFeedRate(String tenantId, String factoryId, String deviceId) {
-        deviceFactoryValidator.ensureDeviceBelongsToFactory(tenantId, factoryId, deviceId);
+    public RealtimeCurveVO getRealtimeFeedRate(String factoryId, String deviceId) {
+        deviceFactoryValidator.ensureDeviceBelongsToFactory(factoryId, deviceId);
         return feedRateCache.getLatest(deviceId)
                 .orElseThrow(() -> new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(),
                         "暂未收到进给率数据，请稍后重试"));
     }
 
     @Override
-    public RealtimeCurveVO getHistoryFeedRate(String tenantId, String factoryId, String deviceId, Long startTs, Long endTs) {
-        deviceFactoryValidator.ensureDeviceBelongsToFactory(tenantId, factoryId, deviceId);
+    public RealtimeCurveVO getHistoryFeedRate(String factoryId, String deviceId, Long startTs, Long endTs) {
+        deviceFactoryValidator.ensureDeviceBelongsToFactory(factoryId, deviceId);
         if (startTs == null || endTs == null || startTs >= endTs) {
             throw new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "无效的时间范围");
         }
         return RealtimeCurveAssembler.toVOFromFeedHistory(METRIC_FEED_RATE,
-                feedRateHistoryRepository.selectByRange(tenantId, deviceId, startTs, endTs, 2000));
+                feedRateHistoryRepository.selectByRange(deviceId, startTs, endTs, 2000));
     }
 
     @Override
-    public RealtimeMetricValueVO getRealtimeFeedOverride(String tenantId, String factoryId, String deviceId) {
-        deviceFactoryValidator.ensureDeviceBelongsToFactory(tenantId, factoryId, deviceId);
+    public RealtimeMetricValueVO getRealtimeFeedOverride(String factoryId, String deviceId) {
+        deviceFactoryValidator.ensureDeviceBelongsToFactory(factoryId, deviceId);
         return feedOverrideCache.get(deviceId)
                 .orElseThrow(() -> new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(),
                         "暂未收到倍率数据，请稍后重试"));

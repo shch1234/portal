@@ -9,7 +9,7 @@ import java.util.List;
  */
 public interface DeviceStateSummaryRepository {
 
-    List<DeviceStateSummaryDO> selectByRange(String tenantId, String deviceId, Long startTs, Long endTs);
+    List<DeviceStateSummaryDO> selectByRange(String deviceId, Long startTs, Long endTs);
 }
 
 

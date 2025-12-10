@@ -20,10 +20,9 @@ public class DeviceProductionRecordRepositoryImpl implements DeviceProductionRec
     private final DeviceProductionRecordMapper mapper;
 
     @Override
-    public Optional<DeviceProductionRecordDO> findLatestOngoing(String tenantId, String deviceId) {
+    public Optional<DeviceProductionRecordDO> findLatestOngoing(String deviceId) {
         LambdaQueryWrapper<DeviceProductionRecordDO> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(StringUtils.isNotBlank(tenantId), DeviceProductionRecordDO::getTenantUuid, tenantId)
-                .eq(DeviceProductionRecordDO::getDeviceInfoId, deviceId)
+        wrapper.eq(DeviceProductionRecordDO::getDeviceInfoId, deviceId)
                 .isNull(DeviceProductionRecordDO::getEndTs)
                 .orderByDesc(DeviceProductionRecordDO::getStartTs)
                 .last("LIMIT 1");
@@ -50,20 +49,18 @@ public class DeviceProductionRecordRepositoryImpl implements DeviceProductionRec
     }
 
     @Override
-    public List<DeviceProductionRecordDO> findByShift(String tenantId, String deviceId, String shiftCode, LocalDate shiftDate) {
+    public List<DeviceProductionRecordDO> findByShift(String deviceId, String shiftCode, LocalDate shiftDate) {
         LambdaQueryWrapper<DeviceProductionRecordDO> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(StringUtils.isNotBlank(tenantId), DeviceProductionRecordDO::getTenantUuid, tenantId)
-                .eq(DeviceProductionRecordDO::getDeviceInfoId, deviceId)
+        wrapper.eq(DeviceProductionRecordDO::getDeviceInfoId, deviceId)
                 .eq(DeviceProductionRecordDO::getShiftCode, shiftCode)
                 .eq(DeviceProductionRecordDO::getShiftDate, shiftDate);
         return mapper.selectList(wrapper);
     }
 
     @Override
-    public long countCompletedInRange(String tenantId, String deviceId, Long startTs, Long endTs) {
+    public long countCompletedInRange(String deviceId, Long startTs, Long endTs) {
         LambdaQueryWrapper<DeviceProductionRecordDO> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(StringUtils.isNotBlank(tenantId), DeviceProductionRecordDO::getTenantUuid, tenantId)
-                .eq(DeviceProductionRecordDO::getDeviceInfoId, deviceId)
+        wrapper.eq(DeviceProductionRecordDO::getDeviceInfoId, deviceId)
                 .isNotNull(DeviceProductionRecordDO::getEndTs);
         if (startTs != null) {
             wrapper.ge(DeviceProductionRecordDO::getEndTs, startTs);

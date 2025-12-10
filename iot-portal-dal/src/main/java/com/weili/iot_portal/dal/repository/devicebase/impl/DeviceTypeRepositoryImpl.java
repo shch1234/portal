@@ -25,23 +25,23 @@ public class DeviceTypeRepositoryImpl implements DeviceTypeRepository {
     private final DeviceTypeMapper mapper;
 
     @Override
-    public Optional<DeviceTypeDO> findById(String tenantId, String id) {
-        return Optional.ofNullable(mapper.selectOne(tenantScope(tenantId).eq(DeviceTypeDO::getId, id)));
+    public Optional<DeviceTypeDO> findById(String id) {
+        return Optional.ofNullable(mapper.selectOne(new LambdaQueryWrapper<DeviceTypeDO>().eq(DeviceTypeDO::getId, id)));
     }
 
     @Override
-    public Optional<DeviceTypeDO> findByTypeCode(String tenantId, String typeCode) {
-        return Optional.ofNullable(mapper.selectOne(tenantScope(tenantId).eq(DeviceTypeDO::getTypeCode, typeCode)));
+    public Optional<DeviceTypeDO> findByTypeCode(String typeCode) {
+        return Optional.ofNullable(mapper.selectOne(new LambdaQueryWrapper<DeviceTypeDO>().eq(DeviceTypeDO::getTypeCode, typeCode)));
     }
 
     @Override
-    public List<DeviceTypeDO> findByParentTypeId(String tenantId, String parentTypeId) {
-        return mapper.selectList(tenantScope(tenantId).eq(DeviceTypeDO::getParentTypeId, parentTypeId));
+    public List<DeviceTypeDO> findByParentTypeId(String parentTypeId) {
+        return mapper.selectList(new LambdaQueryWrapper<DeviceTypeDO>().eq(DeviceTypeDO::getParentTypeId, parentTypeId));
     }
 
     @Override
-    public boolean existsByTypeCode(String tenantId, String typeCode, String excludeId) {
-        LambdaQueryWrapper<DeviceTypeDO> wrapper = tenantScope(tenantId)
+    public boolean existsByTypeCode(String typeCode, String excludeId) {
+        LambdaQueryWrapper<DeviceTypeDO> wrapper = new LambdaQueryWrapper<DeviceTypeDO>()
                 .eq(DeviceTypeDO::getTypeCode, typeCode);
         if (StringUtils.isNotBlank(excludeId)) {
             wrapper.ne(DeviceTypeDO::getId, excludeId);
@@ -51,7 +51,7 @@ public class DeviceTypeRepositoryImpl implements DeviceTypeRepository {
 
     @Override
     public PageResult<DeviceTypeDO> selectPage(DeviceTypePageQuery query) {
-        LambdaQueryWrapper<DeviceTypeDO> wrapper = tenantScope(query.getTenantUuid());
+        LambdaQueryWrapper<DeviceTypeDO> wrapper = new LambdaQueryWrapper<>();
         if (StringUtils.isNotBlank(query.getTypeCodeLike())) {
             wrapper.like(DeviceTypeDO::getTypeCode, query.getTypeCodeLike());
         }
@@ -89,14 +89,8 @@ public class DeviceTypeRepositoryImpl implements DeviceTypeRepository {
     }
 
     @Override
-    public boolean deleteById(String tenantId, String id) {
-        return mapper.delete(tenantScope(tenantId).eq(DeviceTypeDO::getId, id)) > 0;
-    }
-
-    private LambdaQueryWrapper<DeviceTypeDO> tenantScope(String tenantId) {
-        LambdaQueryWrapper<DeviceTypeDO> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(DeviceTypeDO::getTenantUuid, tenantId);
-        return wrapper;
+    public boolean deleteById(String id) {
+        return mapper.delete(new LambdaQueryWrapper<DeviceTypeDO>().eq(DeviceTypeDO::getId, id)) > 0;
     }
 
     private void applySort(LambdaQueryWrapper<DeviceTypeDO> wrapper, String sortBy, String sortDirection) {

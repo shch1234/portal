@@ -8,9 +8,9 @@ import com.weili.iot_portal.domain.devicemng.request.AlarmHistoryQueryReq;
  */
 public interface AlarmHistoryService {
 
-    AlarmHistoryVO getCurrentAlarms(String tenantId, String factoryId, String deviceId);
+    AlarmHistoryVO getCurrentAlarms(String factoryId, String deviceId);
 
-    AlarmHistoryVO getAlarmHistory(String tenantId, String factoryId, AlarmHistoryQueryReq request);
+    AlarmHistoryVO getAlarmHistory(String factoryId, AlarmHistoryQueryReq request);
 
     /**
      * 检查设备是否有进行中的报警
@@ -22,7 +22,7 @@ public interface AlarmHistoryService {
      * @param deviceId 设备ID
      * @return 是否有进行中的报警
      */
-    boolean hasActiveAlarm(String tenantId, String factoryId, String deviceId);
+    boolean hasActiveAlarm(String factoryId, String deviceId);
 }
 
 

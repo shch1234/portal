@@ -102,7 +102,7 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
 
         // 2. 解析设备信息
         DeviceIdentityCacheService.DeviceIdentity identity = deviceIdentityCacheService
-                .resolveByDeviceCode(request.getTenantId(), request.getDeviceCode(), 
+                .resolveByDeviceCode(request.getDeviceCode(),
                         request.getDeviceId(), "DeviceStateEvent");
         String deviceInfoId = identity.getDeviceId();
         String orgFactoryId = identity.getFactoryId();
@@ -120,21 +120,21 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
         try {
             // 4. 查询数据库最新状态记录
             Optional<DeviceStateTimelineDO> latestStateOpt = stateTimelineRepository
-                    .findLatestState(request.getTenantId(), deviceInfoId);
+                    .findLatestState(deviceInfoId);
 
             // 5. 根据情况处理
             if (latestStateOpt.isEmpty()) {
                 // 情况D：数据库无记录（首次记录）
-                handleFirstRecord(request.getTenantId(), deviceInfoId, orgFactoryId, currentState, eventTimestamp, previousState);
+                handleFirstRecord(deviceInfoId, orgFactoryId, currentState, eventTimestamp, previousState);
             } else if (StringUtils.isBlank(previousState)) {
                 // 情况A：首次连接（previousState = NULL）
-                handleFirstConnection(request.getTenantId(), deviceInfoId, orgFactoryId, currentState, eventTimestamp);
+                handleFirstConnection(deviceInfoId, orgFactoryId, currentState, eventTimestamp);
             } else {
                 // 情况B或C：正常匹配或状态不匹配
                 DeviceStateTimelineDO latestState = latestStateOpt.get();
                 if (currentState.equalsIgnoreCase(latestState.getStateCode())) {
                     // 状态未变化，刷新缓存 TTL 和心跳，但不写入时间线
-                    refreshStateCacheAndHeartbeat(request.getTenantId(), orgFactoryId, deviceInfoId, eventTimestamp, request.getMessageId());
+                    refreshStateCacheAndHeartbeat(orgFactoryId, deviceInfoId, eventTimestamp, request.getMessageId());
                     log.debug("状态未变化，刷新缓存TTL和心跳: deviceInfoId={}, state={}", deviceInfoId, currentState);
                     return;
                 }
@@ -145,7 +145,7 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
                 } else {
                     // 情况C：状态不匹配（异常情况）
                     handleStateMismatch(latestState, previousState, currentState, eventTimestamp, 
-                            request.getTenantId(), deviceInfoId, orgFactoryId, request);
+                            deviceInfoId, orgFactoryId, request);
                 }
             }
 
@@ -158,9 +158,9 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
             if (StringUtils.isNotBlank(request.getMessageId())) {
                 payload.put("traceId", request.getMessageId());
             }
-            String stateKey = formatStateKey(request.getTenantId(), orgFactoryId, deviceInfoId);
+            String stateKey = formatStateKey(orgFactoryId, deviceInfoId);
             realTimeCacheService.hsetWithTtl(stateKey, payload, stateTtlMillis);
-            refreshHeartbeat(request.getTenantId(), orgFactoryId, deviceInfoId, request.getMessageId());
+            refreshHeartbeat(orgFactoryId, deviceInfoId, request.getMessageId());
         } finally {
             // 释放锁
             redisTemplate.delete(lockKey);
@@ -170,19 +170,19 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
     /**
      * 状态未变化时，刷新状态缓存 TTL（不改值）并刷新心跳
      */
-    private void refreshStateCacheAndHeartbeat(String tenantId, String factoryId, String deviceId,
+    private void refreshStateCacheAndHeartbeat(String factoryId, String deviceId,
                                                Long eventTimestamp, String traceId) {
-        String stateKey = formatStateKey(tenantId, factoryId, deviceId);
+        String stateKey = formatStateKey(factoryId, deviceId);
         // 仅刷新 TTL，保持原值（避免 updatedAt 误更新）
         redisTemplate.expire(stateKey, Duration.ofMillis(stateTtlMillis));
-        refreshHeartbeat(tenantId, factoryId, deviceId, traceId);
+        refreshHeartbeat(factoryId, deviceId, traceId);
     }
 
     /**
      * 写入/刷新状态心跳 key（短 TTL），用于实时性判断，避免数据过期后取不到
      */
-    private void refreshHeartbeat(String tenantId, String factoryId, String deviceId, String traceId) {
-        String hbKey = formatStateHeartbeatKey(tenantId, factoryId, deviceId);
+    private void refreshHeartbeat(String factoryId, String deviceId, String traceId) {
+        String hbKey = formatStateHeartbeatKey(factoryId, deviceId);
         String value = StringUtils.defaultIfBlank(traceId, "1");
         realTimeCacheService.setWithTtlSeconds(hbKey, value, stateHeartbeatTtlSeconds);
     }
@@ -190,12 +190,12 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
     /**
      * 情况A：首次连接（previousState = NULL）
      */
-    private void handleFirstConnection(String tenantId, String deviceInfoId, String orgFactoryId, 
+    private void handleFirstConnection(String deviceInfoId, String orgFactoryId, 
                                        String currentState, Long eventTimestamp) {
         log.info("设备首次连接，插入新状态记录: deviceInfoId={}, state={}, timestamp={}", 
                 deviceInfoId, currentState, eventTimestamp);
         
-        DeviceStateTimelineDO newRecord = createStateRecord(tenantId, deviceInfoId, orgFactoryId, currentState, 
+        DeviceStateTimelineDO newRecord = createStateRecord(deviceInfoId, orgFactoryId, currentState, 
                 eventTimestamp, null, true, null);
         stateTimelineMapper.insert(newRecord);
     }
@@ -217,7 +217,8 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
         stateTimelineMapper.updateById(latestState);
 
         // 插入新状态记录
-        DeviceStateTimelineDO newRecord = createStateRecord(latestState.getTenantUuid(), 
+        // 注意：device_state_record 表已删除 tenant_uuid 字段
+        DeviceStateTimelineDO newRecord = createStateRecord(
                 latestState.getDeviceInfoId(), orgFactoryId, currentState, eventTimestamp, null, true, null);
         stateTimelineMapper.insert(newRecord);
     }
@@ -227,7 +228,7 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
      */
     private void handleStateMismatch(DeviceStateTimelineDO latestState, String previousState, 
                                      String currentState, Long eventTimestamp,
-                                     String tenantId, String deviceInfoId, String orgFactoryId, WebhookRequest request) {
+                                     String deviceInfoId, String orgFactoryId, WebhookRequest request) {
         log.warn("状态不匹配异常: deviceInfoId={}, DB状态={}, 事件previousState={}, 事件currentState={}, timestamp={}", 
                 deviceInfoId, latestState.getStateCode(), previousState, currentState, eventTimestamp);
 
@@ -237,11 +238,11 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
         if (isOngoing) {
             // 子情况C2：数据库状态进行中（end_ts IS NULL）
             handleOngoingStateMismatch(latestState, previousState, currentState, eventTimestamp, 
-                    tenantId, deviceInfoId, orgFactoryId, request);
+                    deviceInfoId, orgFactoryId, request);
         } else {
             // 子情况C1：数据库状态已结束（end_ts IS NOT NULL）
             handleEndedStateMismatch(latestState, previousState, currentState, eventTimestamp, 
-                    tenantId, deviceInfoId, orgFactoryId, request);
+                    deviceInfoId, orgFactoryId, request);
         }
     }
 
@@ -250,7 +251,7 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
      */
     private void handleEndedStateMismatch(DeviceStateTimelineDO latestState, String previousState,
                                          String currentState, Long eventTimestamp,
-                                         String tenantId, String deviceInfoId, String orgFactoryId, WebhookRequest request) {
+                                         String deviceInfoId, String orgFactoryId, WebhookRequest request) {
         Long latestEndTs = latestState.getEndTs();
         
         // 检查是否存在状态间隙
@@ -264,13 +265,13 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
             gapProperties.put("expected_previous", previousState);
             gapProperties.put("actual_db_state", latestState.getStateCode());
             
-            DeviceStateTimelineDO unknownRecord = createStateRecord(tenantId, deviceInfoId, orgFactoryId, UNKNOWN_STATE,
+            DeviceStateTimelineDO unknownRecord = createStateRecord(deviceInfoId, orgFactoryId, UNKNOWN_STATE,
                     latestEndTs, eventTimestamp, false, gapProperties);
             stateTimelineMapper.insert(unknownRecord);
         }
 
         // 插入新状态记录
-        DeviceStateTimelineDO newRecord = createStateRecord(tenantId, deviceInfoId, orgFactoryId, currentState,
+        DeviceStateTimelineDO newRecord = createStateRecord(deviceInfoId, orgFactoryId, currentState,
                 eventTimestamp, null, true, null);
         stateTimelineMapper.insert(newRecord);
 
@@ -285,11 +286,11 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
      */
     private void handleOngoingStateMismatch(DeviceStateTimelineDO latestState, String previousState,
                                            String currentState, Long eventTimestamp,
-                                           String tenantId, String deviceInfoId, String orgFactoryId, WebhookRequest request) {
+                                           String deviceInfoId, String orgFactoryId, WebhookRequest request) {
         // 检查时间戳异常
         if (latestState.getStartTs() != null && eventTimestamp < latestState.getStartTs()) {
             // 子情况C3：时间戳异常
-            handleTimestampAnomaly(latestState, currentState, eventTimestamp, tenantId, deviceInfoId, orgFactoryId, request);
+            handleTimestampAnomaly(latestState, currentState, eventTimestamp, deviceInfoId, orgFactoryId, request);
             return;
         }
 
@@ -317,13 +318,13 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
             recoveryProperties.put("recovery", true);
             recoveryProperties.put("recovered_from", "UNKNOWN");
 
-            DeviceStateTimelineDO previousRecord = createStateRecord(tenantId, deviceInfoId, orgFactoryId, previousState,
+            DeviceStateTimelineDO previousRecord = createStateRecord(deviceInfoId, orgFactoryId, previousState,
                     unknownEndTs, eventTimestamp, false, recoveryProperties);
             stateTimelineMapper.insert(previousRecord);
         }
 
         // 插入新状态记录
-        DeviceStateTimelineDO newRecord = createStateRecord(tenantId, deviceInfoId, orgFactoryId, currentState,
+        DeviceStateTimelineDO newRecord = createStateRecord(deviceInfoId, orgFactoryId, currentState,
                 eventTimestamp, null, true, null);
         stateTimelineMapper.insert(newRecord);
 
@@ -337,7 +338,7 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
      * 子情况C3：时间戳异常（事件时间 < 数据库状态开始时间）
      */
     private void handleTimestampAnomaly(DeviceStateTimelineDO latestState, String currentState,
-                                        Long eventTimestamp, String tenantId, String deviceInfoId, String orgFactoryId,
+                                        Long eventTimestamp, String deviceInfoId, String orgFactoryId,
                                         WebhookRequest request) {
         log.error("时间戳异常: deviceInfoId={}, 事件时间={}, DB状态开始时间={}, 差距={}秒",
                 deviceInfoId, eventTimestamp, latestState.getStartTs(),
@@ -352,7 +353,7 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
         anomalyProperties.put("db_timestamp", currentTimeSeconds);
         anomalyProperties.put("db_start_ts", latestState.getStartTs());
 
-        DeviceStateTimelineDO newRecord = createStateRecord(tenantId, deviceInfoId, orgFactoryId, currentState,
+        DeviceStateTimelineDO newRecord = createStateRecord(deviceInfoId, orgFactoryId, currentState,
                 currentTimeSeconds, null, false, anomalyProperties);
         stateTimelineMapper.insert(newRecord);
 
@@ -365,7 +366,7 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
     /**
      * 情况D：数据库无记录（首次记录）
      */
-    private void handleFirstRecord(String tenantId, String deviceInfoId, String orgFactoryId, 
+    private void handleFirstRecord(String deviceInfoId, String orgFactoryId, 
                                   String currentState, Long eventTimestamp, String previousState) {
         if (StringUtils.isNotBlank(previousState)) {
             log.warn("数据库无记录但previousState不为NULL: deviceInfoId={}, previousState={}", 
@@ -375,7 +376,7 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
         log.info("设备首次记录，插入新状态记录: deviceInfoId={}, state={}, timestamp={}", 
                 deviceInfoId, currentState, eventTimestamp);
         
-        DeviceStateTimelineDO newRecord = createStateRecord(tenantId, deviceInfoId, orgFactoryId, currentState,
+        DeviceStateTimelineDO newRecord = createStateRecord(deviceInfoId, orgFactoryId, currentState,
                 eventTimestamp, null, true, null);
         stateTimelineMapper.insert(newRecord);
     }
@@ -383,12 +384,15 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
     /**
      * 创建状态记录
      */
-    private DeviceStateTimelineDO createStateRecord(String tenantId, String deviceInfoId, String orgFactoryId, 
+    /**
+     * 注意：device_state_record 表已删除 tenant_uuid 字段
+     */
+    private DeviceStateTimelineDO createStateRecord(String deviceInfoId, String orgFactoryId, 
                                                     String stateCode, Long startTs, Long endTs, boolean isComplete,
                                                     Map<String, Object> properties) {
         DeviceStateTimelineDO record = new DeviceStateTimelineDO();
         record.setId(IdWorker.getIdStr());
-        record.setTenantUuid(tenantId);
+        // tenant_uuid 字段已删除
         record.setDeviceInfoId(deviceInfoId);
         record.setOrgFactoryId(orgFactoryId);
         record.setStateCode(stateCode);
@@ -417,14 +421,14 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
         return StringUtils.defaultIfBlank(value, "none");
     }
 
-    private String formatStateKey(String tenantId, String factoryId, String deviceId) {
+    private String formatStateKey(String factoryId, String deviceId) {
         return String.format(RedisConstant.RT_STATE,
-                defaultBlank(tenantId), defaultBlank(factoryId), defaultBlank(deviceId));
+                defaultBlank(factoryId), defaultBlank(deviceId));
     }
 
-    private String formatStateHeartbeatKey(String tenantId, String factoryId, String deviceId) {
+    private String formatStateHeartbeatKey(String factoryId, String deviceId) {
         return String.format(RedisConstant.RT_STATE_HEARTBEAT,
-                defaultBlank(tenantId), defaultBlank(factoryId), defaultBlank(deviceId));
+                defaultBlank(factoryId), defaultBlank(deviceId));
     }
 
     /**
@@ -442,7 +446,7 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
 
         // 解析设备身份
         DeviceIdentityCacheService.DeviceIdentity identity = deviceIdentityCacheService
-                .resolveByDeviceCode(request.getTenantId(), request.getDeviceCode(),
+                .resolveByDeviceCode(request.getDeviceCode(),
                         request.getDeviceId(), "DeviceStateHeartbeat");
         String deviceInfoId = identity.getDeviceId();
         String orgFactoryId = identity.getFactoryId();
@@ -460,11 +464,11 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
         if (StringUtils.isNotBlank(request.getMessageId())) {
             payload.put("traceId", request.getMessageId());
         }
-        String stateKey = formatStateKey(request.getTenantId(), orgFactoryId, deviceInfoId);
+        String stateKey = formatStateKey(orgFactoryId, deviceInfoId);
         realTimeCacheService.hsetWithTtl(stateKey, payload, stateTtlMillis);
 
         // 刷新心跳（短 TTL）
-        refreshHeartbeat(request.getTenantId(), orgFactoryId, deviceInfoId, request.getMessageId());
+        refreshHeartbeat(orgFactoryId, deviceInfoId, request.getMessageId());
     }
 }
 

@@ -6,7 +6,6 @@ import java.util.Map;
 
 @Data
 public class RealTimeAxisVO {
-    private String tenantId;
     private String factoryId;
     private String deviceId;
 

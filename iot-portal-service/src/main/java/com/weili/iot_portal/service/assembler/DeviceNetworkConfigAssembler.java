@@ -12,10 +12,9 @@ public final class DeviceNetworkConfigAssembler {
     private DeviceNetworkConfigAssembler() {
     }
 
-    public static DeviceNetworkConfigDO fromCreateReq(String tenantId, DeviceNetworkConfigCreateReq request) {
+    public static DeviceNetworkConfigDO fromCreateReq(DeviceNetworkConfigCreateReq request) {
         DeviceNetworkConfigDO entity = new DeviceNetworkConfigDO();
         entity.setId(UUID.randomUUID().toString());
-        entity.setTenantUuid(tenantId);
         entity.setDeviceInfoId(request.getDeviceId());
         entity.setIpAddress(request.getIpAddress());
         entity.setPort(request.getPort());
@@ -27,10 +26,9 @@ public final class DeviceNetworkConfigAssembler {
         return entity;
     }
 
-    public static DeviceLocationDO toLocationFromCreateReq(String tenantId, DeviceNetworkConfigCreateReq request) {
+    public static DeviceLocationDO toLocationFromCreateReq(DeviceNetworkConfigCreateReq request) {
         DeviceLocationDO location = new DeviceLocationDO();
         location.setId(UUID.randomUUID().toString());
-        location.setTenantUuid(tenantId);
         location.setDeviceInfoId(request.getDeviceId());
         location.setLocationCode(request.getLocationCode());
         location.setLocationDescription(request.getLocationDescription());

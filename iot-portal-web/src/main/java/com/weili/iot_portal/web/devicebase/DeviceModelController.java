@@ -32,8 +32,7 @@ public class DeviceModelController {
     @ApiInterceptor
     @Operation(summary = "创建设备型号")
     public CommonResult<DeviceModelVO> create(@Valid @RequestBody DeviceModelCreateReq request) {
-        String tenantId = SecurityFrameworkContext.getLoginTenantId();
-        return CommonResult.success(deviceModelService.create(tenantId,  request));
+        return CommonResult.success(deviceModelService.create(request));
     }
 
     @PutMapping("/{id}")
@@ -42,25 +41,22 @@ public class DeviceModelController {
     @Operation(summary = "更新设备型号")
     public CommonResult<DeviceModelVO> update(@PathVariable("id") String id,
                                               @Valid @RequestBody DeviceModelUpdateReq request) {
-        String tenantId = SecurityFrameworkContext.getLoginTenantId();
         request.setId(id);
-        return CommonResult.success(deviceModelService.update(tenantId, request));
+        return CommonResult.success(deviceModelService.update(request));
     }
 
     @GetMapping("/{id}")
     @ApiInterceptor
     @Operation(summary = "查询设备型号详情")
     public CommonResult<DeviceModelVO> get(@PathVariable("id") String id) {
-        String tenantId = SecurityFrameworkContext.getLoginTenantId();
-        return CommonResult.success(deviceModelService.get(tenantId, id));
+        return CommonResult.success(deviceModelService.get(id));
     }
 
     @PostMapping("/page")
     @ApiInterceptor
     @Operation(summary = "分页查询设备型号")
     public CommonResult<PageResult<DeviceModelVO>> page(@Valid @RequestBody DeviceModelQueryReq request) {
-        String tenantId = SecurityFrameworkContext.getLoginTenantId();
-        return CommonResult.success(deviceModelService.page(tenantId, request));
+        return CommonResult.success(deviceModelService.page(request));
     }
 
     @DeleteMapping("/{id}")
@@ -68,8 +64,7 @@ public class DeviceModelController {
     @ApiInterceptor
     @Operation(summary = "删除设备型号")
     public CommonResult<Boolean> delete(@PathVariable("id") String id) {
-        String tenantId = SecurityFrameworkContext.getLoginTenantId();
-        return CommonResult.success(deviceModelService.delete(tenantId, id));
+        return CommonResult.success(deviceModelService.delete(id));
     }
 }
 

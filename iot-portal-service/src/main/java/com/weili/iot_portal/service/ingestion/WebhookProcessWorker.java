@@ -59,7 +59,6 @@ public class WebhookProcessWorker {
                 request.setMessageId(inbox.getMessageId());
                 request.setDeviceCode(inbox.getDeviceCode());
                 request.setDeviceId(inbox.getTbDeviceId());
-                request.setTenantId(inbox.getTenantUuid());
                 request.setEventType(inbox.getEventType());
                 request.setWebhookCategory(inbox.getWebhookCategory());
 
@@ -97,7 +96,6 @@ public class WebhookProcessWorker {
                         request.setMessageId(inbox.getMessageId());
                         request.setDeviceCode(inbox.getDeviceCode());
                         request.setDeviceId(inbox.getTbDeviceId());
-                        request.setTenantId(inbox.getTenantUuid());
                         request.setEventType(inbox.getEventType());
                         request.setWebhookCategory(inbox.getWebhookCategory());
                     }

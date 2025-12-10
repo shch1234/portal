@@ -19,10 +19,9 @@ public interface EfficiencyMetricService {
      * 
      * <p>查询指定指标在指定班次时，所有设备的指标值
      * 
-     * @param tenantId 租户ID
      * @param request 查询请求
      * @return 分页结果
      */
-    PageResult<DeviceEfficiencyMetricVO> getDeviceMetrics(String tenantId, EfficiencyMetricQueryReq request);
+    PageResult<DeviceEfficiencyMetricVO> getDeviceMetrics(EfficiencyMetricQueryReq request);
 }
 

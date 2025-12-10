@@ -32,8 +32,7 @@ public class OrganizationUnitController {
     @ApiInterceptor
     @Operation(summary = "创建组织单元")
     public CommonResult<OrganizationUnitVO> create(@Valid @RequestBody OrganizationUnitCreateReq request) {
-        String tenantId = SecurityFrameworkContext.getLoginTenantId();
-        return CommonResult.success(organizationUnitService.create(tenantId, request));
+        return CommonResult.success(organizationUnitService.create(request));
     }
 
     @PutMapping("/{id}")
@@ -42,25 +41,22 @@ public class OrganizationUnitController {
     @Operation(summary = "更新组织单元")
     public CommonResult<OrganizationUnitVO> update(@PathVariable("id") String id,
                                                    @Valid @RequestBody OrganizationUnitUpdateReq request) {
-        String tenantId = SecurityFrameworkContext.getLoginTenantId();
         request.setId(id);
-        return CommonResult.success(organizationUnitService.update(tenantId,  request));
+        return CommonResult.success(organizationUnitService.update(request));
     }
 
     @GetMapping("/{id}")
     @ApiInterceptor
     @Operation(summary = "查询组织单元详情")
     public CommonResult<OrganizationUnitVO> get(@PathVariable("id") String id) {
-        String tenantId = SecurityFrameworkContext.getLoginTenantId();
-        return CommonResult.success(organizationUnitService.get(tenantId, id));
+        return CommonResult.success(organizationUnitService.get(id));
     }
 
     @PostMapping("/page")
     @ApiInterceptor
     @Operation(summary = "分页查询组织单元")
     public CommonResult<PageResult<OrganizationUnitVO>> page(@Valid @RequestBody OrganizationUnitQueryReq request) {
-        String tenantId = SecurityFrameworkContext.getLoginTenantId();
-        return CommonResult.success(organizationUnitService.page(tenantId, request));
+        return CommonResult.success(organizationUnitService.page(request));
     }
 
     @DeleteMapping("/{id}")
@@ -68,8 +64,7 @@ public class OrganizationUnitController {
     @ApiInterceptor
     @Operation(summary = "删除组织单元")
     public CommonResult<Boolean> delete(@PathVariable("id") String id) {
-        String tenantId = SecurityFrameworkContext.getLoginTenantId();
-        return CommonResult.success(organizationUnitService.delete(tenantId, id));
+        return CommonResult.success(organizationUnitService.delete(id));
     }
 }
 

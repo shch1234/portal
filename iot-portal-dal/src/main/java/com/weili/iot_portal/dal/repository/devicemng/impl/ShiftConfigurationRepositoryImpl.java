@@ -24,10 +24,9 @@ public class ShiftConfigurationRepositoryImpl implements ShiftConfigurationRepos
      * 查找指定时间点的有效班次配置（对应 device_shift_config 表的字段）
      */
     @Override
-    public Optional<ShiftConfigurationDO> findActiveByDeviceAndTime(String tenantId, String deviceId, long timestamp) {
+    public Optional<ShiftConfigurationDO> findActiveByDeviceAndTime(String deviceId, long timestamp) {
         LambdaQueryWrapper<ShiftConfigurationDO> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(ShiftConfigurationDO::getTenantUuid, tenantId)
-                .eq(ShiftConfigurationDO::getDeviceInfoId, deviceId)
+        wrapper.eq(ShiftConfigurationDO::getDeviceInfoId, deviceId)
                 .eq(ShiftConfigurationDO::getIsActive, Boolean.TRUE)
                 .le(ShiftConfigurationDO::getEffectiveStartTs, timestamp)
                 .and(w -> w.isNull(ShiftConfigurationDO::getEffectiveEndTs)
@@ -42,10 +41,9 @@ public class ShiftConfigurationRepositoryImpl implements ShiftConfigurationRepos
      * 查找时间范围内的班次配置（对应 device_shift_config 表的字段）
      */
     @Override
-    public List<ShiftConfigurationDO> findByDeviceAndTimeRange(String tenantId, String deviceId, long startTs, long endTs) {
+    public List<ShiftConfigurationDO> findByDeviceAndTimeRange(String deviceId, long startTs, long endTs) {
         LambdaQueryWrapper<ShiftConfigurationDO> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(ShiftConfigurationDO::getTenantUuid, tenantId)
-                .eq(ShiftConfigurationDO::getDeviceInfoId, deviceId)
+        wrapper.eq(ShiftConfigurationDO::getDeviceInfoId, deviceId)
                 .le(ShiftConfigurationDO::getEffectiveStartTs, endTs)
                 .and(w -> w.isNull(ShiftConfigurationDO::getEffectiveEndTs)
                         .or()
@@ -63,10 +61,9 @@ public class ShiftConfigurationRepositoryImpl implements ShiftConfigurationRepos
      * 更新生效结束时间（对应 device_shift_config 表的字段）
      */
     @Override
-    public void updateEffectiveEndTs(String tenantId, String deviceId, long endTs) {
+    public void updateEffectiveEndTs(String deviceId, long endTs) {
         LambdaUpdateWrapper<ShiftConfigurationDO> updateWrapper = new LambdaUpdateWrapper<>();
-        updateWrapper.eq(ShiftConfigurationDO::getTenantUuid, tenantId)
-                .eq(ShiftConfigurationDO::getDeviceInfoId, deviceId)
+        updateWrapper.eq(ShiftConfigurationDO::getDeviceInfoId, deviceId)
                 .eq(ShiftConfigurationDO::getIsActive, Boolean.TRUE)
                 .isNull(ShiftConfigurationDO::getEffectiveEndTs)
                 .set(ShiftConfigurationDO::getEffectiveEndTs, endTs)

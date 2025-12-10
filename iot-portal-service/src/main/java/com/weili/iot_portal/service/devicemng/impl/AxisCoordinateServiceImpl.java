@@ -20,8 +20,8 @@ public class AxisCoordinateServiceImpl implements AxisCoordinateService {
     private final AxisCoordinateCache axisCoordinateCache;
 
     @Override
-    public AxisCoordinateListVO getCurrentAxisCoordinates(String tenantId, String factoryId, String deviceId) {
-        deviceFactoryValidator.ensureDeviceBelongsToFactory(tenantId, factoryId, deviceId);
+    public AxisCoordinateListVO getCurrentAxisCoordinates(String factoryId, String deviceId) {
+        deviceFactoryValidator.ensureDeviceBelongsToFactory(factoryId, deviceId);
 
         return axisCoordinateCache.get(deviceId)
                 .orElseThrow(() -> new ServiceException(

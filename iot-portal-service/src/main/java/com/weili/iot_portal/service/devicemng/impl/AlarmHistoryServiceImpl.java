@@ -24,17 +24,16 @@ public class AlarmHistoryServiceImpl implements AlarmHistoryService {
     private final DeviceFactoryValidator deviceFactoryValidator;
 
     @Override
-    public AlarmHistoryVO getCurrentAlarms(String tenantId, String factoryId, String deviceId) {
-        deviceFactoryValidator.ensureDeviceBelongsToFactory(tenantId, factoryId, deviceId);
-        List<AlarmHistoryDO> alarms = alarmHistoryRepository.selectCurrent(tenantId, deviceId);
+    public AlarmHistoryVO getCurrentAlarms(String factoryId, String deviceId) {
+        deviceFactoryValidator.ensureDeviceBelongsToFactory(factoryId, deviceId);
+        List<AlarmHistoryDO> alarms = alarmHistoryRepository.selectCurrent(deviceId);
         return AlarmHistoryAssembler.toVO(deviceId, alarms);
     }
 
     @Override
-    public AlarmHistoryVO getAlarmHistory(String tenantId, String factoryId, AlarmHistoryQueryReq request) {
-        deviceFactoryValidator.ensureDeviceBelongsToFactory(tenantId, factoryId, request.getDeviceId());
+    public AlarmHistoryVO getAlarmHistory(String factoryId, AlarmHistoryQueryReq request) {
+        deviceFactoryValidator.ensureDeviceBelongsToFactory(factoryId, request.getDeviceId());
         PageResult<AlarmHistoryDO> pageResult = alarmHistoryRepository.selectPage(
-                tenantId,
                 request.getDeviceId(),
                 request.getStartTs(),
                 request.getEndTs(),
@@ -47,11 +46,11 @@ public class AlarmHistoryServiceImpl implements AlarmHistoryService {
     }
 
     @Override
-    public boolean hasActiveAlarm(String tenantId, String factoryId, String deviceId) {
+    public boolean hasActiveAlarm(String factoryId, String deviceId) {
         // 先验证设备是否属于指定工厂
-        deviceFactoryValidator.ensureDeviceBelongsToFactory(tenantId, factoryId, deviceId);
+        deviceFactoryValidator.ensureDeviceBelongsToFactory(factoryId, deviceId);
         // 查询是否有进行中的报警
-        List<AlarmHistoryDO> activeAlarms = alarmHistoryRepository.selectCurrent(tenantId, deviceId);
+        List<AlarmHistoryDO> activeAlarms = alarmHistoryRepository.selectCurrent(deviceId);
         return activeAlarms != null && !activeAlarms.isEmpty();
     }
 }

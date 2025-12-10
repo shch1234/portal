@@ -26,11 +26,6 @@ public class DeviceModelDO extends BaseDO {
     @TableId(type = IdType.INPUT)
     private String id;
 
-    /**
-     * 租户UUID，对应 tenant_uuid
-     */
-    private String tenantUuid;
-
     private String modelCode;
 
     private String modelName;

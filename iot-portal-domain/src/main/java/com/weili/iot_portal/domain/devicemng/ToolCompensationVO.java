@@ -8,7 +8,6 @@ import java.util.Map;
 @Data
 public class ToolCompensationVO {
     private Long id;
-    private String tenantId;
     private String factoryId;
     private String deviceId;
     private String toolHolderNo;

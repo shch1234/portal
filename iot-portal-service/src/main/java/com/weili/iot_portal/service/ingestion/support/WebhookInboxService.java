@@ -30,9 +30,6 @@ public class WebhookInboxService {
     @Autowired
     private WebhookFailLogService webhookFailLogService;
 
-    @Autowired
-    private ObjectMapper objectMapper;
-
     @Value("${webhook.inbox.batch-size:100}")
     private int batchSize;
 
@@ -54,7 +51,6 @@ public class WebhookInboxService {
 
         WebhookInboxDO inbox = new WebhookInboxDO();
         inbox.setMessageId(request.getMessageId());
-        inbox.setTenantUuid(request.getTenantId());
         inbox.setTbDeviceId(request.getDeviceId());
         inbox.setDeviceCode(request.getDeviceCode());
         inbox.setEventType(request.getEventType());

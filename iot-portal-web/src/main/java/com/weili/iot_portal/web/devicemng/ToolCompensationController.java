@@ -29,8 +29,7 @@ public class ToolCompensationController {
     @GetMapping("/active")
     public CommonResult<List<ToolCompensationVO>> listActive(@RequestParam("factoryId") String factoryId,
                                                              @RequestParam("deviceId") String deviceId) {
-        String tenantId = SecurityFrameworkContext.getLoginTenantId();
-        List<ToolCompensationDO> list = toolCompensationQueryService.listActive(tenantId, factoryId, deviceId);
+        List<ToolCompensationDO> list = toolCompensationQueryService.listActive(factoryId, deviceId);
         List<ToolCompensationVO> result = list.stream().map(this::convert).collect(Collectors.toList());
         return CommonResult.success(result);
     }
@@ -38,7 +37,6 @@ public class ToolCompensationController {
     private ToolCompensationVO convert(ToolCompensationDO item) {
         ToolCompensationVO vo = new ToolCompensationVO();
         vo.setId(item.getId());
-        vo.setTenantId(item.getTenantUuid());
         vo.setFactoryId(item.getOrgFactoryId());
         vo.setDeviceId(item.getDeviceInfoId());
         vo.setToolHolderNo(item.getToolHolderNo());

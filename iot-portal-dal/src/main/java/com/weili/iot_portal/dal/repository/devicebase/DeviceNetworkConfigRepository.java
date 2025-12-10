@@ -8,11 +8,11 @@ import java.util.Optional;
 
 public interface DeviceNetworkConfigRepository {
 
-    Optional<DeviceNetworkConfigDO> findById(String tenantId, String id);
+    Optional<DeviceNetworkConfigDO> findById(String id);
 
-    Optional<DeviceNetworkConfigDO> findByDeviceInfoId(String tenantId, String deviceInfoId);
+    Optional<DeviceNetworkConfigDO> findByDeviceInfoId(String deviceInfoId);
 
-    boolean existsByDeviceInfoId(String tenantId, String deviceInfoId, String excludeId);
+    boolean existsByDeviceInfoId(String deviceInfoId, String excludeId);
 
     PageResult<DeviceNetworkConfigDO> selectPage(DeviceNetworkConfigPageQuery query);
 
@@ -20,6 +20,6 @@ public interface DeviceNetworkConfigRepository {
 
     void update(DeviceNetworkConfigDO entity);
 
-    boolean deleteById(String tenantId, String id);
+    boolean deleteById(String id);
 }
 

@@ -23,11 +23,8 @@ public class DeviceStateSummaryRepositoryImpl implements DeviceStateSummaryRepos
      * 按时间范围查询设备状态汇总（对应 device_state_summary 表的字段）
      */
     @Override
-    public List<DeviceStateSummaryDO> selectByRange(String tenantId, String deviceId, Long startTs, Long endTs) {
+    public List<DeviceStateSummaryDO> selectByRange(String deviceId, Long startTs, Long endTs) {
         LambdaQueryWrapper<DeviceStateSummaryDO> wrapper = new LambdaQueryWrapper<>();
-        if (StringUtils.isNotBlank(tenantId)) {
-            wrapper.eq(DeviceStateSummaryDO::getTenantUuid, tenantId);
-        }
         if (StringUtils.isNotBlank(deviceId)) {
             wrapper.eq(DeviceStateSummaryDO::getDeviceInfoId, deviceId);
         }

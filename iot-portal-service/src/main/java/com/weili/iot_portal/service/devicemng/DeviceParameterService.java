@@ -10,11 +10,11 @@ import com.weili.iot_portal.domain.devicemng.request.DeviceParameterUpdateReq;
  */
 public interface DeviceParameterService {
 
-    DeviceParameterVO getCurrent(String tenantId, String factoryId, String deviceId);
+    DeviceParameterVO getCurrent(String factoryId, String deviceId);
 
-    DeviceParameterVO updateParameters(String tenantId, String factoryId, String deviceId, DeviceParameterUpdateReq request);
+    DeviceParameterVO updateParameters(String factoryId, String deviceId, DeviceParameterUpdateReq request);
 
-    DeviceParameterHistoryVO getHistory(String tenantId, String factoryId, DeviceParameterHistoryReq request);
+    DeviceParameterHistoryVO getHistory(String factoryId, DeviceParameterHistoryReq request);
 }
 
 

@@ -27,12 +27,12 @@ public class DeviceFactoryValidator {
      * @param deviceId 设备ID
      * @throws ServiceException 如果设备不存在或不属于指定工厂
      */
-    public void ensureDeviceBelongsToFactory(String tenantId, String factoryId, String deviceId) {
+    public void ensureDeviceBelongsToFactory(String factoryId, String deviceId) {
         if (StringUtils.isBlank(factoryId)) {
             throw new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "未获取到工厂信息，请先选择工厂");
         }
         
-        String actualFactoryId = resolveFactoryId(tenantId, deviceId);
+        String actualFactoryId = resolveFactoryId(deviceId);
 
         if (!factoryId.equals(actualFactoryId)) {
             throw new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), 
@@ -43,7 +43,7 @@ public class DeviceFactoryValidator {
     /**
      * 解析设备所属工厂（带缓存）
      */
-    public String resolveFactoryId(String tenantId, String deviceId) {
+    public String resolveFactoryId(String deviceId) {
         if (StringUtils.isBlank(deviceId)) {
             throw new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "设备ID不能为空");
         }
@@ -53,7 +53,7 @@ public class DeviceFactoryValidator {
             return cached;
         }
 
-        DeviceBaseInfoDO device = deviceBaseInfoRepository.findById(tenantId, deviceId)
+        DeviceBaseInfoDO device = deviceBaseInfoRepository.findById(deviceId)
                 .orElseThrow(() -> new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "设备不存在"));
 
         if (StringUtils.isBlank(device.getOrgFactoryId())) {

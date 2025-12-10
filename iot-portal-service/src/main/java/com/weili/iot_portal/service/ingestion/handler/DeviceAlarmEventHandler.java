@@ -53,9 +53,8 @@ public class DeviceAlarmEventHandler implements WebhookEventHandler {
         
         // 解析设备身份
         DeviceIdentityCacheService.DeviceIdentity identity = deviceIdentityCacheService
-                .resolveByDeviceCode(request.getTenantId(), request.getDeviceCode(),
+                .resolveByDeviceCode(request.getDeviceCode(),
                         request.getDeviceId(), "DeviceAlarmEvent");
-        String tenantId = request.getTenantId();
         String deviceInfoId = identity.getDeviceId();
         String orgFactoryId = identity.getFactoryId();
 
@@ -63,7 +62,7 @@ public class DeviceAlarmEventHandler implements WebhookEventHandler {
                 : (request.getTimestamp() != null ? request.getTimestamp() : System.currentTimeMillis() / 1000);
 
         // 当前活跃报警
-        List<DeviceAlarmHistoryDO> activeList = deviceAlarmHistoryRepository.findActiveByDevice(tenantId, orgFactoryId, deviceInfoId);
+        List<DeviceAlarmHistoryDO> activeList = deviceAlarmHistoryRepository.findActiveByDevice(orgFactoryId, deviceInfoId);
         Map<String, DeviceAlarmHistoryDO> activeByCode = activeList.stream()
                 .filter(a -> StringUtils.isNotBlank(a.getAlarmCode()))
                 .collect(Collectors.toMap(DeviceAlarmHistoryDO::getAlarmCode, a -> a, (a, b) -> a));
@@ -84,8 +83,8 @@ public class DeviceAlarmEventHandler implements WebhookEventHandler {
 
             if (existing == null) {
                 // 新报警
+                // 注意：device_alarm_history 表已删除 tenant_uuid 字段
                 DeviceAlarmHistoryDO record = new DeviceAlarmHistoryDO();
-                record.setTenantUuid(tenantId);
                 record.setDeviceInfoId(deviceInfoId);
                 record.setOrgFactoryId(orgFactoryId);
                 record.setAlarmCode(code);

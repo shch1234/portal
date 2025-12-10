@@ -23,18 +23,18 @@ public class DeviceModelRepositoryImpl implements DeviceModelRepository {
     private final DeviceModelMapper mapper;
 
     @Override
-    public Optional<DeviceModelDO> findById(String tenantId, String id) {
-        return Optional.ofNullable(mapper.selectOne(tenantScope(tenantId).eq(DeviceModelDO::getId, id)));
+    public Optional<DeviceModelDO> findById(String id) {
+        return Optional.ofNullable(mapper.selectOne(new LambdaQueryWrapper<DeviceModelDO>().eq(DeviceModelDO::getId, id)));
     }
 
     @Override
-    public Optional<DeviceModelDO> findByModelCode(String tenantId, String modelCode) {
-        return Optional.ofNullable(mapper.selectOne(tenantScope(tenantId).eq(DeviceModelDO::getModelCode, modelCode)));
+    public Optional<DeviceModelDO> findByModelCode(String modelCode) {
+        return Optional.ofNullable(mapper.selectOne(new LambdaQueryWrapper<DeviceModelDO>().eq(DeviceModelDO::getModelCode, modelCode)));
     }
 
     @Override
-    public boolean existsByModelCode(String tenantId, String modelCode, String excludeId) {
-        LambdaQueryWrapper<DeviceModelDO> wrapper = tenantScope(tenantId)
+    public boolean existsByModelCode(String modelCode, String excludeId) {
+        LambdaQueryWrapper<DeviceModelDO> wrapper = new LambdaQueryWrapper<DeviceModelDO>()
                 .eq(DeviceModelDO::getModelCode, modelCode);
         if (StringUtils.isNotBlank(excludeId)) {
             wrapper.ne(DeviceModelDO::getId, excludeId);
@@ -44,7 +44,7 @@ public class DeviceModelRepositoryImpl implements DeviceModelRepository {
 
     @Override
     public PageResult<DeviceModelDO> selectPage(DeviceModelPageQuery query) {
-        LambdaQueryWrapper<DeviceModelDO> wrapper = tenantScope(query.getTenantUuid());
+        LambdaQueryWrapper<DeviceModelDO> wrapper = new LambdaQueryWrapper<>();
         if (StringUtils.isNotBlank(query.getModelCodeLike())) {
             wrapper.like(DeviceModelDO::getModelCode, query.getModelCodeLike());
         }
@@ -79,14 +79,8 @@ public class DeviceModelRepositoryImpl implements DeviceModelRepository {
     }
 
     @Override
-    public boolean deleteById(String tenantId, String id) {
-        return mapper.delete(tenantScope(tenantId).eq(DeviceModelDO::getId, id)) > 0;
-    }
-
-    private LambdaQueryWrapper<DeviceModelDO> tenantScope(String tenantId) {
-        LambdaQueryWrapper<DeviceModelDO> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(DeviceModelDO::getTenantUuid, tenantId);
-        return wrapper;
+    public boolean deleteById(String id) {
+        return mapper.delete(new LambdaQueryWrapper<DeviceModelDO>().eq(DeviceModelDO::getId, id)) > 0;
     }
 
     private void applySort(LambdaQueryWrapper<DeviceModelDO> wrapper, String sortBy, String sortDirection) {

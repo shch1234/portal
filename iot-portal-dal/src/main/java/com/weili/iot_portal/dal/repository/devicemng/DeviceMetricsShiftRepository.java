@@ -10,9 +10,9 @@ import java.util.Optional;
  */
 public interface DeviceMetricsShiftRepository {
 
-    Optional<DeviceMetricsShiftDO> selectLatestFinalized(String tenantId, String deviceId);
+    Optional<DeviceMetricsShiftDO> selectLatestFinalized(String deviceId);
 
-    PageResult<DeviceMetricsShiftDO> selectPage(String tenantId, String deviceId,
+    PageResult<DeviceMetricsShiftDO> selectPage(String deviceId,
                                                 Long startTs, Long endTs, int pageNo, int pageSize);
 }
 

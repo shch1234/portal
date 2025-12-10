@@ -41,7 +41,7 @@ public class AxisCoordinateWebhookServiceImpl implements AxisCoordinateWebhookSe
         }
 
         DeviceIdentityCacheService.DeviceIdentity identity = deviceIdentityCacheService
-                .resolveByDeviceCode(request.getTenantId(), request.getDeviceCode(),
+                .resolveByDeviceCode(request.getDeviceCode(),
                         request.getTbDeviceId(), "axisCoordinate");
         String deviceId = identity.getDeviceId();
         String factoryId = identity.getFactoryId();
@@ -51,7 +51,6 @@ public class AxisCoordinateWebhookServiceImpl implements AxisCoordinateWebhookSe
         RealtimeIngestionEvent event = RealtimeIngestionEvent.builder()
                 .eventType(RealtimeIngestionEventType.AXIS_COORDINATE)
                 .messageId(request.getMessageId())
-                .tenantId(request.getTenantId())
                 .factoryId(factoryId)
                 .deviceId(deviceId)
                 .timestamp(request.getTs())
@@ -61,7 +60,7 @@ public class AxisCoordinateWebhookServiceImpl implements AxisCoordinateWebhookSe
         realtimeIngestionDispatcher.dispatch(event);
 
         log.info("接收轴坐标Webhook成功: messageId={}, tenantId={}, deviceCode={}, deviceId={}, factoryId={}, axes={}, tbDeviceId={}",
-                request.getMessageId(), request.getTenantId(), request.getDeviceCode(), deviceId, factoryId, axes.size(), request.getTbDeviceId());
+                request.getMessageId(), request.getDeviceCode(), deviceId, factoryId, axes.size(), request.getTbDeviceId());
     }
 
     private List<AxisCoordinateVO> convertAxes(AxisCoordinateWebhookRequest request) {

@@ -21,12 +21,6 @@ public class AxisCoordinateWebhookRequest {
     private String messageId;
 
     /**
-     * 租户ID
-     */
-    @NotBlank(message = "tenantId不能为空")
-    private String tenantId;
-
-    /**
      * 设备编号（威力编号）
      */
     @NotBlank(message = "deviceCode不能为空")

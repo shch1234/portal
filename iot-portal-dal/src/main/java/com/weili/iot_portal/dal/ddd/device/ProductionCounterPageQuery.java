@@ -8,8 +8,6 @@ import lombok.Data;
 @Data
 public class ProductionCounterPageQuery {
 
-    private String tenantId;
-
     private String deviceId;
 
     private Long startTs;

@@ -8,9 +8,9 @@ import com.weili.iot_portal.domain.devicemng.request.ProductionHistoryReq;
  */
 public interface ProductionStatisticsService {
 
-    ProductionHistoryVO getCurrentShift(String tenantId, String factoryId, String deviceId);
+    ProductionHistoryVO getCurrentShift(String factoryId, String deviceId);
 
-    ProductionHistoryVO getHistory(String tenantId, String factoryId, ProductionHistoryReq request);
+    ProductionHistoryVO getHistory(String factoryId, ProductionHistoryReq request);
 }
 
 

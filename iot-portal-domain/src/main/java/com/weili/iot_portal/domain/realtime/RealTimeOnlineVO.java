@@ -4,7 +4,6 @@ import lombok.Data;
 
 @Data
 public class RealTimeOnlineVO {
-    private String tenantId;
     private String factoryId;
     private String deviceId;
 

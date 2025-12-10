@@ -10,9 +10,9 @@ import java.util.List;
  */
 public interface DeviceMetricsService {
 
-    DeviceMetricHistoryVO getCurrentMetrics(String tenantId, String factoryId, String deviceId, List<String> metricCodes);
+    DeviceMetricHistoryVO getCurrentMetrics(String factoryId, String deviceId, List<String> metricCodes);
 
-    DeviceMetricHistoryVO getShiftMetrics(String tenantId, String factoryId, DeviceMetricHistoryReq request);
+    DeviceMetricHistoryVO getShiftMetrics(String factoryId, DeviceMetricHistoryReq request);
 }
 
 

@@ -8,6 +8,6 @@ public interface SpindleSpeedHistoryRepository {
 
     void insertBatch(List<SpindleSpeedHistoryDO> list);
 
-    List<SpindleSpeedHistoryDO> selectByRange(String tenantId, String deviceId, Long startTs, Long endTs, Integer limit);
+    List<SpindleSpeedHistoryDO> selectByRange(String deviceId, Long startTs, Long endTs, Integer limit);
 }
 

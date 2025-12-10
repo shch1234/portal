@@ -20,7 +20,6 @@ public class AlarmListRepositoryImpl implements AlarmListRepository {
 
     @Override
     public long countAlarmList(
-            String tenantId,
             String factoryId,
             String workshopId,
             List<String> deviceCodes,
@@ -29,13 +28,12 @@ public class AlarmListRepositoryImpl implements AlarmListRepository {
             Boolean isActive,
             List<String> alarmLevels) {
         return alarmListMapper.countAlarmList(
-                tenantId, factoryId, workshopId, deviceCodes,
+                factoryId, workshopId, deviceCodes,
                 startTime, endTime, isActive, alarmLevels);
     }
 
     @Override
     public PageResult<AlarmItemDO> selectAlarmList(
-            String tenantId,
             String factoryId,
             String workshopId,
             List<String> deviceCodes,
@@ -47,13 +45,13 @@ public class AlarmListRepositoryImpl implements AlarmListRepository {
             int pageSize) {
         // 计算总数
         long total = countAlarmList(
-                tenantId, factoryId, workshopId, deviceCodes,
+                factoryId, workshopId, deviceCodes,
                 startTime, endTime, isActive, alarmLevels);
 
         // 分页查询
         int offset = (pageNo - 1) * pageSize;
         List<AlarmItemDO> records = alarmListMapper.selectAlarmList(
-                tenantId, factoryId, workshopId, deviceCodes,
+                factoryId, workshopId, deviceCodes,
                 startTime, endTime, isActive, alarmLevels,
                 offset, pageSize);
 
@@ -61,8 +59,8 @@ public class AlarmListRepositoryImpl implements AlarmListRepository {
     }
 
     @Override
-    public List<AlarmItemDO> selectTopActiveAlarms(String tenantId, String factoryId, int limit) {
-        return alarmListMapper.selectTopActiveAlarms(tenantId, factoryId, limit);
+    public List<AlarmItemDO> selectTopActiveAlarms(String factoryId, int limit) {
+        return alarmListMapper.selectTopActiveAlarms(factoryId, limit);
     }
 }
 

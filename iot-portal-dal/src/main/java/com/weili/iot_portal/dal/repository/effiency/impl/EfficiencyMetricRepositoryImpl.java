@@ -20,19 +20,17 @@ public class EfficiencyMetricRepositoryImpl implements EfficiencyMetricRepositor
 
     @Override
     public long countDeviceMetrics(
-            String tenantId,
             String factoryId,
             String workshopId,
             String metricCode,
             String shiftDate,
             String shiftCode) {
         return efficiencyMetricMapper.countDeviceMetrics(
-                tenantId, factoryId, workshopId, metricCode, shiftDate, shiftCode);
+                factoryId, workshopId, metricCode, shiftDate, shiftCode);
     }
 
     @Override
     public PageResult<DeviceEfficiencyMetricDO> selectDeviceMetrics(
-            String tenantId,
             String factoryId,
             String workshopId,
             String metricCode,
@@ -44,12 +42,12 @@ public class EfficiencyMetricRepositoryImpl implements EfficiencyMetricRepositor
             int pageSize) {
         // 计算总数
         long total = countDeviceMetrics(
-                tenantId, factoryId, workshopId, metricCode, shiftDate, shiftCode);
+                factoryId, workshopId, metricCode, shiftDate, shiftCode);
 
         // 分页查询
         int offset = (pageNo - 1) * pageSize;
         List<DeviceEfficiencyMetricDO> records = efficiencyMetricMapper.selectDeviceMetrics(
-                tenantId, factoryId, workshopId, metricCode, shiftDate, shiftCode,
+                factoryId, workshopId, metricCode, shiftDate, shiftCode,
                 sortBy, sortDirection, offset, pageSize);
 
         return PageResult.of(records, total, pageNo, pageSize);

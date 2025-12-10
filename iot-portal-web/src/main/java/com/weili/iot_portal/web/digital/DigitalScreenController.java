@@ -28,8 +28,7 @@ public class DigitalScreenController {
     @Operation(summary = "查询厂区布局图数据")
     @ApiInterceptor
     public CommonResult<FactoryLayoutVO> getFactoryLayout(@PathVariable("factoryId") String factoryId) {
-        String tenantId = SecurityFrameworkContext.getLoginTenantId();
-        FactoryLayoutVO result = digitalScreenQueryApi.getFactoryLayout(tenantId, factoryId);
+        FactoryLayoutVO result = digitalScreenQueryApi.getFactoryLayout(factoryId);
         return CommonResult.success(result);
     }
 
@@ -37,8 +36,7 @@ public class DigitalScreenController {
     @Operation(summary = "查询厂区设备状态统计数据")
     @ApiInterceptor
     public CommonResult<FactoryStatusSummaryVO> getFactoryStatusSummary(@PathVariable("factoryId") String factoryId) {
-        String tenantId = SecurityFrameworkContext.getLoginTenantId();
-        FactoryStatusSummaryVO result = digitalScreenQueryApi.getFactoryStatusSummary(tenantId, factoryId);
+        FactoryStatusSummaryVO result = digitalScreenQueryApi.getFactoryStatusSummary(factoryId);
         return CommonResult.success(result);
     }
 
@@ -48,8 +46,7 @@ public class DigitalScreenController {
     public CommonResult<java.util.List<AlarmRankingVO>> getAlarmRanking(
             @PathVariable("factoryId") String factoryId,
             @RequestParam(value = "limit", required = false, defaultValue = "5") Integer limit) {
-        String tenantId = SecurityFrameworkContext.getLoginTenantId();
-        var result = digitalScreenQueryApi.getAlarmDurationRanking(tenantId, factoryId, limit);
+        var result = digitalScreenQueryApi.getAlarmDurationRanking(factoryId, limit);
         return CommonResult.success(result);
     }
 
@@ -59,8 +56,7 @@ public class DigitalScreenController {
     public CommonResult<FactoryMetricsVO> getFactoryMetrics(
             @PathVariable("factoryId") String factoryId,
             @RequestParam(value = "days", required = false, defaultValue = "7") Integer days) {
-        String tenantId = SecurityFrameworkContext.getLoginTenantId();
-        FactoryMetricsVO result = digitalScreenQueryApi.getFactoryMetrics(tenantId, factoryId, days);
+        FactoryMetricsVO result = digitalScreenQueryApi.getFactoryMetrics(factoryId, days);
         return CommonResult.success(result);
     }
 }

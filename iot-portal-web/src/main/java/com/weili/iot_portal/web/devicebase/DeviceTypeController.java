@@ -32,8 +32,7 @@ public class DeviceTypeController {
     @ApiInterceptor
     @Operation(summary = "创建设备类型")
     public CommonResult<DeviceTypeVO> create(@Valid @RequestBody DeviceTypeCreateReq request) {
-        String tenantId = SecurityFrameworkContext.getLoginTenantId();
-        DeviceTypeVO result = deviceTypeService.create(tenantId, request);
+        DeviceTypeVO result = deviceTypeService.create(request);
         return CommonResult.success(result);
     }
 
@@ -43,9 +42,8 @@ public class DeviceTypeController {
     @Operation(summary = "更新设备类型")
     public CommonResult<DeviceTypeVO> update(@PathVariable("id") String id,
                                              @Valid @RequestBody DeviceTypeUpdateReq request) {
-        String tenantId = SecurityFrameworkContext.getLoginTenantId();
         request.setId(id);
-        DeviceTypeVO result = deviceTypeService.update(tenantId,  request);
+        DeviceTypeVO result = deviceTypeService.update(request);
         return CommonResult.success(result);
     }
 
@@ -53,8 +51,7 @@ public class DeviceTypeController {
     @ApiInterceptor
     @Operation(summary = "查询设备类型详情")
     public CommonResult<DeviceTypeVO> get(@PathVariable("id") String id) {
-        String tenantId = SecurityFrameworkContext.getLoginTenantId();
-        DeviceTypeVO result = deviceTypeService.get(tenantId, id);
+        DeviceTypeVO result = deviceTypeService.get(id);
         return CommonResult.success(result);
     }
 
@@ -62,8 +59,7 @@ public class DeviceTypeController {
     @ApiInterceptor
     @Operation(summary = "分页查询设备类型")
     public CommonResult<PageResult<DeviceTypeVO>> page(@Valid @RequestBody DeviceTypeQueryReq request) {
-        String tenantId = SecurityFrameworkContext.getLoginTenantId();
-        PageResult<DeviceTypeVO> result = deviceTypeService.page(tenantId, request);
+        PageResult<DeviceTypeVO> result = deviceTypeService.page(request);
         return CommonResult.success(result);
     }
 
@@ -72,8 +68,7 @@ public class DeviceTypeController {
     @ApiInterceptor
     @Operation(summary = "删除设备类型")
     public CommonResult<Boolean> delete(@PathVariable("id") String id) {
-        String tenantId = SecurityFrameworkContext.getLoginTenantId();
-        boolean success = deviceTypeService.delete(tenantId, id);
+        boolean success = deviceTypeService.delete(id);
         return CommonResult.success(success);
     }
 }

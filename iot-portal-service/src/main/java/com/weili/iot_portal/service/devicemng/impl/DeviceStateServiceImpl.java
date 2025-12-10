@@ -27,12 +27,12 @@ public class DeviceStateServiceImpl implements DeviceStateApi {
     private final DeviceFactoryValidator deviceFactoryValidator;
 
     @Override
-    public DeviceStatusVO getCurrentStatus(String tenantId, String factoryId, String deviceId) {
+    public DeviceStatusVO getCurrentStatus(String factoryId, String deviceId) {
         // 先验证设备是否属于指定工厂
-        deviceFactoryValidator.ensureDeviceBelongsToFactory(tenantId, factoryId, deviceId);
+        deviceFactoryValidator.ensureDeviceBelongsToFactory(factoryId, deviceId);
         
         // 通过公共API查询设备信息（内部会进行工厂验证）
-        var device = deviceBaseDataApi.getDeviceById(tenantId, factoryId, deviceId);
+        var device = deviceBaseDataApi.getDeviceById(factoryId, deviceId);
         if (device == null) {
             return null;
         }
@@ -47,18 +47,18 @@ public class DeviceStateServiceImpl implements DeviceStateApi {
         // status.setStatusChangeTs(...);
         
         // 检查是否有报警（alarmHistoryService内部会进行工厂验证）
-        boolean hasAlarm = alarmHistoryService.hasActiveAlarm(tenantId, factoryId, deviceId);
+        boolean hasAlarm = alarmHistoryService.hasActiveAlarm(factoryId, deviceId);
         status.setHasAlarm(hasAlarm);
         
         return status;
     }
 
     @Override
-    public Map<String, DeviceStatusVO> batchGetStatus(String tenantId, String factoryId, List<String> deviceIds) {
+    public Map<String, DeviceStatusVO> batchGetStatus(String factoryId, List<String> deviceIds) {
         Map<String, DeviceStatusVO> result = new HashMap<>();
         for (String deviceId : deviceIds) {
             try {
-                DeviceStatusVO status = getCurrentStatus(tenantId, factoryId, deviceId);
+                DeviceStatusVO status = getCurrentStatus(factoryId, deviceId);
                 if (status != null) {
                     result.put(deviceId, status);
                 }
@@ -70,11 +70,11 @@ public class DeviceStateServiceImpl implements DeviceStateApi {
     }
 
     @Override
-    public boolean hasAlarm(String tenantId, String factoryId, String deviceId) {
+    public boolean hasAlarm(String factoryId, String deviceId) {
         try {
             // 先验证设备是否属于指定工厂
-            deviceFactoryValidator.ensureDeviceBelongsToFactory(tenantId, factoryId, deviceId);
-            return alarmHistoryService.hasActiveAlarm(tenantId, factoryId, deviceId);
+            deviceFactoryValidator.ensureDeviceBelongsToFactory(factoryId, deviceId);
+            return alarmHistoryService.hasActiveAlarm(factoryId, deviceId);
         } catch (Exception e) {
             return false;
         }

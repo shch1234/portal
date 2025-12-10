@@ -26,7 +26,7 @@ public class AlarmListServiceImpl implements AlarmListService {
     private final AlarmListRepository alarmListRepository;
 
     @Override
-    public PageResult<AlarmItemVO> getAlarmList(String tenantId, AlarmListQueryReq request) {
+    public PageResult<AlarmItemVO> getAlarmList(AlarmListQueryReq request) {
         // 参数校验
         if (request == null || !StringUtils.hasText(request.getFactoryId())) {
             throw new IllegalArgumentException("工厂ID不能为空");
@@ -40,7 +40,6 @@ public class AlarmListServiceImpl implements AlarmListService {
 
         // 查询数据
         PageResult<AlarmItemDO> pageResult = alarmListRepository.selectAlarmList(
-                tenantId,
                 request.getFactoryId(),
                 request.getWorkshopId(),
                 deviceCodes,

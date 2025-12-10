@@ -76,7 +76,7 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
 
         // 解析设备
         DeviceIdentityCacheService.DeviceIdentity identity = deviceIdentityCacheService
-                .resolveByDeviceCode(request.getTenantId(), request.getDeviceCode(),
+                .resolveByDeviceCode(request.getDeviceCode(),
                         request.getDeviceId(), "DeviceToolChangeEvent");
         String deviceInfoId = identity.getDeviceId();
 
@@ -91,7 +91,7 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
 
         try {
             // 1) 关闭旧刀记录（如果存在）
-            ToolUsageHistoryDO latest = toolUsageHistoryRepository.findLatestOngoing(request.getTenantId(), deviceInfoId);
+            ToolUsageHistoryDO latest = toolUsageHistoryRepository.findLatestOngoing(deviceInfoId);
             if (latest != null) {
                 if (StringUtils.isNotBlank(previousToolNo) && !previousToolNo.equalsIgnoreCase(latest.getToolNo())) {
                     log.warn("刀号不匹配: DB={}, eventPrevious={}, deviceInfoId={}", latest.getToolNo(), previousToolNo, deviceInfoId);
@@ -104,9 +104,10 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
             }
 
             // 2) 插入新刀记录
+            // 注意：device_tool_record 表已删除 tenant_uuid 字段
             ToolUsageHistoryDO newRecord = new ToolUsageHistoryDO();
             newRecord.setId(IdWorker.getIdStr());
-            newRecord.setTenantUuid(request.getTenantId());
+            // tenant_uuid 字段已删除
             newRecord.setDeviceInfoId(deviceInfoId);
             newRecord.setToolNo(currentToolNo);
             newRecord.setToolMagazineNo(getString(eventData, "toolHolderNumber"));

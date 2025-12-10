@@ -19,17 +19,18 @@ public class DeviceLocationRepositoryImpl implements DeviceLocationRepository {
     private final DeviceLocationMapper mapper;
 
     @Override
-    public Optional<DeviceLocationDO> findByDeviceId(String tenantId, String deviceId) {
-        return Optional.ofNullable(mapper.selectOne(scope(tenantId).eq(DeviceLocationDO::getDeviceInfoId, deviceId)
+    public Optional<DeviceLocationDO> findByDeviceId(String deviceId) {
+        return Optional.ofNullable(mapper.selectOne(new LambdaQueryWrapper<DeviceLocationDO>()
+                .eq(DeviceLocationDO::getDeviceInfoId, deviceId)
                 .eq(DeviceLocationDO::getActive, Boolean.TRUE)));
     }
 
     @Override
-    public List<DeviceLocationDO> findByDeviceIds(String tenantId, List<String> deviceIds) {
+    public List<DeviceLocationDO> findByDeviceIds(List<String> deviceIds) {
         if (deviceIds == null || deviceIds.isEmpty()) {
             return Collections.emptyList();
         }
-        return mapper.selectList(scope(tenantId)
+        return mapper.selectList(new LambdaQueryWrapper<DeviceLocationDO>()
                 .in(DeviceLocationDO::getDeviceInfoId, deviceIds)
                 .eq(DeviceLocationDO::getActive, Boolean.TRUE));
     }
@@ -45,22 +46,16 @@ public class DeviceLocationRepositoryImpl implements DeviceLocationRepository {
     }
 
     @Override
-    public List<String> findDeviceIdsByLocationCode(String tenantId, String locationCode) {
+    public List<String> findDeviceIdsByLocationCode(String locationCode) {
         if (locationCode == null) {
             return Collections.emptyList();
         }
-        return mapper.selectList(scope(tenantId)
+        return mapper.selectList(new LambdaQueryWrapper<DeviceLocationDO>()
                         .eq(DeviceLocationDO::getLocationCode, locationCode)
                         .eq(DeviceLocationDO::getActive, Boolean.TRUE))
                 .stream()
                 .map(DeviceLocationDO::getDeviceInfoId)
                 .collect(Collectors.toList());
-    }
-
-    private LambdaQueryWrapper<DeviceLocationDO> scope(String tenantId) {
-        LambdaQueryWrapper<DeviceLocationDO> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(DeviceLocationDO::getTenantUuid, tenantId);
-        return wrapper;
     }
 }
 

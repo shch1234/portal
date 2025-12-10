@@ -21,8 +21,8 @@ public class DeviceStateTimelineRepositoryImpl implements DeviceStateTimelineRep
     private final DeviceStateTimelineMapper deviceStateTimelineMapper;
 
     @Override
-    public List<DeviceStateTimelineDO> selectByRange(String tenantId, String deviceId, Long startTs, Long endTs) {
-        LambdaQueryWrapper<DeviceStateTimelineDO> wrapper = baseQuery(tenantId, deviceId);
+    public List<DeviceStateTimelineDO> selectByRange(String deviceId, Long startTs, Long endTs) {
+        LambdaQueryWrapper<DeviceStateTimelineDO> wrapper = baseQuery(deviceId);
         if (startTs != null) {
             wrapper.ge(DeviceStateTimelineDO::getStartTs, startTs);
         }
@@ -34,8 +34,8 @@ public class DeviceStateTimelineRepositoryImpl implements DeviceStateTimelineRep
     }
 
     @Override
-    public List<DeviceStateTimelineDO> selectRecent(String tenantId, String deviceId, Long startTs, int limit) {
-        LambdaQueryWrapper<DeviceStateTimelineDO> wrapper = baseQuery(tenantId, deviceId)
+    public List<DeviceStateTimelineDO> selectRecent(String deviceId, Long startTs, int limit) {
+        LambdaQueryWrapper<DeviceStateTimelineDO> wrapper = baseQuery(deviceId)
                 .ge(startTs != null, DeviceStateTimelineDO::getStartTs, startTs)
                 .orderByDesc(DeviceStateTimelineDO::getStartTs)
                 .last("limit " + limit);
@@ -45,8 +45,8 @@ public class DeviceStateTimelineRepositoryImpl implements DeviceStateTimelineRep
     }
 
     @Override
-    public Optional<DeviceStateTimelineDO> findLatestState(String tenantId, String deviceId) {
-        LambdaQueryWrapper<DeviceStateTimelineDO> wrapper = baseQuery(tenantId, deviceId);
+    public Optional<DeviceStateTimelineDO> findLatestState(String deviceId) {
+        LambdaQueryWrapper<DeviceStateTimelineDO> wrapper = baseQuery(deviceId);
         
         // 优先查询进行中的状态（end_ts IS NULL）
         wrapper.isNull(DeviceStateTimelineDO::getEndTs)
@@ -59,7 +59,7 @@ public class DeviceStateTimelineRepositoryImpl implements DeviceStateTimelineRep
         }
         
         // 如果没有进行中的状态，查询最近结束的状态
-        wrapper = baseQuery(tenantId, deviceId);
+        wrapper = baseQuery(deviceId);
         wrapper.isNotNull(DeviceStateTimelineDO::getEndTs)
                 .orderByDesc(DeviceStateTimelineDO::getEndTs)
                 .orderByDesc(DeviceStateTimelineDO::getStartTs)
@@ -72,11 +72,8 @@ public class DeviceStateTimelineRepositoryImpl implements DeviceStateTimelineRep
     /**
      * 构建基础查询条件（对应 device_state_record 表的字段）
      */
-    private LambdaQueryWrapper<DeviceStateTimelineDO> baseQuery(String tenantId, String deviceId) {
+    private LambdaQueryWrapper<DeviceStateTimelineDO> baseQuery(String deviceId) {
         LambdaQueryWrapper<DeviceStateTimelineDO> wrapper = new LambdaQueryWrapper<>();
-        if (StringUtils.isNotBlank(tenantId)) {
-            wrapper.eq(DeviceStateTimelineDO::getTenantUuid, tenantId);
-        }
         if (StringUtils.isNotBlank(deviceId)) {
             wrapper.eq(DeviceStateTimelineDO::getDeviceInfoId, deviceId);
         }

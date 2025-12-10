@@ -4,6 +4,6 @@ import com.weili.iot_portal.domain.devicemng.ToolCompensationVO;
 
 public interface ToolCompensationService {
 
-    ToolCompensationVO getCurrent(String tenantId, String factoryId, String deviceId);
+    ToolCompensationVO getCurrent(String factoryId, String deviceId);
 }
 

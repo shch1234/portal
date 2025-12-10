@@ -24,17 +24,14 @@ public class AlarmRankingApiImpl implements AlarmRankingApi {
     private final AlarmListRepository alarmListRepository;
 
     @Override
-    public List<AlarmRankingItemVO> getTopActiveAlarms(String tenantId, String factoryId, Integer limit) {
-        validateParams(tenantId, factoryId);
+    public List<AlarmRankingItemVO> getTopActiveAlarms(String factoryId, Integer limit) {
+        validateParams(factoryId);
         int size = (limit == null || limit <= 0) ? DEFAULT_LIMIT : limit;
         return AlarmRankingAssembler.toList(
-                alarmListRepository.selectTopActiveAlarms(tenantId, factoryId, size));
+                alarmListRepository.selectTopActiveAlarms(factoryId, size));
     }
 
-    private void validateParams(String tenantId, String factoryId) {
-        if (StringUtils.isBlank(tenantId)) {
-            throw new ServiceException(ErrorCodeConstants.UNAUTHORIZED.getCode(), "未获取到租户信息");
-        }
+    private void validateParams(String factoryId) {
         if (StringUtils.isBlank(factoryId)) {
             throw new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "未获取到工厂信息");
         }

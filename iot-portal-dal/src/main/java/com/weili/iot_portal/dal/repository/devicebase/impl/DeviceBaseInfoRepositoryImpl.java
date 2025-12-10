@@ -24,26 +24,26 @@ public class DeviceBaseInfoRepositoryImpl implements DeviceBaseInfoRepository {
     private final DeviceBaseInfoMapper mapper;
 
     @Override
-    public Optional<DeviceBaseInfoDO> findById(String tenantId, String id) {
-        return Optional.ofNullable(mapper.selectOne(tenantScope(tenantId)
+    public Optional<DeviceBaseInfoDO> findById(String id) {
+        return Optional.ofNullable(mapper.selectOne(new LambdaQueryWrapper<DeviceBaseInfoDO>()
                 .eq(DeviceBaseInfoDO::getId, id)));
     }
 
     @Override
-    public Optional<DeviceBaseInfoDO> findByDeviceCode(String tenantId, String deviceCode) {
-        return Optional.ofNullable(mapper.selectOne(tenantScope(tenantId)
+    public Optional<DeviceBaseInfoDO> findByDeviceCode(String deviceCode) {
+        return Optional.ofNullable(mapper.selectOne(new LambdaQueryWrapper<DeviceBaseInfoDO>()
                 .eq(DeviceBaseInfoDO::getDeviceCode, deviceCode)));
     }
 
     @Override
-    public Optional<DeviceBaseInfoDO> findByTbDeviceId(String tenantId, String tbDeviceId) {
-        return Optional.ofNullable(mapper.selectOne(tenantScope(tenantId)
+    public Optional<DeviceBaseInfoDO> findByTbDeviceId(String tbDeviceId) {
+        return Optional.ofNullable(mapper.selectOne(new LambdaQueryWrapper<DeviceBaseInfoDO>()
                 .eq(DeviceBaseInfoDO::getTbDeviceId, tbDeviceId)));
     }
 
     @Override
-    public boolean existsByDeviceCode(String tenantId, String deviceCode, String excludeId) {
-        LambdaQueryWrapper<DeviceBaseInfoDO> wrapper = tenantScope(tenantId)
+    public boolean existsByDeviceCode(String deviceCode, String excludeId) {
+        LambdaQueryWrapper<DeviceBaseInfoDO> wrapper = new LambdaQueryWrapper<DeviceBaseInfoDO>()
                 .eq(DeviceBaseInfoDO::getDeviceCode, deviceCode);
         if (StringUtils.isNotBlank(excludeId)) {
             wrapper.ne(DeviceBaseInfoDO::getId, excludeId);
@@ -52,8 +52,8 @@ public class DeviceBaseInfoRepositoryImpl implements DeviceBaseInfoRepository {
     }
 
     @Override
-    public boolean existsByTbDeviceId(String tenantId, String tbDeviceId, String excludeId) {
-        LambdaQueryWrapper<DeviceBaseInfoDO> wrapper = tenantScope(tenantId)
+    public boolean existsByTbDeviceId(String tbDeviceId, String excludeId) {
+        LambdaQueryWrapper<DeviceBaseInfoDO> wrapper = new LambdaQueryWrapper<DeviceBaseInfoDO>()
                 .eq(DeviceBaseInfoDO::getTbDeviceId, tbDeviceId);
         if (StringUtils.isNotBlank(excludeId)) {
             wrapper.ne(DeviceBaseInfoDO::getId, excludeId);
@@ -62,15 +62,16 @@ public class DeviceBaseInfoRepositoryImpl implements DeviceBaseInfoRepository {
     }
 
     @Override
-    public List<DeviceBaseInfoDO> findByFactoryId(String tenantId, String factoryId) {
-        return mapper.selectList(tenantScope(tenantId)
+    public List<DeviceBaseInfoDO> findByFactoryId(String factoryId) {
+        return mapper.selectList(new LambdaQueryWrapper<DeviceBaseInfoDO>()
                 .eq(DeviceBaseInfoDO::getOrgFactoryId, factoryId));
     }
 
     @Override
     public PageResult<DeviceBaseInfoDO> selectPage(DeviceBaseInfoPageQuery query) {
         Page<DeviceBaseInfoDO> page = new Page<>(query.getPageNo(), query.getPageSize());
-        LambdaQueryWrapper<DeviceBaseInfoDO> wrapper = tenantScope(query.getTenantUuid());
+        // 注意：不再按租户过滤，device_info 表已删除 tenant_uuid 字段
+        LambdaQueryWrapper<DeviceBaseInfoDO> wrapper = new LambdaQueryWrapper<>();
         if (StringUtils.isNotBlank(query.getDeviceCodeLike())) {
             wrapper.like(DeviceBaseInfoDO::getDeviceCode, query.getDeviceCodeLike());
         }
@@ -120,17 +121,8 @@ public class DeviceBaseInfoRepositoryImpl implements DeviceBaseInfoRepository {
     }
 
     @Override
-    public boolean deleteById(String tenantId, String id) {
-        return mapper.delete(tenantScope(tenantId).eq(DeviceBaseInfoDO::getId, id)) > 0;
-    }
-
-    /**
-     * 构建租户范围查询条件（对应 device_info 表的 tenant_uuid 列）
-     */
-    private LambdaQueryWrapper<DeviceBaseInfoDO> tenantScope(String tenantId) {
-        LambdaQueryWrapper<DeviceBaseInfoDO> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(DeviceBaseInfoDO::getTenantUuid, tenantId);
-        return wrapper;
+    public boolean deleteById(String id) {
+        return mapper.delete(new LambdaQueryWrapper<DeviceBaseInfoDO>().eq(DeviceBaseInfoDO::getId, id)) > 0;
     }
 
     private void applySort(LambdaQueryWrapper<DeviceBaseInfoDO> wrapper, String sortBy, String sortDirection) {

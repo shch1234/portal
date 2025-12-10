@@ -70,27 +70,23 @@ public class DeviceProductionSummaryJob extends BaseScheduledJob {
         }
 
         int success = 0, skip = 0, error = 0;
-        Map<String, Map<String, List<DeviceBaseInfoDO>>> grouped = allDevices.stream()
+        Map<String, List<DeviceBaseInfoDO>> grouped = allDevices.stream()
                 .filter(d -> StringUtils.isNotBlank(d.getOrgFactoryId()))
-                .collect(Collectors.groupingBy(DeviceBaseInfoDO::getTenantUuid,
-                        Collectors.groupingBy(DeviceBaseInfoDO::getOrgFactoryId)));
+                .collect(Collectors.groupingBy(DeviceBaseInfoDO::getOrgFactoryId));
 
-        for (Map.Entry<String, Map<String, List<DeviceBaseInfoDO>>> tenantEntry : grouped.entrySet()) {
-            String tenantId = tenantEntry.getKey();
-            for (Map.Entry<String, List<DeviceBaseInfoDO>> factoryEntry : tenantEntry.getValue().entrySet()) {
-                List<DeviceBaseInfoDO> devices = factoryEntry.getValue();
-                for (DeviceBaseInfoDO device : devices) {
-                    try {
-                        boolean processed = processDevice(tenantId, device, statisticsTimeMs);
-                        if (processed) {
-                            success++;
-                        } else {
-                            skip++;
-                        }
-                    } catch (Exception e) {
-                        error++;
-                        log.error("产量汇总失败 deviceId={}", device.getId(), e);
+        for (Map.Entry<String, List<DeviceBaseInfoDO>> factoryEntry : grouped.entrySet()) {
+            List<DeviceBaseInfoDO> devices = factoryEntry.getValue();
+            for (DeviceBaseInfoDO device : devices) {
+                try {
+                    boolean processed = processDevice(device, statisticsTimeMs);
+                    if (processed) {
+                        success++;
+                    } else {
+                        skip++;
                     }
+                } catch (Exception e) {
+                    error++;
+                    log.error("产量汇总失败 deviceId={}", device.getId(), e);
                 }
             }
         }
@@ -107,8 +103,8 @@ public class DeviceProductionSummaryJob extends BaseScheduledJob {
     /**
      * 处理单台设备在统计时间点前已结束的班次
      */
-    private boolean processDevice(String tenantId, DeviceBaseInfoDO device, long statisticsTimeMs) {
-        ShiftTimeRange range = shiftConfigurationService.calculateShiftRange(tenantId, device.getOrgFactoryId(), device.getId(), statisticsTimeMs);
+    private boolean processDevice(DeviceBaseInfoDO device, long statisticsTimeMs) {
+        ShiftTimeRange range = shiftConfigurationService.calculateShiftRange(device.getOrgFactoryId(), device.getId(), statisticsTimeMs);
         if (range == null || range.getEndTs() == null) {
             return false;
         }
@@ -119,25 +115,25 @@ public class DeviceProductionSummaryJob extends BaseScheduledJob {
 
         long shiftStartSec = range.getStartTs() / 1000;
         long shiftEndSec = range.getEndTs() / 1000;
-        long count = productionRecordRepository.countCompletedInRange(tenantId, device.getId(), shiftStartSec, shiftEndSec);
+        long count = productionRecordRepository.countCompletedInRange(device.getId(), shiftStartSec, shiftEndSec);
 
         LocalDate shiftDate = Instant.ofEpochMilli(range.getStartTs()).atZone(ZoneId.systemDefault()).toLocalDate();
-        upsertSummary(tenantId, device.getId(), shiftDate, range.getShiftCode(), shiftStartSec, shiftEndSec, count, statisticsTimeMs / 1000);
+        upsertSummary(device.getId(), shiftDate, range.getShiftCode(), shiftStartSec, shiftEndSec, count, statisticsTimeMs / 1000);
         return true;
     }
 
-    private void upsertSummary(String tenantId, String deviceId, LocalDate shiftDate, String shiftCode,
+    private void upsertSummary(String deviceId, LocalDate shiftDate, String shiftCode,
                                long shiftStartSec, long shiftEndSec, long partCount, long calculatedTimeSec) {
+        // 注意：device_production_summary 表已删除 tenant_uuid 字段
         LambdaQueryWrapper<ProductionCounterDO> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(ProductionCounterDO::getTenantUuid, tenantId)
-                .eq(ProductionCounterDO::getDeviceInfoId, deviceId)
+        wrapper.eq(ProductionCounterDO::getDeviceInfoId, deviceId)
                 .eq(ProductionCounterDO::getShiftDate, shiftDate)
                 .eq(ProductionCounterDO::getShiftCode, shiftCode);
         ProductionCounterDO existing = productionCounterMapper.selectOne(wrapper);
         if (existing == null) {
             ProductionCounterDO summary = new ProductionCounterDO();
             summary.setId(IdWorker.getIdStr());
-            summary.setTenantUuid(tenantId);
+            // tenant_uuid 字段已删除
             summary.setDeviceInfoId(deviceId);
             summary.setShiftDate(shiftDate);
             summary.setShiftCode(shiftCode);

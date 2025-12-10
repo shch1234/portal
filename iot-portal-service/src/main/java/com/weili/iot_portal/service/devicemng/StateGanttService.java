@@ -7,9 +7,9 @@ import com.weili.iot_portal.domain.devicemng.StateGanttVO;
  */
 public interface StateGanttService {
 
-    StateGanttVO getCurrentShiftGantt(String tenantId, String factoryId, String deviceId);
+    StateGanttVO getCurrentShiftGantt(String factoryId, String deviceId);
 
-    StateGanttVO getHistoryGantt(String tenantId, String factoryId, String deviceId, Long startTs, Long endTs);
+    StateGanttVO getHistoryGantt(String factoryId, String deviceId, Long startTs, Long endTs);
 }
 
 

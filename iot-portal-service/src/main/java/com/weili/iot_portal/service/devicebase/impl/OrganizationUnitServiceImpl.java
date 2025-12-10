@@ -34,27 +34,25 @@ public class OrganizationUnitServiceImpl implements OrganizationUnitService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public OrganizationUnitVO create(String tenantId,OrganizationUnitCreateReq request) {
-        ensureTenant(tenantId);
+    public OrganizationUnitVO create(OrganizationUnitCreateReq request) {
         validateCreate(request);
-        checkUnitCodeUnique(tenantId, request.getUnitCode());
-        String path = buildPath(tenantId, request.getOrgParentId(), request.getUnitCode());
+        checkUnitCodeUnique(request.getUnitCode());
+        String path = buildPath(request.getOrgParentId(), request.getUnitCode());
 
-        OrganizationUnitDO entity = OrganizationUnitAssembler.fromCreateReq(tenantId, request, path);
+        OrganizationUnitDO entity = OrganizationUnitAssembler.fromCreateReq(request, path);
         LocalDateTime now = LocalDateTime.now();
         entity.setCreateTime(now);
         entity.setUpdateTime(now);
         organizationUnitRepository.insert(entity);
 
-        String parentName = resolveParentName(tenantId, entity.getOrgParentId());
+        String parentName = resolveParentName(entity.getOrgParentId());
         return OrganizationUnitAssembler.toVO(entity, parentName);
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public OrganizationUnitVO update(String tenantId, OrganizationUnitUpdateReq request) {
-        ensureTenant(tenantId);
-        OrganizationUnitDO entity = organizationUnitRepository.findById(tenantId, request.getId())
+    public OrganizationUnitVO update(OrganizationUnitUpdateReq request) {
+        OrganizationUnitDO entity = organizationUnitRepository.findById(request.getId())
                 .orElseThrow(() -> new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "组织单元不存在"));
 
         if (StringUtils.isNotBlank(request.getUnitName())) {
@@ -72,24 +70,21 @@ public class OrganizationUnitServiceImpl implements OrganizationUnitService {
         entity.setUpdateTime(LocalDateTime.now());
         organizationUnitRepository.update(entity);
 
-        String parentName = resolveParentName(tenantId, entity.getOrgParentId());
+        String parentName = resolveParentName(entity.getOrgParentId());
         return OrganizationUnitAssembler.toVO(entity, parentName);
     }
 
     @Override
-    public OrganizationUnitVO get(String tenantId, String id) {
-        ensureTenant(tenantId);
-        OrganizationUnitDO entity = organizationUnitRepository.findById(tenantId, id)
+    public OrganizationUnitVO get(String id) {
+        OrganizationUnitDO entity = organizationUnitRepository.findById(id)
                 .orElseThrow(() -> new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "组织单元不存在"));
-        String parentName = resolveParentName(tenantId, entity.getOrgParentId());
+        String parentName = resolveParentName(entity.getOrgParentId());
         return OrganizationUnitAssembler.toVO(entity, parentName);
     }
 
     @Override
-    public PageResult<OrganizationUnitVO> page(String tenantId, OrganizationUnitQueryReq request) {
-        ensureTenant(tenantId);
+    public PageResult<OrganizationUnitVO> page(OrganizationUnitQueryReq request) {
         OrganizationUnitPageQuery query = new OrganizationUnitPageQuery();
-        query.setTenantUuid(tenantId);
         query.setUnitCodeLike(request.getUnitCodeLike());
         query.setUnitNameLike(request.getUnitNameLike());
         query.setUnitTypeValues(request.getUnitTypeValues());
@@ -102,7 +97,7 @@ public class OrganizationUnitServiceImpl implements OrganizationUnitService {
         query.setSortDirection(request.getSortDirection());
 
         PageResult<OrganizationUnitDO> pageResult = organizationUnitRepository.selectPage(query);
-        Map<String, String> parentNameCache = buildParentNameCache(tenantId, pageResult.getList());
+        Map<String, String> parentNameCache = buildParentNameCache(pageResult.getList());
         List<OrganizationUnitVO> list = pageResult.getList().stream()
                 .map(item -> OrganizationUnitAssembler.toVO(item, parentNameCache.get(item.getOrgParentId())))
                 .collect(Collectors.toList());
@@ -111,15 +106,8 @@ public class OrganizationUnitServiceImpl implements OrganizationUnitService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public boolean delete(String tenantId, String id) {
-        ensureTenant(tenantId);
-        return organizationUnitRepository.deleteById(tenantId, id);
-    }
-
-    private void ensureTenant(String tenantId) {
-        if (StringUtils.isBlank(tenantId)) {
-            throw new ServiceException(ErrorCodeConstants.UNAUTHORIZED.getCode(), "未获取到租户信息");
-        }
+    public boolean delete(String id) {
+        return organizationUnitRepository.deleteById(id);
     }
 
     private void validateCreate(OrganizationUnitCreateReq request) {
@@ -137,26 +125,26 @@ public class OrganizationUnitServiceImpl implements OrganizationUnitService {
         }
     }
 
-    private void checkUnitCodeUnique(String tenantId, String unitCode) {
-        if (organizationUnitRepository.existsByUnitCode(tenantId, unitCode, null)) {
+    private void checkUnitCodeUnique(String unitCode) {
+        if (organizationUnitRepository.existsByUnitCode(unitCode, null)) {
             throw new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "单元编码已存在");
         }
     }
 
-    private String buildPath(String tenantId, String parentId, String unitCode) {
+    private String buildPath(String parentId, String unitCode) {
         if (StringUtils.isBlank(parentId)) {
             return "/" + unitCode;
         }
-        OrganizationUnitDO parent = organizationUnitRepository.findById(tenantId, parentId)
+        OrganizationUnitDO parent = organizationUnitRepository.findById(parentId)
                 .orElseThrow(() -> new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "父级组织不存在"));
         return parent.getPath() + "/" + unitCode;
     }
 
-    private String resolveParentName(String tenantId, String parentId) {
+    private String resolveParentName(String parentId) {
         if (StringUtils.isBlank(parentId)) {
             return null;
         }
-        return organizationUnitRepository.findById(tenantId, parentId)
+        return organizationUnitRepository.findById(parentId)
                 .map(OrganizationUnitDO::getUnitName)
                 .orElse(null);
     }
@@ -164,7 +152,7 @@ public class OrganizationUnitServiceImpl implements OrganizationUnitService {
     /**
      * 构建父级名称缓存（用于批量查询优化）
      */
-    private Map<String, String> buildParentNameCache(String tenantId, List<OrganizationUnitDO> records) {
+    private Map<String, String> buildParentNameCache(List<OrganizationUnitDO> records) {
         List<String> parentIds = records.stream()
                 .map(OrganizationUnitDO::getOrgParentId)
                 .filter(StringUtils::isNotBlank)
@@ -173,7 +161,7 @@ public class OrganizationUnitServiceImpl implements OrganizationUnitService {
             return Map.of();
         }
         return parentIds.stream()
-                .map(id -> organizationUnitRepository.findById(tenantId, id).orElse(null))
+                .map(id -> organizationUnitRepository.findById(id).orElse(null))
                 .filter(Objects::nonNull)
                 .collect(Collectors.toMap(OrganizationUnitDO::getId, OrganizationUnitDO::getUnitName));
     }

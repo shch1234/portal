@@ -33,7 +33,7 @@ public class ProgramCodeWebhookServiceImpl implements ProgramCodeWebhookService 
         }
 
         DeviceIdentityCacheService.DeviceIdentity identity = deviceIdentityCacheService
-                .resolveByDeviceCode(request.getTenantId(), request.getDeviceCode(),
+                .resolveByDeviceCode(request.getDeviceCode(),
                         request.getTbDeviceId(), "programCode");
 
         ProgramCodeVO payload = new ProgramCodeVO();
@@ -44,7 +44,6 @@ public class ProgramCodeWebhookServiceImpl implements ProgramCodeWebhookService 
         RealtimeIngestionEvent event = RealtimeIngestionEvent.builder()
                 .eventType(RealtimeIngestionEventType.PROGRAM_CODE)
                 .messageId(request.getMessageId())
-                .tenantId(request.getTenantId())
                 .factoryId(identity.getFactoryId())
                 .deviceId(identity.getDeviceId())
                 .timestamp(payload.getTs())
@@ -53,8 +52,8 @@ public class ProgramCodeWebhookServiceImpl implements ProgramCodeWebhookService 
 
         dispatcher.dispatch(event);
 
-        log.info("接收程序代码Webhook成功: messageId={}, tenantId={}, deviceCode={}, deviceId={}, factoryId={}, type={}, tbDeviceId={}",
-                request.getMessageId(), request.getTenantId(), request.getDeviceCode(),
+        log.info("接收程序代码Webhook成功: messageId={},deviceCode={}, deviceId={}, factoryId={}, type={}, tbDeviceId={}",
+                request.getMessageId(), request.getDeviceCode(),
                 identity.getDeviceId(), identity.getFactoryId(), request.getType(), request.getTbDeviceId());
     }
 }

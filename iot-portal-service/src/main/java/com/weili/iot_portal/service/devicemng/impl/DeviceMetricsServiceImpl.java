@@ -24,19 +24,18 @@ public class DeviceMetricsServiceImpl implements DeviceMetricsService {
     private final DeviceFactoryValidator deviceFactoryValidator;
 
     @Override
-    public DeviceMetricHistoryVO getCurrentMetrics(String tenantId, String factoryId, String deviceId,
+    public DeviceMetricHistoryVO getCurrentMetrics(String factoryId, String deviceId,
                                                   List<String> metricCodes) {
-        deviceFactoryValidator.ensureDeviceBelongsToFactory(tenantId, factoryId, deviceId);
-        DeviceMetricsShiftDO latest = deviceMetricsShiftRepository.selectLatestFinalized(tenantId, deviceId)
+        deviceFactoryValidator.ensureDeviceBelongsToFactory(factoryId, deviceId);
+        DeviceMetricsShiftDO latest = deviceMetricsShiftRepository.selectLatestFinalized(deviceId)
                 .orElse(null);
         return DeviceMetricsAssembler.toSingle(latest, metricCodes);
     }
 
     @Override
-    public DeviceMetricHistoryVO getShiftMetrics(String tenantId, String factoryId, DeviceMetricHistoryReq request) {
-        deviceFactoryValidator.ensureDeviceBelongsToFactory(tenantId, factoryId, request.getDeviceId());
+    public DeviceMetricHistoryVO getShiftMetrics(String factoryId, DeviceMetricHistoryReq request) {
+        deviceFactoryValidator.ensureDeviceBelongsToFactory(factoryId, request.getDeviceId());
         PageResult<DeviceMetricsShiftDO> pageResult = deviceMetricsShiftRepository.selectPage(
-                tenantId,
                 request.getDeviceId(),
                 request.getStartTs(),
                 request.getEndTs(),

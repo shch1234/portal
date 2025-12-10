@@ -39,7 +39,7 @@ public class FeedRateWebhookServiceImpl implements FeedRateWebhookService {
         }
 
         DeviceIdentityCacheService.DeviceIdentity identity = deviceIdentityCacheService
-                .resolveByDeviceCode(request.getTenantId(), request.getDeviceCode(),
+                .resolveByDeviceCode(request.getDeviceCode(),
                         request.getTbDeviceId(), "feedRate");
 
         RealtimeCurveVO curve = buildCurve(request);
@@ -47,7 +47,6 @@ public class FeedRateWebhookServiceImpl implements FeedRateWebhookService {
         RealtimeIngestionEvent event = RealtimeIngestionEvent.builder()
                 .eventType(RealtimeIngestionEventType.FEED_RATE)
                 .messageId(request.getMessageId())
-                .tenantId(request.getTenantId())
                 .factoryId(identity.getFactoryId())
                 .deviceId(identity.getDeviceId())
                 .timestamp(request.getTs())
@@ -57,8 +56,8 @@ public class FeedRateWebhookServiceImpl implements FeedRateWebhookService {
 
         dispatcher.dispatch(event);
 
-        log.info("接收进给率Webhook成功: messageId={}, tenantId={}, deviceCode={}, deviceId={}, factoryId={}, points={}, override={}, tbDeviceId={}",
-                request.getMessageId(), request.getTenantId(), request.getDeviceCode(),
+        log.info("接收进给率Webhook成功: messageId={},deviceCode={}, deviceId={}, factoryId={}, points={}, override={}, tbDeviceId={}",
+                request.getMessageId(), request.getDeviceCode(),
                 identity.getDeviceId(), identity.getFactoryId(), curve.getPoints().size(),
                 request.getOverrideValue(), request.getTbDeviceId());
     }

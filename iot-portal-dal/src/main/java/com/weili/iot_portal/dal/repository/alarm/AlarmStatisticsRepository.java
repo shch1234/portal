@@ -13,17 +13,15 @@ public interface AlarmStatisticsRepository {
     /**
      * 统计当前报警设备数量（按车间）
      * 
-     * @param tenantId 租户ID
      * @param factoryId 工厂ID
      * @param workshopId 车间ID（可选，null表示查询该工厂下所有车间）
      * @return 设备统计列表
      */
-    List<AlarmDeviceStatisticsDO> countCurrentAlarmDevices(String tenantId, String factoryId, String workshopId);
+    List<AlarmDeviceStatisticsDO> countCurrentAlarmDevices(String factoryId, String workshopId);
 
     /**
      * 查询当前报警设备列表（分页）
      * 
-     * @param tenantId 租户ID
      * @param factoryId 工厂ID
      * @param workshopId 车间ID（可选）
      * @param pageNo 页码
@@ -31,6 +29,6 @@ public interface AlarmStatisticsRepository {
      * @return 分页结果
      */
     PageResult<AlarmDeviceStatisticsDO> selectCurrentAlarmDevices(
-            String tenantId, String factoryId, String workshopId, int pageNo, int pageSize);
+            String factoryId, String workshopId, int pageNo, int pageSize);
 }
 

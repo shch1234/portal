@@ -11,14 +11,14 @@ import com.weili.iot_portal.domain.devicebase.request.DeviceModelUpdateReq;
  */
 public interface DeviceModelService {
 
-    DeviceModelVO create(String tenantId, DeviceModelCreateReq request);
+    DeviceModelVO create(DeviceModelCreateReq request);
 
-    DeviceModelVO update(String tenantId, DeviceModelUpdateReq request);
+    DeviceModelVO update(DeviceModelUpdateReq request);
 
-    DeviceModelVO get(String tenantId, String id);
+    DeviceModelVO get(String id);
 
-    PageResult<DeviceModelVO> page(String tenantId, DeviceModelQueryReq request);
+    PageResult<DeviceModelVO> page(DeviceModelQueryReq request);
 
-    boolean delete(String tenantId, String id);
+    boolean delete(String id);
 }
 

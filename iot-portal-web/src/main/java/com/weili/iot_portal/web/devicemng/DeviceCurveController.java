@@ -28,9 +28,8 @@ public class DeviceCurveController {
     @PreAuthorize("hasPermission(null, 'device:curve:view')")
     @Operation(summary = "实时主轴负载曲线")
     public CommonResult<RealtimeCurveVO> getRealtimeSpindleLoad(@PathVariable String deviceId) {
-        String tenantId = SecurityFrameworkContext.getLoginTenantId();
         String factoryId = SecurityFrameworkContext.getLoginFactoryId();
-        return CommonResult.success(realtimeCurveService.getRealtimeSpindleLoad(tenantId, factoryId, deviceId));
+        return CommonResult.success(realtimeCurveService.getRealtimeSpindleLoad(factoryId, deviceId));
     }
 
     @GetMapping("/spindle-load-history")
@@ -40,9 +39,8 @@ public class DeviceCurveController {
     public CommonResult<RealtimeCurveVO> getHistorySpindleLoad(@PathVariable String deviceId,
                                                                @RequestParam("startTs") Long startTs,
                                                                @RequestParam("endTs") Long endTs) {
-        String tenantId = SecurityFrameworkContext.getLoginTenantId();
         String factoryId = SecurityFrameworkContext.getLoginFactoryId();
-        return CommonResult.success(realtimeCurveService.getHistorySpindleLoad(tenantId, factoryId, deviceId, startTs, endTs));
+        return CommonResult.success(realtimeCurveService.getHistorySpindleLoad(factoryId, deviceId, startTs, endTs));
     }
 
     @GetMapping("/spindle-speed")
@@ -50,9 +48,8 @@ public class DeviceCurveController {
     @PreAuthorize("hasPermission(null, 'device:curve:view')")
     @Operation(summary = "实时主轴转速曲线")
     public CommonResult<RealtimeCurveVO> getRealtimeSpindleSpeed(@PathVariable String deviceId) {
-        String tenantId = SecurityFrameworkContext.getLoginTenantId();
         String factoryId = SecurityFrameworkContext.getLoginFactoryId();
-        return CommonResult.success(realtimeCurveService.getRealtimeSpindleSpeed(tenantId, factoryId, deviceId));
+        return CommonResult.success(realtimeCurveService.getRealtimeSpindleSpeed(factoryId, deviceId));
     }
 
     @GetMapping("/spindle-speed-history")
@@ -62,9 +59,8 @@ public class DeviceCurveController {
     public CommonResult<RealtimeCurveVO> getHistorySpindleSpeed(@PathVariable String deviceId,
                                                                 @RequestParam("startTs") Long startTs,
                                                                 @RequestParam("endTs") Long endTs) {
-        String tenantId = SecurityFrameworkContext.getLoginTenantId();
         String factoryId = SecurityFrameworkContext.getLoginFactoryId();
-        return CommonResult.success(realtimeCurveService.getHistorySpindleSpeed(tenantId, factoryId, deviceId, startTs, endTs));
+        return CommonResult.success(realtimeCurveService.getHistorySpindleSpeed(factoryId, deviceId, startTs, endTs));
     }
 
     @GetMapping("/feed-rate")
@@ -72,9 +68,8 @@ public class DeviceCurveController {
     @PreAuthorize("hasPermission(null, 'device:curve:view')")
     @Operation(summary = "实时进给率曲线")
     public CommonResult<RealtimeCurveVO> getRealtimeFeedRate(@PathVariable String deviceId) {
-        String tenantId = SecurityFrameworkContext.getLoginTenantId();
         String factoryId = SecurityFrameworkContext.getLoginFactoryId();
-        return CommonResult.success(realtimeCurveService.getRealtimeFeedRate(tenantId, factoryId, deviceId));
+        return CommonResult.success(realtimeCurveService.getRealtimeFeedRate(factoryId, deviceId));
     }
 
     @GetMapping("/feed-rate-history")
@@ -84,9 +79,8 @@ public class DeviceCurveController {
     public CommonResult<RealtimeCurveVO> getHistoryFeedRate(@PathVariable String deviceId,
                                                             @RequestParam("startTs") Long startTs,
                                                             @RequestParam("endTs") Long endTs) {
-        String tenantId = SecurityFrameworkContext.getLoginTenantId();
         String factoryId = SecurityFrameworkContext.getLoginFactoryId();
-        return CommonResult.success(realtimeCurveService.getHistoryFeedRate(tenantId, factoryId, deviceId, startTs, endTs));
+        return CommonResult.success(realtimeCurveService.getHistoryFeedRate(factoryId, deviceId, startTs, endTs));
     }
 
     @GetMapping("/feed-override")
@@ -94,9 +88,8 @@ public class DeviceCurveController {
     @PreAuthorize("hasPermission(null, 'device:curve:view')")
     @Operation(summary = "实时进给倍率")
     public CommonResult<RealtimeMetricValueVO> getFeedOverride(@PathVariable String deviceId) {
-        String tenantId = SecurityFrameworkContext.getLoginTenantId();
         String factoryId = SecurityFrameworkContext.getLoginFactoryId();
-        return CommonResult.success(realtimeCurveService.getRealtimeFeedOverride(tenantId, factoryId, deviceId));
+        return CommonResult.success(realtimeCurveService.getRealtimeFeedOverride(factoryId, deviceId));
     }
 }
 

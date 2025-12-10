@@ -25,10 +25,10 @@ public class ProductionStatisticsServiceImpl implements ProductionStatisticsServ
     private final DeviceFactoryValidator deviceFactoryValidator;
 
     @Override
-    public ProductionHistoryVO getCurrentShift(String tenantId, String factoryId, String deviceId) {
-        deviceFactoryValidator.ensureDeviceBelongsToFactory(tenantId, factoryId, deviceId);
+    public ProductionHistoryVO getCurrentShift(String factoryId, String deviceId) {
+        deviceFactoryValidator.ensureDeviceBelongsToFactory(factoryId, deviceId);
         ProductionCounterDO record = productionCounterRepository
-                .findCurrent(tenantId, deviceId, System.currentTimeMillis())
+                .findCurrent(deviceId, System.currentTimeMillis())
                 .orElse(null);
         if (record == null) {
             return ProductionStatisticsAssembler.toVO(deviceId, Collections.emptyList(), 0, 1, 1);
@@ -37,10 +37,9 @@ public class ProductionStatisticsServiceImpl implements ProductionStatisticsServ
     }
 
     @Override
-    public ProductionHistoryVO getHistory(String tenantId, String factoryId, ProductionHistoryReq request) {
-        deviceFactoryValidator.ensureDeviceBelongsToFactory(tenantId, factoryId, request.getDeviceId());
+    public ProductionHistoryVO getHistory(String factoryId, ProductionHistoryReq request) {
+        deviceFactoryValidator.ensureDeviceBelongsToFactory(factoryId, request.getDeviceId());
         ProductionCounterPageQuery query = new ProductionCounterPageQuery();
-        query.setTenantId(tenantId);
         query.setDeviceId(request.getDeviceId());
         query.setStartTs(request.getStartTs());
         query.setEndTs(request.getEndTs());

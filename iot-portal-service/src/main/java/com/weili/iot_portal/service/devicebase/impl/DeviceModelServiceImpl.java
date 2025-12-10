@@ -37,14 +37,13 @@ public class DeviceModelServiceImpl implements DeviceModelService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public DeviceModelVO create(String tenantId, DeviceModelCreateReq request) {
-        ensureTenant(tenantId);
+    public DeviceModelVO create(DeviceModelCreateReq request) {
         validateCreate(request);
-        checkModelCodeUnique(tenantId, request.getModelCode());
-        DeviceTypeDO type = deviceTypeRepository.findByTypeCode(tenantId, request.getDeviceTypeCode())
+        checkModelCodeUnique(request.getModelCode());
+        DeviceTypeDO type = deviceTypeRepository.findByTypeCode(request.getDeviceTypeCode())
                 .orElseThrow(() -> new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "设备类型不存在"));
 
-        DeviceModelDO entity = DeviceModelAssembler.fromCreateReq(tenantId, request);
+        DeviceModelDO entity = DeviceModelAssembler.fromCreateReq(request);
         LocalDateTime now = LocalDateTime.now();
         entity.setCreateTime(now);
         entity.setUpdateTime(now);
@@ -55,9 +54,8 @@ public class DeviceModelServiceImpl implements DeviceModelService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public DeviceModelVO update(String tenantId,  DeviceModelUpdateReq request) {
-        ensureTenant(tenantId);
-        DeviceModelDO entity = deviceModelRepository.findById(tenantId, request.getId())
+    public DeviceModelVO update(DeviceModelUpdateReq request) {
+        DeviceModelDO entity = deviceModelRepository.findById(request.getId())
                 .orElseThrow(() -> new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "设备型号不存在"));
 
         if (StringUtils.isNotBlank(request.getModelName())) {
@@ -78,24 +76,21 @@ public class DeviceModelServiceImpl implements DeviceModelService {
         entity.setUpdateTime(LocalDateTime.now());
         deviceModelRepository.update(entity);
 
-        String typeName = resolveDeviceTypeName(tenantId, entity.getDeviceTypeCode());
+        String typeName = resolveDeviceTypeName(entity.getDeviceTypeCode());
         return DeviceModelAssembler.toVO(entity, typeName);
     }
 
     @Override
-    public DeviceModelVO get(String tenantId, String id) {
-        ensureTenant(tenantId);
-        DeviceModelDO entity = deviceModelRepository.findById(tenantId, id)
+    public DeviceModelVO get(String id) {
+        DeviceModelDO entity = deviceModelRepository.findById(id)
                 .orElseThrow(() -> new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "设备型号不存在"));
-        String typeName = resolveDeviceTypeName(tenantId, entity.getDeviceTypeCode());
+        String typeName = resolveDeviceTypeName(entity.getDeviceTypeCode());
         return DeviceModelAssembler.toVO(entity, typeName);
     }
 
     @Override
-    public PageResult<DeviceModelVO> page(String tenantId, DeviceModelQueryReq request) {
-        ensureTenant(tenantId);
+    public PageResult<DeviceModelVO> page(DeviceModelQueryReq request) {
         DeviceModelPageQuery query = new DeviceModelPageQuery();
-        query.setTenantUuid(tenantId);
         query.setModelCodeLike(request.getModelCodeLike());
         query.setModelNameLike(request.getModelNameLike());
         query.setDeviceTypeCodes(request.getDeviceTypeCodes());
@@ -107,7 +102,7 @@ public class DeviceModelServiceImpl implements DeviceModelService {
         query.setSortDirection(request.getSortDirection());
 
         PageResult<DeviceModelDO> pageResult = deviceModelRepository.selectPage(query);
-        Map<String, String> typeNameCache = buildTypeNameCache(tenantId, pageResult.getList());
+        Map<String, String> typeNameCache = buildTypeNameCache(pageResult.getList());
         List<DeviceModelVO> list = pageResult.getList().stream()
                 .map(item -> DeviceModelAssembler.toVO(item, typeNameCache.get(item.getDeviceTypeCode())))
                 .collect(Collectors.toList());
@@ -116,15 +111,8 @@ public class DeviceModelServiceImpl implements DeviceModelService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public boolean delete(String tenantId, String id) {
-        ensureTenant(tenantId);
-        return deviceModelRepository.deleteById(tenantId, id);
-    }
-
-    private void ensureTenant(String tenantId) {
-        if (StringUtils.isBlank(tenantId)) {
-            throw new ServiceException(ErrorCodeConstants.UNAUTHORIZED.getCode(), "未获取到租户信息");
-        }
+    public boolean delete(String id) {
+        return deviceModelRepository.deleteById(id);
     }
 
     private void validateCreate(DeviceModelCreateReq request) {
@@ -139,22 +127,22 @@ public class DeviceModelServiceImpl implements DeviceModelService {
         }
     }
 
-    private void checkModelCodeUnique(String tenantId, String modelCode) {
-        if (deviceModelRepository.existsByModelCode(tenantId, modelCode, null)) {
+    private void checkModelCodeUnique(String modelCode) {
+        if (deviceModelRepository.existsByModelCode(modelCode, null)) {
             throw new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "型号编码已存在");
         }
     }
 
-    private String resolveDeviceTypeName(String tenantId, String deviceTypeCode) {
+    private String resolveDeviceTypeName(String deviceTypeCode) {
         if (StringUtils.isBlank(deviceTypeCode)) {
             return null;
         }
-        return deviceTypeRepository.findByTypeCode(tenantId, deviceTypeCode)
+        return deviceTypeRepository.findByTypeCode(deviceTypeCode)
                 .map(DeviceTypeDO::getTypeDictValue)
                 .orElse(null);
     }
 
-    private Map<String, String> buildTypeNameCache(String tenantId, List<DeviceModelDO> records) {
+    private Map<String, String> buildTypeNameCache(List<DeviceModelDO> records) {
         List<String> typeCodes = records.stream()
                 .map(DeviceModelDO::getDeviceTypeCode)
                 .filter(StringUtils::isNotBlank)
@@ -164,7 +152,7 @@ public class DeviceModelServiceImpl implements DeviceModelService {
             return Map.of();
         }
         return typeCodes.stream()
-                .map(code -> deviceTypeRepository.findByTypeCode(tenantId, code).orElse(null))
+                .map(code -> deviceTypeRepository.findByTypeCode(code).orElse(null))
                 .filter(Objects::nonNull)
                 .collect(Collectors.toMap(DeviceTypeDO::getTypeCode, DeviceTypeDO::getTypeDictValue));
     }

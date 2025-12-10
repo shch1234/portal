@@ -29,20 +29,20 @@ public class StateGanttServiceImpl implements StateGanttService {
     private final ShiftQueryApi shiftQueryApi;
 
     @Override
-    public StateGanttVO getCurrentShiftGantt(String tenantId, String factoryId, String deviceId) {
-        deviceFactoryValidator.ensureDeviceBelongsToFactory(tenantId, factoryId, deviceId);
+    public StateGanttVO getCurrentShiftGantt(String factoryId, String deviceId) {
+        deviceFactoryValidator.ensureDeviceBelongsToFactory(factoryId, deviceId);
         
         // 通过公共接口获取当前班次的时间范围
-        ShiftTimeRangeVO shiftRange = shiftQueryApi.calculateShiftRange(tenantId, factoryId, deviceId, null);
+        ShiftTimeRangeVO shiftRange = shiftQueryApi.calculateShiftRange(factoryId, deviceId, null);
         
         List<DeviceStateTimelineDO> records = deviceStateTimelineRepository
-                .selectByRange(tenantId, deviceId, shiftRange.getStartTs(), shiftRange.getEndTs());
+                .selectByRange(deviceId, shiftRange.getStartTs(), shiftRange.getEndTs());
         return StateGanttAssembler.toVO(records, shiftRange.getStartTs(), shiftRange.getEndTs());
     }
 
     @Override
-    public StateGanttVO getHistoryGantt(String tenantId, String factoryId, String deviceId, Long startTs, Long endTs) {
-        deviceFactoryValidator.ensureDeviceBelongsToFactory(tenantId, factoryId, deviceId);
+    public StateGanttVO getHistoryGantt(String factoryId, String deviceId, Long startTs, Long endTs) {
+        deviceFactoryValidator.ensureDeviceBelongsToFactory(factoryId, deviceId);
         if (startTs == null || endTs == null) {
             throw new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "开始/结束时间不能为空");
         }
@@ -50,7 +50,7 @@ public class StateGanttServiceImpl implements StateGanttService {
             throw new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "开始时间必须小于结束时间");
         }
         List<DeviceStateTimelineDO> records = deviceStateTimelineRepository
-                .selectByRange(tenantId, deviceId, startTs, endTs);
+                .selectByRange(deviceId, startTs, endTs);
         return StateGanttAssembler.toVO(records, startTs, endTs);
     }
 }

@@ -19,10 +19,9 @@ public interface AlarmListService {
      *   - "是否报警中"=是：仅显示未结束记录
      *   - 进行中报警：结束时间显示"-"，持续时间实时累加
      * 
-     * @param tenantId 租户ID
      * @param request 查询请求
      * @return 分页结果
      */
-    PageResult<AlarmItemVO> getAlarmList(String tenantId, AlarmListQueryReq request);
+    PageResult<AlarmItemVO> getAlarmList(AlarmListQueryReq request);
 }
 

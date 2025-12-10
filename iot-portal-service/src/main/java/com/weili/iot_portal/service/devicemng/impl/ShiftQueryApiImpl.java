@@ -35,11 +35,11 @@ public class ShiftQueryApiImpl implements ShiftQueryApi {
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
     @Override
-    public ShiftInfoVO getDeviceCurrentShift(String tenantId, String factoryId, String deviceId, Long timestamp) {
+    public ShiftInfoVO getDeviceCurrentShift(String factoryId, String deviceId, Long timestamp) {
         long ts = timestamp != null ? timestamp : System.currentTimeMillis();
         
         // 获取设备在当前时间的班次信息
-        ShiftInfo shiftInfo = shiftConfigurationService.getCurrentShift(tenantId, factoryId, deviceId, ts);
+        ShiftInfo shiftInfo = shiftConfigurationService.getCurrentShift(factoryId, deviceId, ts);
         
         // 计算班次日期
         String shiftDate = calculateShiftDate(shiftInfo, ts);
@@ -57,11 +57,11 @@ public class ShiftQueryApiImpl implements ShiftQueryApi {
     }
 
     @Override
-    public ShiftInfoVO getFactoryCurrentShift(String tenantId, String factoryId, String workshopId, Long timestamp) {
+    public ShiftInfoVO getFactoryCurrentShift(String factoryId, String workshopId, Long timestamp) {
         long ts = timestamp != null ? timestamp : System.currentTimeMillis();
         
         // 1. 获取工厂/车间下的设备列表
-        List<DeviceBaseInfoDO> devices = deviceBaseInfoRepository.findByFactoryId(tenantId, factoryId);
+        List<DeviceBaseInfoDO> devices = deviceBaseInfoRepository.findByFactoryId(factoryId);
         
         // 如果指定了车间，则过滤车间设备
         if (StringUtils.hasText(workshopId)) {
@@ -75,7 +75,7 @@ public class ShiftQueryApiImpl implements ShiftQueryApi {
             try {
                 // 获取该设备在当前时间的班次信息
                 ShiftInfo shiftInfo = shiftConfigurationService.getCurrentShift(
-                        tenantId, factoryId, device.getId(), ts);
+                        factoryId, device.getId(), ts);
                 
                 // 3. 根据当前时间和班次信息计算班次日期和编码
                 String shiftDate = calculateShiftDate(shiftInfo, ts);
@@ -131,11 +131,11 @@ public class ShiftQueryApiImpl implements ShiftQueryApi {
     }
 
     @Override
-    public ShiftTimeRangeVO calculateShiftRange(String tenantId, String factoryId, String deviceId, Long timestamp) {
+    public ShiftTimeRangeVO calculateShiftRange(String factoryId, String deviceId, Long timestamp) {
         long ts = timestamp != null ? timestamp : System.currentTimeMillis();
         
         // 使用内部的 ShiftConfigurationService 计算时间范围
-        ShiftTimeRange shiftRange = shiftConfigurationService.calculateShiftRange(tenantId, factoryId, deviceId, ts);
+        ShiftTimeRange shiftRange = shiftConfigurationService.calculateShiftRange(factoryId, deviceId, ts);
         
         // 转换为VO
         return ShiftTimeRangeVO.builder()

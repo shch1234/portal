@@ -38,9 +38,8 @@ public class EfficiencyMetricController {
                     "- 排序说明：停机率默认升序（越低越好），其他指标默认降序（越高越好）")
     @PostMapping("/query")
     public CommonResult<PageResult<DeviceEfficiencyMetricVO>> getDeviceMetrics(
-            @RequestParam("tenantId") String tenantId,
             @RequestBody EfficiencyMetricQueryReq request) {
-        PageResult<DeviceEfficiencyMetricVO> result = efficiencyMetricService.getDeviceMetrics(tenantId, request);
+        PageResult<DeviceEfficiencyMetricVO> result = efficiencyMetricService.getDeviceMetrics(request);
         return CommonResult.success(result);
     }
 
@@ -55,12 +54,11 @@ public class EfficiencyMetricController {
                     "- 支持分页")
     @PostMapping("/current")
     public CommonResult<PageResult<DeviceEfficiencyMetricVO>> getCurrentShiftMetrics(
-            @RequestParam("tenantId") String tenantId,
             @RequestBody EfficiencyMetricQueryReq request) {
         // 确保不传班次信息，使用当前班次
         request.setShiftDate(null);
         request.setShiftCode(null);
-        PageResult<DeviceEfficiencyMetricVO> result = efficiencyMetricService.getDeviceMetrics(tenantId, request);
+        PageResult<DeviceEfficiencyMetricVO> result = efficiencyMetricService.getDeviceMetrics(request);
         return CommonResult.success(result);
     }
 }

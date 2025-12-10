@@ -54,7 +54,7 @@ public class DeviceProgramEventHandler implements WebhookEventHandler {
         }
 
         DeviceIdentityCacheService.DeviceIdentity identity = deviceIdentityCacheService
-                .resolveByDeviceCode(request.getTenantId(), request.getDeviceCode(),
+                .resolveByDeviceCode(request.getDeviceCode(),
                         request.getDeviceId(), "DeviceProgramEvent");
         String deviceInfoId = identity.getDeviceId();
         String orgFactoryId = identity.getFactoryId();
@@ -75,7 +75,7 @@ public class DeviceProgramEventHandler implements WebhookEventHandler {
         }
 
         String key = String.format(RedisConstant.RT_PROGRAM,
-                defaultBlank(request.getTenantId()), defaultBlank(orgFactoryId), defaultBlank(deviceInfoId));
+                defaultBlank(orgFactoryId), defaultBlank(deviceInfoId));
         realTimeCacheService.hsetWithTtl(key, payload, programTtlMillis);
     }
 

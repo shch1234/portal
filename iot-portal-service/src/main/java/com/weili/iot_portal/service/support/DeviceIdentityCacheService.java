@@ -36,7 +36,7 @@ public class DeviceIdentityCacheService {
         this.unknownDeviceAlertService = unknownDeviceAlertService;
     }
 
-    public DeviceIdentity resolveByDeviceCode(String tenantId, String deviceCode, String tbDeviceId, String source) {
+    public DeviceIdentity resolveByDeviceCode(String deviceCode, String tbDeviceId, String source) {
         if (StringUtils.isBlank(deviceCode)) {
             throw new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "设备编号不能为空");
         }
@@ -45,8 +45,8 @@ public class DeviceIdentityCacheService {
         if (StringUtils.isNotBlank(cached)) {
             return JsonUtils.parseObject(cached, DeviceIdentity.class);
         }
-        DeviceBaseInfoDO device = deviceBaseInfoRepository.findByDeviceCode(tenantId, deviceCode)
-                .orElseGet(() -> handleUnknownDevice(tenantId, deviceCode, tbDeviceId, source));
+        DeviceBaseInfoDO device = deviceBaseInfoRepository.findByDeviceCode(deviceCode)
+                .orElseGet(() -> handleUnknownDevice(deviceCode, tbDeviceId, source));
         if (StringUtils.isBlank(device.getOrgFactoryId())) {
             throw new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "设备未关联工厂");
         }
@@ -55,8 +55,8 @@ public class DeviceIdentityCacheService {
         return identity;
     }
 
-    private DeviceBaseInfoDO handleUnknownDevice(String tenantId, String deviceCode, String tbDeviceId, String source) {
-        unknownDeviceAlertService.record(tenantId, deviceCode, tbDeviceId, source);
+    private DeviceBaseInfoDO handleUnknownDevice(String deviceCode, String tbDeviceId, String source) {
+        unknownDeviceAlertService.record(deviceCode, tbDeviceId, source);
         throw new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(),
                 "设备未建档，请检查设备编号或在组织架构中新增设备");
     }

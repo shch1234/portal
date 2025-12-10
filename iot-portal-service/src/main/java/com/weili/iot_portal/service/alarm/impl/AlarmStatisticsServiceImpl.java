@@ -28,18 +28,15 @@ public class AlarmStatisticsServiceImpl implements AlarmStatisticsService {
     private final RealtimePushService realtimePushService;
 
     @Override
-    public CurrentAlarmDeviceCountVO getCurrentAlarmDeviceCount(String tenantId, String factoryId, String workshopId) {
+    public CurrentAlarmDeviceCountVO getCurrentAlarmDeviceCount(String factoryId, String workshopId) {
         // 参数校验
-        if (StringUtils.isBlank(tenantId)) {
-            throw new ServiceException(ErrorCodeConstants.UNAUTHORIZED.getCode(), "未获取到租户信息");
-        }
         if (StringUtils.isBlank(factoryId)) {
             throw new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "工厂ID不能为空");
         }
 
         // 查询当前报警设备统计（已去重设备ID）
         List<AlarmDeviceStatisticsDO> statistics = alarmStatisticsRepository.countCurrentAlarmDevices(
-                tenantId, factoryId, workshopId);
+                factoryId, workshopId);
 
         // 获取工厂和车间名称（如果查询的是单个车间）
         String factoryName = null;
@@ -59,7 +56,7 @@ public class AlarmStatisticsServiceImpl implements AlarmStatisticsService {
                 factoryId, factoryName, workshopId, workshopName, statistics);
 
         // 推送实时更新（异步推送，不阻塞返回）
-        pushAlarmCountChanged(tenantId, factoryId, workshopId, result);
+        pushAlarmCountChanged(factoryId, workshopId, result);
 
         return result;
     }
@@ -67,10 +64,10 @@ public class AlarmStatisticsServiceImpl implements AlarmStatisticsService {
     /**
      * 推送报警数量变化（供Webhook接收时调用）
      */
-    public void pushAlarmCountChanged(String tenantId, String factoryId, String workshopId, CurrentAlarmDeviceCountVO count) {
+    public void pushAlarmCountChanged(String factoryId, String workshopId, CurrentAlarmDeviceCountVO count) {
         try {
             // 构建主题键：alarm.count:tenantId:factoryId:workshopId
-            String topicKey = realtimePushService.buildTopicKey("alarm.count", tenantId, factoryId, workshopId);
+            String topicKey = realtimePushService.buildTopicKey("alarm.count", factoryId, workshopId);
             // 推送数据变化消息
             realtimePushService.pushDataChanged(topicKey, count);
         } catch (Exception e) {
@@ -80,11 +77,8 @@ public class AlarmStatisticsServiceImpl implements AlarmStatisticsService {
     }
 
     @Override
-    public PageResult<AlarmDeviceItemVO> getCurrentAlarmDeviceList(String tenantId, CurrentAlarmDeviceQueryReq request) {
+    public PageResult<AlarmDeviceItemVO> getCurrentAlarmDeviceList(CurrentAlarmDeviceQueryReq request) {
         // 参数校验
-        if (StringUtils.isBlank(tenantId)) {
-            throw new ServiceException(ErrorCodeConstants.UNAUTHORIZED.getCode(), "未获取到租户信息");
-        }
         if (StringUtils.isBlank(request.getFactoryId())) {
             throw new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "工厂ID不能为空");
         }
@@ -95,7 +89,7 @@ public class AlarmStatisticsServiceImpl implements AlarmStatisticsService {
 
         // 查询当前报警设备列表（分页）
         PageResult<AlarmDeviceStatisticsDO> pageResult = alarmStatisticsRepository.selectCurrentAlarmDevices(
-                tenantId, request.getFactoryId(), request.getWorkshopId(), pageNo, pageSize);
+                request.getFactoryId(), request.getWorkshopId(), pageNo, pageSize);
 
         // 转换为VO
         List<AlarmDeviceItemVO> items = AlarmStatisticsAssembler.toDeviceItemVOList(pageResult.getList());

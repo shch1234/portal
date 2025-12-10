@@ -7,11 +7,11 @@ import java.util.Optional;
 
 public interface DeviceLocationRepository {
 
-    Optional<DeviceLocationDO> findByDeviceId(String tenantId, String deviceId);
+    Optional<DeviceLocationDO> findByDeviceId(String deviceId);
 
-    List<DeviceLocationDO> findByDeviceIds(String tenantId, List<String> deviceIds);
+    List<DeviceLocationDO> findByDeviceIds(List<String> deviceIds);
 
-    List<String> findDeviceIdsByLocationCode(String tenantId, String locationCode);
+    List<String> findDeviceIdsByLocationCode(String locationCode);
 
     void insert(DeviceLocationDO entity);
 

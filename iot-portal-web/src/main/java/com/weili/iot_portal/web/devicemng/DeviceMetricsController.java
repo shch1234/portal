@@ -33,9 +33,8 @@ public class DeviceMetricsController {
     public CommonResult<DeviceMetricHistoryVO> getCurrentMetrics(@RequestParam("deviceId") String deviceId,
                                                                  @RequestParam(value = "metricCodes", required = false)
                                                                  List<String> metricCodes) {
-        String tenantId = SecurityFrameworkContext.getLoginTenantId();
         String factoryId = SecurityFrameworkContext.getLoginFactoryId();
-        return CommonResult.success(deviceMetricsService.getCurrentMetrics(tenantId, factoryId, deviceId, metricCodes));
+        return CommonResult.success(deviceMetricsService.getCurrentMetrics(factoryId, deviceId, metricCodes));
     }
 
     @PostMapping("/shifts-history")
@@ -44,10 +43,9 @@ public class DeviceMetricsController {
     @Operation(summary = "查询历史班次指标")
     public CommonResult<DeviceMetricHistoryVO> getShiftMetrics(@RequestParam("deviceId") String deviceId,
                                                                @Valid @RequestBody DeviceMetricHistoryReq request) {
-        String tenantId = SecurityFrameworkContext.getLoginTenantId();
         String factoryId = SecurityFrameworkContext.getLoginFactoryId();
         request.setDeviceId(deviceId);
-        return CommonResult.success(deviceMetricsService.getShiftMetrics(tenantId, factoryId, request));
+        return CommonResult.success(deviceMetricsService.getShiftMetrics(factoryId, request));
     }
 }
 

@@ -31,11 +31,6 @@ public class RealtimeSubscription implements Serializable {
     private String sessionId;
 
     /**
-     * 租户ID
-     */
-    private String tenantId;
-
-    /**
      * 构建订阅键（用于分组管理连接）
      */
     public String getSubscriptionKey() {

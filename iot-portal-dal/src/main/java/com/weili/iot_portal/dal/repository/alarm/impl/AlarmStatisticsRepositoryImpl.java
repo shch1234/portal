@@ -19,17 +19,17 @@ public class AlarmStatisticsRepositoryImpl implements AlarmStatisticsRepository 
     private final AlarmStatisticsMapper mapper;
 
     @Override
-    public List<AlarmDeviceStatisticsDO> countCurrentAlarmDevices(String tenantId, String factoryId, String workshopId) {
-        return mapper.countCurrentAlarmDevices(tenantId, factoryId, workshopId);
+    public List<AlarmDeviceStatisticsDO> countCurrentAlarmDevices(String factoryId, String workshopId) {
+        return mapper.countCurrentAlarmDevices(factoryId, workshopId);
     }
 
     @Override
     public PageResult<AlarmDeviceStatisticsDO> selectCurrentAlarmDevices(
-            String tenantId, String factoryId, String workshopId, int pageNo, int pageSize) {
+            String factoryId, String workshopId, int pageNo, int pageSize) {
         long offset = (pageNo - 1L) * pageSize;
-        long total = mapper.countCurrentAlarmDeviceTotal(tenantId, factoryId, workshopId);
+        long total = mapper.countCurrentAlarmDeviceTotal(factoryId, workshopId);
         List<AlarmDeviceStatisticsDO> records = mapper.selectCurrentAlarmDevices(
-                tenantId, factoryId, workshopId, offset, pageSize);
+                factoryId, workshopId, offset, pageSize);
         return new PageResult<>(records, total);
     }
 }

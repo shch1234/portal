@@ -29,25 +29,25 @@ public class StateStatsServiceImpl implements StateStatsService {
     private final ShiftQueryApi shiftQueryApi;
 
     @Override
-    public StateStatsVO getCurrentShiftStats(String tenantId, String factoryId, String deviceId) {
-        deviceFactoryValidator.ensureDeviceBelongsToFactory(tenantId, factoryId, deviceId);
+    public StateStatsVO getCurrentShiftStats(String factoryId, String deviceId) {
+        deviceFactoryValidator.ensureDeviceBelongsToFactory(factoryId, deviceId);
         
         // 通过公共接口获取当前班次的时间范围
-        ShiftTimeRangeVO shiftRange = shiftQueryApi.calculateShiftRange(tenantId, factoryId, deviceId, null);
+        ShiftTimeRangeVO shiftRange = shiftQueryApi.calculateShiftRange(factoryId, deviceId, null);
         
         List<DeviceStateSummaryDO> summaries = deviceStateSummaryRepository
-                .selectByRange(tenantId, deviceId, shiftRange.getStartTs(), shiftRange.getEndTs());
+                .selectByRange(deviceId, shiftRange.getStartTs(), shiftRange.getEndTs());
         return StateStatsAssembler.toVO(deviceId, shiftRange.getStartTs(), shiftRange.getEndTs(), summaries);
     }
 
     @Override
-    public StateStatsVO getHistoryStats(String tenantId, String factoryId, String deviceId, Long startTs, Long endTs) {
-        deviceFactoryValidator.ensureDeviceBelongsToFactory(tenantId, factoryId, deviceId);
+    public StateStatsVO getHistoryStats(String factoryId, String deviceId, Long startTs, Long endTs) {
+        deviceFactoryValidator.ensureDeviceBelongsToFactory(factoryId, deviceId);
         if (startTs == null || endTs == null || startTs >= endTs) {
             throw new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "无效的时间范围");
         }
         List<DeviceStateSummaryDO> summaries = deviceStateSummaryRepository
-                .selectByRange(tenantId, deviceId, startTs, endTs);
+                .selectByRange(deviceId, startTs, endTs);
         return StateStatsAssembler.toVO(deviceId, startTs, endTs, summaries);
     }
 }

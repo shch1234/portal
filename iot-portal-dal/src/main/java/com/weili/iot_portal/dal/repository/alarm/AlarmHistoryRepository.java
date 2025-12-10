@@ -10,9 +10,9 @@ import java.util.List;
  */
 public interface AlarmHistoryRepository {
 
-    List<AlarmHistoryDO> selectCurrent(String tenantId, String deviceId);
+    List<AlarmHistoryDO> selectCurrent(String deviceId);
 
-    PageResult<AlarmHistoryDO> selectPage(String tenantId, String deviceId, Long startTs, Long endTs,
+    PageResult<AlarmHistoryDO> selectPage(String deviceId, Long startTs, Long endTs,
                                           Boolean inProgress, int pageNo, int pageSize);
 }
 

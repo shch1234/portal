@@ -13,7 +13,6 @@ public interface AlarmListRepository {
     /**
      * 查询报警列表总数
      * 
-     * @param tenantId 租户ID
      * @param factoryId 工厂ID
      * @param workshopId 车间ID（可选）
      * @param deviceCodes 设备编号列表（可选）
@@ -24,7 +23,6 @@ public interface AlarmListRepository {
      * @return 总数
      */
     long countAlarmList(
-            String tenantId,
             String factoryId,
             String workshopId,
             List<String> deviceCodes,
@@ -36,7 +34,6 @@ public interface AlarmListRepository {
     /**
      * 查询报警列表（分页）
      * 
-     * @param tenantId 租户ID
      * @param factoryId 工厂ID
      * @param workshopId 车间ID（可选）
      * @param deviceCodes 设备编号列表（可选）
@@ -49,7 +46,6 @@ public interface AlarmListRepository {
      * @return 分页结果
      */
     PageResult<AlarmItemDO> selectAlarmList(
-            String tenantId,
             String factoryId,
             String workshopId,
             List<String> deviceCodes,
@@ -63,11 +59,10 @@ public interface AlarmListRepository {
     /**
      * 查询正在报警且时长最长的记录
      *
-     * @param tenantId 租户ID
      * @param factoryId 工厂ID
      * @param limit 数量
      * @return 报警记录
      */
-    List<AlarmItemDO> selectTopActiveAlarms(String tenantId, String factoryId, int limit);
+    List<AlarmItemDO> selectTopActiveAlarms(String factoryId, int limit);
 }
 

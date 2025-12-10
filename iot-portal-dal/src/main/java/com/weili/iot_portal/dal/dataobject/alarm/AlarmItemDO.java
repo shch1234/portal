@@ -20,11 +20,6 @@ public class AlarmItemDO implements Serializable {
     private String id;
 
     /**
-     * 租户ID
-     */
-    private String tenantId;
-
-    /**
      * 设备ID
      */
     private String deviceId;

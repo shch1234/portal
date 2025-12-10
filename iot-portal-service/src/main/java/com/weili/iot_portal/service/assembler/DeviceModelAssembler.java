@@ -14,10 +14,9 @@ public final class DeviceModelAssembler {
     private DeviceModelAssembler() {
     }
 
-    public static DeviceModelDO fromCreateReq(String tenantId, DeviceModelCreateReq request) {
+    public static DeviceModelDO fromCreateReq(DeviceModelCreateReq request) {
         DeviceModelDO entity = new DeviceModelDO();
         entity.setId(UUID.randomUUID().toString());
-        entity.setTenantUuid(tenantId);
         entity.setModelCode(request.getModelCode());
         entity.setModelName(request.getModelName());
         entity.setDeviceTypeCode(request.getDeviceTypeCode());

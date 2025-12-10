@@ -35,35 +35,34 @@ public class DeviceParameterServiceImpl implements DeviceParameterService {
     private final DeviceFactoryValidator deviceFactoryValidator;
 
     @Override
-    public DeviceParameterVO getCurrent(String tenantId, String factoryId, String deviceId) {
-        deviceFactoryValidator.ensureDeviceBelongsToFactory(tenantId, factoryId, deviceId);
-        List<DeviceParameterDO> records = deviceParameterRepository.selectCurrent(tenantId, deviceId);
+    public DeviceParameterVO getCurrent(String factoryId, String deviceId) {
+        deviceFactoryValidator.ensureDeviceBelongsToFactory(factoryId, deviceId);
+        List<DeviceParameterDO> records = deviceParameterRepository.selectCurrent(deviceId);
         return DeviceParameterAssembler.toCurrentVO(deviceId, records);
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public DeviceParameterVO updateParameters(String tenantId, String factoryId, String deviceId,  DeviceParameterUpdateReq request) {
-        deviceFactoryValidator.ensureDeviceBelongsToFactory(tenantId, factoryId, deviceId);
+    public DeviceParameterVO updateParameters(String factoryId, String deviceId,  DeviceParameterUpdateReq request) {
+        deviceFactoryValidator.ensureDeviceBelongsToFactory(factoryId, deviceId);
         long now = System.currentTimeMillis();
-        expireAndInsert(tenantId, deviceId, DeviceParameterTypeEnum.THEORETICAL_CYCLE.getType(),
+        expireAndInsert(deviceId, DeviceParameterTypeEnum.THEORETICAL_CYCLE.getType(),
                 request.getTheoreticalCycleHours(), null,  now);
-        expireAndInsert(tenantId, deviceId, DeviceParameterTypeEnum.PLANNED_DOWNTIME.getType(),
+        expireAndInsert(deviceId, DeviceParameterTypeEnum.PLANNED_DOWNTIME.getType(),
                 request.getPlannedDowntimeHours(), null,  now);
-        expireAndInsert(tenantId, deviceId, DeviceParameterTypeEnum.REMARK.getType(),
+        expireAndInsert(deviceId, DeviceParameterTypeEnum.REMARK.getType(),
                 null, request.getRemark(),  now);
 
-        List<DeviceParameterDO> records = deviceParameterRepository.selectCurrent(tenantId, deviceId);
+        List<DeviceParameterDO> records = deviceParameterRepository.selectCurrent(deviceId);
         DeviceParameterVO vo = DeviceParameterAssembler.toCurrentVO(deviceId, records);
         vo.setDeviceId(deviceId);
         return vo;
     }
 
     @Override
-    public DeviceParameterHistoryVO getHistory(String tenantId, String factoryId, DeviceParameterHistoryReq request) {
-        deviceFactoryValidator.ensureDeviceBelongsToFactory(tenantId, factoryId, request.getDeviceId());
+    public DeviceParameterHistoryVO getHistory(String factoryId, DeviceParameterHistoryReq request) {
+        deviceFactoryValidator.ensureDeviceBelongsToFactory(factoryId, request.getDeviceId());
         List<DeviceParameterDO> history = deviceParameterRepository.selectHistory(
-                tenantId,
                 request.getDeviceId(),
                 request.getStartTs(),
                 request.getEndTs());
@@ -96,16 +95,15 @@ public class DeviceParameterServiceImpl implements DeviceParameterService {
     /**
      * 过期当前配置并插入新配置（对应 device_param_config 表的字段）
      */
-    private void expireAndInsert(String tenantId, String deviceId,
+    private void expireAndInsert(String deviceId,
                                  String parameterType,
                                  Double parameterValue,
                                  String parameterText,
                                  long effectiveStartTs) {
-        deviceParameterRepository.expireCurrent(tenantId, deviceId, parameterType, effectiveStartTs);
+        deviceParameterRepository.expireCurrent(deviceId, parameterType, effectiveStartTs);
 
         DeviceParameterDO entity = new DeviceParameterDO();
         entity.setId(IdWorker.getIdStr());
-        entity.setTenantUuid(tenantId);
         entity.setDeviceInfoId(deviceId);
         entity.setParameterType(parameterType);
         entity.setParameterValue(parameterValue == null ? null : BigDecimal.valueOf(parameterValue));

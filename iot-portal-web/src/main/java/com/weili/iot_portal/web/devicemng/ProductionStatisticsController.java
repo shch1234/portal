@@ -29,9 +29,8 @@ public class ProductionStatisticsController {
     @PreAuthorize("hasPermission(null, 'device:production:view')")
     @Operation(summary = "查询当前班次产量")
     public CommonResult<ProductionHistoryVO> getCurrentShift(@RequestParam("deviceId") String deviceId) {
-        String tenantId = SecurityFrameworkContext.getLoginTenantId();
         String factoryId = SecurityFrameworkContext.getLoginFactoryId();
-        return CommonResult.success(productionStatisticsService.getCurrentShift(tenantId, factoryId, deviceId));
+        return CommonResult.success(productionStatisticsService.getCurrentShift(factoryId, deviceId));
     }
 
     @PostMapping("/shifts-history")
@@ -40,10 +39,9 @@ public class ProductionStatisticsController {
     @Operation(summary = "查询班次产量历史")
     public CommonResult<ProductionHistoryVO> getProductionHistory(@RequestParam("deviceId") String deviceId,
                                                                   @Valid @RequestBody ProductionHistoryReq request) {
-        String tenantId = SecurityFrameworkContext.getLoginTenantId();
         String factoryId = SecurityFrameworkContext.getLoginFactoryId();
         request.setDeviceId(deviceId);
-        return CommonResult.success(productionStatisticsService.getHistory(tenantId, factoryId, request));
+        return CommonResult.success(productionStatisticsService.getHistory(factoryId, request));
     }
 }
 

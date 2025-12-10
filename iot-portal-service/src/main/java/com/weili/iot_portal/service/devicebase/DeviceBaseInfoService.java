@@ -12,18 +12,18 @@ import com.weili.iot_portal.domain.devicebase.request.DeviceBaseInfoUpdateReq;
  */
 public interface DeviceBaseInfoService {
 
-    DeviceBaseInfoVO create(String tenantId,DeviceBaseInfoCreateReq request);
+    DeviceBaseInfoVO create(DeviceBaseInfoCreateReq request);
 
-    DeviceBaseInfoVO update(String tenantId, DeviceBaseInfoUpdateReq request);
+    DeviceBaseInfoVO update(DeviceBaseInfoUpdateReq request);
 
-    DeviceBaseInfoVO getById(String tenantId, String factoryId, String id);
+    DeviceBaseInfoVO getById(String factoryId, String id);
 
-    DeviceBaseInfoVO getByDeviceCode(String tenantId, String deviceCode);
+    DeviceBaseInfoVO getByDeviceCode(String deviceCode);
 
-    PageResult<DeviceBaseInfoVO> page(String tenantId, String factoryId, DeviceBaseInfoQueryReq request);
+    PageResult<DeviceBaseInfoVO> page(String factoryId, DeviceBaseInfoQueryReq request);
 
-    PageResult<DeviceBaseInfoListVO> list(String tenantId, String factoryId, DeviceBaseInfoQueryReq request);
+    PageResult<DeviceBaseInfoListVO> list(String factoryId, DeviceBaseInfoQueryReq request);
 
-    boolean delete(String tenantId, String id);
+    boolean delete(String id);
 }
 

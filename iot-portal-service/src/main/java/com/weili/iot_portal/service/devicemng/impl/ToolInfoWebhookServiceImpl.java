@@ -33,7 +33,7 @@ public class ToolInfoWebhookServiceImpl implements ToolInfoWebhookService {
         }
 
         DeviceIdentityCacheService.DeviceIdentity identity = deviceIdentityCacheService
-                .resolveByDeviceCode(request.getTenantId(), request.getDeviceCode(),
+                .resolveByDeviceCode(request.getDeviceCode(),
                         request.getTbDeviceId(), "toolInfo");
 
         CurrentToolInfoVO payload = buildPayload(request);
@@ -41,7 +41,6 @@ public class ToolInfoWebhookServiceImpl implements ToolInfoWebhookService {
         RealtimeIngestionEvent event = RealtimeIngestionEvent.builder()
                 .eventType(RealtimeIngestionEventType.TOOL_INFO)
                 .messageId(request.getMessageId())
-                .tenantId(request.getTenantId())
                 .factoryId(identity.getFactoryId())
                 .deviceId(identity.getDeviceId())
                 .timestamp(request.getTs())
@@ -50,8 +49,8 @@ public class ToolInfoWebhookServiceImpl implements ToolInfoWebhookService {
 
         dispatcher.dispatch(event);
 
-        log.info("接收刀具信息Webhook成功: messageId={}, tenantId={}, deviceCode={}, deviceId={}, factoryId={}, tbDeviceId={}",
-                request.getMessageId(), request.getTenantId(), request.getDeviceCode(),
+        log.info("接收刀具信息Webhook成功: messageId={}, deviceCode={}, deviceId={}, factoryId={}, tbDeviceId={}",
+                request.getMessageId(), request.getDeviceCode(),
                 identity.getDeviceId(), identity.getFactoryId(), request.getTbDeviceId());
     }
 

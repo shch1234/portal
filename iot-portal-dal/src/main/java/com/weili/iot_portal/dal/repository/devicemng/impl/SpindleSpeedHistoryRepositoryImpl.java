@@ -35,10 +35,9 @@ public class SpindleSpeedHistoryRepositoryImpl implements SpindleSpeedHistoryRep
      * 按时间范围查询主轴转速历史（对应 device_spindle_speed_history 表的字段）
      */
     @Override
-    public List<SpindleSpeedHistoryDO> selectByRange(String tenantId, String deviceId, Long startTs, Long endTs, Integer limit) {
+    public List<SpindleSpeedHistoryDO> selectByRange(String deviceId, Long startTs, Long endTs, Integer limit) {
         LambdaQueryWrapper<SpindleSpeedHistoryDO> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(SpindleSpeedHistoryDO::getTenantUuid, tenantId)
-                .eq(SpindleSpeedHistoryDO::getDeviceInfoId, deviceId);
+        wrapper.eq(SpindleSpeedHistoryDO::getDeviceInfoId, deviceId);
         if (startTs != null) {
             wrapper.ge(SpindleSpeedHistoryDO::getSampleTs, startTs);
         }

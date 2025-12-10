@@ -15,7 +15,6 @@ public interface EfficiencyMetricMapper {
     /**
      * 查询效率指标列表总数
      * 
-     * @param tenantId 租户ID
      * @param factoryId 工厂ID
      * @param workshopId 车间ID（可选）
      * @param metricCode 指标代码
@@ -24,7 +23,6 @@ public interface EfficiencyMetricMapper {
      * @return 总数
      */
     long countDeviceMetrics(
-            @Param("tenantId") String tenantId,
             @Param("factoryId") String factoryId,
             @Param("workshopId") String workshopId,
             @Param("metricCode") String metricCode,
@@ -34,7 +32,6 @@ public interface EfficiencyMetricMapper {
     /**
      * 查询效率指标列表（分页、排序）
      * 
-     * @param tenantId 租户ID
      * @param factoryId 工厂ID
      * @param workshopId 车间ID（可选）
      * @param metricCode 指标代码
@@ -47,7 +44,6 @@ public interface EfficiencyMetricMapper {
      * @return 设备效率指标列表
      */
     List<DeviceEfficiencyMetricDO> selectDeviceMetrics(
-            @Param("tenantId") String tenantId,
             @Param("factoryId") String factoryId,
             @Param("workshopId") String workshopId,
             @Param("metricCode") String metricCode,

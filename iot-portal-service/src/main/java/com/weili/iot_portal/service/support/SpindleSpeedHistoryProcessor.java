@@ -40,7 +40,6 @@ public class SpindleSpeedHistoryProcessor implements RealtimeIngestionProcessor 
     private SpindleSpeedHistoryDO buildDO(RealtimeIngestionEvent event, RealtimeCurvePointVO point) {
         SpindleSpeedHistoryDO record = new SpindleSpeedHistoryDO();
         record.setId(UUID.randomUUID().toString());
-        record.setTenantUuid(event.getTenantId());
         record.setDeviceInfoId(event.getDeviceId());
         record.setSampleTs(point.getTs());
         record.setSpeed(point.getValue());

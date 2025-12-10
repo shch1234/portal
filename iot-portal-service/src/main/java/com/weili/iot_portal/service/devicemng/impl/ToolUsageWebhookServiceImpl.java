@@ -34,7 +34,7 @@ public class ToolUsageWebhookServiceImpl implements ToolUsageWebhookService {
         }
 
         DeviceIdentityCacheService.DeviceIdentity identity = deviceIdentityCacheService
-                .resolveByDeviceCode(request.getTenantId(), request.getDeviceCode(),
+                .resolveByDeviceCode(request.getDeviceCode(),
                         request.getTbDeviceId(), "toolUsage");
 
         List<ToolUsageHistoryDO> batch = request.getItems().stream()
@@ -43,8 +43,8 @@ public class ToolUsageWebhookServiceImpl implements ToolUsageWebhookService {
 
         toolUsageHistoryRepository.insertBatch(batch);
 
-        log.info("接收刀具列表Webhook成功: messageId={}, tenantId={}, deviceCode={}, deviceId={}, factoryId={}, count={}, tbDeviceId={}",
-                request.getMessageId(), request.getTenantId(), request.getDeviceCode(),
+        log.info("接收刀具列表Webhook成功: messageId={}, deviceCode={}, deviceId={}, factoryId={}, count={}, tbDeviceId={}",
+                request.getMessageId(), request.getDeviceCode(),
                 identity.getDeviceId(), identity.getFactoryId(), batch.size(), request.getTbDeviceId());
     }
 
@@ -55,7 +55,6 @@ public class ToolUsageWebhookServiceImpl implements ToolUsageWebhookService {
                                        ToolUsageWebhookRequest request,
                                        ToolUsageWebhookRequest.ToolUsageItem item) {
         ToolUsageHistoryDO record = new ToolUsageHistoryDO();
-        record.setTenantUuid(request.getTenantId());
         record.setDeviceInfoId(identity.getDeviceId());
         record.setToolNo(item.getToolNumber());
         record.setToolMagazineNo(item.getToolHolderNumber());

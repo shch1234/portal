@@ -37,7 +37,6 @@ public class WebhookFailLogServiceImpl implements WebhookFailLogService {
             // 设置基础信息
             if (request != null) {
                 fail.setMessageId(request.getMessageId());
-                fail.setTenantUuid(request.getTenantId());
                 fail.setTbDeviceId(request.getDeviceId());
                 fail.setDeviceCode(request.getDeviceCode());
                 fail.setEventType(request.getEventType());

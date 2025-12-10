@@ -37,11 +37,11 @@ public class DigitalScreenQueryServiceImpl implements DigitalScreenQueryApi {
     private final FactoryMetricApi factoryMetricsApi;
 
     @Override
-    public FactoryLayoutVO getFactoryLayout(String tenantId, String factoryId) {
-        validateParams(tenantId, factoryId);
+    public FactoryLayoutVO getFactoryLayout(String factoryId) {
+        validateParams(factoryId);
 
-        List<DeviceBaseInfoVO> devices = deviceBaseDataApi.getDevicesByFactory(tenantId, factoryId, null);
-        Map<String, DeviceStatusVO> statusMap = loadDeviceStatus(tenantId, factoryId, devices);
+        List<DeviceBaseInfoVO> devices = deviceBaseDataApi.getDevicesByFactory(factoryId, null);
+        Map<String, DeviceStatusVO> statusMap = loadDeviceStatus(factoryId, devices);
 
         String factoryName = CollectionUtils.isNotEmpty(devices)
                 ? devices.get(0).getFactoryName()
@@ -51,11 +51,11 @@ public class DigitalScreenQueryServiceImpl implements DigitalScreenQueryApi {
     }
 
     @Override
-    public FactoryStatusSummaryVO getFactoryStatusSummary(String tenantId, String factoryId) {
-        validateParams(tenantId, factoryId);
+    public FactoryStatusSummaryVO getFactoryStatusSummary(String factoryId) {
+        validateParams(factoryId);
 
-        List<DeviceBaseInfoVO> devices = deviceBaseDataApi.getDevicesByFactory(tenantId, factoryId, null);
-        Map<String, DeviceStatusVO> statusMap = loadDeviceStatus(tenantId, factoryId, devices);
+        List<DeviceBaseInfoVO> devices = deviceBaseDataApi.getDevicesByFactory(factoryId, null);
+        Map<String, DeviceStatusVO> statusMap = loadDeviceStatus(factoryId, devices);
 
         String factoryName = CollectionUtils.isNotEmpty(devices)
                 ? devices.get(0).getFactoryName()
@@ -65,19 +65,19 @@ public class DigitalScreenQueryServiceImpl implements DigitalScreenQueryApi {
     }
 
     @Override
-    public List<AlarmRankingVO> getAlarmDurationRanking(String tenantId, String factoryId, Integer limit) {
-        validateParams(tenantId, factoryId);
+    public List<AlarmRankingVO> getAlarmDurationRanking(String factoryId, Integer limit) {
+        validateParams(factoryId);
         return DigitalScreenAssembler.toAlarmRanking(
-                alarmRankingApi.getTopActiveAlarms(tenantId, factoryId, limit));
+                alarmRankingApi.getTopActiveAlarms(factoryId, limit));
     }
 
     @Override
-    public FactoryMetricsVO getFactoryMetrics(String tenantId, String factoryId, Integer days) {
-        validateParams(tenantId, factoryId);
-        return BeanUtils.toBean(factoryMetricsApi.getCurrentFactoryMetrics(tenantId, factoryId, days),  FactoryMetricsVO.class);
+    public FactoryMetricsVO getFactoryMetrics(String factoryId, Integer days) {
+        validateParams(factoryId);
+        return BeanUtils.toBean(factoryMetricsApi.getCurrentFactoryMetrics(factoryId, days),  FactoryMetricsVO.class);
     }
 
-    private Map<String, DeviceStatusVO> loadDeviceStatus(String tenantId,
+    private Map<String, DeviceStatusVO> loadDeviceStatus(
                                                                            String factoryId,
                                                                            List<DeviceBaseInfoVO> devices) {
         if (CollectionUtils.isEmpty(devices)) {
@@ -86,13 +86,10 @@ public class DigitalScreenQueryServiceImpl implements DigitalScreenQueryApi {
         List<String> deviceIds = devices.stream()
                 .map(DeviceBaseInfoVO::getId)
                 .collect(Collectors.toList());
-        return deviceStateApi.batchGetStatus(tenantId, factoryId, deviceIds);
+        return deviceStateApi.batchGetStatus(factoryId, deviceIds);
     }
 
-    private void validateParams(String tenantId, String factoryId) {
-        if (StringUtils.isBlank(tenantId)) {
-            throw new ServiceException(ErrorCodeConstants.UNAUTHORIZED.getCode(), "未获取到租户信息");
-        }
+    private void validateParams(String factoryId) {
         if (StringUtils.isBlank(factoryId)) {
             throw new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "未获取到厂区信息");
         }

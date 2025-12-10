@@ -76,20 +76,17 @@ public class DeviceMetricsSummaryJob extends BaseScheduledJob {
         }
 
         int success = 0, skip = 0, error = 0;
-        Map<String, List<DeviceBaseInfoDO>> grouped = devices.stream()
+        List<DeviceBaseInfoDO> filteredDevices = devices.stream()
                 .filter(d -> StringUtils.isNotBlank(d.getOrgFactoryId()))
-                .collect(Collectors.groupingBy(DeviceBaseInfoDO::getTenantUuid));
+                .collect(Collectors.toList());
 
-        for (Map.Entry<String, List<DeviceBaseInfoDO>> tenantEntry : grouped.entrySet()) {
-            String tenantId = tenantEntry.getKey();
-            for (DeviceBaseInfoDO device : tenantEntry.getValue()) {
-                try {
-                    boolean processed = processDevice(tenantId, device, statPoint);
-                    if (processed) success++; else skip++;
-                } catch (Exception e) {
-                    error++;
-                    log.error("指标汇总失败 deviceId={}", device.getId(), e);
-                }
+        for (DeviceBaseInfoDO device : filteredDevices) {
+            try {
+                boolean processed = processDevice(device, statPoint);
+                if (processed) success++; else skip++;
+            } catch (Exception e) {
+                error++;
+                log.error("指标汇总失败 deviceId={}", device.getId(), e);
             }
         }
 
@@ -105,10 +102,10 @@ public class DeviceMetricsSummaryJob extends BaseScheduledJob {
     /**
      * 处理单台设备在统计时间点前已结束并已汇总的班次
      */
-    private boolean processDevice(String tenantId, DeviceBaseInfoDO device, long statPointSec) {
+    private boolean processDevice(DeviceBaseInfoDO device, long statPointSec) {
         // 找到已结束且 finalized 的状态汇总（shift_end_ts <= statPointSec 且 is_finalized=1）
         List<DeviceStateSummaryDO> summaries = deviceStateSummaryRepository.selectByRange(
-                tenantId, device.getId(), null, statPointSec);
+                device.getId(), null, statPointSec);
         if (summaries == null || summaries.isEmpty()) {
             return false;
         }
@@ -118,20 +115,20 @@ public class DeviceMetricsSummaryJob extends BaseScheduledJob {
             if (!Boolean.TRUE.equals(summary.getIsFinalized())) {
                 continue; // 状态汇总未完成，跳过等待下次
             }
-            upsertMetrics(tenantId, summary, device);
+            upsertMetrics(summary, device);
             processed++;
         }
         return processed > 0;
     }
 
-    private void upsertMetrics(String tenantId, DeviceStateSummaryDO stateSummary, DeviceBaseInfoDO device) {
+    private void upsertMetrics(DeviceStateSummaryDO stateSummary, DeviceBaseInfoDO device) {
         long shiftStart = stateSummary.getShiftStartTs();
         long shiftEnd = stateSummary.getShiftEndTs();
         if (shiftStart <= 0 || shiftEnd <= 0 || shiftEnd <= shiftStart) {
             return;
         }
 
-        long plannedDowntime = getPlannedDowntimeSeconds(tenantId, device.getId());
+        long plannedDowntime = getPlannedDowntimeSeconds(device.getId());
         long shiftDuration = shiftEnd - shiftStart;
         long plannedRuntime = Math.max(0, shiftDuration - plannedDowntime);
 
@@ -142,8 +139,8 @@ public class DeviceMetricsSummaryJob extends BaseScheduledJob {
         long unplanned = standby + fault + shutdown;
         long actualRuntime = Math.max(0, plannedRuntime - unplanned);
 
-        long actualOutput = deviceProductionRecordRepository.countCompletedInRange(tenantId, device.getId(), shiftStart, shiftEnd);
-        long theoreticalCycle = getTheoreticalCycleSeconds(tenantId, device.getId());
+        long actualOutput = deviceProductionRecordRepository.countCompletedInRange(device.getId(), shiftStart, shiftEnd);
+        long theoreticalCycle = getTheoreticalCycleSeconds(device.getId());
 
         BigDecimal uptimeRate = plannedRuntime == 0
                 ? BigDecimal.ZERO
@@ -197,15 +194,13 @@ public class DeviceMetricsSummaryJob extends BaseScheduledJob {
         calcData.put("faultDuration", fault);
 
         LambdaQueryWrapper<DeviceMetricsShiftDO> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(DeviceMetricsShiftDO::getTenantUuid, tenantId)
-                .eq(DeviceMetricsShiftDO::getDeviceInfoId, device.getId())
+        wrapper.eq(DeviceMetricsShiftDO::getDeviceInfoId, device.getId())
                 .eq(DeviceMetricsShiftDO::getShiftDate, stateSummary.getSummaryDate())
                 .eq(DeviceMetricsShiftDO::getShiftCode, stateSummary.getShiftCode());
         DeviceMetricsShiftDO existing = deviceMetricsShiftMapper.selectOne(wrapper);
         if (existing == null) {
             DeviceMetricsShiftDO record = new DeviceMetricsShiftDO();
             record.setId(IdWorker.getIdStr());
-            record.setTenantUuid(tenantId);
             record.setDeviceInfoId(device.getId());
             record.setShiftDate(stateSummary.getSummaryDate());
             record.setShiftCode(stateSummary.getShiftCode());
@@ -239,8 +234,8 @@ public class DeviceMetricsSummaryJob extends BaseScheduledJob {
         }
     }
 
-    private long getPlannedDowntimeSeconds(String tenantId, String deviceId) {
-        List<DeviceParameterDO> params = deviceParameterRepository.selectCurrent(tenantId, deviceId);
+    private long getPlannedDowntimeSeconds(String deviceId) {
+        List<DeviceParameterDO> params = deviceParameterRepository.selectCurrent(deviceId);
         return params.stream()
                 .filter(p -> PARAM_PLANNED_DOWNTIME.equalsIgnoreCase(p.getParameterType()))
                 .findFirst()
@@ -249,8 +244,8 @@ public class DeviceMetricsSummaryJob extends BaseScheduledJob {
                 .orElse(0L);
     }
 
-    private long getTheoreticalCycleSeconds(String tenantId, String deviceId) {
-        List<DeviceParameterDO> params = deviceParameterRepository.selectCurrent(tenantId, deviceId);
+    private long getTheoreticalCycleSeconds(String deviceId) {
+        List<DeviceParameterDO> params = deviceParameterRepository.selectCurrent(deviceId);
         return params.stream()
                 .filter(p -> PARAM_THEORETICAL_CYCLE.equalsIgnoreCase(p.getParameterType()))
                 .findFirst()

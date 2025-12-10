@@ -12,13 +12,13 @@ import java.util.Optional;
  */
 public interface DeviceTypeRepository {
 
-    Optional<DeviceTypeDO> findById(String tenantId, String id);
+    Optional<DeviceTypeDO> findById(String id);
 
-    Optional<DeviceTypeDO> findByTypeCode(String tenantId, String typeCode);
+    Optional<DeviceTypeDO> findByTypeCode(String typeCode);
 
-    List<DeviceTypeDO> findByParentTypeId(String tenantId, String parentTypeId);
+    List<DeviceTypeDO> findByParentTypeId(String parentTypeId);
 
-    boolean existsByTypeCode(String tenantId, String typeCode, String excludeId);
+    boolean existsByTypeCode(String typeCode, String excludeId);
 
     PageResult<DeviceTypeDO> selectPage(DeviceTypePageQuery query);
 
@@ -26,6 +26,6 @@ public interface DeviceTypeRepository {
 
     void update(DeviceTypeDO entity);
 
-    boolean deleteById(String tenantId, String id);
+    boolean deleteById(String id);
 }
 

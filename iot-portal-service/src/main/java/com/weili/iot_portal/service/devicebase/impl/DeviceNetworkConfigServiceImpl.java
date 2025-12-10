@@ -40,16 +40,15 @@ public class DeviceNetworkConfigServiceImpl implements DeviceNetworkConfigServic
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public DeviceNetworkConfigVO create(String tenantId, DeviceNetworkConfigCreateReq request) {
-        ensureTenant(tenantId);
+    public DeviceNetworkConfigVO create(DeviceNetworkConfigCreateReq request) {
         validateCreate(request);
-        DeviceBaseInfoDO device = findDevice(tenantId, request.getDeviceId());
+        DeviceBaseInfoDO device = findDevice(request.getDeviceId());
 
-        if (configurationRepository.existsByDeviceInfoId(tenantId, request.getDeviceId(), null)) {
+        if (configurationRepository.existsByDeviceInfoId(request.getDeviceId(), null)) {
             throw new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "设备已存在配置，请使用更新接口");
         }
 
-        DeviceNetworkConfigDO entity = DeviceNetworkConfigAssembler.fromCreateReq(tenantId, request);
+        DeviceNetworkConfigDO entity = DeviceNetworkConfigAssembler.fromCreateReq(request);
         entity.setEffectiveStartTs(Instant.now().getEpochSecond());
         entity.setIsActive(Boolean.TRUE);
         LocalDateTime now = LocalDateTime.now();
@@ -58,7 +57,7 @@ public class DeviceNetworkConfigServiceImpl implements DeviceNetworkConfigServic
         configurationRepository.insert(entity);
 
         // 物理位置独立存储，保持与网络配置的生效版本一致
-        DeviceLocationDO location = DeviceNetworkConfigAssembler.toLocationFromCreateReq(tenantId, request);
+        DeviceLocationDO location = DeviceNetworkConfigAssembler.toLocationFromCreateReq(request);
         location.setEffectiveStartTs(entity.getEffectiveStartTs());
         location.setActive(Boolean.TRUE);
         location.setCreateTime(now);
@@ -70,9 +69,8 @@ public class DeviceNetworkConfigServiceImpl implements DeviceNetworkConfigServic
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public DeviceNetworkConfigVO update(String tenantId, DeviceNetworkConfigUpdateReq request) {
-        ensureTenant(tenantId);
-        DeviceNetworkConfigDO entity = configurationRepository.findById(tenantId, request.getId())
+    public DeviceNetworkConfigVO update(DeviceNetworkConfigUpdateReq request) {
+        DeviceNetworkConfigDO entity = configurationRepository.findById(request.getId())
                 .orElseThrow(() -> new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "设备配置不存在"));
 
         if (request.getIpAddress() != null) {
@@ -99,11 +97,10 @@ public class DeviceNetworkConfigServiceImpl implements DeviceNetworkConfigServic
         entity.setUpdateTime(LocalDateTime.now());
         configurationRepository.update(entity);
 
-        DeviceLocationDO location = deviceLocationRepository.findByDeviceId(tenantId, entity.getDeviceInfoId())
+        DeviceLocationDO location = deviceLocationRepository.findByDeviceId(entity.getDeviceInfoId())
                 .orElseGet(() -> {
                     DeviceLocationDO created = new DeviceLocationDO();
                     created.setId(java.util.UUID.randomUUID().toString());
-                    created.setTenantUuid(tenantId);
                     created.setDeviceInfoId(entity.getDeviceInfoId());
                     created.setEffectiveStartTs(entity.getEffectiveStartTs());
                     created.setActive(Boolean.TRUE);
@@ -129,20 +126,19 @@ public class DeviceNetworkConfigServiceImpl implements DeviceNetworkConfigServic
             deviceLocationRepository.update(location);
         }
 
-        DeviceBaseInfoDO device = deviceBaseInfoRepository.findById(tenantId, entity.getDeviceInfoId()).orElse(null);
+        DeviceBaseInfoDO device = deviceBaseInfoRepository.findById(entity.getDeviceInfoId()).orElse(null);
         String deviceCode = device != null ? device.getDeviceCode() : null;
         String deviceName = device != null ? device.getDeviceName() : null;
         return DeviceNetworkConfigAssembler.toVO(entity, location, deviceCode, deviceName);
     }
 
     @Override
-    public DeviceNetworkConfigVO get(String tenantId, String factoryId, String id) {
-        ensureTenant(tenantId);
-        DeviceNetworkConfigDO entity = configurationRepository.findById(tenantId, id)
+    public DeviceNetworkConfigVO get(String factoryId, String id) {
+        DeviceNetworkConfigDO entity = configurationRepository.findById(id)
                 .orElseThrow(() -> new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "设备配置不存在"));
-        ensureDeviceBelongsToFactory(tenantId, factoryId, entity.getDeviceInfoId());
-        DeviceBaseInfoDO device = deviceBaseInfoRepository.findById(tenantId, entity.getDeviceInfoId()).orElse(null);
-        DeviceLocationDO location = deviceLocationRepository.findByDeviceId(tenantId, entity.getDeviceInfoId()).orElse(null);
+        ensureDeviceBelongsToFactory(factoryId, entity.getDeviceInfoId());
+        DeviceBaseInfoDO device = deviceBaseInfoRepository.findById(entity.getDeviceInfoId()).orElse(null);
+        DeviceLocationDO location = deviceLocationRepository.findByDeviceId(entity.getDeviceInfoId()).orElse(null);
         return DeviceNetworkConfigAssembler.toVO(entity,
                 location,
                 device != null ? device.getDeviceCode() : null,
@@ -150,13 +146,12 @@ public class DeviceNetworkConfigServiceImpl implements DeviceNetworkConfigServic
     }
 
     @Override
-    public DeviceNetworkConfigVO getByDeviceId(String tenantId, String factoryId, String deviceId) {
-        ensureTenant(tenantId);
-        ensureDeviceBelongsToFactory(tenantId, factoryId, deviceId);
-        DeviceNetworkConfigDO entity = configurationRepository.findByDeviceInfoId(tenantId, deviceId)
+    public DeviceNetworkConfigVO getByDeviceId(String factoryId, String deviceId) {
+        ensureDeviceBelongsToFactory(factoryId, deviceId);
+        DeviceNetworkConfigDO entity = configurationRepository.findByDeviceInfoId(deviceId)
                 .orElseThrow(() -> new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "设备配置不存在"));
-        DeviceBaseInfoDO device = deviceBaseInfoRepository.findById(tenantId, deviceId).orElse(null);
-        DeviceLocationDO location = deviceLocationRepository.findByDeviceId(tenantId, entity.getDeviceInfoId()).orElse(null);
+        DeviceBaseInfoDO device = deviceBaseInfoRepository.findById(deviceId).orElse(null);
+        DeviceLocationDO location = deviceLocationRepository.findByDeviceId(entity.getDeviceInfoId()).orElse(null);
         return DeviceNetworkConfigAssembler.toVO(entity,
                 location,
                 device != null ? device.getDeviceCode() : null,
@@ -164,14 +159,12 @@ public class DeviceNetworkConfigServiceImpl implements DeviceNetworkConfigServic
     }
 
     @Override
-    public PageResult<DeviceNetworkConfigVO> page(String tenantId, String factoryId, DeviceNetworkConfigQueryReq request) {
-        ensureTenant(tenantId);
+    public PageResult<DeviceNetworkConfigVO> page(String factoryId, DeviceNetworkConfigQueryReq request) {
         DeviceNetworkConfigPageQuery query = new DeviceNetworkConfigPageQuery();
-        query.setTenantId(tenantId);
         query.setFactoryId(factoryId);
         if (StringUtils.isNotBlank(request.getLocationCode())) {
             // 位置筛选先反查设备ID，再带入网络配置分页
-            query.setDeviceIds(deviceLocationRepository.findDeviceIdsByLocationCode(tenantId, request.getLocationCode()));
+            query.setDeviceIds(deviceLocationRepository.findDeviceIdsByLocationCode(request.getLocationCode()));
         }
         query.setIpAddress(request.getIpAddress());
         query.setProtocol(request.getProtocol());
@@ -181,8 +174,8 @@ public class DeviceNetworkConfigServiceImpl implements DeviceNetworkConfigServic
         query.setSortDirection(request.getSortDirection());
 
         PageResult<DeviceNetworkConfigDO> pageResult = configurationRepository.selectPage(query);
-        Map<String, DeviceBaseInfoDO> deviceMap = buildDeviceCache(tenantId, pageResult.getList());
-        Map<String, DeviceLocationDO> locationMap = deviceLocationRepository.findByDeviceIds(tenantId,
+        Map<String, DeviceBaseInfoDO> deviceMap = buildDeviceCache(pageResult.getList());
+        Map<String, DeviceLocationDO> locationMap = deviceLocationRepository.findByDeviceIds(
                         pageResult.getList().stream().map(DeviceNetworkConfigDO::getDeviceInfoId).toList())
                 .stream()
                 .collect(Collectors.toMap(DeviceLocationDO::getDeviceInfoId, it -> it, (a, b) -> a));
@@ -199,15 +192,8 @@ public class DeviceNetworkConfigServiceImpl implements DeviceNetworkConfigServic
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public boolean delete(String tenantId, String id) {
-        ensureTenant(tenantId);
-        return configurationRepository.deleteById(tenantId, id);
-    }
-
-    private void ensureTenant(String tenantId) {
-        if (StringUtils.isBlank(tenantId)) {
-            throw new ServiceException(ErrorCodeConstants.UNAUTHORIZED.getCode(), "未获取到租户信息");
-        }
+    public boolean delete(String id) {
+        return configurationRepository.deleteById(id);
     }
 
     private void validateCreate(DeviceNetworkConfigCreateReq request) {
@@ -216,22 +202,22 @@ public class DeviceNetworkConfigServiceImpl implements DeviceNetworkConfigServic
         }
     }
 
-    private DeviceBaseInfoDO findDevice(String tenantId, String deviceId) {
-        return deviceBaseInfoRepository.findById(tenantId, deviceId)
+    private DeviceBaseInfoDO findDevice(String deviceId) {
+        return deviceBaseInfoRepository.findById(deviceId)
                 .orElseThrow(() -> new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "设备不存在"));
     }
 
-    private void ensureDeviceBelongsToFactory(String tenantId, String factoryId, String deviceId) {
+    private void ensureDeviceBelongsToFactory(String factoryId, String deviceId) {
         if (StringUtils.isBlank(factoryId)) {
             throw new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "未获取到工厂信息，请先选择工厂");
         }
-        String actualFactoryId = resolveFactoryId(tenantId, deviceId);
+        String actualFactoryId = resolveFactoryId(deviceId);
         if (!factoryId.equals(actualFactoryId)) {
             throw new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "设备不属于当前选择的工厂，无权访问");
         }
     }
 
-    private String resolveFactoryId(String tenantId, String deviceId) {
+    private String resolveFactoryId(String deviceId) {
         if (StringUtils.isBlank(deviceId)) {
             throw new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "设备ID不能为空");
         }
@@ -239,7 +225,7 @@ public class DeviceNetworkConfigServiceImpl implements DeviceNetworkConfigServic
         if (StringUtils.isNotBlank(cached)) {
             return cached;
         }
-        DeviceBaseInfoDO device = findDevice(tenantId, deviceId);
+        DeviceBaseInfoDO device = findDevice(deviceId);
         if (StringUtils.isBlank(device.getOrgFactoryId())) {
             throw new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "设备未关联工厂");
         }
@@ -247,7 +233,7 @@ public class DeviceNetworkConfigServiceImpl implements DeviceNetworkConfigServic
         return device.getOrgFactoryId();
     }
 
-    private Map<String, DeviceBaseInfoDO> buildDeviceCache(String tenantId, List<DeviceNetworkConfigDO> records) {
+    private Map<String, DeviceBaseInfoDO> buildDeviceCache(List<DeviceNetworkConfigDO> records) {
         List<String> deviceIds = records.stream()
                 .map(DeviceNetworkConfigDO::getDeviceInfoId)
                 .filter(StringUtils::isNotBlank)
@@ -257,7 +243,7 @@ public class DeviceNetworkConfigServiceImpl implements DeviceNetworkConfigServic
             return Map.of();
         }
         return deviceIds.stream()
-                .map(id -> deviceBaseInfoRepository.findById(tenantId, id).orElse(null))
+                .map(id -> deviceBaseInfoRepository.findById(id).orElse(null))
                 .filter(Objects::nonNull)
                 .collect(Collectors.toMap(DeviceBaseInfoDO::getId, device -> device));
     }

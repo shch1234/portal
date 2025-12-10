@@ -30,9 +30,8 @@ public class DeviceParameterController {
     @ApiInterceptor
     @Operation(summary = "获取当前设备参数")
     public CommonResult<DeviceParameterVO> getParameters(@RequestParam("deviceId") String deviceId) {
-        String tenantId = SecurityFrameworkContext.getLoginTenantId();
         String factoryId = SecurityFrameworkContext.getLoginFactoryId();
-        return CommonResult.success(deviceParameterService.getCurrent(tenantId, factoryId, deviceId));
+        return CommonResult.success(deviceParameterService.getCurrent(factoryId, deviceId));
     }
 
     @PutMapping
@@ -40,19 +39,17 @@ public class DeviceParameterController {
     @PreAuthorize("hasPermission(null, 'device:param:update')")
     @Operation(summary = "更新设备参数")
     public CommonResult<DeviceParameterVO> updateParameters(@Valid @RequestBody DeviceParameterUpdateReq request) {
-        String tenantId = SecurityFrameworkContext.getLoginTenantId();
         String factoryId = SecurityFrameworkContext.getLoginFactoryId();
-        return CommonResult.success(deviceParameterService.updateParameters(tenantId, factoryId, request.getDeviceId(), request));
+        return CommonResult.success(deviceParameterService.updateParameters(factoryId, request.getDeviceId(), request));
     }
 
     @PostMapping("/history")
     @ApiInterceptor
     @Operation(summary = "查询设备参数历史")
     public CommonResult<DeviceParameterHistoryVO> history(@Valid @RequestBody DeviceParameterHistoryReq request) {
-        String tenantId = SecurityFrameworkContext.getLoginTenantId();
         String factoryId = SecurityFrameworkContext.getLoginFactoryId();
         request.setDeviceId(request.getDeviceId());
-        return CommonResult.success(deviceParameterService.getHistory(tenantId, factoryId, request));
+        return CommonResult.success(deviceParameterService.getHistory(factoryId, request));
     }
 }
 

@@ -15,6 +15,6 @@ public interface AxisCoordinateService {
      * @param deviceId 设备ID
      * @return 轴坐标列表
      */
-    AxisCoordinateListVO getCurrentAxisCoordinates(String tenantId, String factoryId, String deviceId);
+    AxisCoordinateListVO getCurrentAxisCoordinates(String factoryId, String deviceId);
 }
 

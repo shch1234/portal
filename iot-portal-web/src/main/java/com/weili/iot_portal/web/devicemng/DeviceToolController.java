@@ -27,9 +27,8 @@ public class DeviceToolController {
     @GetMapping("/current")
     @Operation(summary = "查询当前刀具信息")
     public CommonResult<CurrentToolInfoVO> getCurrent(@RequestParam("deviceId")  String deviceId) {
-        String tenantId = SecurityFrameworkContext.getLoginTenantId();
         String factoryId = SecurityFrameworkContext.getLoginFactoryId();
-        return CommonResult.success(toolInfoService.getCurrentToolInfo(tenantId, factoryId, deviceId));
+        return CommonResult.success(toolInfoService.getCurrentToolInfo(factoryId, deviceId));
     }
 
     @GetMapping("/usage/history")
@@ -38,22 +37,20 @@ public class DeviceToolController {
                                                             @RequestParam Long startTs,
                                                             @RequestParam Long endTs,
                                                             @RequestParam(required = false) Integer limit) {
-        String tenantId = SecurityFrameworkContext.getLoginTenantId();
         String factoryId = SecurityFrameworkContext.getLoginFactoryId();
         ToolUsageHistoryReq req = new ToolUsageHistoryReq();
         req.setDeviceId(deviceId);
         req.setStartTs(startTs);
         req.setEndTs(endTs);
         req.setLimit(limit);
-        return CommonResult.success(toolUsageService.getHistory(tenantId, factoryId, req));
+        return CommonResult.success(toolUsageService.getHistory(factoryId, req));
     }
 
     @GetMapping("/compensation")
     @Operation(summary = "查询刀具补偿列表")
     public CommonResult<ToolCompensationVO> getCompensation(@RequestParam("deviceId")  String deviceId) {
-        String tenantId = SecurityFrameworkContext.getLoginTenantId();
         String factoryId = SecurityFrameworkContext.getLoginFactoryId();
-        return CommonResult.success(toolCompensationService.getCurrent(tenantId, factoryId, deviceId));
+        return CommonResult.success(toolCompensationService.getCurrent(factoryId, deviceId));
     }
 }
 

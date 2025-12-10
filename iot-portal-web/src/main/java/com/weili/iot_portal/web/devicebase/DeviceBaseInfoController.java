@@ -31,8 +31,7 @@ public class DeviceBaseInfoController {
     @PermRequired(permission = "device-base:info:create")
     @Operation(summary = "创建设备基础信息")
     public CommonResult<DeviceBaseInfoVO> create(@Valid @RequestBody DeviceBaseInfoCreateReq request) {
-        String tenantId = SecurityFrameworkContext.getLoginTenantId();
-        return CommonResult.success(deviceBaseInfoService.create(tenantId, request));
+        return CommonResult.success(deviceBaseInfoService.create(request));
     }
 
     @PutMapping("/{id}")
@@ -40,38 +39,33 @@ public class DeviceBaseInfoController {
     @Operation(summary = "更新设备基础信息")
     public CommonResult<DeviceBaseInfoVO> update(@PathVariable("id") String id,
                                                  @Valid @RequestBody DeviceBaseInfoUpdateReq request) {
-        String tenantId = SecurityFrameworkContext.getLoginTenantId();
         request.setId(id);
-        return CommonResult.success(deviceBaseInfoService.update(tenantId, request));
+        return CommonResult.success(deviceBaseInfoService.update(request));
     }
 
     @GetMapping("/{id}/{factoryId}")
     @Operation(summary = "根据ID查询设备基础信息")
     public CommonResult<DeviceBaseInfoVO> get(@PathVariable("id") String id, @PathVariable("factoryId") String factoryId) {
-        String tenantId = SecurityFrameworkContext.getLoginTenantId();
-        return CommonResult.success(deviceBaseInfoService.getById(tenantId, factoryId, id));
+        return CommonResult.success(deviceBaseInfoService.getById(factoryId, id));
     }
 
     @PostMapping("/page")
     @Operation(summary = "分页查询设备基础信息")
     public CommonResult<PageResult<DeviceBaseInfoVO>> page(@Valid @RequestBody DeviceBaseInfoQueryReq request) {
-        String tenantId = SecurityFrameworkContext.getLoginTenantId();
-        return CommonResult.success(deviceBaseInfoService.page(tenantId, request.getOrgFactoryId(), request));
+        return CommonResult.success(deviceBaseInfoService.page(request.getOrgFactoryId(), request));
     }
 
     @PostMapping("/list")
     @Operation(summary = "分页查询设备列表（含列表展示字段）")
     public CommonResult<PageResult<DeviceBaseInfoListVO>> list(@Valid @RequestBody DeviceBaseInfoQueryReq request) {
-       String tenantId = SecurityFrameworkContext.getLoginTenantId();
-        return CommonResult.success(deviceBaseInfoService.list(tenantId, request.getOrgFactoryId(), request));
+        return CommonResult.success(deviceBaseInfoService.list(request.getOrgFactoryId(), request));
     }
 
     @DeleteMapping("/{id}")
     @PermRequired(permission = "device-base:info:delete")
     @Operation(summary = "删除设备基础信息")
     public CommonResult<Boolean> delete(@PathVariable("id") String id) {
-        String tenantId = SecurityFrameworkContext.getLoginTenantId();
-        return CommonResult.success(deviceBaseInfoService.delete(tenantId, id));
+        return CommonResult.success(deviceBaseInfoService.delete(id));
     }
 }
 

@@ -11,11 +11,6 @@ import java.util.List;
 public class OrganizationUnitPageQuery {
 
     /**
-     * 租户UUID（对应 tenant_uuid）
-     */
-    private String tenantUuid;
-
-    /**
      * 单元编码模糊查询（对应 unit_code）
      */
     private String unitCodeLike;

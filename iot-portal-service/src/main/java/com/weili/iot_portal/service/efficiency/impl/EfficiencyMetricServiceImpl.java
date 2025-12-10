@@ -29,7 +29,7 @@ public class EfficiencyMetricServiceImpl implements EfficiencyMetricService {
     private final ShiftQueryApi shiftQueryApi;
 
     @Override
-    public PageResult<DeviceEfficiencyMetricVO> getDeviceMetrics(String tenantId, EfficiencyMetricQueryReq request) {
+    public PageResult<DeviceEfficiencyMetricVO> getDeviceMetrics(EfficiencyMetricQueryReq request) {
         // 参数校验
         validateRequest(request);
 
@@ -40,7 +40,7 @@ public class EfficiencyMetricServiceImpl implements EfficiencyMetricService {
         if (!StringUtils.hasText(shiftDate) || !StringUtils.hasText(shiftCode)) {
             // 自动计算当前班次（通过公共接口获取班次信息）
             ShiftInfoVO currentShift = shiftQueryApi.getFactoryCurrentShift(
-                    tenantId, request.getFactoryId(), request.getWorkshopId(), null);
+                    request.getFactoryId(), request.getWorkshopId(), null);
             if (!StringUtils.hasText(shiftDate)) {
                 shiftDate = currentShift.getShiftDate();
             }
@@ -58,7 +58,6 @@ public class EfficiencyMetricServiceImpl implements EfficiencyMetricService {
 
         // 查询数据
         PageResult<DeviceEfficiencyMetricDO> pageResult = efficiencyMetricRepository.selectDeviceMetrics(
-                tenantId,
                 request.getFactoryId(),
                 request.getWorkshopId(),
                 request.getMetricCode(),

@@ -16,10 +16,9 @@ public final class DeviceTypeAssembler {
     private DeviceTypeAssembler() {
     }
 
-    public static DeviceTypeDO fromCreateReq(String tenantId, DeviceTypeCreateReq request) {
+    public static DeviceTypeDO fromCreateReq(DeviceTypeCreateReq request) {
         DeviceTypeDO entity = new DeviceTypeDO();
         entity.setId(UUID.randomUUID().toString());
-        entity.setTenantUuid(tenantId);
         entity.setTypeCode(request.getTypeCode());
         entity.setTypeDictValue(request.getTypeDictValue());
         entity.setParentTypeId(request.getParentTypeId());

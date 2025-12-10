@@ -23,8 +23,6 @@ public class OrganizationUnitDO extends BaseSimpleDO {
     @TableId(type = IdType.INPUT)
     private String id;
 
-    private String tenantId;
-
     private String unitCode;
 
     private String unitName;

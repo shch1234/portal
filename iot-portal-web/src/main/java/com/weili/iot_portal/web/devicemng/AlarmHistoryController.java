@@ -29,9 +29,8 @@ public class AlarmHistoryController {
     @PreAuthorize("hasPermission(null, 'device:alarm:view')")
     @Operation(summary = "查询进行中的报警")
     public CommonResult<AlarmHistoryVO> getCurrent(@RequestParam("deviceId")  String deviceId) {
-        String tenantId = SecurityFrameworkContext.getLoginTenantId();
         String factoryId = SecurityFrameworkContext.getLoginFactoryId();
-        return CommonResult.success(alarmHistoryService.getCurrentAlarms(tenantId, factoryId, deviceId));
+        return CommonResult.success(alarmHistoryService.getCurrentAlarms(factoryId, deviceId));
     }
 
     @PostMapping("/history")
@@ -39,9 +38,8 @@ public class AlarmHistoryController {
     @PreAuthorize("hasPermission(null, 'device:alarm:view')")
     @Operation(summary = "分页查询历史报警")
     public CommonResult<AlarmHistoryVO> getHistory( @Valid @RequestBody AlarmHistoryQueryReq request) {
-        String tenantId = SecurityFrameworkContext.getLoginTenantId();
         String factoryId = SecurityFrameworkContext.getLoginFactoryId();
-        return CommonResult.success(alarmHistoryService.getAlarmHistory(tenantId, factoryId, request));
+        return CommonResult.success(alarmHistoryService.getAlarmHistory(factoryId, request));
     }
 }
 

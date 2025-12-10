@@ -20,37 +20,34 @@ public interface DeviceStateApi {
      * 
      * <p><b>工厂隔离：</b>会验证设备是否属于指定的工厂，如果设备不属于该工厂，将抛出异常。
      *
-     * @param tenantId 租户ID
      * @param factoryId 工厂ID（用于数据隔离验证）
      * @param deviceId 设备ID
      * @return 设备状态信息，如果设备不存在或不属于指定工厂则返回null或抛出异常
      * @throws com.weili.basic.common.exception.ServiceException 如果设备不属于指定工厂
      */
-    DeviceStatusVO getCurrentStatus(String tenantId, String factoryId, String deviceId);
+    DeviceStatusVO getCurrentStatus(String factoryId, String deviceId);
 
     /**
      * 批量获取设备状态
      * 
      * <p><b>工厂隔离：</b>会验证所有设备是否属于指定的工厂，只返回属于该工厂的设备状态。
      *
-     * @param tenantId 租户ID
      * @param factoryId 工厂ID（用于数据隔离验证）
      * @param deviceIds 设备ID列表
      * @return 属于指定工厂的设备状态Map，key为deviceId，value为DeviceStatusVO
      */
-    Map<String, DeviceStatusVO> batchGetStatus(String tenantId, String factoryId, List<String> deviceIds);
+    Map<String, DeviceStatusVO> batchGetStatus(String factoryId, List<String> deviceIds);
 
     /**
      * 检查设备是否有报警
      * 
      * <p><b>工厂隔离：</b>会验证设备是否属于指定的工厂。
      *
-     * @param tenantId 租户ID
      * @param factoryId 工厂ID（用于数据隔离验证）
      * @param deviceId 设备ID
      * @return 是否有报警（如果设备不属于指定工厂，返回false或抛出异常）
      * @throws com.weili.basic.common.exception.ServiceException 如果设备不属于指定工厂
      */
-    boolean hasAlarm(String tenantId, String factoryId, String deviceId);
+    boolean hasAlarm(String factoryId, String deviceId);
 }
 

@@ -11,14 +11,14 @@ import com.weili.iot_portal.domain.devicebase.request.OrganizationUnitUpdateReq;
  */
 public interface OrganizationUnitService {
 
-    OrganizationUnitVO create(String tenantId,OrganizationUnitCreateReq request);
+    OrganizationUnitVO create(OrganizationUnitCreateReq request);
 
-    OrganizationUnitVO update(String tenantId, OrganizationUnitUpdateReq request);
+    OrganizationUnitVO update(OrganizationUnitUpdateReq request);
 
-    OrganizationUnitVO get(String tenantId, String id);
+    OrganizationUnitVO get(String id);
 
-    PageResult<OrganizationUnitVO> page(String tenantId, OrganizationUnitQueryReq request);
+    PageResult<OrganizationUnitVO> page(OrganizationUnitQueryReq request);
 
-    boolean delete(String tenantId, String id);
+    boolean delete(String id);
 }
 

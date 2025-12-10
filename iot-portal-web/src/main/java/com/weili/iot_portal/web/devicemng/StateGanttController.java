@@ -24,9 +24,8 @@ public class StateGanttController {
     @PreAuthorize("hasPermission(null, 'device:state:view')")
     @Operation(summary = "查询当前班次状态甘特")
     public CommonResult<StateGanttVO> getCurrentShift(@RequestParam("deviceId") String deviceId) {
-        String tenantId = SecurityFrameworkContext.getLoginTenantId();
         String factoryId = SecurityFrameworkContext.getLoginFactoryId();
-        return CommonResult.success(stateGanttService.getCurrentShiftGantt(tenantId, factoryId, deviceId));
+        return CommonResult.success(stateGanttService.getCurrentShiftGantt(factoryId, deviceId));
     }
 
     @GetMapping
@@ -36,9 +35,8 @@ public class StateGanttController {
     public CommonResult<StateGanttVO> getHistory(@RequestParam("deviceId") String deviceId,
                                                  @RequestParam("startTs") Long startTs,
                                                  @RequestParam("endTs") Long endTs) {
-        String tenantId = SecurityFrameworkContext.getLoginTenantId();
         String factoryId = SecurityFrameworkContext.getLoginFactoryId();
-        return CommonResult.success(stateGanttService.getHistoryGantt(tenantId, factoryId, deviceId, startTs, endTs));
+        return CommonResult.success(stateGanttService.getHistoryGantt(factoryId, deviceId, startTs, endTs));
     }
 }
 

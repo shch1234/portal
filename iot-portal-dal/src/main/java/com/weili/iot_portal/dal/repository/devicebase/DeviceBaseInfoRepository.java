@@ -12,24 +12,24 @@ import java.util.Optional;
  */
 public interface DeviceBaseInfoRepository {
 
-    Optional<DeviceBaseInfoDO> findById(String tenantId, String id);
+    Optional<DeviceBaseInfoDO> findById(String id);
 
-    Optional<DeviceBaseInfoDO> findByDeviceCode(String tenantId, String deviceCode);
+    Optional<DeviceBaseInfoDO> findByDeviceCode(String deviceCode);
 
-    Optional<DeviceBaseInfoDO> findByTbDeviceId(String tenantId, String tbDeviceId);
+    Optional<DeviceBaseInfoDO> findByTbDeviceId(String tbDeviceId);
 
-    boolean existsByDeviceCode(String tenantId, String deviceCode, String excludeId);
+    boolean existsByDeviceCode(String deviceCode, String excludeId);
 
-    boolean existsByTbDeviceId(String tenantId, String tbDeviceId, String excludeId);
+    boolean existsByTbDeviceId(String tbDeviceId, String excludeId);
 
     PageResult<DeviceBaseInfoDO> selectPage(DeviceBaseInfoPageQuery query);
 
-    List<DeviceBaseInfoDO> findByFactoryId(String tenantId, String factoryId);
+    List<DeviceBaseInfoDO> findByFactoryId(String factoryId);
 
     void insert(DeviceBaseInfoDO entity);
 
     void update(DeviceBaseInfoDO entity);
 
-    boolean deleteById(String tenantId, String id);
+    boolean deleteById(String id);
 }
 

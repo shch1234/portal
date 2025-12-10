@@ -5,7 +5,6 @@ import lombok.Data;
 @Data
 public class DeviceAlarmVO {
     private String id;
-    private String tenantId;
     private String factoryId;
     private String deviceId;
     private String alarmCode;

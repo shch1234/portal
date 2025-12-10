@@ -17,8 +17,8 @@ public class ToolCompensationServiceImpl implements ToolCompensationService {
     private final ToolCompensationCache toolCompensationCache;
 
     @Override
-    public ToolCompensationVO getCurrent(String tenantId, String factoryId, String deviceId) {
-        deviceFactoryValidator.ensureDeviceBelongsToFactory(tenantId, factoryId, deviceId);
+    public ToolCompensationVO getCurrent(String factoryId, String deviceId) {
+        deviceFactoryValidator.ensureDeviceBelongsToFactory(factoryId, deviceId);
         return toolCompensationCache.get(deviceId)
                 .orElseThrow(() -> new ServiceException(
                         ErrorCodeConstants.DEFAULT_ERROR.getCode(),

@@ -36,7 +36,7 @@ public class ToolCompensationWebhookServiceImpl implements ToolCompensationWebho
         }
 
         DeviceIdentityCacheService.DeviceIdentity identity = deviceIdentityCacheService
-                .resolveByDeviceCode(request.getTenantId(), request.getDeviceCode(),
+                .resolveByDeviceCode(request.getDeviceCode(),
                         request.getTbDeviceId(), "toolCompensation");
 
         List<ToolCompensationUpdateItem> items = request.getItems().stream()
@@ -54,7 +54,6 @@ public class ToolCompensationWebhookServiceImpl implements ToolCompensationWebho
         RealtimeIngestionEvent event = RealtimeIngestionEvent.builder()
                 .eventType(RealtimeIngestionEventType.TOOL_COMPENSATION)
                 .messageId(request.getMessageId())
-                .tenantId(request.getTenantId())
                 .factoryId(identity.getFactoryId())
                 .deviceId(identity.getDeviceId())
                 .timestamp(System.currentTimeMillis())
@@ -63,8 +62,8 @@ public class ToolCompensationWebhookServiceImpl implements ToolCompensationWebho
 
         dispatcher.dispatch(event);
 
-        log.info("接收刀具补偿Webhook成功: messageId={}, tenantId={}, deviceCode={}, deviceId={}, factoryId={}, count={}, tbDeviceId={}",
-                request.getMessageId(), request.getTenantId(), request.getDeviceCode(),
+        log.info("接收刀具补偿Webhook成功: messageId={}, deviceCode={}, deviceId={}, factoryId={}, count={}, tbDeviceId={}",
+                request.getMessageId(), request.getDeviceCode(),
                 identity.getDeviceId(), identity.getFactoryId(), items.size(), request.getTbDeviceId());
     }
 }

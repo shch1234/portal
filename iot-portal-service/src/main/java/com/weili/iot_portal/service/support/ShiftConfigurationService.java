@@ -28,18 +28,17 @@ public class ShiftConfigurationService {
     /**
      * 获取设备在当前时间的生效班次配置（带工厂验证）
      *
-     * @param tenantId 租户ID
      * @param factoryId 工厂ID
      * @param deviceId 设备ID
      * @param timestamp 时间戳（毫秒）
      * @return 班次配置
      */
-    public ShiftConfigurationDO getCurrentConfiguration(String tenantId, String factoryId, String deviceId, long timestamp) {
+    public ShiftConfigurationDO getCurrentConfiguration(String factoryId, String deviceId, long timestamp) {
         // 验证设备属于指定工厂
-        deviceFactoryValidator.ensureDeviceBelongsToFactory(tenantId, factoryId, deviceId);
+        deviceFactoryValidator.ensureDeviceBelongsToFactory(factoryId, deviceId);
         
         Optional<ShiftConfigurationDO> configOpt = shiftConfigurationRepository
-                .findActiveByDeviceAndTime(tenantId, deviceId, timestamp);
+                .findActiveByDeviceAndTime(deviceId, timestamp);
         return configOpt.orElseThrow(() -> new ServiceException(
                 ErrorCodeConstants.DEFAULT_ERROR.getCode(),
                 "设备未配置班次信息，请先配置班次"));
@@ -48,28 +47,26 @@ public class ShiftConfigurationService {
     /**
      * 根据时间点确定当前班次信息（带工厂验证）
      *
-     * @param tenantId 租户ID
      * @param factoryId 工厂ID
      * @param deviceId 设备ID
      * @param timestamp 时间戳（毫秒）
      * @return 班次信息
      */
-    public ShiftInfo getCurrentShift(String tenantId, String factoryId, String deviceId, long timestamp) {
-        ShiftConfigurationDO config = getCurrentConfiguration(tenantId, factoryId, deviceId, timestamp);
+    public ShiftInfo getCurrentShift(String factoryId, String deviceId, long timestamp) {
+        ShiftConfigurationDO config = getCurrentConfiguration(factoryId, deviceId, timestamp);
         return findShiftByTime(config, timestamp);
     }
 
     /**
      * 计算班次的时间范围（带工厂验证）
      *
-     * @param tenantId 租户ID
      * @param factoryId 工厂ID
      * @param deviceId 设备ID
      * @param timestamp 时间戳（毫秒）
      * @return 班次时间范围
      */
-    public ShiftTimeRange calculateShiftRange(String tenantId, String factoryId, String deviceId, long timestamp) {
-        ShiftConfigurationDO config = getCurrentConfiguration(tenantId, factoryId, deviceId, timestamp);
+    public ShiftTimeRange calculateShiftRange(String factoryId, String deviceId, long timestamp) {
+        ShiftConfigurationDO config = getCurrentConfiguration(factoryId, deviceId, timestamp);
         ShiftInfo shift = findShiftByTime(config, timestamp);
 
         LocalDateTime baseTime = LocalDateTime.ofInstant(
@@ -124,7 +121,6 @@ public class ShiftConfigurationService {
     /**
      * 获取时间范围内的所有配置版本（带工厂验证）
      *
-     * @param tenantId 租户ID
      * @param factoryId 工厂ID
      * @param deviceId 设备ID
      * @param startTs 开始时间戳
@@ -132,11 +128,11 @@ public class ShiftConfigurationService {
      * @return 班次配置列表（按生效时间倒序）
      */
     public List<ShiftConfigurationDO> getConfigurationsInRange(
-            String tenantId, String factoryId, String deviceId, long startTs, long endTs) {
+            String factoryId, String deviceId, long startTs, long endTs) {
         // 验证设备属于指定工厂
-        deviceFactoryValidator.ensureDeviceBelongsToFactory(tenantId, factoryId, deviceId);
+        deviceFactoryValidator.ensureDeviceBelongsToFactory(factoryId, deviceId);
         
-        return shiftConfigurationRepository.findByDeviceAndTimeRange(tenantId, deviceId, startTs, endTs);
+        return shiftConfigurationRepository.findByDeviceAndTimeRange(deviceId, startTs, endTs);
     }
 
     /**

@@ -8,19 +8,19 @@ import com.weili.iot_portal.domain.devicemng.RealtimeMetricValueVO;
  */
 public interface RealtimeCurveService {
 
-    RealtimeCurveVO getRealtimeSpindleLoad(String tenantId, String factoryId, String deviceId);
+    RealtimeCurveVO getRealtimeSpindleLoad(String factoryId, String deviceId);
 
-    RealtimeCurveVO getHistorySpindleLoad(String tenantId, String factoryId, String deviceId, Long startTs, Long endTs);
+    RealtimeCurveVO getHistorySpindleLoad(String factoryId, String deviceId, Long startTs, Long endTs);
 
-    RealtimeCurveVO getRealtimeSpindleSpeed(String tenantId, String factoryId, String deviceId);
+    RealtimeCurveVO getRealtimeSpindleSpeed(String factoryId, String deviceId);
 
-    RealtimeCurveVO getHistorySpindleSpeed(String tenantId, String factoryId, String deviceId, Long startTs, Long endTs);
+    RealtimeCurveVO getHistorySpindleSpeed(String factoryId, String deviceId, Long startTs, Long endTs);
 
-    RealtimeCurveVO getRealtimeFeedRate(String tenantId, String factoryId, String deviceId);
+    RealtimeCurveVO getRealtimeFeedRate(String factoryId, String deviceId);
 
-    RealtimeCurveVO getHistoryFeedRate(String tenantId, String factoryId, String deviceId, Long startTs, Long endTs);
+    RealtimeCurveVO getHistoryFeedRate(String factoryId, String deviceId, Long startTs, Long endTs);
 
-    RealtimeMetricValueVO getRealtimeFeedOverride(String tenantId, String factoryId, String deviceId);
+    RealtimeMetricValueVO getRealtimeFeedOverride(String factoryId, String deviceId);
 }
 
 

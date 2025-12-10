@@ -23,17 +23,17 @@ public class AlarmHistoryRepositoryImpl implements AlarmHistoryRepository {
     private final AlarmHistoryMapper mapper;
 
     @Override
-    public List<AlarmHistoryDO> selectCurrent(String tenantId, String deviceId) {
-        LambdaQueryWrapper<AlarmHistoryDO> wrapper = baseQuery(tenantId, deviceId)
+    public List<AlarmHistoryDO> selectCurrent(String deviceId) {
+        LambdaQueryWrapper<AlarmHistoryDO> wrapper = baseQuery(deviceId)
                 .eq(AlarmHistoryDO::getIsActive, Boolean.TRUE)
                 .orderByDesc(AlarmHistoryDO::getStartTs);
         return mapper.selectList(wrapper);
     }
 
     @Override
-    public PageResult<AlarmHistoryDO> selectPage(String tenantId, String deviceId, Long startTs, Long endTs,
+    public PageResult<AlarmHistoryDO> selectPage(String deviceId, Long startTs, Long endTs,
                                                  Boolean inProgress, int pageNo, int pageSize) {
-        LambdaQueryWrapper<AlarmHistoryDO> wrapper = baseQuery(tenantId, deviceId);
+        LambdaQueryWrapper<AlarmHistoryDO> wrapper = baseQuery(deviceId);
         if (startTs != null) {
             wrapper.ge(AlarmHistoryDO::getStartTs, startTs);
         }
@@ -53,11 +53,8 @@ public class AlarmHistoryRepositoryImpl implements AlarmHistoryRepository {
     /**
      * 构建基础查询条件（对应 device_alarm_history 表的字段）
      */
-    private LambdaQueryWrapper<AlarmHistoryDO> baseQuery(String tenantId, String deviceId) {
+    private LambdaQueryWrapper<AlarmHistoryDO> baseQuery(String deviceId) {
         LambdaQueryWrapper<AlarmHistoryDO> wrapper = new LambdaQueryWrapper<>();
-        if (StringUtils.isNotBlank(tenantId)) {
-            wrapper.eq(AlarmHistoryDO::getTenantUuid, tenantId);
-        }
         if (StringUtils.isNotBlank(deviceId)) {
             wrapper.eq(AlarmHistoryDO::getDeviceInfoId, deviceId);
         }

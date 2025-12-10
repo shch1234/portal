@@ -14,8 +14,4 @@ public class LoginUserModel {
     private String userName;
     private Long departId;
     private String sex;
-    /**
-     * TB/Portal 对应的租户ID
-     */
-    private String tenantId;
 }

@@ -113,17 +113,13 @@ public class DeviceStateSummaryJob extends BaseScheduledJob {
         int skipCount = 0;
         int errorCount = 0;
 
-        // 先按租户分组，再按工厂分组处理
+        // 按工厂分组处理
         long totalDeviceCount = allDevices.size();
-        Map<String, Map<String, List<DeviceBaseInfoDO>>> devicesByTenantAndFactory = allDevices.stream()
+        Map<String, List<DeviceBaseInfoDO>> devicesByFactory = allDevices.stream()
                 .filter(device -> device.getOrgFactoryId() != null) // 过滤掉未关联工厂的设备
-                .collect(Collectors.groupingBy(
-                        DeviceBaseInfoDO::getTenantUuid,
-                        Collectors.groupingBy(DeviceBaseInfoDO::getOrgFactoryId)
-                ));
+                .collect(Collectors.groupingBy(DeviceBaseInfoDO::getOrgFactoryId));
         
-        long filteredDeviceCount = devicesByTenantAndFactory.values().stream()
-                .flatMap(factoryMap -> factoryMap.values().stream())
+        long filteredDeviceCount = devicesByFactory.values().stream()
                 .mapToLong(List::size)
                 .sum();
         
@@ -134,42 +130,35 @@ public class DeviceStateSummaryJob extends BaseScheduledJob {
             skipCount += (int) skippedCount;
         }
 
-        // 按租户和工厂分组处理
-        for (Map.Entry<String, Map<String, List<DeviceBaseInfoDO>>> tenantEntry : devicesByTenantAndFactory.entrySet()) {
-            String tenantId = tenantEntry.getKey();
-            Map<String, List<DeviceBaseInfoDO>> devicesByFactory = tenantEntry.getValue();
+        // 按工厂分组处理
+        for (Map.Entry<String, List<DeviceBaseInfoDO>> factoryEntry : devicesByFactory.entrySet()) {
+            String factoryId = factoryEntry.getKey();
+            List<DeviceBaseInfoDO> devices = factoryEntry.getValue();
 
-            XxlJobHelper.log("处理租户: {}, 工厂数量: {}", tenantId, devicesByFactory.size());
+            XxlJobHelper.log("处理工厂: {}, 设备数量: {}", factoryId, devices.size());
 
-            for (Map.Entry<String, List<DeviceBaseInfoDO>> factoryEntry : devicesByFactory.entrySet()) {
-                String factoryId = factoryEntry.getKey();
-                List<DeviceBaseInfoDO> devices = factoryEntry.getValue();
-
-                XxlJobHelper.log("处理工厂: {}, 设备数量: {}", factoryId, devices.size());
-
-                try {
-                    // 使用检查点机制处理工厂设备
-                    ProcessResult factoryResult = processFactoryWithCheckpoint(
-                            tenantId, factoryId, devices, statisticsTimeSeconds);
-                    
-                    // 统计工厂处理结果
-                    if (factoryResult.getSuccessCount().isPresent()) {
-                        int count = factoryResult.getSuccessCount().get();
-                        successCount += count;
-                        XxlJobHelper.log("工厂处理完成: factoryId={}, 成功={}, 跳过={}, 失败={}, 是否完成={}", 
-                                factoryId, count, factoryResult.getSkipCount(), 
-                                factoryResult.getErrorCount(), factoryResult.isCompleted());
-                    }
-                    
-                    skipCount += factoryResult.getSkipCount();
-                    errorCount += factoryResult.getErrorCount();
-                } catch (Exception e) {
-                    errorCount += devices.size(); // 工厂处理失败，该工厂所有设备计入失败
-                    log.error("处理工厂失败: tenantId={}, factoryId={}, deviceCount={}", 
-                            tenantId, factoryId, devices.size(), e);
-                    XxlJobHelper.log("处理工厂失败: factoryId={}, error={}", factoryId, e.getMessage());
-                    // 继续处理下一个工厂，不中断
+            try {
+                // 使用检查点机制处理工厂设备
+                ProcessResult factoryResult = processFactoryWithCheckpoint(
+                        factoryId, devices, statisticsTimeSeconds);
+                
+                // 统计工厂处理结果
+                if (factoryResult.getSuccessCount().isPresent()) {
+                    int count = factoryResult.getSuccessCount().get();
+                    successCount += count;
+                    XxlJobHelper.log("工厂处理完成: factoryId={}, 成功={}, 跳过={}, 失败={}, 是否完成={}", 
+                            factoryId, count, factoryResult.getSkipCount(), 
+                            factoryResult.getErrorCount(), factoryResult.isCompleted());
                 }
+                
+                skipCount += factoryResult.getSkipCount();
+                errorCount += factoryResult.getErrorCount();
+            } catch (Exception e) {
+                errorCount += devices.size(); // 工厂处理失败，该工厂所有设备计入失败
+                log.error("处理工厂失败: factoryId={}, deviceCount={}", 
+                        factoryId, devices.size(), e);
+                XxlJobHelper.log("处理工厂失败: factoryId={}, error={}", factoryId, e.getMessage());
+                // 继续处理下一个工厂，不中断
             }
         }
 
@@ -179,8 +168,6 @@ public class DeviceStateSummaryJob extends BaseScheduledJob {
     /**
      * 查询所有设备
      * 注意：这里需要根据实际业务需求调整，可能需要查询所有租户的设备
-     * 当前实现：通过Mapper直接查询所有设备（不按租户过滤）
-     * 如果需要按租户处理，需要先查询所有租户，然后遍历查询每个租户的设备
      */
     private List<DeviceBaseInfoDO> queryAllDevices() {
         // 通过Mapper查询所有设备（不按租户过滤）
@@ -193,16 +180,15 @@ public class DeviceStateSummaryJob extends BaseScheduledJob {
     /**
      * 处理单个设备的班次统计
      * 
-     * @param tenantId 租户ID
      * @param device 设备信息
      * @param statisticsTimeSeconds 统计时间点（秒）
      * @return true-已处理，false-跳过（无班次配置或班次未结束）
      */
     @Transactional(rollbackFor = Exception.class)
-    public boolean processDeviceShift(String tenantId, DeviceBaseInfoDO device, long statisticsTimeSeconds) {
+    public boolean processDeviceShift(DeviceBaseInfoDO device, long statisticsTimeSeconds) {
         // 1. 查询设备在当前时间的班次配置
         Optional<ShiftConfigurationDO> configOpt = shiftConfigurationRepository
-                .findActiveByDeviceAndTime(tenantId, device.getId(), statisticsTimeSeconds * 1000L);
+                .findActiveByDeviceAndTime(device.getId(), statisticsTimeSeconds * 1000L);
 
         if (configOpt.isEmpty()) {
             // 设备未配置班次，跳过
@@ -214,7 +200,7 @@ public class DeviceStateSummaryJob extends BaseScheduledJob {
         // 2. 计算已结束的班次
         // 统计时间点应该落在刚结束的班次内，所以需要找到前一个班次
         ShiftTimeRange previousShiftRange = calculatePreviousShiftRange(
-                tenantId, device.getOrgFactoryId(), device.getId(), config, statisticsTimeSeconds);
+                device.getOrgFactoryId(), device.getId(), config, statisticsTimeSeconds);
 
         if (previousShiftRange == null) {
             // 无法计算前一个班次，跳过
@@ -233,7 +219,7 @@ public class DeviceStateSummaryJob extends BaseScheduledJob {
         // 4. 检查是否已经统计过（避免重复统计）
         LocalDate shiftDate = calculateShiftDate(previousShiftRange, shiftEndTimeSeconds);
         DeviceStateSummaryDO existingSummary = findExistingSummary(
-                tenantId, device.getId(), shiftDate, previousShiftRange.getShiftCode());
+                device.getId(), shiftDate, previousShiftRange.getShiftCode());
 
         if (existingSummary != null && Boolean.TRUE.equals(existingSummary.getIsFinalized())) {
             // 已经统计过且已确定，跳过
@@ -242,7 +228,7 @@ public class DeviceStateSummaryJob extends BaseScheduledJob {
 
         // 5. 统计班次状态数据
         List<DeviceStateTimelineDO> stateRecords = stateTimelineRepository.selectByRange(
-                tenantId, device.getId(), 
+                device.getId(), 
                 previousShiftRange.getStartTs() / 1000, 
                 previousShiftRange.getEndTs() / 1000);
 
@@ -251,7 +237,7 @@ public class DeviceStateSummaryJob extends BaseScheduledJob {
                 stateRecords, previousShiftRange.getStartTs() / 1000, previousShiftRange.getEndTs() / 1000);
 
         // 7. 更新或插入汇总记录
-        saveOrUpdateSummary(tenantId, device.getId(), device.getOrgFactoryId(), shiftDate, previousShiftRange, stateStats);
+        saveOrUpdateSummary(device.getId(), device.getOrgFactoryId(), shiftDate, previousShiftRange, stateStats);
 
         return true;
     }
@@ -259,12 +245,12 @@ public class DeviceStateSummaryJob extends BaseScheduledJob {
     /**
      * 计算前一个班次的时间范围
      */
-    private ShiftTimeRange calculatePreviousShiftRange(String tenantId, String factoryId, String deviceId,
+    private ShiftTimeRange calculatePreviousShiftRange(String factoryId, String deviceId,
                                                        ShiftConfigurationDO config, long statisticsTimeSeconds) {
         try {
             // 获取当前时间点的班次
             ShiftTimeRange currentShift = shiftConfigurationService.calculateShiftRange(
-                    tenantId, factoryId, deviceId, statisticsTimeSeconds * 1000L);
+                    factoryId, deviceId, statisticsTimeSeconds * 1000L);
 
             // 计算前一个班次
             // 前一个班次的结束时间 = 当前班次的开始时间
@@ -276,8 +262,8 @@ public class DeviceStateSummaryJob extends BaseScheduledJob {
 
             return previousShift;
         } catch (Exception e) {
-            log.warn("计算前一个班次失败: tenantId={}, deviceId={}, error={}", 
-                    tenantId, deviceId, e.getMessage());
+            log.warn("计算前一个班次失败: factoryId={}, deviceId={}, error={}", 
+                    factoryId, deviceId, e.getMessage());
             return null;
         }
     }
@@ -411,11 +397,10 @@ public class DeviceStateSummaryJob extends BaseScheduledJob {
     /**
      * 查找已存在的汇总记录
      */
-    private DeviceStateSummaryDO findExistingSummary(String tenantId, String deviceId, 
+    private DeviceStateSummaryDO findExistingSummary(String deviceId, 
                                                      LocalDate shiftDate, String shiftCode) {
         LambdaQueryWrapper<DeviceStateSummaryDO> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(DeviceStateSummaryDO::getTenantUuid, tenantId)
-                .eq(DeviceStateSummaryDO::getDeviceInfoId, deviceId)
+        wrapper.eq(DeviceStateSummaryDO::getDeviceInfoId, deviceId)
                 .eq(DeviceStateSummaryDO::getSummaryDate, shiftDate)
                 .eq(DeviceStateSummaryDO::getShiftCode, shiftCode)
                 .last("limit 1");
@@ -486,16 +471,15 @@ public class DeviceStateSummaryJob extends BaseScheduledJob {
     /**
      * 保存或更新汇总记录（供补偿任务调用）
      */
-    public void saveOrUpdateSummary(String tenantId, String deviceId, String orgFactoryId, LocalDate shiftDate,
+    public void saveOrUpdateSummary(String deviceId, String orgFactoryId, LocalDate shiftDate,
                                     ShiftTimeRange shiftRange, Map<String, StateStatistics> stateStats) {
         
         DeviceStateSummaryDO summary = findExistingSummary(
-                tenantId, deviceId, shiftDate, shiftRange.getShiftCode());
+                deviceId, shiftDate, shiftRange.getShiftCode());
 
         if (summary == null) {
             summary = new DeviceStateSummaryDO();
             summary.setId(IdWorker.getIdStr());
-            summary.setTenantUuid(tenantId);
             summary.setDeviceInfoId(deviceId);
             summary.setOrgFactoryId(orgFactoryId);
             summary.setSummaryDate(shiftDate);
@@ -552,7 +536,7 @@ public class DeviceStateSummaryJob extends BaseScheduledJob {
         summary.setStateStatistics(stateStatisticsJson);
 
         // 保存或更新
-        if (summary.getId() != null && findExistingSummary(tenantId, deviceId, shiftDate, shiftRange.getShiftCode()) != null) {
+        if (summary.getId() != null && findExistingSummary(deviceId, shiftDate, shiftRange.getShiftCode()) != null) {
             stateSummaryMapper.updateById(summary);
         } else {
             stateSummaryMapper.insert(summary);
@@ -562,11 +546,11 @@ public class DeviceStateSummaryJob extends BaseScheduledJob {
     /**
      * 使用检查点机制处理工厂设备（支持失败恢复）
      */
-    private ProcessResult processFactoryWithCheckpoint(String tenantId, String factoryId,
+    private ProcessResult processFactoryWithCheckpoint(String factoryId,
                                                        List<DeviceBaseInfoDO> devices,
                                                        long statisticsTimeSeconds) {
         // 加载检查点
-        CheckpointData checkpoint = loadCheckpoint(tenantId, factoryId, statisticsTimeSeconds);
+        CheckpointData checkpoint = loadCheckpoint(factoryId, statisticsTimeSeconds);
         
         Set<String> processedDeviceIds = checkpoint != null 
                 ? new HashSet<>(checkpoint.getProcessedDeviceIds())
@@ -579,7 +563,7 @@ public class DeviceStateSummaryJob extends BaseScheduledJob {
         
         if (remainingDevices.isEmpty()) {
             XxlJobHelper.log("工厂 {} 所有设备已处理，清除检查点", factoryId);
-            clearCheckpoint(tenantId, factoryId, statisticsTimeSeconds);
+            clearCheckpoint(factoryId, statisticsTimeSeconds);
             return ProcessResult.completed(0, 0, 0);
         }
         
@@ -601,7 +585,7 @@ public class DeviceStateSummaryJob extends BaseScheduledJob {
             
             for (DeviceBaseInfoDO device : batch) {
                 try {
-                    boolean processed = processDeviceShift(tenantId, device, statisticsTimeSeconds);
+                    boolean processed = processDeviceShift(device, statisticsTimeSeconds);
                     if (processed) {
                         successCount++;
                         newProcessedIds.add(device.getId());
@@ -611,8 +595,8 @@ public class DeviceStateSummaryJob extends BaseScheduledJob {
                     }
                 } catch (Exception e) {
                     errorCount++;
-                    log.error("处理设备失败: tenantId={}, factoryId={}, deviceId={}, deviceCode={}", 
-                            tenantId, factoryId, device.getId(), device.getDeviceCode(), e);
+                    log.error("处理设备失败: factoryId={}, deviceId={}, deviceCode={}", 
+                            factoryId, device.getId(), device.getDeviceCode(), e);
                     XxlJobHelper.log("处理设备失败: factoryId={}, deviceCode={}, error={}", 
                             factoryId, device.getDeviceCode(), e.getMessage());
                     // 继续处理下一个设备，不中断
@@ -622,7 +606,7 @@ public class DeviceStateSummaryJob extends BaseScheduledJob {
             // 每批处理完后更新检查点
             if (!newProcessedIds.isEmpty()) {
                 List<String> allProcessedIds = new ArrayList<>(processedDeviceIds);
-                saveCheckpoint(tenantId, factoryId, statisticsTimeSeconds, allProcessedIds);
+                saveCheckpoint(factoryId, statisticsTimeSeconds, allProcessedIds);
                 newProcessedIds.clear();
             }
             
@@ -637,12 +621,12 @@ public class DeviceStateSummaryJob extends BaseScheduledJob {
         
         // 所有设备都处理完成，清除检查点
         if (processedDeviceIds.size() >= devices.size()) {
-            clearCheckpoint(tenantId, factoryId, statisticsTimeSeconds);
+            clearCheckpoint(factoryId, statisticsTimeSeconds);
             return ProcessResult.completed(successCount, skipCount, errorCount);
         } else {
             // 还有未处理的设备，保存检查点
             List<String> allProcessedIds = new ArrayList<>(processedDeviceIds);
-            saveCheckpoint(tenantId, factoryId, statisticsTimeSeconds, allProcessedIds);
+            saveCheckpoint(factoryId, statisticsTimeSeconds, allProcessedIds);
             return ProcessResult.incomplete(successCount, skipCount, errorCount);
         }
     }
@@ -650,13 +634,12 @@ public class DeviceStateSummaryJob extends BaseScheduledJob {
     /**
      * 保存检查点
      */
-    private void saveCheckpoint(String tenantId, String factoryId, 
+    private void saveCheckpoint(String factoryId, 
                                 long statisticsTimeSeconds, 
                                 List<String> processedDeviceIds) {
-        String key = buildCheckpointKey(tenantId, factoryId, statisticsTimeSeconds);
+        String key = buildCheckpointKey(factoryId, statisticsTimeSeconds);
         
         CheckpointData checkpoint = new CheckpointData();
-        checkpoint.setTenantId(tenantId);
         checkpoint.setFactoryId(factoryId);
         checkpoint.setStatisticsTimeSeconds(statisticsTimeSeconds);
         checkpoint.setProcessedDeviceIds(processedDeviceIds);
@@ -675,9 +658,9 @@ public class DeviceStateSummaryJob extends BaseScheduledJob {
     /**
      * 加载检查点
      */
-    private CheckpointData loadCheckpoint(String tenantId, String factoryId, 
+    private CheckpointData loadCheckpoint(String factoryId, 
                                          long statisticsTimeSeconds) {
-        String key = buildCheckpointKey(tenantId, factoryId, statisticsTimeSeconds);
+        String key = buildCheckpointKey(factoryId, statisticsTimeSeconds);
         try {
             String value = redisClient.get(key);
             if (StringUtils.isBlank(value)) {
@@ -693,9 +676,9 @@ public class DeviceStateSummaryJob extends BaseScheduledJob {
     /**
      * 清除检查点
      */
-    private void clearCheckpoint(String tenantId, String factoryId, 
+    private void clearCheckpoint(String factoryId, 
                                 long statisticsTimeSeconds) {
-        String key = buildCheckpointKey(tenantId, factoryId, statisticsTimeSeconds);
+        String key = buildCheckpointKey(factoryId, statisticsTimeSeconds);
         try {
             redisClient.delete(key);
             log.debug("清除检查点: key={}", key);
@@ -707,8 +690,8 @@ public class DeviceStateSummaryJob extends BaseScheduledJob {
     /**
      * 构建检查点Key
      */
-    private String buildCheckpointKey(String tenantId, String factoryId, long statisticsTimeSeconds) {
-        return String.format("%s%s:%s:%d", CHECKPOINT_KEY_PREFIX, tenantId, factoryId, statisticsTimeSeconds);
+    private String buildCheckpointKey(String factoryId, long statisticsTimeSeconds) {
+        return String.format("%s%s:%d", CHECKPOINT_KEY_PREFIX, factoryId, statisticsTimeSeconds);
     }
     
     /**
@@ -716,7 +699,6 @@ public class DeviceStateSummaryJob extends BaseScheduledJob {
      */
     @Data
     private static class CheckpointData {
-        private String tenantId;
         private String factoryId;
         private long statisticsTimeSeconds;
         private List<String> processedDeviceIds;

@@ -39,7 +39,7 @@ public class SpindleSpeedWebhookServiceImpl implements SpindleSpeedWebhookServic
         }
 
         DeviceIdentityCacheService.DeviceIdentity identity = deviceIdentityCacheService
-                .resolveByDeviceCode(request.getTenantId(), request.getDeviceCode(),
+                .resolveByDeviceCode(request.getDeviceCode(),
                         request.getTbDeviceId(), "spindleSpeed");
 
         RealtimeCurveVO curve = buildCurve(identity.getDeviceId(), request);
@@ -47,7 +47,6 @@ public class SpindleSpeedWebhookServiceImpl implements SpindleSpeedWebhookServic
         RealtimeIngestionEvent event = RealtimeIngestionEvent.builder()
                 .eventType(RealtimeIngestionEventType.SPINDLE_SPEED)
                 .messageId(request.getMessageId())
-                .tenantId(request.getTenantId())
                 .factoryId(identity.getFactoryId())
                 .deviceId(identity.getDeviceId())
                 .timestamp(request.getTs())
@@ -56,8 +55,8 @@ public class SpindleSpeedWebhookServiceImpl implements SpindleSpeedWebhookServic
 
         dispatcher.dispatch(event);
 
-        log.info("接收主轴转速Webhook成功: messageId={}, tenantId={}, deviceCode={}, deviceId={}, factoryId={}, points={}, tbDeviceId={}",
-                request.getMessageId(), request.getTenantId(), request.getDeviceCode(),
+        log.info("接收主轴转速Webhook成功: messageId={}, deviceCode={}, deviceId={}, factoryId={}, points={}, tbDeviceId={}",
+                request.getMessageId(), request.getDeviceCode(),
                 identity.getDeviceId(), identity.getFactoryId(), curve.getPoints().size(), request.getTbDeviceId());
     }
 

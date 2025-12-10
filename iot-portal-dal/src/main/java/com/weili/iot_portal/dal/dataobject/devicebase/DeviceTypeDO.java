@@ -26,9 +26,6 @@ public class DeviceTypeDO extends BaseSimpleDO {
     @TableId(type = IdType.INPUT)
     private String id;
 
-    /** 租户UUID，对应 tenant_uuid */
-    private String tenantUuid;
-
     private String typeCode;
 
     /** 类型字典值，对应 type_dict_value */

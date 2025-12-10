@@ -33,27 +33,25 @@ public class DeviceTypeServiceImpl implements DeviceTypeService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public DeviceTypeVO create(String tenantId, DeviceTypeCreateReq request) {
-        ensureTenant(tenantId);
+    public DeviceTypeVO create(DeviceTypeCreateReq request) {
         validateCreateReq(request);
-        checkTypeCodeUnique(tenantId, request.getTypeCode(), null);
-        validateParentType(tenantId, request.getParentTypeId());
+        checkTypeCodeUnique(request.getTypeCode(), null);
+        validateParentType(request.getParentTypeId());
 
-        DeviceTypeDO entity = DeviceTypeAssembler.fromCreateReq(tenantId, request);
+        DeviceTypeDO entity = DeviceTypeAssembler.fromCreateReq(request);
         LocalDateTime now = LocalDateTime.now();
         entity.setCreateTime(now);
         entity.setUpdateTime(now);
         repository.insert(entity);
 
-        String parentTypeDictValue = resolveParentDictValue(tenantId, entity.getParentTypeId());
+        String parentTypeDictValue = resolveParentDictValue(entity.getParentTypeId());
         return DeviceTypeAssembler.toVO(entity, parentTypeDictValue);
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public DeviceTypeVO update(String tenantId, DeviceTypeUpdateReq request) {
-        ensureTenant(tenantId);
-        DeviceTypeDO entity = repository.findById(tenantId, request.getId())
+    public DeviceTypeVO update(DeviceTypeUpdateReq request) {
+        DeviceTypeDO entity = repository.findById(request.getId())
                 .orElseThrow(() -> new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "设备类型不存在"));
 
         if (StringUtils.isNotBlank(request.getTypeDictValue())) {
@@ -78,24 +76,21 @@ public class DeviceTypeServiceImpl implements DeviceTypeService {
 
         repository.update(entity);
 
-        String parentTypeDictValue = resolveParentDictValue(tenantId, entity.getParentTypeId());
+        String parentTypeDictValue = resolveParentDictValue(entity.getParentTypeId());
         return DeviceTypeAssembler.toVO(entity, parentTypeDictValue);
     }
 
     @Override
-    public DeviceTypeVO get(String tenantId, String id) {
-        ensureTenant(tenantId);
-        DeviceTypeDO entity = repository.findById(tenantId, id)
+    public DeviceTypeVO get(String id) {
+        DeviceTypeDO entity = repository.findById(id)
                 .orElseThrow(() -> new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "设备类型不存在"));
-        String parentTypeDictValue = resolveParentDictValue(tenantId, entity.getParentTypeId());
+        String parentTypeDictValue = resolveParentDictValue(entity.getParentTypeId());
         return DeviceTypeAssembler.toVO(entity, parentTypeDictValue);
     }
 
     @Override
-    public PageResult<DeviceTypeVO> page(String tenantId, DeviceTypeQueryReq request) {
-        ensureTenant(tenantId);
+    public PageResult<DeviceTypeVO> page(DeviceTypeQueryReq request) {
         DeviceTypePageQuery query = new DeviceTypePageQuery();
-        query.setTenantUuid(tenantId);
         query.setTypeCodeLike(request.getTypeCodeLike());
         query.setTypeDictValueLike(request.getTypeDictValueLike());
         query.setParentTypeId(request.getParentTypeId());
@@ -108,7 +103,7 @@ public class DeviceTypeServiceImpl implements DeviceTypeService {
         query.setSortDirection(request.getSortDirection());
 
         PageResult<DeviceTypeDO> pageResult = repository.selectPage(query);
-        Map<String, String> parentNameCache = buildParentDictCache(tenantId, pageResult.getList());
+        Map<String, String> parentNameCache = buildParentDictCache(pageResult.getList());
         List<DeviceTypeVO> list = pageResult.getList().stream()
                 .map(item -> DeviceTypeAssembler.toVO(item, parentNameCache.get(item.getParentTypeId())))
                 .collect(Collectors.toList());
@@ -117,15 +112,8 @@ public class DeviceTypeServiceImpl implements DeviceTypeService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public boolean delete(String tenantId, String id) {
-        ensureTenant(tenantId);
-        return repository.deleteById(tenantId, id);
-    }
-
-    private void ensureTenant(String tenantId) {
-        if (StringUtils.isBlank(tenantId)) {
-            throw new ServiceException(ErrorCodeConstants.UNAUTHORIZED.getCode(), "未获取到租户信息");
-        }
+    public boolean delete(String id) {
+        return repository.deleteById(id);
     }
 
     private void validateCreateReq(DeviceTypeCreateReq request) {
@@ -140,30 +128,30 @@ public class DeviceTypeServiceImpl implements DeviceTypeService {
         }
     }
 
-    private void validateParentType(String tenantId, String parentTypeId) {
+    private void validateParentType(String parentTypeId) {
         if (StringUtils.isBlank(parentTypeId)) {
             return;
         }
-        repository.findById(tenantId, parentTypeId)
+        repository.findById(parentTypeId)
                 .orElseThrow(() -> new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "父级类型不存在"));
     }
 
-    private void checkTypeCodeUnique(String tenantId, String typeCode, String excludeId) {
-        if (repository.existsByTypeCode(tenantId, typeCode, excludeId)) {
+    private void checkTypeCodeUnique(String typeCode, String excludeId) {
+        if (repository.existsByTypeCode(typeCode, excludeId)) {
             throw new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "类型编码已存在");
         }
     }
 
-    private String resolveParentDictValue(String tenantId, String parentId) {
+    private String resolveParentDictValue(String parentId) {
         if (StringUtils.isBlank(parentId)) {
             return null;
         }
-        return repository.findById(tenantId, parentId)
+        return repository.findById(parentId)
                 .map(DeviceTypeDO::getTypeDictValue)
                 .orElse(null);
     }
 
-    private Map<String, String> buildParentDictCache(String tenantId, List<DeviceTypeDO> records) {
+    private Map<String, String> buildParentDictCache(List<DeviceTypeDO> records) {
         List<String> parentIds = records.stream()
                 .map(DeviceTypeDO::getParentTypeId)
                 .filter(StringUtils::isNotBlank)
@@ -173,7 +161,7 @@ public class DeviceTypeServiceImpl implements DeviceTypeService {
             return Map.of();
         }
         return parentIds.stream()
-                .map(id -> repository.findById(tenantId, id).orElse(null))
+                .map(id -> repository.findById(id).orElse(null))
                 .filter(item -> item != null)
                 .collect(Collectors.toMap(DeviceTypeDO::getId, DeviceTypeDO::getTypeDictValue));
     }

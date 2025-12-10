@@ -32,7 +32,6 @@ public class AlarmListController {
                     "- 字段：设备编号、设备类型/子类型、报警号、报警内容、开始时间、持续时间等")
     @GetMapping("/current")
     public CommonResult<PageResult<AlarmItemVO>> getCurrentAlarmList(
-            @RequestParam("tenantId") String tenantId,
             @RequestParam("factoryId") String factoryId,
             @RequestParam(value = "workshopId", required = false) String workshopId,
             @RequestParam(value = "pageNo", defaultValue = "1") Integer pageNo,
@@ -45,7 +44,7 @@ public class AlarmListController {
         request.setPageNo(pageNo);
         request.setPageSize(pageSize);
         
-        PageResult<AlarmItemVO> result = alarmListService.getAlarmList(tenantId, request);
+        PageResult<AlarmItemVO> result = alarmListService.getAlarmList(request);
         return CommonResult.success(result);
     }
 
@@ -57,9 +56,8 @@ public class AlarmListController {
                     "- 进行中报警：结束时间显示null，持续时间实时累加")
     @PostMapping("/query")
     public CommonResult<PageResult<AlarmItemVO>> getAlarmList(
-            @RequestParam("tenantId") String tenantId,
             @RequestBody AlarmListQueryReq request) {
-        PageResult<AlarmItemVO> result = alarmListService.getAlarmList(tenantId, request);
+        PageResult<AlarmItemVO> result = alarmListService.getAlarmList(request);
         return CommonResult.success(result);
     }
 }

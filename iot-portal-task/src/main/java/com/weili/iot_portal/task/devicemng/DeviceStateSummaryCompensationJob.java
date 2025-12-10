@@ -102,8 +102,8 @@ public class DeviceStateSummaryCompensationJob extends BaseCompensationJob<Devic
                 return ItemProcessResult.skipped("设备不存在或未配置班次");
             }
         } catch (Exception e) {
-            log.error("补偿处理失败: summaryId={}, tenantId={}, deviceId={}, shiftDate={}, shiftCode={}", 
-                    summary.getId(), summary.getTenantUuid(), summary.getDeviceInfoId(), 
+            log.error("补偿处理失败: summaryId={}, deviceId={}, shiftDate={}, shiftCode={}", 
+                    summary.getId(), summary.getDeviceInfoId(), 
                     summary.getSummaryDate(), summary.getShiftCode(), e);
             return ItemProcessResult.failed(e.getMessage());
         }
@@ -130,7 +130,7 @@ public class DeviceStateSummaryCompensationJob extends BaseCompensationJob<Devic
         long shiftStartTs = summary.getShiftStartTs() * 1000L;
         Optional<com.weili.iot_portal.dal.dataobject.devicemng.ShiftConfigurationDO> configOpt = 
                 shiftConfigurationRepository.findActiveByDeviceAndTime(
-                        summary.getTenantUuid(), summary.getDeviceInfoId(), shiftStartTs);
+                        summary.getDeviceInfoId(), shiftStartTs);
 
         if (configOpt.isEmpty()) {
             log.warn("设备未配置班次: deviceId={}", summary.getDeviceInfoId());
@@ -139,7 +139,6 @@ public class DeviceStateSummaryCompensationJob extends BaseCompensationJob<Devic
 
         // 计算班次时间范围
         ShiftTimeRange shiftRange = shiftConfigurationService.calculateShiftRange(
-                summary.getTenantUuid(), 
                 device.getOrgFactoryId(), 
                 summary.getDeviceInfoId(), 
                 shiftStartTs);
@@ -153,7 +152,6 @@ public class DeviceStateSummaryCompensationJob extends BaseCompensationJob<Devic
         // 查询班次内的状态记录
         List<com.weili.iot_portal.dal.dataobject.devicemng.DeviceStateTimelineDO> stateRecords = 
                 stateTimelineRepository.selectByRange(
-                        summary.getTenantUuid(), 
                         summary.getDeviceInfoId(), 
                         shiftRange.getStartTs() / 1000, 
                         shiftRange.getEndTs() / 1000);
@@ -167,7 +165,6 @@ public class DeviceStateSummaryCompensationJob extends BaseCompensationJob<Devic
 
         // 更新汇总记录
         summaryJob.saveOrUpdateSummary(
-                summary.getTenantUuid(), 
                 summary.getDeviceInfoId(), 
                 device.getOrgFactoryId(), 
                 summary.getSummaryDate(), 

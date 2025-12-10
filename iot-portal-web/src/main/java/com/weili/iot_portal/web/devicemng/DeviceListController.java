@@ -31,9 +31,8 @@ public class DeviceListController {
     @Operation(summary = "设备列表查询（用于列表页面展示，包含实时状态和报警状态）")
     @ApiInterceptor
     public CommonResult<PageResult<DeviceBaseInfoListVO>> list(@Valid @RequestBody DeviceBaseInfoQueryReq request) {
-        String tenantId = SecurityFrameworkContext.getLoginTenantId();
         String factoryId = SecurityFrameworkContext.getLoginFactoryId();
-        PageResult<DeviceBaseInfoListVO> result = deviceBaseInfoService.list(tenantId, factoryId, request);
+        PageResult<DeviceBaseInfoListVO> result = deviceBaseInfoService.list(factoryId, request);
         return CommonResult.success(result);
     }
 }

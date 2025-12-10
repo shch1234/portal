@@ -26,8 +26,10 @@ public class DeviceNetworkConfigDO extends BaseDO {
     @TableId(type = IdType.INPUT)
     private String id;
 
-    private String tenantUuid;
-
+    /**
+     * 设备信息ID（对应 device_info_id 列）
+     * 可通过 device_info.tb_device_id 查询 ThingsBoard 获取租户信息
+     */
     private String deviceInfoId;
 
     /**

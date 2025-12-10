@@ -6,8 +6,8 @@ import com.weili.iot_portal.domain.devicemng.ProgramInfoVO;
 
 public interface ProgramInfoService {
 
-    ProgramInfoVO getCurrentProgramInfo(String tenantId, String factoryId, String deviceId);
+    ProgramInfoVO getCurrentProgramInfo(String factoryId, String deviceId);
 
-    ProgramCodeVO getProgramCode(String tenantId, String factoryId, String deviceId, ProgramCodeType type);
+    ProgramCodeVO getProgramCode(String factoryId, String deviceId, ProgramCodeType type);
 }
 

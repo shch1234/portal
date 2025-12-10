@@ -23,8 +23,7 @@ public class DeviceProductionController {
     @GetMapping("/current-shift/completed")
     public CommonResult<Long> getCurrentShiftCompleted(@RequestParam("factoryId") String factoryId,
                                                        @RequestParam("deviceId") String deviceId) {
-        String tenantId = SecurityFrameworkContext.getLoginTenantId();
-        long count = deviceProductionQueryService.currentShiftCompletedCount(tenantId, factoryId, deviceId);
+        long count = deviceProductionQueryService.currentShiftCompletedCount(factoryId, deviceId);
         return CommonResult.success(count);
     }
 }

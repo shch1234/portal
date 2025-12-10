@@ -15,7 +15,6 @@ public interface AlarmListMapper {
     /**
      * 查询报警列表总数
      * 
-     * @param tenantId 租户ID
      * @param factoryId 工厂ID
      * @param workshopId 车间ID（可选）
      * @param deviceCodes 设备编号列表（可选）
@@ -26,7 +25,6 @@ public interface AlarmListMapper {
      * @return 总数
      */
     long countAlarmList(
-            @Param("tenantId") String tenantId,
             @Param("factoryId") String factoryId,
             @Param("workshopId") String workshopId,
             @Param("deviceCodes") List<String> deviceCodes,
@@ -38,7 +36,6 @@ public interface AlarmListMapper {
     /**
      * 查询报警列表（分页）
      * 
-     * @param tenantId 租户ID
      * @param factoryId 工厂ID
      * @param workshopId 车间ID（可选）
      * @param deviceCodes 设备编号列表（可选）
@@ -51,7 +48,6 @@ public interface AlarmListMapper {
      * @return 报警列表
      */
     List<AlarmItemDO> selectAlarmList(
-            @Param("tenantId") String tenantId,
             @Param("factoryId") String factoryId,
             @Param("workshopId") String workshopId,
             @Param("deviceCodes") List<String> deviceCodes,
@@ -65,13 +61,11 @@ public interface AlarmListMapper {
     /**
      * 查询正在报警且时长最长的记录
      *
-     * @param tenantId 租户ID
      * @param factoryId 工厂ID
      * @param limit 数量
      * @return 报警记录
      */
     List<AlarmItemDO> selectTopActiveAlarms(
-            @Param("tenantId") String tenantId,
             @Param("factoryId") String factoryId,
             @Param("limit") int limit);
 }

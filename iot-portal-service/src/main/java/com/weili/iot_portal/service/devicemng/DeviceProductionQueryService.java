@@ -16,12 +16,12 @@ public class DeviceProductionQueryService {
     /**
      * 当前班次已完成数量（end_ts 落在当前班次范围）
      */
-    public long currentShiftCompletedCount(String tenantId, String factoryId, String deviceId) {
+    public long currentShiftCompletedCount(String factoryId, String deviceId) {
         long now = System.currentTimeMillis();
-        ShiftTimeRange range = shiftConfigurationService.calculateShiftRange(tenantId, factoryId, deviceId, now);
+        ShiftTimeRange range = shiftConfigurationService.calculateShiftRange(factoryId, deviceId, now);
         Long start = range.getStartTs() != null ? range.getStartTs() / 1000 : null;
         Long end = range.getEndTs() != null ? range.getEndTs() / 1000 : null;
-        return deviceProductionRecordRepository.countCompletedInRange(tenantId, deviceId, start, end);
+        return deviceProductionRecordRepository.countCompletedInRange(deviceId, start, end);
     }
 }
 

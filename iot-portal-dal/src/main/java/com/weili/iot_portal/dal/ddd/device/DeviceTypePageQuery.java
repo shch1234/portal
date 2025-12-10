@@ -10,7 +10,6 @@ import java.util.List;
 @Data
 public class DeviceTypePageQuery {
 
-    private String tenantUuid;
 
     private String typeCodeLike;
 

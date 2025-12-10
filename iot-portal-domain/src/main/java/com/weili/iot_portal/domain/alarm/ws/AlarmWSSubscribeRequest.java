@@ -13,11 +13,6 @@ public class AlarmWSSubscribeRequest implements Serializable {
     private static final long serialVersionUID = 1L;
 
     /**
-     * 租户ID
-     */
-    private String tenantId;
-
-    /**
      * 工厂ID
      */
     private String factoryId;
@@ -32,9 +27,9 @@ public class AlarmWSSubscribeRequest implements Serializable {
      */
     public String getSubscriptionKey() {
         if (workshopId != null && !workshopId.isEmpty()) {
-            return tenantId + ":" + factoryId + ":" + workshopId;
+            return factoryId + ":" + workshopId;
         } else {
-            return tenantId + ":" + factoryId;
+            return factoryId;
         }
     }
 }

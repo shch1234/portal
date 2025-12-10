@@ -21,16 +21,16 @@ public class DeviceParameterRepositoryImpl implements DeviceParameterRepository 
     private final DeviceParameterMapper deviceParameterMapper;
 
     @Override
-    public List<DeviceParameterDO> selectCurrent(String tenantId, String deviceId) {
-        return deviceParameterMapper.selectList(baseWrapper(tenantId, deviceId)
+    public List<DeviceParameterDO> selectCurrent(String deviceId) {
+        return deviceParameterMapper.selectList(baseWrapper(deviceId)
                 .eq(DeviceParameterDO::getIsActive, Boolean.TRUE)
                 .isNull(DeviceParameterDO::getEffectiveEndTs)
                 .orderByDesc(DeviceParameterDO::getEffectiveStartTs));
     }
 
     @Override
-    public List<DeviceParameterDO> selectHistory(String tenantId, String deviceId, Long startTs, Long endTs) {
-        LambdaQueryWrapper<DeviceParameterDO> wrapper = baseWrapper(tenantId, deviceId)
+    public List<DeviceParameterDO> selectHistory(String deviceId, Long startTs, Long endTs) {
+        LambdaQueryWrapper<DeviceParameterDO> wrapper = baseWrapper(deviceId)
                 .orderByDesc(DeviceParameterDO::getEffectiveStartTs)
                 .orderByAsc(DeviceParameterDO::getParameterType);
         if (startTs != null) {
@@ -43,10 +43,9 @@ public class DeviceParameterRepositoryImpl implements DeviceParameterRepository 
     }
 
     @Override
-    public void expireCurrent(String tenantId, String deviceId, String parameterType, long endTs) {
+    public void expireCurrent(String deviceId, String parameterType, long endTs) {
         LambdaUpdateWrapper<DeviceParameterDO> updateWrapper = new LambdaUpdateWrapper<>();
-        updateWrapper.eq(DeviceParameterDO::getTenantUuid, tenantId)
-                .eq(DeviceParameterDO::getDeviceInfoId, deviceId)
+        updateWrapper.eq(DeviceParameterDO::getDeviceInfoId, deviceId)
                 .eq(DeviceParameterDO::getParameterType, parameterType)
                 .isNull(DeviceParameterDO::getEffectiveEndTs)
                 .set(DeviceParameterDO::getEffectiveEndTs, endTs)
@@ -62,11 +61,8 @@ public class DeviceParameterRepositoryImpl implements DeviceParameterRepository 
     /**
      * 构建基础查询条件（对应 device_param_config 表的字段）
      */
-    private LambdaQueryWrapper<DeviceParameterDO> baseWrapper(String tenantId, String deviceId) {
+    private LambdaQueryWrapper<DeviceParameterDO> baseWrapper(String deviceId) {
         LambdaQueryWrapper<DeviceParameterDO> wrapper = new LambdaQueryWrapper<>();
-        if (StringUtils.isNotBlank(tenantId)) {
-            wrapper.eq(DeviceParameterDO::getTenantUuid, tenantId);
-        }
         if (StringUtils.isNotBlank(deviceId)) {
             wrapper.eq(DeviceParameterDO::getDeviceInfoId, deviceId);
         }

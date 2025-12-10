@@ -94,23 +94,22 @@ public class DeviceMetricsJob extends BaseScheduledJob {
     }
 
     private void processDevice(DeviceBaseInfoDO device) {
-        String tenantId = device.getTenantUuid();
         String factoryId = device.getOrgFactoryId();
         String deviceId = device.getId();
 
         long nowMs = System.currentTimeMillis();
-        ShiftTimeRange shift = shiftConfigurationService.calculateShiftRange(tenantId, factoryId, deviceId, nowMs);
+        ShiftTimeRange shift = shiftConfigurationService.calculateShiftRange(factoryId, deviceId, nowMs);
         if (shift == null || shift.getStartTs() == null) {
             return;
         }
         long shiftStartSec = shift.getStartTs() / 1000;
         long shiftEndSec = (shift.getEndTs() != null ? shift.getEndTs() : nowMs) / 1000;
 
-        long plannedDowntime = getPlannedDowntimeSeconds(tenantId, deviceId);
+        long plannedDowntime = getPlannedDowntimeSeconds(deviceId);
         long shiftDuration = Math.max(0, shiftEndSec - shiftStartSec);
         long plannedRuntime = Math.max(0, shiftDuration - plannedDowntime);
 
-        Map<String, Long> stateDurations = sumStateDurations(tenantId, deviceId, shiftStartSec, shiftEndSec, nowMs / 1000);
+        Map<String, Long> stateDurations = sumStateDurations(deviceId, shiftStartSec, shiftEndSec, nowMs / 1000);
         long workingDuration = stateDurations.getOrDefault("WORKING", 0L);
         long faultDuration = stateDurations.getOrDefault("FAULT", 0L);
         long unplannedDowntime = stateDurations.getOrDefault("STANDBY", 0L)
@@ -118,8 +117,8 @@ public class DeviceMetricsJob extends BaseScheduledJob {
                 + stateDurations.getOrDefault("SHUTDOWN", 0L);
         long actualRuntime = Math.max(0, plannedRuntime - unplannedDowntime);
 
-        long actualOutput = deviceProductionRecordRepository.countCompletedInRange(tenantId, deviceId, shiftStartSec, shiftEndSec);
-        long theoreticalCycle = getTheoreticalCycleSeconds(tenantId, deviceId);
+        long actualOutput = deviceProductionRecordRepository.countCompletedInRange(deviceId, shiftStartSec, shiftEndSec);
+        long theoreticalCycle = getTheoreticalCycleSeconds(deviceId);
 
         BigDecimal uptimeRate = plannedRuntime == 0
                 ? BigDecimal.ZERO
@@ -151,11 +150,11 @@ public class DeviceMetricsJob extends BaseScheduledJob {
                 .multiply(BigDecimal.valueOf(100))
                 .divide(BigDecimal.valueOf(10000), 4, RoundingMode.HALF_UP);
 
-        writeMetricToRedis(tenantId, factoryId, deviceId, uptimeRate, performanceRate, availabilityRate, faultRate, oee, nowMs / 1000);
+        writeMetricToRedis(factoryId, deviceId, uptimeRate, performanceRate, availabilityRate, faultRate, oee, nowMs / 1000);
     }
 
-    private long getPlannedDowntimeSeconds(String tenantId, String deviceId) {
-        List<DeviceParameterDO> params = deviceParameterRepository.selectCurrent(tenantId, deviceId);
+    private long getPlannedDowntimeSeconds(String deviceId) {
+        List<DeviceParameterDO> params = deviceParameterRepository.selectCurrent(deviceId);
         return params.stream()
                 .filter(p -> PARAM_PLANNED_DOWNTIME.equalsIgnoreCase(p.getParameterType()))
                 .findFirst()
@@ -164,8 +163,8 @@ public class DeviceMetricsJob extends BaseScheduledJob {
                 .orElse(0L);
     }
 
-    private Map<String, Long> sumStateDurations(String tenantId, String deviceId, long startSec, long endSec, long nowSec) {
-        List<DeviceStateTimelineDO> timelines = deviceStateTimelineRepository.selectByRange(tenantId, deviceId, startSec, endSec);
+    private Map<String, Long> sumStateDurations(String deviceId, long startSec, long endSec, long nowSec) {
+        List<DeviceStateTimelineDO> timelines = deviceStateTimelineRepository.selectByRange(deviceId, startSec, endSec);
         Map<String, Long> result = new HashMap<>();
         for (DeviceStateTimelineDO t : timelines) {
             String state = t.getStateCode();
@@ -182,8 +181,8 @@ public class DeviceMetricsJob extends BaseScheduledJob {
         return result;
     }
 
-    private long getTheoreticalCycleSeconds(String tenantId, String deviceId) {
-        List<DeviceParameterDO> params = deviceParameterRepository.selectCurrent(tenantId, deviceId);
+    private long getTheoreticalCycleSeconds(String deviceId) {
+        List<DeviceParameterDO> params = deviceParameterRepository.selectCurrent(deviceId);
         return params.stream()
                 .filter(p -> PARAM_THEORETICAL_CYCLE.equalsIgnoreCase(p.getParameterType()))
                 .findFirst()
@@ -192,11 +191,11 @@ public class DeviceMetricsJob extends BaseScheduledJob {
                 .orElse(0L);
     }
 
-    private void writeMetricToRedis(String tenantId, String factoryId, String deviceId,
+    private void writeMetricToRedis(String factoryId, String deviceId,
                                     BigDecimal uptimeRate, BigDecimal performanceRate,
                                     BigDecimal availabilityRate, BigDecimal faultRate,
                                     BigDecimal oee, long updatedAtSec) {
-        String key = String.format(RedisConstant.RT_METRIC, defaultBlank(tenantId), defaultBlank(factoryId), defaultBlank(deviceId));
+        String key = String.format(RedisConstant.RT_METRIC, defaultBlank(factoryId), defaultBlank(deviceId));
         Map<String, String> payload = new HashMap<>();
         payload.put("metric.uptimeRate", uptimeRate.toPlainString());
         payload.put("metric.performanceRate", performanceRate.toPlainString());

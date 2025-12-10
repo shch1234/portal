@@ -15,14 +15,12 @@ public interface FactoryMetricsMapper {
     /**
      * 查询工厂级效率指标（按班次）
      * 
-     * @param tenantId 租户ID
      * @param factoryId 工厂ID
      * @param shiftDate 班次日期
      * @param shiftCode 班次编码
      * @return 工厂级效率指标
      */
     FactoryMetricsShiftDO selectFactoryMetrics(
-            @Param("tenantId") String tenantId,
             @Param("factoryId") String factoryId,
             @Param("shiftDate") String shiftDate,
             @Param("shiftCode") String shiftCode);
@@ -30,14 +28,12 @@ public interface FactoryMetricsMapper {
     /**
      * 查询工厂级效率指标历史趋势（过去N天）
      * 
-     * @param tenantId 租户ID
      * @param factoryId 工厂ID
      * @param startDate 开始日期（包含）
      * @param endDate 结束日期（包含）
      * @return 工厂级效率指标列表
      */
     List<FactoryMetricsShiftDO> selectFactoryMetricsHistory(
-            @Param("tenantId") String tenantId,
             @Param("factoryId") String factoryId,
             @Param("startDate") String startDate,
             @Param("endDate") String endDate);

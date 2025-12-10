@@ -25,9 +25,8 @@ public class AxisCoordinateController {
     @ApiInterceptor
     @Operation(summary = "获取设备当前轴坐标列表")
     public CommonResult<AxisCoordinateListVO> getAxisCoordinates(@RequestParam("deviceId") String deviceId) {
-        String tenantId = SecurityFrameworkContext.getLoginTenantId();
         String factoryId = SecurityFrameworkContext.getLoginFactoryId();
-        return CommonResult.success(axisCoordinateService.getCurrentAxisCoordinates(tenantId, factoryId, deviceId));
+        return CommonResult.success(axisCoordinateService.getCurrentAxisCoordinates(factoryId, deviceId));
     }
 }
 

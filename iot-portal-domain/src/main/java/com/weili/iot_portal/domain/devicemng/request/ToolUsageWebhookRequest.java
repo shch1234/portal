@@ -18,9 +18,6 @@ public class ToolUsageWebhookRequest {
     private String messageId;
 
     @NotBlank
-    private String tenantId;
-
-    @NotBlank
     private String deviceCode;
 
     private String tbDeviceId;

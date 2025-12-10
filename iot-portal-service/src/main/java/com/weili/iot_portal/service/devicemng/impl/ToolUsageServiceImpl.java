@@ -23,13 +23,12 @@ public class ToolUsageServiceImpl implements ToolUsageService {
     private final ToolUsageHistoryRepository toolUsageHistoryRepository;
 
     @Override
-    public ToolUsageHistoryVO getHistory(String tenantId, String factoryId, ToolUsageHistoryReq request) {
-        deviceFactoryValidator.ensureDeviceBelongsToFactory(tenantId, factoryId, request.getDeviceId());
+    public ToolUsageHistoryVO getHistory(String factoryId, ToolUsageHistoryReq request) {
+        deviceFactoryValidator.ensureDeviceBelongsToFactory(factoryId, request.getDeviceId());
         if (request.getStartTs() == null || request.getEndTs() == null || request.getStartTs() >= request.getEndTs()) {
             throw new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "无效的时间范围");
         }
         List<ToolUsageHistoryDO> records = toolUsageHistoryRepository.selectByRange(
-                tenantId,
                 request.getDeviceId(),
                 request.getStartTs(),
                 request.getEndTs(),

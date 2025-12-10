@@ -28,8 +28,7 @@ public class DeviceAlarmController {
     @GetMapping("/active")
     public CommonResult<List<DeviceAlarmVO>> listActive(@RequestParam("factoryId") String factoryId,
                                                         @RequestParam("deviceId") String deviceId) {
-        String tenantId = SecurityFrameworkContext.getLoginTenantId();
-        List<DeviceAlarmHistoryDO> list = deviceAlarmQueryService.listActive(tenantId, factoryId, deviceId);
+        List<DeviceAlarmHistoryDO> list = deviceAlarmQueryService.listActive(factoryId, deviceId);
         List<DeviceAlarmVO> result = list.stream().map(this::convert).collect(Collectors.toList());
         return CommonResult.success(result);
     }
@@ -40,8 +39,7 @@ public class DeviceAlarmController {
                                                          @RequestParam("deviceId") String deviceId,
                                                          @RequestParam("startTs") Long startTs,
                                                          @RequestParam("endTs") Long endTs) {
-        String tenantId = SecurityFrameworkContext.getLoginTenantId();
-        List<DeviceAlarmHistoryDO> list = deviceAlarmQueryService.listByRange(tenantId, factoryId, deviceId, startTs, endTs);
+        List<DeviceAlarmHistoryDO> list = deviceAlarmQueryService.listByRange(factoryId, deviceId, startTs, endTs);
         List<DeviceAlarmVO> result = list.stream().map(this::convert).collect(Collectors.toList());
         return CommonResult.success(result);
     }
@@ -49,7 +47,6 @@ public class DeviceAlarmController {
     private DeviceAlarmVO convert(DeviceAlarmHistoryDO item) {
         DeviceAlarmVO vo = new DeviceAlarmVO();
         vo.setId(item.getId());
-        vo.setTenantId(item.getTenantUuid());
         vo.setFactoryId(item.getOrgFactoryId());
         vo.setDeviceId(item.getDeviceInfoId());
         vo.setAlarmCode(item.getAlarmCode());

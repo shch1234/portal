@@ -30,11 +30,6 @@ public class FactoryMetricsShiftDO extends BaseSimpleDO {
     private String id;
 
     /**
-     * 租户UUID（对应 tenant_uuid 列）
-     */
-    private String tenantUuid;
-
-    /**
      * 工厂ID（关联 device_org_relation.id，unit_type=FACTORY，对应 org_factory_id 列）
      */
     private String orgFactoryId;

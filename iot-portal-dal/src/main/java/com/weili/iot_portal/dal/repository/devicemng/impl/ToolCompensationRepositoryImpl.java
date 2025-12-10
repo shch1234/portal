@@ -15,10 +15,9 @@ public class ToolCompensationRepositoryImpl implements ToolCompensationRepositor
     private final ToolCompensationMapper mapper;
 
     @Override
-    public ToolCompensationDO findActive(String tenantId, String deviceId, String toolHolderNo) {
+    public ToolCompensationDO findActive(String deviceId, String toolHolderNo) {
         LambdaQueryWrapper<ToolCompensationDO> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(StringUtils.isNotBlank(tenantId), ToolCompensationDO::getTenantUuid, tenantId)
-                .eq(ToolCompensationDO::getDeviceInfoId, deviceId)
+        wrapper.eq(ToolCompensationDO::getDeviceInfoId, deviceId)
                 .eq(ToolCompensationDO::getToolHolderNo, toolHolderNo)
                 .eq(ToolCompensationDO::getActive, 1)
                 .orderByDesc(ToolCompensationDO::getStartTs)
@@ -27,10 +26,9 @@ public class ToolCompensationRepositoryImpl implements ToolCompensationRepositor
     }
 
     @Override
-    public java.util.List<ToolCompensationDO> findActiveByDevice(String tenantId, String factoryId, String deviceId) {
+    public java.util.List<ToolCompensationDO> findActiveByDevice(String factoryId, String deviceId) {
         LambdaQueryWrapper<ToolCompensationDO> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(StringUtils.isNotBlank(tenantId), ToolCompensationDO::getTenantUuid, tenantId)
-                .eq(ToolCompensationDO::getDeviceInfoId, deviceId)
+        wrapper.eq(ToolCompensationDO::getDeviceInfoId, deviceId)
                 .eq(StringUtils.isNotBlank(factoryId), ToolCompensationDO::getOrgFactoryId, factoryId)
                 .eq(ToolCompensationDO::getActive, 1)
                 .orderByAsc(ToolCompensationDO::getToolHolderNo);

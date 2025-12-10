@@ -41,22 +41,22 @@ public class FactoryMetricsApiImpl implements FactoryMetricApi {
     private final ShiftQueryApi shiftQueryApi;
 
     @Override
-    public FactoryMetricsVO getCurrentFactoryMetrics(String tenantId, String factoryId, Integer days) {
-        validateParams(tenantId, factoryId);
+    public FactoryMetricsVO getCurrentFactoryMetrics(String factoryId, Integer days) {
+        validateParams(factoryId);
 
         // 获取当前班次信息
-        ShiftInfoVO currentShift = shiftQueryApi.getFactoryCurrentShift(tenantId, factoryId, null, null);
+        ShiftInfoVO currentShift = shiftQueryApi.getFactoryCurrentShift(factoryId, null, null);
         String shiftDate = currentShift.getShiftDate();
         String shiftCode = currentShift.getShiftCode();
-        ShiftTimeRangeVO shiftRange = shiftQueryApi.calculateShiftRange(tenantId, factoryId,
-                getRepresentativeDeviceId(tenantId, factoryId), null);
+        ShiftTimeRangeVO shiftRange = shiftQueryApi.calculateShiftRange(factoryId,
+                getRepresentativeDeviceId(factoryId), null);
 
         // 获取工厂名称
-        String factoryName = getFactoryName(tenantId, factoryId);
+        String factoryName = getFactoryName(factoryId);
 
         // 先尝试从历史数据表查询当前班次的数据
         Optional<FactoryMetricsShiftDO> historyData = factoryMetricsRepository.findByShift(
-                tenantId, factoryId, shiftDate, shiftCode);
+                factoryId, shiftDate, shiftCode);
 
         FactoryMetricsShiftDO current;
         if (historyData.isPresent() && Boolean.TRUE.equals(historyData.get().getIsFinalized())) {
@@ -65,7 +65,7 @@ public class FactoryMetricsApiImpl implements FactoryMetricApi {
             log.debug("使用历史数据：factoryId={}, shiftDate={}, shiftCode={}", factoryId, shiftDate, shiftCode);
         } else {
             // 否则实时计算当前班次的指标值
-            current = calculateCurrentMetrics(tenantId, factoryId, shiftDate, shiftCode, shiftRange);
+            current = calculateCurrentMetrics(factoryId, shiftDate, shiftCode, shiftRange);
             log.debug("实时计算指标：factoryId={}, shiftDate={}, shiftCode={}", factoryId, shiftDate, shiftCode);
         }
 
@@ -74,7 +74,7 @@ public class FactoryMetricsApiImpl implements FactoryMetricApi {
         LocalDate endDate = LocalDate.parse(shiftDate, DateTimeFormatter.ISO_LOCAL_DATE);
         LocalDate startDate = endDate.minusDays(dayCount - 1);  // 过去N天（包含今天）
         List<FactoryMetricsShiftDO> history = factoryMetricsRepository.findHistory(
-                tenantId, factoryId,
+                factoryId,
                 startDate.format(DateTimeFormatter.ISO_LOCAL_DATE),
                 endDate.format(DateTimeFormatter.ISO_LOCAL_DATE));
 
@@ -82,22 +82,22 @@ public class FactoryMetricsApiImpl implements FactoryMetricApi {
     }
 
     @Override
-    public FactoryMetricsVO getFactoryMetricsHistory(String tenantId, String factoryId, Integer days) {
-        validateParams(tenantId, factoryId);
+    public FactoryMetricsVO getFactoryMetricsHistory(String factoryId, Integer days) {
+        validateParams(factoryId);
 
         int dayCount = days != null && days > 0 ? days : 7;  // 默认7天
 
         // 获取当前班次信息（用于确定查询范围）
-        ShiftInfoVO currentShift = shiftQueryApi.getFactoryCurrentShift(tenantId, factoryId, null, null);
+        ShiftInfoVO currentShift = shiftQueryApi.getFactoryCurrentShift(factoryId, null, null);
         LocalDate endDate = LocalDate.parse(currentShift.getShiftDate(), DateTimeFormatter.ISO_LOCAL_DATE);
         LocalDate startDate = endDate.minusDays(dayCount - 1);  // 过去N天（包含今天）
 
         // 获取工厂名称
-        String factoryName = getFactoryName(tenantId, factoryId);
+        String factoryName = getFactoryName(factoryId);
 
         // 查询历史数据
         List<FactoryMetricsShiftDO> history = factoryMetricsRepository.findHistory(
-                tenantId, factoryId,
+                factoryId,
                 startDate.format(DateTimeFormatter.ISO_LOCAL_DATE),
                 endDate.format(DateTimeFormatter.ISO_LOCAL_DATE));
 
@@ -122,13 +122,13 @@ public class FactoryMetricsApiImpl implements FactoryMetricApi {
     /**
      * 实时计算当前班次的工厂级指标
      */
-    private FactoryMetricsShiftDO calculateCurrentMetrics(String tenantId, String factoryId,
+    private FactoryMetricsShiftDO calculateCurrentMetrics(String factoryId,
                                                           String shiftDate, String shiftCode,
                                                           ShiftTimeRangeVO shiftRange) {
         // 获取工厂下所有设备
-        List<DeviceBaseInfoVO> devices = deviceBaseDataApi.getDevicesByFactory(tenantId, factoryId, null);
+        List<DeviceBaseInfoVO> devices = deviceBaseDataApi.getDevicesByFactory(factoryId, null);
         if (CollectionUtils.isEmpty(devices)) {
-            return createEmptyMetrics(tenantId, factoryId, shiftDate, shiftCode, shiftRange);
+            return createEmptyMetrics(factoryId, shiftDate, shiftCode, shiftRange);
         }
 
         // 查询所有设备在当前班次的指标数据
@@ -137,7 +137,7 @@ public class FactoryMetricsApiImpl implements FactoryMetricApi {
             try {
                 // 查询设备的OEE指标（用于计算平均OEE）
                 List<DeviceEfficiencyMetricDO> oeeMetrics = efficiencyMetricRepository.selectDeviceMetrics(
-                        tenantId, factoryId, null, "oee", shiftDate, shiftCode,
+                        factoryId, null, "oee", shiftDate, shiftCode,
                         "metricValue", "DESC", 1, 1).getList();
                 
                 if (CollectionUtils.isNotEmpty(oeeMetrics)) {
@@ -149,7 +149,7 @@ public class FactoryMetricsApiImpl implements FactoryMetricApi {
         }
 
         if (CollectionUtils.isEmpty(deviceMetrics)) {
-            return createEmptyMetrics(tenantId, factoryId, shiftDate, shiftCode, shiftRange);
+            return createEmptyMetrics(factoryId, shiftDate, shiftCode, shiftRange);
         }
 
         // 从设备级指标汇总计算工厂级指标
@@ -164,7 +164,6 @@ public class FactoryMetricsApiImpl implements FactoryMetricApi {
 
         // 构建返回对象（对应 factory_metric_summary 表的字段）
         FactoryMetricsShiftDO result = new FactoryMetricsShiftDO();
-        result.setTenantUuid(tenantId);
         result.setOrgFactoryId(factoryId);
         result.setShiftDate(LocalDate.parse(shiftDate, DateTimeFormatter.ISO_LOCAL_DATE));
         result.setShiftCode(shiftCode);
@@ -252,11 +251,10 @@ public class FactoryMetricsApiImpl implements FactoryMetricApi {
     /**
      * 创建空指标对象（对应 factory_metric_summary 表的字段）
      */
-    private FactoryMetricsShiftDO createEmptyMetrics(String tenantId, String factoryId,
+    private FactoryMetricsShiftDO createEmptyMetrics(String factoryId,
                                                      String shiftDate, String shiftCode,
                                                      ShiftTimeRangeVO shiftRange) {
         FactoryMetricsShiftDO result = new FactoryMetricsShiftDO();
-        result.setTenantUuid(tenantId);
         result.setOrgFactoryId(factoryId);
         result.setShiftDate(LocalDate.parse(shiftDate, DateTimeFormatter.ISO_LOCAL_DATE));
         result.setShiftCode(shiftCode);
@@ -277,8 +275,8 @@ public class FactoryMetricsApiImpl implements FactoryMetricApi {
     /**
      * 获取代表性设备ID（用于查询班次配置）
      */
-    private String getRepresentativeDeviceId(String tenantId, String factoryId) {
-        List<DeviceBaseInfoVO> devices = deviceBaseDataApi.getDevicesByFactory(tenantId, factoryId, null);
+    private String getRepresentativeDeviceId(String factoryId) {
+        List<DeviceBaseInfoVO> devices = deviceBaseDataApi.getDevicesByFactory(factoryId, null);
         if (CollectionUtils.isEmpty(devices)) {
             throw new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), 
                     "工厂下没有设备，无法查询班次信息");
@@ -289,8 +287,8 @@ public class FactoryMetricsApiImpl implements FactoryMetricApi {
     /**
      * 获取工厂名称
      */
-    private String getFactoryName(String tenantId, String factoryId) {
-        List<DeviceBaseInfoVO> devices = deviceBaseDataApi.getDevicesByFactory(tenantId, factoryId, null);
+    private String getFactoryName(String factoryId) {
+        List<DeviceBaseInfoVO> devices = deviceBaseDataApi.getDevicesByFactory(factoryId, null);
         if (CollectionUtils.isNotEmpty(devices)) {
             return devices.get(0).getFactoryName();
         }
@@ -300,10 +298,7 @@ public class FactoryMetricsApiImpl implements FactoryMetricApi {
     /**
      * 参数校验
      */
-    private void validateParams(String tenantId, String factoryId) {
-        if (StringUtils.isBlank(tenantId)) {
-            throw new ServiceException(ErrorCodeConstants.UNAUTHORIZED.getCode(), "未获取到租户信息");
-        }
+    private void validateParams(String factoryId) {
         if (StringUtils.isBlank(factoryId)) {
             throw new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "未获取到工厂信息");
         }

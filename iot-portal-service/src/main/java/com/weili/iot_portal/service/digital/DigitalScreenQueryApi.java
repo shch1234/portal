@@ -20,7 +20,7 @@ public interface DigitalScreenQueryApi {
      * @param factoryId 厂区ID
      * @return 布局图数据
      */
-    FactoryLayoutVO getFactoryLayout(String tenantId, String factoryId);
+    FactoryLayoutVO getFactoryLayout(String factoryId);
 
     /**
      * 查询厂区状态监测数据（设备数量与占比）
@@ -29,7 +29,7 @@ public interface DigitalScreenQueryApi {
      * @param factoryId 厂区ID
      * @return 状态监测数据
      */
-    FactoryStatusSummaryVO getFactoryStatusSummary(String tenantId, String factoryId);
+    FactoryStatusSummaryVO getFactoryStatusSummary(String factoryId);
 
     /**
      * 查询报警排行（当前报警时长Top）
@@ -39,7 +39,7 @@ public interface DigitalScreenQueryApi {
      * @param limit     返回数量，可选
      * @return 报警排行
      */
-    List<AlarmRankingVO> getAlarmDurationRanking(String tenantId, String factoryId, Integer limit);
+    List<AlarmRankingVO> getAlarmDurationRanking(String factoryId, Integer limit);
 
     /**
      * 查询工厂级效率指标（平均OEE、平均设备利用率）
@@ -51,7 +51,7 @@ public interface DigitalScreenQueryApi {
      * @param days 历史趋势天数（可选，默认7天）
      * @return 工厂级效率指标（包含当前值和历史趋势）
      */
-    FactoryMetricsVO getFactoryMetrics(String tenantId, String factoryId, Integer days);
+    FactoryMetricsVO getFactoryMetrics(String factoryId, Integer days);
 }
 
 

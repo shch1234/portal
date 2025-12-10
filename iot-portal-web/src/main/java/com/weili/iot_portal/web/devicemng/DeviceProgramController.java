@@ -25,25 +25,22 @@ public class DeviceProgramController {
     @GetMapping("/info")
     @Operation(summary = "查询当前程序信息")
     public CommonResult<ProgramInfoVO> getProgramInfo(@PathVariable String deviceId) {
-        String tenantId = SecurityFrameworkContext.getLoginTenantId();
         String factoryId = SecurityFrameworkContext.getLoginFactoryId();
-        return CommonResult.success(programInfoService.getCurrentProgramInfo(tenantId, factoryId, deviceId));
+        return CommonResult.success(programInfoService.getCurrentProgramInfo(factoryId, deviceId));
     }
 
     @GetMapping("/g-code")
     @Operation(summary = "查询G代码内容")
     public CommonResult<ProgramCodeVO> getGCode(@PathVariable String deviceId) {
-        String tenantId = SecurityFrameworkContext.getLoginTenantId();
         String factoryId = SecurityFrameworkContext.getLoginFactoryId();
-        return CommonResult.success(programInfoService.getProgramCode(tenantId, factoryId, deviceId, ProgramCodeType.G_CODE));
+        return CommonResult.success(programInfoService.getProgramCode(factoryId, deviceId, ProgramCodeType.G_CODE));
     }
 
     @GetMapping("/m-code")
     @Operation(summary = "查询M代码内容")
     public CommonResult<ProgramCodeVO> getMCode(@PathVariable String deviceId) {
-        String tenantId = SecurityFrameworkContext.getLoginTenantId();
         String factoryId = SecurityFrameworkContext.getLoginFactoryId();
-        return CommonResult.success(programInfoService.getProgramCode(tenantId, factoryId, deviceId, ProgramCodeType.M_CODE));
+        return CommonResult.success(programInfoService.getProgramCode(factoryId, deviceId, ProgramCodeType.M_CODE));
     }
 }
 

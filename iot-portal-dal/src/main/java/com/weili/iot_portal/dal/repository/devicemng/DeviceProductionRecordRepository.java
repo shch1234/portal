@@ -7,18 +7,18 @@ import java.util.Optional;
 
 public interface DeviceProductionRecordRepository {
 
-    Optional<DeviceProductionRecordDO> findLatestOngoing(String tenantId, String deviceId);
+    Optional<DeviceProductionRecordDO> findLatestOngoing(String deviceId);
 
     void insert(DeviceProductionRecordDO record);
 
     void updateById(DeviceProductionRecordDO record);
 
-    List<DeviceProductionRecordDO> findByShift(String tenantId, String deviceId, String shiftCode, java.time.LocalDate shiftDate);
+    List<DeviceProductionRecordDO> findByShift(String deviceId, String shiftCode, java.time.LocalDate shiftDate);
 
     /**
      * 统计在时间范围内已完成（end_ts 落入区间）的记录数量
      */
-    long countCompletedInRange(String tenantId, String deviceId, Long startTs, Long endTs);
+    long countCompletedInRange(String deviceId, Long startTs, Long endTs);
 }
 
 

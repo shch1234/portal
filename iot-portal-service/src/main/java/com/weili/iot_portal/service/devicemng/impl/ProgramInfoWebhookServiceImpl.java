@@ -33,7 +33,7 @@ public class ProgramInfoWebhookServiceImpl implements ProgramInfoWebhookService 
         }
 
         DeviceIdentityCacheService.DeviceIdentity identity = deviceIdentityCacheService
-                .resolveByDeviceCode(request.getTenantId(), request.getDeviceCode(),
+                .resolveByDeviceCode(request.getDeviceCode(),
                         request.getTbDeviceId(), "programInfo");
 
         ProgramInfoVO payload = buildPayload(identity.getDeviceId(), request);
@@ -41,7 +41,6 @@ public class ProgramInfoWebhookServiceImpl implements ProgramInfoWebhookService 
         RealtimeIngestionEvent event = RealtimeIngestionEvent.builder()
                 .eventType(RealtimeIngestionEventType.PROGRAM_INFO)
                 .messageId(request.getMessageId())
-                .tenantId(request.getTenantId())
                 .factoryId(identity.getFactoryId())
                 .deviceId(identity.getDeviceId())
                 .timestamp(request.getTs())
@@ -50,8 +49,8 @@ public class ProgramInfoWebhookServiceImpl implements ProgramInfoWebhookService 
 
         dispatcher.dispatch(event);
 
-        log.info("接收程序信息Webhook成功: messageId={}, tenantId={}, deviceCode={}, deviceId={}, factoryId={}, tbDeviceId={}",
-                request.getMessageId(), request.getTenantId(), request.getDeviceCode(),
+        log.info("接收程序信息Webhook成功: messageId={}, deviceCode={}, deviceId={}, factoryId={}, tbDeviceId={}",
+                request.getMessageId(), request.getDeviceCode(),
                 identity.getDeviceId(), identity.getFactoryId(), request.getTbDeviceId());
     }
 

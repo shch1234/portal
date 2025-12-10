@@ -28,17 +28,17 @@ public class AlarmServiceImpl {
      * <p>通过device-mgmt-api获取设备信息，实现模块间解耦。
      * <p><b>注意：</b>所有API调用都需要提供factoryId参数，以确保工厂数据隔离。
      */
-    public void processAlarm(String tenantId, String factoryId, String deviceId, String alarmCode, String alarmMessage) {
+    public void processAlarm(String factoryId, String deviceId, String alarmCode, String alarmMessage) {
         // 通过API接口获取设备信息（API内部会进行工厂验证）
-        var device = deviceBaseDataApi.getDeviceById(tenantId, factoryId, deviceId);
+        var device = deviceBaseDataApi.getDeviceById(factoryId, deviceId);
         if (device == null) {
-            log.warn("设备不存在或不属于指定工厂，忽略报警: tenantId={}, factoryId={}, deviceId={}", 
-                    tenantId, factoryId, deviceId);
+            log.warn("设备不存在或不属于指定工厂，忽略报警: factoryId={}, deviceId={}", 
+                    factoryId, deviceId);
             return;
         }
 
         // 通过API接口获取设备状态（API内部会进行工厂验证）
-        DeviceStatusVO status = deviceStateApi.getCurrentStatus(tenantId, factoryId, deviceId);
+        DeviceStatusVO status = deviceStateApi.getCurrentStatus(factoryId, deviceId);
         
         log.info("处理报警: deviceCode={}, deviceName={}, status={}, alarmCode={}, alarmMessage={}",
                 device.getDeviceCode(), device.getDeviceName(), 

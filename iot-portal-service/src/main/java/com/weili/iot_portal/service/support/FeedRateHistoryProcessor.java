@@ -40,7 +40,6 @@ public class FeedRateHistoryProcessor implements RealtimeIngestionProcessor {
     private FeedRateHistoryDO buildDO(RealtimeIngestionEvent event, RealtimeCurvePointVO point) {
         FeedRateHistoryDO record = new FeedRateHistoryDO();
         record.setId(UUID.randomUUID().toString());
-        record.setTenantUuid(event.getTenantId());
         record.setDeviceInfoId(event.getDeviceId());
         record.setSampleTs(point.getTs());
         record.setFeedRate(point.getValue());

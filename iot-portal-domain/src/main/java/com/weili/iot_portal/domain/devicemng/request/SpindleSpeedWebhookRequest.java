@@ -18,12 +18,6 @@ public class SpindleSpeedWebhookRequest {
     private String messageId;
 
     @NotBlank
-    private String tenantId;
-
-    /**
-     * 威力编号
-     */
-    @NotBlank
     private String deviceCode;
 
     /**

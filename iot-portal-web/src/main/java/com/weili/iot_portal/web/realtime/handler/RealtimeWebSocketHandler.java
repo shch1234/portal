@@ -99,7 +99,6 @@ public class RealtimeWebSocketHandler extends TextWebSocketHandler {
      */
     private void handleSubscribe(WebSocketSession session, String sessionId, String topic) {
         // 解析订阅参数（从查询参数或消息中获取）
-        String tenantId = getQueryParam(session, "tenantId");
         String factoryId = getQueryParam(session, "factoryId");
         String workshopId = getQueryParam(session, "workshopId");
 
@@ -107,7 +106,6 @@ public class RealtimeWebSocketHandler extends TextWebSocketHandler {
         RealtimeSubscription subscription = new RealtimeSubscription();
         subscription.setTopic(topic);
         subscription.setSessionId(sessionId);
-        subscription.setTenantId(tenantId);
 
         // 如果主题包含参数，解析参数
         if (topic != null && topic.contains(":")) {

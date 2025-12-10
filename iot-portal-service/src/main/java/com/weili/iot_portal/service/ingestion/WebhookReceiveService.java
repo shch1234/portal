@@ -65,9 +65,7 @@ public class WebhookReceiveService {
         if (StringUtils.isBlank(request.getDeviceId())) {
             request.setDeviceId(device.getTbDeviceId());
         }
-        if (StringUtils.isBlank(request.getTenantId())) {
-            request.setTenantId(device.getTenantUuid());
-        }
+        // 如果 tenantId 为空，说明 webhook 消息中没有提供，需要从其他来源获取（如 ThingsBoard API）
         request.setWebhookCategory(category);
         request.setEventType(eventType);
 

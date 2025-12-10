@@ -11,7 +11,7 @@ import java.util.Optional;
  */
 public interface ProductionCounterRepository {
 
-    Optional<ProductionCounterDO> findCurrent(String tenantId, String deviceId, long currentTs);
+    Optional<ProductionCounterDO> findCurrent(String deviceId, long currentTs);
 
     PageResult<ProductionCounterDO> selectPage(ProductionCounterPageQuery query);
 }

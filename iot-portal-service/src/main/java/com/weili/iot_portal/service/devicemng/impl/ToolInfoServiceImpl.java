@@ -17,8 +17,8 @@ public class ToolInfoServiceImpl implements ToolInfoService {
     private final ToolInfoCache toolInfoCache;
 
     @Override
-    public CurrentToolInfoVO getCurrentToolInfo(String tenantId, String factoryId, String deviceId) {
-        deviceFactoryValidator.ensureDeviceBelongsToFactory(tenantId, factoryId, deviceId);
+    public CurrentToolInfoVO getCurrentToolInfo(String factoryId, String deviceId) {
+        deviceFactoryValidator.ensureDeviceBelongsToFactory(factoryId, deviceId);
         return toolInfoCache.get(deviceId)
                 .orElseThrow(() -> new ServiceException(
                         ErrorCodeConstants.DEFAULT_ERROR.getCode(),

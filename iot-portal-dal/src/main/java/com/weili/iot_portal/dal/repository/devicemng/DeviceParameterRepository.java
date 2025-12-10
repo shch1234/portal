@@ -9,11 +9,11 @@ import java.util.List;
  */
 public interface DeviceParameterRepository {
 
-    List<DeviceParameterDO> selectCurrent(String tenantId, String deviceId);
+    List<DeviceParameterDO> selectCurrent(String deviceId);
 
-    List<DeviceParameterDO> selectHistory(String tenantId, String deviceId, Long startTs, Long endTs);
+    List<DeviceParameterDO> selectHistory(String deviceId, Long startTs, Long endTs);
 
-    void expireCurrent(String tenantId, String deviceId, String parameterType, long endTs);
+    void expireCurrent(String deviceId, String parameterType, long endTs);
 
     void insert(DeviceParameterDO entity);
 }

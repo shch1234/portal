@@ -11,11 +11,11 @@ import java.util.Optional;
  */
 public interface DeviceModelRepository {
 
-    Optional<DeviceModelDO> findById(String tenantId, String id);
+    Optional<DeviceModelDO> findById(String id);
 
-    Optional<DeviceModelDO> findByModelCode(String tenantId, String modelCode);
+    Optional<DeviceModelDO> findByModelCode(String modelCode);
 
-    boolean existsByModelCode(String tenantId, String modelCode, String excludeId);
+    boolean existsByModelCode(String modelCode, String excludeId);
 
     PageResult<DeviceModelDO> selectPage(DeviceModelPageQuery query);
 
@@ -23,6 +23,6 @@ public interface DeviceModelRepository {
 
     void update(DeviceModelDO entity);
 
-    boolean deleteById(String tenantId, String id);
+    boolean deleteById(String id);
 }
 

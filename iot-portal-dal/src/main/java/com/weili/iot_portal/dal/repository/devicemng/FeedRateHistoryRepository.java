@@ -8,6 +8,6 @@ public interface FeedRateHistoryRepository {
 
     void insertBatch(List<FeedRateHistoryDO> list);
 
-    List<FeedRateHistoryDO> selectByRange(String tenantId, String deviceId, Long startTs, Long endTs, Integer limit);
+    List<FeedRateHistoryDO> selectByRange(String deviceId, Long startTs, Long endTs, Integer limit);
 }
 

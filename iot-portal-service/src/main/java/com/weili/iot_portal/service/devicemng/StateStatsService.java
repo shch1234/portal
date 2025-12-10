@@ -7,9 +7,9 @@ import com.weili.iot_portal.domain.devicemng.StateStatsVO;
  */
 public interface StateStatsService {
 
-    StateStatsVO getCurrentShiftStats(String tenantId, String factoryId, String deviceId);
+    StateStatsVO getCurrentShiftStats(String factoryId, String deviceId);
 
-    StateStatsVO getHistoryStats(String tenantId, String factoryId, String deviceId, Long startTs, Long endTs);
+    StateStatsVO getHistoryStats(String factoryId, String deviceId, Long startTs, Long endTs);
 }
 
 

@@ -18,20 +18,18 @@ public class DeviceAlarmHistoryRepositoryImpl implements DeviceAlarmHistoryRepos
     private final DeviceAlarmHistoryMapper mapper;
 
     @Override
-    public List<DeviceAlarmHistoryDO> findActiveByDevice(String tenantId, String factoryId, String deviceId) {
+    public List<DeviceAlarmHistoryDO> findActiveByDevice(String factoryId, String deviceId) {
         LambdaQueryWrapper<DeviceAlarmHistoryDO> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(StringUtils.isNotBlank(tenantId), DeviceAlarmHistoryDO::getTenantUuid, tenantId)
-                .eq(DeviceAlarmHistoryDO::getDeviceInfoId, deviceId)
+        wrapper.eq(DeviceAlarmHistoryDO::getDeviceInfoId, deviceId)
                 .eq(StringUtils.isNotBlank(factoryId), DeviceAlarmHistoryDO::getOrgFactoryId, factoryId)
                 .eq(DeviceAlarmHistoryDO::getIsActive, 1);
         return mapper.selectList(wrapper);
     }
 
     @Override
-    public List<DeviceAlarmHistoryDO> findByRange(String tenantId, String factoryId, String deviceId, Long startTs, Long endTs) {
+    public List<DeviceAlarmHistoryDO> findByRange(String factoryId, String deviceId, Long startTs, Long endTs) {
         LambdaQueryWrapper<DeviceAlarmHistoryDO> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(StringUtils.isNotBlank(tenantId), DeviceAlarmHistoryDO::getTenantUuid, tenantId)
-                .eq(DeviceAlarmHistoryDO::getDeviceInfoId, deviceId)
+        wrapper.eq(DeviceAlarmHistoryDO::getDeviceInfoId, deviceId)
                 .eq(StringUtils.isNotBlank(factoryId), DeviceAlarmHistoryDO::getOrgFactoryId, factoryId);
         if (startTs != null) {
             wrapper.ge(DeviceAlarmHistoryDO::getStartTs, startTs);

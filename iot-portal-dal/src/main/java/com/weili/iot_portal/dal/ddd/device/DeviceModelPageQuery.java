@@ -10,8 +10,6 @@ import java.util.List;
 @Data
 public class DeviceModelPageQuery {
 
-    private String tenantUuid;
-
     private String modelCodeLike;
 
     private String modelNameLike;

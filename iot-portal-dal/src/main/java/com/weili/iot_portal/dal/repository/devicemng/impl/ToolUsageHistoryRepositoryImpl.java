@@ -55,10 +55,9 @@ public class ToolUsageHistoryRepositoryImpl implements ToolUsageHistoryRepositor
      * 按时间范围查询刀具使用记录（对应 device_tool_record 表的字段）
      */
     @Override
-    public List<ToolUsageHistoryDO> selectByRange(String tenantId, String deviceId, Long startTs, Long endTs, Integer limit) {
+    public List<ToolUsageHistoryDO> selectByRange(String deviceId, Long startTs, Long endTs, Integer limit) {
         LambdaQueryWrapper<ToolUsageHistoryDO> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(ToolUsageHistoryDO::getTenantUuid, tenantId)
-                .eq(ToolUsageHistoryDO::getDeviceInfoId, deviceId);
+        wrapper.eq(ToolUsageHistoryDO::getDeviceInfoId, deviceId);
         if (startTs != null) {
             wrapper.ge(ToolUsageHistoryDO::getStartTs, startTs);
         }
@@ -73,10 +72,9 @@ public class ToolUsageHistoryRepositoryImpl implements ToolUsageHistoryRepositor
     }
 
     @Override
-    public ToolUsageHistoryDO findLatestOngoing(String tenantId, String deviceId) {
+    public ToolUsageHistoryDO findLatestOngoing(String deviceId) {
         LambdaQueryWrapper<ToolUsageHistoryDO> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(ToolUsageHistoryDO::getTenantUuid, tenantId)
-                .eq(ToolUsageHistoryDO::getDeviceInfoId, deviceId)
+        wrapper.eq(ToolUsageHistoryDO::getDeviceInfoId, deviceId)
                 .isNull(ToolUsageHistoryDO::getEndTs)
                 .orderByDesc(ToolUsageHistoryDO::getStartTs)
                 .last("LIMIT 1");

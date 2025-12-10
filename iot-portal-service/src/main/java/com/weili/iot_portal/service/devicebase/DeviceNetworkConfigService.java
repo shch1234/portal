@@ -8,16 +8,16 @@ import com.weili.iot_portal.domain.devicebase.request.DeviceNetworkConfigUpdateR
 
 public interface DeviceNetworkConfigService {
 
-    DeviceNetworkConfigVO create(String tenantId, DeviceNetworkConfigCreateReq request);
+    DeviceNetworkConfigVO create(DeviceNetworkConfigCreateReq request);
 
-    DeviceNetworkConfigVO update(String tenantId, DeviceNetworkConfigUpdateReq request);
+    DeviceNetworkConfigVO update(DeviceNetworkConfigUpdateReq request);
 
-    DeviceNetworkConfigVO get(String tenantId, String factoryId, String id);
+    DeviceNetworkConfigVO get(String factoryId, String id);
 
-    DeviceNetworkConfigVO getByDeviceId(String tenantId, String factoryId, String deviceId);
+    DeviceNetworkConfigVO getByDeviceId(String factoryId, String deviceId);
 
-    PageResult<DeviceNetworkConfigVO> page(String tenantId, String factoryId, DeviceNetworkConfigQueryReq request);
+    PageResult<DeviceNetworkConfigVO> page(String factoryId, DeviceNetworkConfigQueryReq request);
 
-    boolean delete(String tenantId, String id);
+    boolean delete(String id);
 }
 

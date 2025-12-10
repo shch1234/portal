@@ -21,8 +21,8 @@ public class ProgramInfoServiceImpl implements ProgramInfoService {
     private final ProgramCodeCache programCodeCache;
 
     @Override
-    public ProgramInfoVO getCurrentProgramInfo(String tenantId, String factoryId, String deviceId) {
-        deviceFactoryValidator.ensureDeviceBelongsToFactory(tenantId, factoryId, deviceId);
+    public ProgramInfoVO getCurrentProgramInfo(String factoryId, String deviceId) {
+        deviceFactoryValidator.ensureDeviceBelongsToFactory(factoryId, deviceId);
         return programInfoCache.get(deviceId)
                 .orElseThrow(() -> new ServiceException(
                         ErrorCodeConstants.DEFAULT_ERROR.getCode(),
@@ -30,8 +30,8 @@ public class ProgramInfoServiceImpl implements ProgramInfoService {
     }
 
     @Override
-    public ProgramCodeVO getProgramCode(String tenantId, String factoryId, String deviceId, ProgramCodeType type) {
-        deviceFactoryValidator.ensureDeviceBelongsToFactory(tenantId, factoryId, deviceId);
+    public ProgramCodeVO getProgramCode(String factoryId, String deviceId, ProgramCodeType type) {
+        deviceFactoryValidator.ensureDeviceBelongsToFactory(factoryId, deviceId);
         return programCodeCache.get(deviceId, type)
                 .orElseThrow(() -> new ServiceException(
                         ErrorCodeConstants.DEFAULT_ERROR.getCode(),

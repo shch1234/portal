@@ -12,13 +12,13 @@ import java.util.Optional;
  */
 public interface OrganizationUnitRepository {
 
-    Optional<OrganizationUnitDO> findById(String tenantId, String id);
+    Optional<OrganizationUnitDO> findById(String id);
 
-    Optional<OrganizationUnitDO> findByUnitCode(String tenantId, String unitCode);
+    Optional<OrganizationUnitDO> findByUnitCode(String unitCode);
 
-    List<OrganizationUnitDO> findByParentId(String tenantId, String parentId);
+    List<OrganizationUnitDO> findByParentId(String parentId);
 
-    boolean existsByUnitCode(String tenantId, String unitCode, String excludeId);
+    boolean existsByUnitCode(String unitCode, String excludeId);
 
     PageResult<OrganizationUnitDO> selectPage(OrganizationUnitPageQuery query);
 
@@ -26,6 +26,6 @@ public interface OrganizationUnitRepository {
 
     void update(OrganizationUnitDO entity);
 
-    boolean deleteById(String tenantId, String id);
+    boolean deleteById(String id);
 }
 

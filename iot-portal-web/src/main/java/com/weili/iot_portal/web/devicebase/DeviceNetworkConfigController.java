@@ -29,8 +29,7 @@ public class DeviceNetworkConfigController {
     @ApiInterceptor
     @Operation(summary = "创建设备网络配置")
     public CommonResult<DeviceNetworkConfigVO> create(@Valid @RequestBody DeviceNetworkConfigCreateReq request) {
-        String tenantId = SecurityFrameworkContext.getLoginTenantId();
-        return CommonResult.success(deviceNetworkConfigService.create(tenantId, request));
+        return CommonResult.success(deviceNetworkConfigService.create(request));
     }
 
     @PutMapping("/{id}")
@@ -39,37 +38,33 @@ public class DeviceNetworkConfigController {
     @Operation(summary = "更新设备网络配置")
     public CommonResult<DeviceNetworkConfigVO> update(@PathVariable("id") String id,
                                                       @Valid @RequestBody DeviceNetworkConfigUpdateReq request) {
-        String tenantId = SecurityFrameworkContext.getLoginTenantId();
         request.setId(id);
-        return CommonResult.success(deviceNetworkConfigService.update(tenantId, request));
+        return CommonResult.success(deviceNetworkConfigService.update(request));
     }
 
     @GetMapping("/{id}")
     @ApiInterceptor
     @Operation(summary = "根据配置ID查询")
     public CommonResult<DeviceNetworkConfigVO> get(@PathVariable("id") String id) {
-        String tenantId = SecurityFrameworkContext.getLoginTenantId();
         String factoryId = SecurityFrameworkContext.getLoginFactoryId();
-        return CommonResult.success(deviceNetworkConfigService.get(tenantId, factoryId, id));
+        return CommonResult.success(deviceNetworkConfigService.get(factoryId, id));
     }
 
     @GetMapping("/by-device-id/{deviceId}")
     @ApiInterceptor
     @Operation(summary = "根据设备ID查询配置")
     public CommonResult<DeviceNetworkConfigVO> getByDeviceId(@PathVariable("deviceId") String deviceId) {
-        String tenantId = SecurityFrameworkContext.getLoginTenantId();
         String factoryId = SecurityFrameworkContext.getLoginFactoryId();
-        return CommonResult.success(deviceNetworkConfigService.getByDeviceId(tenantId, factoryId, deviceId));
+        return CommonResult.success(deviceNetworkConfigService.getByDeviceId(factoryId, deviceId));
     }
 
     @PostMapping("/page")
     @ApiInterceptor
     @Operation(summary = "分页查询设备网络配置")
     public CommonResult<PageResult<DeviceNetworkConfigVO>> page(@Valid @RequestBody DeviceNetworkConfigQueryReq request) {
-        String tenantId = SecurityFrameworkContext.getLoginTenantId();
         String factoryId = SecurityFrameworkContext.getLoginFactoryId();
         // 位置筛选由 Service 负责反查设备ID
-        return CommonResult.success(deviceNetworkConfigService.page(tenantId, factoryId, request));
+        return CommonResult.success(deviceNetworkConfigService.page(factoryId, request));
     }
 
     @DeleteMapping("/{id}")
@@ -77,8 +72,7 @@ public class DeviceNetworkConfigController {
     @ApiInterceptor
     @Operation(summary = "删除设备网络配置")
     public CommonResult<Boolean> delete(@PathVariable("id") String id) {
-        String tenantId = SecurityFrameworkContext.getLoginTenantId();
-        return CommonResult.success(deviceNetworkConfigService.delete(tenantId, id));
+        return CommonResult.success(deviceNetworkConfigService.delete(id));
     }
 }
 
