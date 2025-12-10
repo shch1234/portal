@@ -1,4 +1,4 @@
-package com.weili.iot_portal.service.webhook;
+package com.weili.iot_portal.task.webhook;
 
 import com.weili.basic.common.util.JsonUtils;
 import com.weili.iot_portal.dal.dataobject.ingestion.WebhookInboxDO;
