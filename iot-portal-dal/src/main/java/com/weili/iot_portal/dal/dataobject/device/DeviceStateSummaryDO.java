@@ -24,7 +24,7 @@ public class DeviceStateSummaryDO implements Serializable {
     @Serial
     private static final long serialVersionUID = -1505674693530597958L;
 
-    @TableId(type = IdType.INPUT)
+    @TableId(type = IdType.ASSIGN_ID)
     private String id;
 
     /**

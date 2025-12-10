@@ -24,7 +24,7 @@ public class DeviceInfoDO extends BaseDO {
     @Serial
     private static final long serialVersionUID = 3545101187655639470L;
 
-    @TableId(type = IdType.INPUT)
+    @TableId(type = IdType.ASSIGN_ID)
     private String id;
 
     /**

@@ -23,7 +23,7 @@ public class DeviceStateRecordDO implements Serializable {
     @Serial
     private static final long serialVersionUID = -5709800285274273654L;
 
-    @TableId(type = IdType.AUTO)
+    @TableId(type = IdType.ASSIGN_ID)
     private String id;
 
     /**

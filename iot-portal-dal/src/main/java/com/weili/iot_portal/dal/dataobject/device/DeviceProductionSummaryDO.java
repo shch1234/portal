@@ -24,7 +24,7 @@ public class DeviceProductionSummaryDO implements Serializable {
     @Serial
     private static final long serialVersionUID = 9035405367945829902L;
 
-    @TableId(type = IdType.INPUT)
+    @TableId(type = IdType.ASSIGN_ID)
     private String id;
 
     /**

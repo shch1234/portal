@@ -26,7 +26,7 @@ public class DeviceMetricSummaryDO extends BaseSimpleDO {
     @Serial
     private static final long serialVersionUID = -1760139988580895094L;
 
-    @TableId(type = IdType.INPUT)
+    @TableId(type = IdType.ASSIGN_ID)
     private String id;
 
     /**

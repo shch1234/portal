@@ -23,7 +23,7 @@ public class DeviceNetworkConfigDO extends BaseDO {
     @Serial
     private static final long serialVersionUID = 7639847559023457653L;
 
-    @TableId(type = IdType.INPUT)
+    @TableId(type = IdType.ASSIGN_ID)
     private String id;
 
     /**

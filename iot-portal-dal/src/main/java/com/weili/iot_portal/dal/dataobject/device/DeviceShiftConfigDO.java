@@ -5,7 +5,6 @@ import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.weili.basic.framework.mybatis.domain.BaseDO;
-import com.weili.basic.framework.mybatis.domain.BaseSimpleDO;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
@@ -24,7 +23,7 @@ public class DeviceShiftConfigDO extends BaseDO {
     @Serial
     private static final long serialVersionUID = 1L;
 
-    @TableId(type = IdType.INPUT)
+    @TableId(type = IdType.ASSIGN_ID)
     private String id;
 
     /**

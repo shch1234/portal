@@ -22,7 +22,7 @@ public class DeviceParamConfigDO extends BaseDO {
     @Serial
     private static final long serialVersionUID = 1626504502306212875L;
 
-    @TableId(type = IdType.INPUT)
+    @TableId(type = IdType.ASSIGN_ID)
     private String id;
 
     /**

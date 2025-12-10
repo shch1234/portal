@@ -21,7 +21,7 @@ public class DeviceOrgRelationDO extends BaseDO {
     @Serial
     private static final long serialVersionUID = -7263912751231102451L;
 
-    @TableId(type = IdType.INPUT)
+    @TableId(type = IdType.ASSIGN_ID)
     private String id;
 
     /**

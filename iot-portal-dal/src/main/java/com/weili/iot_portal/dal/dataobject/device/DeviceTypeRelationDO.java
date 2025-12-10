@@ -23,7 +23,7 @@ public class DeviceTypeRelationDO extends BaseSimpleDO {
     @Serial
     private static final long serialVersionUID = -8564837162533013560L;
 
-    @TableId(type = IdType.AUTO)
+    @TableId(type = IdType.ASSIGN_ID)
     private String id;
 
     private String typeCode;
