@@ -26,6 +26,18 @@ public interface DeviceInfoRepository {
 
     List<DeviceInfoDO> findByFactoryId(String factoryId);
 
+    Optional<DeviceInfoDO> findActiveMonitoredByDeviceCode(String deviceCode);
+
+    /**
+     * 查询所有未删除的设备
+     */
+    List<DeviceInfoDO> findAllActive();
+
+    /**
+     * 查询未删除且已关联工厂的设备
+     */
+    List<DeviceInfoDO> findActiveWithFactory();
+
     void insert(DeviceInfoDO entity);
 
     void update(DeviceInfoDO entity);

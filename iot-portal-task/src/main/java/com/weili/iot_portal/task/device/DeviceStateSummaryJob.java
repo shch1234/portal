@@ -1,6 +1,5 @@
 package com.weili.iot_portal.task.device;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.IdWorker;
 import com.weili.iot_portal.service.shift.IShiftConfigService;
 import com.weili.iot_portal.service.shift.model.ShiftTimeRange;
@@ -10,8 +9,8 @@ import com.weili.iot_portal.dal.dataobject.device.DeviceStateRecordDO;
 import com.weili.iot_portal.dal.dataobject.device.DeviceStateSummaryDO;
 import com.weili.iot_portal.dal.dataobject.device.DeviceShiftConfigDO;
 import com.weili.iot_portal.dal.dataobject.device.DeviceInfoDO;
-import com.weili.iot_portal.dal.mapper.device.DeviceStateSummaryMapper;
-import com.weili.iot_portal.dal.mapper.device.DeviceInfoMapper;
+import com.weili.iot_portal.dal.repository.device.DeviceInfoRepository;
+import com.weili.iot_portal.dal.repository.device.DeviceStateSummaryRepository;
 import com.weili.iot_portal.dal.repository.device.DeviceStateRecordRepository;
 import com.weili.iot_portal.dal.repository.device.DeviceShiftConfigRepository;
 import com.weili.basic.common.util.JsonUtils;
@@ -68,11 +67,11 @@ public class DeviceStateSummaryJob extends BaseScheduledJob {
     @Value("${shift.summary.batch-size:50}")
     private int batchSize; // 每批处理的设备数量
 
-    private final DeviceInfoMapper deviceInfoMapper;
+    private final DeviceInfoRepository deviceInfoRepository;
     private final DeviceShiftConfigRepository deviceShiftConfigRepository;
     private final IShiftConfigService shiftConfigurationService;
     private final DeviceStateRecordRepository stateTimelineRepository;
-    private final DeviceStateSummaryMapper stateSummaryMapper;
+    private final DeviceStateSummaryRepository stateSummaryRepository;
     private final RedisClient redisClient;
 
     @Override
@@ -168,11 +167,8 @@ public class DeviceStateSummaryJob extends BaseScheduledJob {
      * 注意：这里需要根据实际业务需求调整，可能需要查询所有租户的设备
      */
     private List<DeviceInfoDO> queryAllDevices() {
-        // 通过Mapper查询所有设备（不按租户过滤）
-        // 注意：如果系统是多租户隔离的，这里需要先查询所有租户，然后遍历查询
-        LambdaQueryWrapper<DeviceInfoDO> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(DeviceInfoDO::getDeleted, false); // 只查询未删除的设备
-        return deviceInfoMapper.selectList(wrapper);
+        // 通过仓储查询所有未删除设备（不按租户过滤）
+        return deviceInfoRepository.findAllActive();
     }
 
     /**
@@ -396,12 +392,7 @@ public class DeviceStateSummaryJob extends BaseScheduledJob {
      */
     private DeviceStateSummaryDO findExistingSummary(String deviceId,
                                                      LocalDate shiftDate, String shiftCode) {
-        LambdaQueryWrapper<DeviceStateSummaryDO> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(DeviceStateSummaryDO::getDeviceInfoId, deviceId)
-                .eq(DeviceStateSummaryDO::getSummaryDate, shiftDate)
-                .eq(DeviceStateSummaryDO::getShiftCode, shiftCode)
-                .last("limit 1");
-        return stateSummaryMapper.selectOne(wrapper);
+        return stateSummaryRepository.findByShift(deviceId, shiftDate, shiftCode);
     }
 
     /**
@@ -472,7 +463,8 @@ public class DeviceStateSummaryJob extends BaseScheduledJob {
 
         DeviceStateSummaryDO summary = findExistingSummary(deviceId, shiftDate, shiftRange.getShiftCode());
 
-        if (summary == null) {
+        boolean exists = summary != null;
+        if (!exists) {
             summary = new DeviceStateSummaryDO();
             summary.setId(IdWorker.getIdStr());
             summary.setDeviceInfoId(deviceId);
@@ -531,10 +523,10 @@ public class DeviceStateSummaryJob extends BaseScheduledJob {
         summary.setStateStatistics(stateStatisticsJson);
 
         // 保存或更新
-        if (summary.getId() != null && findExistingSummary(deviceId, shiftDate, shiftRange.getShiftCode()) != null) {
-            stateSummaryMapper.updateById(summary);
+        if (exists) {
+            stateSummaryRepository.update(summary);
         } else {
-            stateSummaryMapper.insert(summary);
+            stateSummaryRepository.insert(summary);
         }
     }
 

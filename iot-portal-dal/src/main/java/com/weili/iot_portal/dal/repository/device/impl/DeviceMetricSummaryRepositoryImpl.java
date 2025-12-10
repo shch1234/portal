@@ -11,6 +11,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
+import java.time.LocalDate;
 
 /**
  * 设备班次指标仓储实现
@@ -45,6 +46,26 @@ public class DeviceMetricSummaryRepositoryImpl implements DeviceMetricSummaryRep
         Page<DeviceMetricSummaryDO> page = new Page<>(pageNo, pageSize);
         Page<DeviceMetricSummaryDO> result = mapper.selectPage(page, wrapper);
         return new PageResult<>(result.getRecords(), result.getTotal());
+    }
+
+    @Override
+    public DeviceMetricSummaryDO findByShift(String deviceId, LocalDate shiftDate, String shiftCode) {
+        LambdaQueryWrapper<DeviceMetricSummaryDO> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(DeviceMetricSummaryDO::getDeviceInfoId, deviceId)
+                .eq(DeviceMetricSummaryDO::getShiftDate, shiftDate)
+                .eq(DeviceMetricSummaryDO::getShiftCode, shiftCode)
+                .last("limit 1");
+        return mapper.selectOne(wrapper);
+    }
+
+    @Override
+    public void insert(DeviceMetricSummaryDO entity) {
+        mapper.insert(entity);
+    }
+
+    @Override
+    public void update(DeviceMetricSummaryDO entity) {
+        mapper.updateById(entity);
     }
 
     /**

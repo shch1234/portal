@@ -68,6 +68,29 @@ public class DeviceInfoRepositoryImpl implements DeviceInfoRepository {
     }
 
     @Override
+    public Optional<DeviceInfoDO> findActiveMonitoredByDeviceCode(String deviceCode) {
+        LambdaQueryWrapper<DeviceInfoDO> wrapper = new LambdaQueryWrapper<DeviceInfoDO>()
+                .eq(DeviceInfoDO::getDeviceCode, deviceCode)
+                .eq(DeviceInfoDO::getDeleted, 0)
+                .eq(DeviceInfoDO::getIsMonitored, Boolean.TRUE)
+                .eq(DeviceInfoDO::getDeviceStatus, "ACTIVE");
+        return Optional.ofNullable(mapper.selectOne(wrapper));
+    }
+
+    @Override
+    public List<DeviceInfoDO> findAllActive() {
+        return mapper.selectList(new LambdaQueryWrapper<DeviceInfoDO>()
+                .eq(DeviceInfoDO::getDeleted, false));
+    }
+
+    @Override
+    public List<DeviceInfoDO> findActiveWithFactory() {
+        return mapper.selectList(new LambdaQueryWrapper<DeviceInfoDO>()
+                .eq(DeviceInfoDO::getDeleted, false)
+                .isNotNull(DeviceInfoDO::getOrgFactoryId));
+    }
+
+    @Override
     public PageResult<DeviceInfoDO> selectPage(DeviceBaseInfoPageQuery query) {
         Page<DeviceInfoDO> page = new Page<>(query.getPageNo(), query.getPageSize());
         LambdaQueryWrapper<DeviceInfoDO> wrapper = new LambdaQueryWrapper<>();

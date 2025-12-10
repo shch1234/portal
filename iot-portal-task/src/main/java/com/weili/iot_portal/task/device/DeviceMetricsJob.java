@@ -1,6 +1,5 @@
 package com.weili.iot_portal.task.device;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.weili.iot_portal.service.shift.IShiftConfigService;
 import com.weili.iot_portal.service.shift.model.ShiftTimeRange;
 import com.weili.iot_portal.task.framework.BaseScheduledJob;
@@ -10,7 +9,7 @@ import com.weili.iot_portal.common.constant.RedisConstant;
 import com.weili.iot_portal.dal.dataobject.device.DeviceInfoDO;
 import com.weili.iot_portal.dal.dataobject.device.DeviceParamConfigDO;
 import com.weili.iot_portal.dal.dataobject.device.DeviceStateRecordDO;
-import com.weili.iot_portal.dal.mapper.device.DeviceInfoMapper;
+import com.weili.iot_portal.dal.repository.device.DeviceInfoRepository;
 import com.weili.iot_portal.dal.repository.device.DeviceParamConfigRepository;
 import com.weili.iot_portal.dal.repository.device.DeviceProductionRecordRepository;
 import com.weili.iot_portal.dal.repository.device.DeviceStateRecordRepository;
@@ -42,7 +41,7 @@ public class DeviceMetricsJob extends BaseScheduledJob {
     @Value("${rt.metrics.ttl-seconds:600}")
     private long ttlSeconds;
 
-    private final DeviceInfoMapper deviceInfoMapper;
+    private final DeviceInfoRepository deviceInfoRepository;
     private final DeviceStateRecordRepository deviceStateRecordRepository;
     private final DeviceParamConfigRepository deviceParamConfigRepository;
     private final DeviceProductionRecordRepository deviceProductionRecordRepository;
@@ -84,10 +83,7 @@ public class DeviceMetricsJob extends BaseScheduledJob {
     }
 
     private List<DeviceInfoDO> queryAllDevices() {
-        LambdaQueryWrapper<DeviceInfoDO> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(DeviceInfoDO::getDeleted, false)
-                .isNotNull(DeviceInfoDO::getOrgFactoryId);
-        return deviceInfoMapper.selectList(wrapper);
+        return deviceInfoRepository.findActiveWithFactory();
     }
 
     private void processDevice(DeviceInfoDO device) {

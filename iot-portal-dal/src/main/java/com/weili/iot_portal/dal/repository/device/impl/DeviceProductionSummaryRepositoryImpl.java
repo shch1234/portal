@@ -12,6 +12,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
+import java.time.LocalDate;
 
 /**
  * 班次产量仓储实现
@@ -72,6 +73,26 @@ public class DeviceProductionSummaryRepositoryImpl implements DeviceProductionSu
         Page<DeviceProductionSummaryDO> page = new Page<>(query.getPageNo(), query.getPageSize());
         Page<DeviceProductionSummaryDO> result = deviceProductionSummaryMapper.selectPage(page, wrapper);
         return new PageResult<>(result.getRecords(), result.getTotal());
+    }
+
+    @Override
+    public DeviceProductionSummaryDO findByShift(String deviceId, LocalDate shiftDate, String shiftCode) {
+        LambdaQueryWrapper<DeviceProductionSummaryDO> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(DeviceProductionSummaryDO::getDeviceInfoId, deviceId)
+                .eq(DeviceProductionSummaryDO::getShiftDate, shiftDate)
+                .eq(DeviceProductionSummaryDO::getShiftCode, shiftCode)
+                .last("limit 1");
+        return deviceProductionSummaryMapper.selectOne(wrapper);
+    }
+
+    @Override
+    public void insert(DeviceProductionSummaryDO entity) {
+        deviceProductionSummaryMapper.insert(entity);
+    }
+
+    @Override
+    public void update(DeviceProductionSummaryDO entity) {
+        deviceProductionSummaryMapper.updateById(entity);
     }
 }
 

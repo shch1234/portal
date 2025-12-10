@@ -2,11 +2,11 @@ package com.weili.iot_portal.service.ingestion.support;
 
 import com.weili.basic.common.exception.ServiceException;
 import com.weili.iot_portal.dal.dataobject.ingestion.WebhookInboxDO;
-import com.weili.iot_portal.dal.mapper.ingestion.WebhookInboxMapper;
+import com.weili.iot_portal.dal.repository.ingestion.WebhookInboxRepository;
 import com.weili.iot_portal.domain.ingestion.WebhookRequest;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -19,10 +19,10 @@ import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class WebhookInboxService {
 
-    @Autowired
-    private WebhookInboxMapper inboxMapper;
+    private final WebhookInboxRepository inboxRepository;
 
     @Value("${webhook.inbox.batch-size:100}")
     private int batchSize;
@@ -53,7 +53,7 @@ public class WebhookInboxService {
         inbox.setStatus("PENDING");
         inbox.setProcessCount(0);
         inbox.setReceivedTime(LocalDateTime.now());
-        inboxMapper.insert(inbox);
+        inboxRepository.insert(inbox);
     }
 
     /**
@@ -61,26 +61,20 @@ public class WebhookInboxService {
      */
     public List<WebhookInboxDO> fetchDue() {
         LocalDateTime now = LocalDateTime.now();
-        return inboxMapper.selectList(
-                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<WebhookInboxDO>()
-                        .in(WebhookInboxDO::getStatus, "PENDING", "FAILED")
-                        .and(w -> w.isNull(WebhookInboxDO::getNextRetryTime).or().le(WebhookInboxDO::getNextRetryTime, now))
-                        .orderByAsc(WebhookInboxDO::getReceivedTime)
-                        .last("limit " + batchSize)
-        );
+        return inboxRepository.fetchDue(batchSize, now);
     }
 
     public void markProcessing(WebhookInboxDO inbox) {
         inbox.setStatus("PROCESSING");
         inbox.setUpdateTime(LocalDateTime.now());
-        inboxMapper.updateById(inbox);
+        inboxRepository.update(inbox);
     }
 
     public void markSuccess(WebhookInboxDO inbox) {
         inbox.setStatus("SUCCESS");
         inbox.setProcessedTime(LocalDateTime.now());
         inbox.setUpdateTime(LocalDateTime.now());
-        inboxMapper.updateById(inbox);
+        inboxRepository.update(inbox);
     }
 
     public void markFailed(WebhookInboxDO inbox, String errorMessage) {
@@ -90,7 +84,7 @@ public class WebhookInboxService {
         inbox.setLastError(errorMessage);
         inbox.setNextRetryTime(calculateNextRetryTime(currentRetry + 1));
         inbox.setUpdateTime(LocalDateTime.now());
-        inboxMapper.updateById(inbox);
+        inboxRepository.update(inbox);
     }
 
     public boolean reachMaxRetry(WebhookInboxDO inbox) {
@@ -106,7 +100,7 @@ public class WebhookInboxService {
         inbox.setLastError(errorMessage);
         inbox.setNextRetryTime(null);
         inbox.setUpdateTime(LocalDateTime.now());
-        inboxMapper.updateById(inbox);
+        inboxRepository.update(inbox);
     }
 
     private LocalDateTime calculateNextRetryTime(int retryCount) {

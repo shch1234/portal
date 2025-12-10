@@ -21,3 +21,4 @@ public interface WebhookFailLogRepository {
     Optional<WebhookFailLogDO> findLatestByMessageId(String messageId);
 }
 
+

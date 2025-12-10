@@ -22,6 +22,10 @@ public interface DeviceStateRecordRepository {
      * @return 最新的状态记录，如果不存在返回 Optional.empty()
      */
     Optional<DeviceStateRecordDO> findLatestState(String deviceId);
+
+    void insert(DeviceStateRecordDO record);
+
+    void update(DeviceStateRecordDO record);
 }
 
 

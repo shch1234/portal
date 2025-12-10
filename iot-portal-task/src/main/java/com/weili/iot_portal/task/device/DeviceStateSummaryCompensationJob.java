@@ -1,6 +1,5 @@
 package com.weili.iot_portal.task.device;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.weili.iot_portal.dal.dataobject.device.DeviceShiftConfigDO;
 import com.weili.iot_portal.dal.dataobject.device.DeviceStateRecordDO;
 import com.weili.iot_portal.service.shift.IShiftConfigService;
@@ -9,8 +8,8 @@ import com.xxl.job.core.context.XxlJobHelper;
 import com.xxl.job.core.handler.annotation.XxlJob;
 import com.weili.iot_portal.dal.dataobject.device.DeviceStateSummaryDO;
 import com.weili.iot_portal.dal.dataobject.device.DeviceInfoDO;
-import com.weili.iot_portal.dal.mapper.device.DeviceStateSummaryMapper;
-import com.weili.iot_portal.dal.mapper.device.DeviceInfoMapper;
+import com.weili.iot_portal.dal.repository.device.DeviceInfoRepository;
+import com.weili.iot_portal.dal.repository.device.DeviceStateSummaryRepository;
 import com.weili.iot_portal.dal.repository.device.DeviceStateRecordRepository;
 import com.weili.iot_portal.dal.repository.device.DeviceShiftConfigRepository;
 import com.weili.iot_portal.task.framework.BaseCompensationJob;
@@ -50,8 +49,8 @@ public class DeviceStateSummaryCompensationJob extends BaseCompensationJob<Devic
     @Value("${shift.summary.compensation.days:7}")
     private int compensationDays;
 
-    private final DeviceStateSummaryMapper stateSummaryMapper;
-    private final DeviceInfoMapper deviceInfoMapper;
+    private final DeviceStateSummaryRepository stateSummaryRepository;
+    private final DeviceInfoRepository deviceInfoRepository;
     private final DeviceShiftConfigRepository deviceShiftConfigRepository;
     private final IShiftConfigService shiftConfigurationService;
     private final DeviceStateRecordRepository stateTimelineRepository;
@@ -79,13 +78,7 @@ public class DeviceStateSummaryCompensationJob extends BaseCompensationJob<Devic
         LocalDate endDate = LocalDate.now();
         LocalDate startDate = endDate.minusDays(compensationDays);
 
-        LambdaQueryWrapper<DeviceStateSummaryDO> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(DeviceStateSummaryDO::getIsFinalized, false)
-                .between(DeviceStateSummaryDO::getSummaryDate, startDate, endDate)
-                .orderByAsc(DeviceStateSummaryDO::getSummaryDate)
-                .orderByAsc(DeviceStateSummaryDO::getShiftCode);
-
-        List<DeviceStateSummaryDO> unprocessedSummaries = stateSummaryMapper.selectList(wrapper);
+        List<DeviceStateSummaryDO> unprocessedSummaries = stateSummaryRepository.selectPending(startDate, endDate);
 
         if (unprocessedSummaries != null && !unprocessedSummaries.isEmpty()) {
             XxlJobHelper.log("发现 {} 条未处理的汇总记录", unprocessedSummaries.size());
@@ -122,11 +115,12 @@ public class DeviceStateSummaryCompensationJob extends BaseCompensationJob<Devic
     @Transactional(rollbackFor = Exception.class)
     public boolean recalculateSummary(DeviceStateSummaryDO summary) {
         // 查询设备信息
-        DeviceInfoDO device = deviceInfoMapper.selectById(summary.getDeviceInfoId());
-        if (device == null || Boolean.TRUE.equals(device.getDeleted())) {
+        Optional<DeviceInfoDO> deviceOpt = deviceInfoRepository.findById(summary.getDeviceInfoId());
+        if (deviceOpt.isEmpty() || Boolean.TRUE.equals(deviceOpt.get().getDeleted())) {
             log.warn("设备不存在或已删除: deviceId={}", summary.getDeviceInfoId());
             return false;
         }
+        DeviceInfoDO device = deviceOpt.get();
 
         // 查询班次配置
         long shiftStartTs = summary.getShiftStartTs() * 1000L;

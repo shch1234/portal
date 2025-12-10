@@ -17,3 +17,4 @@ public interface WebhookInboxRepository {
     void update(WebhookInboxDO inbox);
 }
 
+

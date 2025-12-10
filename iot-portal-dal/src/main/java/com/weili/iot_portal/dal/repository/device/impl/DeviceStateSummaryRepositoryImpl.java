@@ -9,6 +9,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.time.LocalDate;
 
 /**
  * 设备状态汇总仓储实现
@@ -36,6 +37,36 @@ public class DeviceStateSummaryRepositoryImpl implements DeviceStateSummaryRepos
         }
         wrapper.orderByAsc(DeviceStateSummaryDO::getShiftStartTs);
         return mapper.selectList(wrapper);
+    }
+
+    @Override
+    public List<DeviceStateSummaryDO> selectPending(LocalDate startDate, LocalDate endDate) {
+        LambdaQueryWrapper<DeviceStateSummaryDO> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(DeviceStateSummaryDO::getIsFinalized, false)
+                .between(DeviceStateSummaryDO::getSummaryDate, startDate, endDate)
+                .orderByAsc(DeviceStateSummaryDO::getSummaryDate)
+                .orderByAsc(DeviceStateSummaryDO::getShiftCode);
+        return mapper.selectList(wrapper);
+    }
+
+    @Override
+    public DeviceStateSummaryDO findByShift(String deviceId, LocalDate shiftDate, String shiftCode) {
+        LambdaQueryWrapper<DeviceStateSummaryDO> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(DeviceStateSummaryDO::getDeviceInfoId, deviceId)
+                .eq(DeviceStateSummaryDO::getSummaryDate, shiftDate)
+                .eq(DeviceStateSummaryDO::getShiftCode, shiftCode)
+                .last("limit 1");
+        return mapper.selectOne(wrapper);
+    }
+
+    @Override
+    public void insert(DeviceStateSummaryDO entity) {
+        mapper.insert(entity);
+    }
+
+    @Override
+    public void update(DeviceStateSummaryDO entity) {
+        mapper.updateById(entity);
     }
 }
 

@@ -1,6 +1,5 @@
 package com.weili.iot_portal.task.device;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.IdWorker;
 import com.weili.iot_portal.dal.dataobject.device.DeviceProductionSummaryDO;
 import com.weili.iot_portal.service.shift.IShiftConfigService;
@@ -8,8 +7,8 @@ import com.weili.iot_portal.service.shift.model.ShiftTimeRange;
 import com.xxl.job.core.handler.annotation.XxlJob;
 import com.xxl.job.core.context.XxlJobHelper;
 import com.weili.iot_portal.dal.dataobject.device.DeviceInfoDO;
-import com.weili.iot_portal.dal.mapper.device.DeviceInfoMapper;
-import com.weili.iot_portal.dal.mapper.device.DeviceProductionSummaryMapper;
+import com.weili.iot_portal.dal.repository.device.DeviceInfoRepository;
+import com.weili.iot_portal.dal.repository.device.DeviceProductionSummaryRepository;
 import com.weili.iot_portal.dal.repository.device.DeviceProductionRecordRepository;
 import com.weili.iot_portal.task.framework.BaseScheduledJob;
 import com.weili.iot_portal.task.framework.JobExecutionResult;
@@ -37,9 +36,9 @@ public class DeviceProductionSummaryJob extends BaseScheduledJob {
 
     @Value("${shift.summary.delay-minutes:5}")
     private int delayMinutes;
-    private final DeviceInfoMapper deviceInfoMapper;
+    private final DeviceInfoRepository deviceInfoRepository;
     private final DeviceProductionRecordRepository productionRecordRepository;
-    private final DeviceProductionSummaryMapper deviceProductionSummaryMapper;
+    private final DeviceProductionSummaryRepository deviceProductionSummaryRepository;
     private final IShiftConfigService shiftConfigurationService;
 
     @Override
@@ -94,9 +93,7 @@ public class DeviceProductionSummaryJob extends BaseScheduledJob {
     }
 
     private List<DeviceInfoDO> queryAllDevices() {
-        LambdaQueryWrapper<DeviceInfoDO> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(DeviceInfoDO::getDeleted, false);
-        return deviceInfoMapper.selectList(wrapper);
+        return deviceInfoRepository.findAllActive();
     }
 
     /**
@@ -123,11 +120,7 @@ public class DeviceProductionSummaryJob extends BaseScheduledJob {
 
     private void upsertSummary(String deviceId, LocalDate shiftDate, String shiftCode,
                                long shiftStartSec, long shiftEndSec, long partCount, long calculatedTimeSec) {
-        LambdaQueryWrapper<DeviceProductionSummaryDO> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(DeviceProductionSummaryDO::getDeviceInfoId, deviceId)
-                .eq(DeviceProductionSummaryDO::getShiftDate, shiftDate)
-                .eq(DeviceProductionSummaryDO::getShiftCode, shiftCode);
-        DeviceProductionSummaryDO existing = deviceProductionSummaryMapper.selectOne(wrapper);
+        DeviceProductionSummaryDO existing = deviceProductionSummaryRepository.findByShift(deviceId, shiftDate, shiftCode);
         if (existing == null) {
             DeviceProductionSummaryDO summary = new DeviceProductionSummaryDO();
             summary.setId(IdWorker.getIdStr());
@@ -141,7 +134,7 @@ public class DeviceProductionSummaryJob extends BaseScheduledJob {
             summary.setDefectCount(0);
             summary.setIsFinalized(true);
             summary.setCalculatedTime(calculatedTimeSec);
-            deviceProductionSummaryMapper.insert(summary);
+            deviceProductionSummaryRepository.insert(summary);
         } else {
             existing.setShiftStartTs(shiftStartSec);
             existing.setShiftEndTs(shiftEndSec);
@@ -150,7 +143,7 @@ public class DeviceProductionSummaryJob extends BaseScheduledJob {
             existing.setDefectCount(existing.getDefectCount() == null ? 0 : existing.getDefectCount());
             existing.setIsFinalized(true);
             existing.setCalculatedTime(calculatedTimeSec);
-            deviceProductionSummaryMapper.updateById(existing);
+            deviceProductionSummaryRepository.update(existing);
         }
     }
 }

@@ -6,7 +6,6 @@ import com.weili.basic.common.exception.ServiceException;
 import com.weili.iot_portal.common.constant.RedisConstant;
 import com.weili.iot_portal.dal.dataobject.device.DeviceStateRecordDO;
 import com.weili.iot_portal.dal.dataobject.ingestion.WebhookInboxDO;
-import com.weili.iot_portal.dal.mapper.device.DeviceStateRecordMapper;
 import com.weili.iot_portal.dal.repository.device.DeviceStateRecordRepository;
 import com.weili.iot_portal.domain.ingestion.WebhookRequest;
 import com.weili.iot_portal.service.cache.DeviceIdentityCacheService;
@@ -47,7 +46,6 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
     private static final String UNKNOWN_STATE = "UNKNOWN";
 
     private final DeviceStateRecordRepository stateTimelineRepository;
-    private final DeviceStateRecordMapper stateTimelineMapper;
     private final DeviceIdentityCacheService deviceIdentityCacheService;
     private final WebhookFailLogService webhookFailLogService;
     private final RedisTemplate<String, String> redisTemplate;
@@ -193,7 +191,7 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
 
         DeviceStateRecordDO newRecord = createStateRecord(deviceInfoId, orgFactoryId, currentState,
                 eventTimestamp, null, true, null);
-        stateTimelineMapper.insert(newRecord);
+        stateTimelineRepository.insert(newRecord);
     }
 
     /**
@@ -210,12 +208,12 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
             latestState.setDurationS((int) (eventTimestamp - latestState.getStartTs()));
         }
         latestState.setIsComplete(true);
-        stateTimelineMapper.updateById(latestState);
+        stateTimelineRepository.update(latestState);
 
         // 插入新状态记录
         DeviceStateRecordDO newRecord = createStateRecord(
                 latestState.getDeviceInfoId(), orgFactoryId, currentState, eventTimestamp, null, true, null);
-        stateTimelineMapper.insert(newRecord);
+        stateTimelineRepository.insert(newRecord);
     }
 
     /**
@@ -262,13 +260,13 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
 
             DeviceStateRecordDO unknownRecord = createStateRecord(deviceInfoId, orgFactoryId, UNKNOWN_STATE,
                     latestEndTs, eventTimestamp, false, gapProperties);
-            stateTimelineMapper.insert(unknownRecord);
+            stateTimelineRepository.insert(unknownRecord);
         }
 
         // 插入新状态记录
         DeviceStateRecordDO newRecord = createStateRecord(deviceInfoId, orgFactoryId, currentState,
                 eventTimestamp, null, true, null);
-        stateTimelineMapper.insert(newRecord);
+        stateTimelineRepository.insert(newRecord);
 
         // 记录异常日志（可以自动修复，不需要人工处理）
         String errorMessage = String.format("状态不匹配（已结束）: DB状态=%s, 事件previousState=%s, 间隙=%d秒",
@@ -304,7 +302,7 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
         }
         latestState.setIsComplete(false); // 标记为不完整，需要后续修复
         latestState.setProperties(mismatchProperties);
-        stateTimelineMapper.updateById(latestState);
+        stateTimelineRepository.update(latestState);
 
         // 如果 previousState 不为 NULL，插入 previousState 状态记录（用于修复时间线）
         if (StringUtils.isNotBlank(previousState)) {
@@ -314,13 +312,13 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
 
             DeviceStateRecordDO previousRecord = createStateRecord(deviceInfoId, orgFactoryId, previousState,
                     eventTimestamp, eventTimestamp, false, recoveryProperties);
-            stateTimelineMapper.insert(previousRecord);
+            stateTimelineRepository.insert(previousRecord);
         }
 
         // 插入新状态记录
         DeviceStateRecordDO newRecord = createStateRecord(deviceInfoId, orgFactoryId, currentState,
                 eventTimestamp, null, true, null);
-        stateTimelineMapper.insert(newRecord);
+        stateTimelineRepository.insert(newRecord);
 
         // 记录异常日志（需要人工审核）
         String errorMessage = String.format("状态不匹配（进行中）: DB状态=%s, 事件previousState=%s, 已标记为UNKNOWN",
@@ -349,7 +347,7 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
 
         DeviceStateRecordDO newRecord = createStateRecord(deviceInfoId, orgFactoryId, currentState,
                 currentTimeSeconds, null, false, anomalyProperties);
-        stateTimelineMapper.insert(newRecord);
+        stateTimelineRepository.insert(newRecord);
 
         // 记录异常日志（需要人工审核）
         String errorMessage = String.format("时间戳异常: 事件时间=%d, DB状态开始时间=%d, 差距=%d秒",
@@ -372,7 +370,7 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
 
         DeviceStateRecordDO newRecord = createStateRecord(deviceInfoId, orgFactoryId, currentState,
                 eventTimestamp, null, true, null);
-        stateTimelineMapper.insert(newRecord);
+        stateTimelineRepository.insert(newRecord);
     }
 
     /**

@@ -69,6 +69,16 @@ public class DeviceStateRecordRepositoryImpl implements DeviceStateRecordReposit
         return Optional.ofNullable(record);
     }
 
+    @Override
+    public void insert(DeviceStateRecordDO record) {
+        deviceStateRecordMapper.insert(record);
+    }
+
+    @Override
+    public void update(DeviceStateRecordDO record) {
+        deviceStateRecordMapper.updateById(record);
+    }
+
     /**
      * 构建基础查询条件（对应 device_state_record 表的字段）
      */

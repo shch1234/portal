@@ -1,6 +1,5 @@
 package com.weili.iot_portal.task.device;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.IdWorker;
 import com.xxl.job.core.context.XxlJobHelper;
 import com.xxl.job.core.handler.annotation.XxlJob;
@@ -9,8 +8,8 @@ import com.weili.iot_portal.dal.dataobject.device.DeviceMetricSummaryDO;
 import com.weili.iot_portal.dal.dataobject.device.DeviceParamConfigDO;
 import com.weili.iot_portal.dal.dataobject.device.DeviceStateSummaryDO;
 import com.weili.iot_portal.dal.repository.device.DeviceProductionRecordRepository;
-import com.weili.iot_portal.dal.mapper.device.DeviceMetricSummaryMapper;
-import com.weili.iot_portal.dal.mapper.device.DeviceInfoMapper;
+import com.weili.iot_portal.dal.repository.device.DeviceMetricSummaryRepository;
+import com.weili.iot_portal.dal.repository.device.DeviceInfoRepository;
 import com.weili.iot_portal.dal.repository.device.DeviceParamConfigRepository;
 import com.weili.iot_portal.dal.repository.device.DeviceStateSummaryRepository;
 import com.weili.iot_portal.task.framework.BaseScheduledJob;
@@ -41,10 +40,10 @@ public class DeviceMetricsSummaryJob extends BaseScheduledJob {
     @Value("${shift.summary.delay-minutes:5}")
     private int delayMinutes;
 
-    private final DeviceInfoMapper deviceInfoMapper;
+    private final DeviceInfoRepository deviceInfoRepository;
     private final DeviceStateSummaryRepository deviceStateSummaryRepository;
     private final DeviceParamConfigRepository deviceParamConfigRepository;
-    private final DeviceMetricSummaryMapper deviceMetricSummaryMapper;
+    private final DeviceMetricSummaryRepository deviceMetricSummaryRepository;
     private final DeviceProductionRecordRepository deviceProductionRecordRepository;
 
     private static final String PARAM_PLANNED_DOWNTIME = "PLANNED_DOWNTIME";
@@ -95,9 +94,7 @@ public class DeviceMetricsSummaryJob extends BaseScheduledJob {
     }
 
     private List<DeviceInfoDO> queryAllDevices() {
-        LambdaQueryWrapper<DeviceInfoDO> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(DeviceInfoDO::getDeleted, false);
-        return deviceInfoMapper.selectList(wrapper);
+        return deviceInfoRepository.findAllActive();
     }
 
     /**
@@ -194,11 +191,8 @@ public class DeviceMetricsSummaryJob extends BaseScheduledJob {
         calcData.put("working", working);
         calcData.put("faultDuration", fault);
 
-        LambdaQueryWrapper<DeviceMetricSummaryDO> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(DeviceMetricSummaryDO::getDeviceInfoId, device.getId())
-                .eq(DeviceMetricSummaryDO::getShiftDate, stateSummary.getSummaryDate())
-                .eq(DeviceMetricSummaryDO::getShiftCode, stateSummary.getShiftCode());
-        DeviceMetricSummaryDO existing = deviceMetricSummaryMapper.selectOne(wrapper);
+        DeviceMetricSummaryDO existing = deviceMetricSummaryRepository.findByShift(
+                device.getId(), stateSummary.getSummaryDate(), stateSummary.getShiftCode());
         if (existing == null) {
             DeviceMetricSummaryDO record = new DeviceMetricSummaryDO();
             record.setId(IdWorker.getIdStr());
@@ -217,7 +211,7 @@ public class DeviceMetricsSummaryJob extends BaseScheduledJob {
             record.setCalculationStatus("CALCULATED");
             record.setCalculatedTime(System.currentTimeMillis() / 1000);
             record.setCalculationSource(CALC_SOURCE);
-            deviceMetricSummaryMapper.insert(record);
+            deviceMetricSummaryRepository.insert(record);
         } else {
             existing.setShiftStartTs(stateSummary.getShiftStartTs());
             existing.setShiftEndTs(stateSummary.getShiftEndTs());
@@ -231,7 +225,7 @@ public class DeviceMetricsSummaryJob extends BaseScheduledJob {
             existing.setCalculationStatus("CALCULATED");
             existing.setCalculatedTime(System.currentTimeMillis() / 1000);
             existing.setCalculationSource(CALC_SOURCE);
-            deviceMetricSummaryMapper.updateById(existing);
+            deviceMetricSummaryRepository.update(existing);
         }
     }
 
