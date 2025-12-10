@@ -66,9 +66,6 @@ public class WebhookReceiveService {
         if (StringUtils.isBlank(request.getDeviceId())) {
             request.setDeviceId(device.getTbDeviceId());
         }
-        if (StringUtils.isBlank(request.getTenantId())) {
-            request.setTenantId(device.getTenantUuid());
-        }
         request.setWebhookCategory(category);
         request.setEventType(eventType);
 

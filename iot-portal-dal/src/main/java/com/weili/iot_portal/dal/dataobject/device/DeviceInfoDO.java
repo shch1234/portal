@@ -28,17 +28,12 @@ public class DeviceInfoDO extends BaseDO {
     private String id;
 
     /**
-     * 租户UUID（对应 tenant_uuid 列）
-     */
-    private String tenantUuid;
-
-    /**
      * ThingsBoard 设备ID（关联 ThingsBoard device.id，对应 tb_device_id 列）
      */
     private String tbDeviceId;
 
     /**
-     * 设备编号（威力编号，租户内唯一，对应 device_code 列）
+     * 设备编号（威力编号，对应 device_code 列）
      */
     private String deviceCode;
 

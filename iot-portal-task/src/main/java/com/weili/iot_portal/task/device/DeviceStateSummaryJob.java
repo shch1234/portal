@@ -686,7 +686,6 @@ public class DeviceStateSummaryJob extends BaseScheduledJob {
      */
     @Data
     private static class CheckpointData {
-        private String tenantId;
         private String factoryId;
         private long statisticsTimeSeconds;
         private List<String> processedDeviceIds;

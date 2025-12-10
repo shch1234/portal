@@ -12,8 +12,6 @@ public class WebhookRequest {
 
     private String messageId;
 
-    private String tenantId;
-
     private String deviceId;
 
     private String deviceCode;
