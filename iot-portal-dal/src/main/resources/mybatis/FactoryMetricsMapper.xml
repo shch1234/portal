@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<mapper namespace="com.weili.iot_portal.dal.mapper.effiency.FactoryMetricsMapper">
+<mapper namespace="com.weili.iot_portal.dal.mapper.effiency.FactoryMetricsSummaryMapper">
 
     <!-- ResultMap定义 -->
-    <resultMap id="FactoryMetricsShiftResultMap" type="com.weili.iot_portal.dal.dataobject.efficiency.FactoryMetricsShiftDO">
+    <resultMap id="FactoryMetricsShiftResultMap" type="com.weili.iot_portal.dal.dataobject.effiency.FactoryMetricsSummaryDO">
         <id column="id" property="id"/>
         <result column="tenantId" property="tenantId"/>
         <result column="factoryId" property="factoryId"/>

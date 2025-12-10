@@ -8,8 +8,6 @@ import lombok.Data;
 @Data
 public class DeviceStateTimelineQuery {
 
-    private String tenantId;
-
     private String deviceId;
 
     private Long startTs;

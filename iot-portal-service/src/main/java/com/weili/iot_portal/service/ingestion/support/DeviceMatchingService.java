@@ -1,8 +1,8 @@
 package com.weili.iot_portal.service.ingestion.support;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.weili.iot_portal.dal.dataobject.devicebase.DeviceBaseInfoDO;
-import com.weili.iot_portal.dal.mapper.devicebase.DeviceBaseInfoMapper;
+import com.weili.iot_portal.dal.dataobject.device.DeviceInfoDO;
+import com.weili.iot_portal.dal.mapper.device.DeviceInfoMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,17 +18,17 @@ import java.util.Optional;
 public class DeviceMatchingService {
 
     @Autowired
-    private DeviceBaseInfoMapper deviceBaseInfoMapper;
+    private DeviceInfoMapper deviceInfoMapper;
 
-    public Optional<DeviceBaseInfoDO> match(String deviceCode) {
+    public Optional<DeviceInfoDO> match(String deviceCode) {
         if (StringUtils.isBlank(deviceCode)) {
             log.warn("device_code 为空，跳过匹配");
             return Optional.empty();
         }
-        LambdaQueryWrapper<DeviceBaseInfoDO> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(DeviceBaseInfoDO::getDeviceCode, deviceCode)
-                .eq(DeviceBaseInfoDO::getDeleted, 0);
-        DeviceBaseInfoDO device = deviceBaseInfoMapper.selectOne(wrapper);
+        LambdaQueryWrapper<DeviceInfoDO> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(DeviceInfoDO::getDeviceCode, deviceCode)
+                .eq(DeviceInfoDO::getDeleted, 0);
+        DeviceInfoDO device = deviceInfoMapper.selectOne(wrapper);
         if (device == null) {
             log.warn("设备未匹配: deviceCode={}", deviceCode);
             return Optional.empty();

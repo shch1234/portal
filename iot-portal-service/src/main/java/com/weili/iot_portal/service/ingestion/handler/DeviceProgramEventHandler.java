@@ -6,7 +6,7 @@ import com.weili.iot_portal.common.constant.RedisConstant;
 import com.weili.iot_portal.dal.dataobject.ingestion.WebhookInboxDO;
 import com.weili.iot_portal.domain.ingestion.WebhookRequest;
 import com.weili.iot_portal.service.cache.RealTimeCacheService;
-import com.weili.iot_portal.service.support.DeviceIdentityCacheService;
+import com.weili.iot_portal.service.cache.DeviceIdentityCacheService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -54,7 +54,7 @@ public class DeviceProgramEventHandler implements WebhookEventHandler {
         }
 
         DeviceIdentityCacheService.DeviceIdentity identity = deviceIdentityCacheService
-                .resolveByDeviceCode(request.getTenantId(), request.getDeviceCode(),
+                .resolveByDeviceCode(request.getDeviceCode(),
                         request.getDeviceId(), "DeviceProgramEvent");
         String deviceInfoId = identity.getDeviceId();
         String orgFactoryId = identity.getFactoryId();
@@ -75,7 +75,7 @@ public class DeviceProgramEventHandler implements WebhookEventHandler {
         }
 
         String key = String.format(RedisConstant.RT_PROGRAM,
-                defaultBlank(request.getTenantId()), defaultBlank(orgFactoryId), defaultBlank(deviceInfoId));
+                defaultBlank(orgFactoryId), defaultBlank(deviceInfoId));
         realTimeCacheService.hsetWithTtl(key, payload, programTtlMillis);
     }
 

@@ -10,8 +10,6 @@ import java.util.List;
 @Data
 public class DeviceNetworkConfigPageQuery {
 
-    private String tenantId;
-
     private String factoryId;
 
     /**

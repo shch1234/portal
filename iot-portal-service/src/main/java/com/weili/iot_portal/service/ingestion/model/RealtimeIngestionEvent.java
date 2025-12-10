@@ -20,7 +20,6 @@ public class RealtimeIngestionEvent {
      */
     private String messageId;
 
-    private String tenantId;
     private String factoryId;
     private String deviceId;
 

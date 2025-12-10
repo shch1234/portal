@@ -1,7 +1,7 @@
 package com.weili.iot_portal.service.ingestion.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.weili.basic.common.util.JsonUtils;
 import com.weili.iot_portal.dal.dataobject.ingestion.WebhookFailLogDO;
 import com.weili.iot_portal.dal.mapper.ingestion.WebhookFailLogMapper;
 import com.weili.iot_portal.domain.ingestion.WebhookRequest;
@@ -14,7 +14,6 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Webhook失败日志服务实现
@@ -26,9 +25,6 @@ public class WebhookFailLogServiceImpl implements WebhookFailLogService {
     @Autowired
     private WebhookFailLogMapper failLogMapper;
 
-    @Autowired
-    private ObjectMapper objectMapper;
-
     @Override
     public void saveFailLog(WebhookRequest request, String errorType, String errorMessage, boolean needManual) {
         try {
@@ -37,17 +33,14 @@ public class WebhookFailLogServiceImpl implements WebhookFailLogService {
             // 设置基础信息
             if (request != null) {
                 fail.setMessageId(request.getMessageId());
-                fail.setTenantUuid(request.getTenantId());
                 fail.setTbDeviceId(request.getDeviceId());
                 fail.setDeviceCode(request.getDeviceCode());
                 fail.setEventType(request.getEventType());
-                
                 // 转换payload
                 try {
-                    Map<String, Object> payload = objectMapper.convertValue(request, Map.class);
-                    fail.setPayload(payload);
+                    fail.setPayload(JsonUtils.toJSONObject(request));
                 } catch (Exception ex) {
-                    log.warn("转换WebhookRequest为Map失败，跳过payload设置", ex);
+                    log.warn("转换WebhookRequest为JSONObject失败，跳过payload设置", ex);
                 }
             }
             

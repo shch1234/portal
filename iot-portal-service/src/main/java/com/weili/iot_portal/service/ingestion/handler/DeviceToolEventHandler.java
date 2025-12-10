@@ -3,12 +3,12 @@ package com.weili.iot_portal.service.ingestion.handler;
 import com.weili.basic.common.enums.ErrorCodeConstants;
 import com.weili.basic.common.exception.ServiceException;
 import com.weili.iot_portal.common.constant.RedisConstant;
-import com.weili.iot_portal.dal.dataobject.devicemng.ToolCompensationDO;
+import com.weili.iot_portal.dal.dataobject.device.DeviceToolCompensationDO;
 import com.weili.iot_portal.dal.dataobject.ingestion.WebhookInboxDO;
-import com.weili.iot_portal.dal.repository.devicemng.ToolCompensationRepository;
+import com.weili.iot_portal.dal.repository.device.DeviceToolCompensationRepository;
 import com.weili.iot_portal.domain.ingestion.WebhookRequest;
 import com.weili.iot_portal.service.cache.RealTimeCacheService;
-import com.weili.iot_portal.service.support.DeviceIdentityCacheService;
+import com.weili.iot_portal.service.cache.DeviceIdentityCacheService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -39,7 +39,7 @@ public class DeviceToolEventHandler implements WebhookEventHandler {
 
     private final DeviceIdentityCacheService deviceIdentityCacheService;
     private final RealTimeCacheService realTimeCacheService;
-    private final ToolCompensationRepository toolCompensationRepository;
+    private final DeviceToolCompensationRepository deviceToolCompensationRepository;
 
     @Value("${rt.tool.ttl-millis:300000}")
     private long toolTtlMillis;
@@ -63,7 +63,7 @@ public class DeviceToolEventHandler implements WebhookEventHandler {
         }
 
         DeviceIdentityCacheService.DeviceIdentity identity = deviceIdentityCacheService
-                .resolveByDeviceCode(request.getTenantId(), request.getDeviceCode(),
+                .resolveByDeviceCode(request.getDeviceCode(),
                         request.getDeviceId(), "DeviceToolEvent");
         String deviceInfoId = identity.getDeviceId();
         String orgFactoryId = identity.getFactoryId();
@@ -91,13 +91,13 @@ public class DeviceToolEventHandler implements WebhookEventHandler {
         }
 
         String key = String.format(RedisConstant.RT_TOOL,
-                defaultBlank(request.getTenantId()), defaultBlank(orgFactoryId), defaultBlank(deviceInfoId));
+                defaultBlank(orgFactoryId), defaultBlank(deviceInfoId));
         realTimeCacheService.hsetWithTtl(key, payload, toolTtlMillis);
 
         // 写入刀补补偿表（版本化覆盖）
         if (StringUtils.isNotBlank(holderNumber)) {
             Map<String, Object> compValue = extractCompensationValue(eventData);
-            upsertCompensation(request.getTenantId(), deviceInfoId, orgFactoryId, holderNumber, compValue, eventTimestamp);
+            upsertCompensation(deviceInfoId, orgFactoryId, holderNumber, compValue, eventTimestamp);
         }
     }
 
@@ -148,9 +148,9 @@ public class DeviceToolEventHandler implements WebhookEventHandler {
     /**
      * 版本化覆盖：相同值跳过，值变更则关老启新
      */
-    private void upsertCompensation(String tenantId, String deviceId, String factoryId,
+    private void upsertCompensation(String deviceId, String factoryId,
                                     String holderNumber, Map<String, Object> compValue, Long eventTimestamp) {
-        ToolCompensationDO active = toolCompensationRepository.findActive(tenantId, deviceId, holderNumber);
+        DeviceToolCompensationDO active = deviceToolCompensationRepository.findActive(deviceId, holderNumber);
         if (active != null && Objects.equals(active.getCompValueJson(), compValue)) {
             // 相同值，直接跳过
             return;
@@ -161,12 +161,11 @@ public class DeviceToolEventHandler implements WebhookEventHandler {
         if (active != null) {
             active.setEndTs(ts);
             active.setActive(0);
-            toolCompensationRepository.updateById(active);
+            deviceToolCompensationRepository.updateById(active);
             nextVersion = (active.getVersion() != null ? active.getVersion() + 1 : 1);
         }
 
-        ToolCompensationDO record = new ToolCompensationDO();
-        record.setTenantUuid(tenantId);
+        DeviceToolCompensationDO record = new DeviceToolCompensationDO();
         record.setDeviceInfoId(deviceId);
         record.setOrgFactoryId(factoryId);
         record.setToolHolderNo(holderNumber);
@@ -175,7 +174,7 @@ public class DeviceToolEventHandler implements WebhookEventHandler {
         record.setStartTs(ts);
         record.setEndTs(null);
         record.setActive(1);
-        toolCompensationRepository.insert(record);
+        deviceToolCompensationRepository.insert(record);
     }
 }
 

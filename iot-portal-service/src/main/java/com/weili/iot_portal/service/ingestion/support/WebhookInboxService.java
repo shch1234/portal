@@ -1,11 +1,8 @@
 package com.weili.iot_portal.service.ingestion.support;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.weili.basic.common.exception.ServiceException;
-import com.weili.iot_portal.dal.dataobject.devicebase.DeviceBaseInfoDO;
 import com.weili.iot_portal.dal.dataobject.ingestion.WebhookInboxDO;
 import com.weili.iot_portal.dal.mapper.ingestion.WebhookInboxMapper;
-import com.weili.iot_portal.service.ingestion.WebhookFailLogService;
 import com.weili.iot_portal.domain.ingestion.WebhookRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -27,12 +24,6 @@ public class WebhookInboxService {
     @Autowired
     private WebhookInboxMapper inboxMapper;
 
-    @Autowired
-    private WebhookFailLogService webhookFailLogService;
-
-    @Autowired
-    private ObjectMapper objectMapper;
-
     @Value("${webhook.inbox.batch-size:100}")
     private int batchSize;
 
@@ -42,7 +33,7 @@ public class WebhookInboxService {
     @Value("${webhook.inbox.retry-interval-base-seconds:60}")
     private long retryIntervalBaseSeconds;
 
-    public void saveToInbox(WebhookRequest request, DeviceBaseInfoDO device) {
+    public void saveToInbox(WebhookRequest request) {
         if (request == null || StringUtils.isBlank(request.getMessageId())) {
             throw new ServiceException(400, "缺少 messageId");
         }
@@ -54,7 +45,6 @@ public class WebhookInboxService {
 
         WebhookInboxDO inbox = new WebhookInboxDO();
         inbox.setMessageId(request.getMessageId());
-        inbox.setTenantUuid(request.getTenantId());
         inbox.setTbDeviceId(request.getDeviceId());
         inbox.setDeviceCode(request.getDeviceCode());
         inbox.setEventType(request.getEventType());

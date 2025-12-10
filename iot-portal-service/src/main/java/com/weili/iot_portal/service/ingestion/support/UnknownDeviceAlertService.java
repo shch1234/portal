@@ -25,30 +25,27 @@ public class UnknownDeviceAlertService {
     @Resource
     private RedisClient redisClient;
 
-    public void record(String tenantId, String deviceCode, String tbDeviceId, String source) {
+    public void record(String deviceCode, String tbDeviceId, String source) {
         if (StringUtils.isBlank(deviceCode)) {
             return;
         }
         UnknownDeviceAlert alert = new UnknownDeviceAlert(
-                tenantId,
                 deviceCode,
                 tbDeviceId,
                 StringUtils.defaultIfBlank(source, "unknown"),
                 System.currentTimeMillis()
         );
         String key = String.format(RedisConstant.UNKNOWN_DEVICE_ALERT,
-                StringUtils.defaultIfBlank(tenantId, "unknown"),
                 deviceCode,
                 alert.getTimestamp());
         redisClient.set(key, JsonUtils.toJsonString(alert), DEFAULT_TTL_SECONDS, TimeUnit.SECONDS);
-        log.warn("收到未知设备数据，请检查编号或建档: tenantId={}, deviceCode={}, tbDeviceId={}, source={}",
-                tenantId, deviceCode, tbDeviceId, source);
+        log.warn("收到未知设备数据，请检查编号或建档: deviceCode={}, tbDeviceId={}, source={}",
+                deviceCode, tbDeviceId, source);
     }
 
     @Data
     @AllArgsConstructor
     public static class UnknownDeviceAlert {
-        private String tenantId;
         private String deviceCode;
         private String tbDeviceId;
         private String source;

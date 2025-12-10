@@ -11,11 +11,6 @@ import java.util.List;
 public class DeviceBaseInfoPageQuery {
 
     /**
-     * 租户UUID（对应 tenant_uuid）
-     */
-    private String tenantUuid;
-
-    /**
      * 设备编号模糊查询（对应 device_code）
      */
     private String deviceCodeLike;

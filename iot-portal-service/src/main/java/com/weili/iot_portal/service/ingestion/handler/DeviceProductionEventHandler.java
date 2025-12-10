@@ -2,13 +2,13 @@ package com.weili.iot_portal.service.ingestion.handler;
 
 import com.weili.basic.common.enums.ErrorCodeConstants;
 import com.weili.basic.common.exception.ServiceException;
-import com.weili.iot_portal.dal.dataobject.devicemng.DeviceProductionRecordDO;
+import com.weili.iot_portal.dal.dataobject.device.DeviceProductionRecordDO;
 import com.weili.iot_portal.dal.dataobject.ingestion.WebhookInboxDO;
-import com.weili.iot_portal.dal.repository.devicemng.DeviceProductionRecordRepository;
+import com.weili.iot_portal.dal.repository.device.DeviceProductionRecordRepository;
 import com.weili.iot_portal.domain.ingestion.WebhookRequest;
-import com.weili.iot_portal.service.support.ShiftConfigurationService;
-import com.weili.iot_portal.service.support.ShiftTimeRange;
-import com.weili.iot_portal.service.support.DeviceIdentityCacheService;
+import com.weili.iot_portal.service.shift.IShiftConfigService;
+import com.weili.iot_portal.service.shift.model.ShiftTimeRange;
+import com.weili.iot_portal.service.cache.DeviceIdentityCacheService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -35,7 +35,7 @@ public class DeviceProductionEventHandler implements WebhookEventHandler {
 
     private final DeviceIdentityCacheService deviceIdentityCacheService;
     private final DeviceProductionRecordRepository deviceProductionRecordRepository;
-    private final ShiftConfigurationService shiftConfigurationService;
+    private final IShiftConfigService deviceShiftConfigService;
 
     @Override
     public boolean supports(String eventType) {
@@ -67,26 +67,24 @@ public class DeviceProductionEventHandler implements WebhookEventHandler {
         }
 
         DeviceIdentityCacheService.DeviceIdentity identity = deviceIdentityCacheService
-                .resolveByDeviceCode(request.getTenantId(), request.getDeviceCode(),
+                .resolveByDeviceCode(request.getDeviceCode(),
                         request.getDeviceId(), "DeviceProductionEvent");
-        String tenantId = request.getTenantId();
         String deviceInfoId = identity.getDeviceId();
         String orgFactoryId = identity.getFactoryId();
 
-        ShiftInfo shift = resolveShift(tenantId, orgFactoryId, deviceInfoId, ts);
+        ShiftInfo shift = resolveShift(orgFactoryId, deviceInfoId, ts);
 
         if ("start".equalsIgnoreCase(status)) {
-            handleStart(eventData, tenantId, deviceInfoId, orgFactoryId, ts, shift);
+            handleStart(eventData, deviceInfoId, orgFactoryId, ts, shift);
         } else {
-            handleEnd(eventData, tenantId, deviceInfoId, orgFactoryId, ts, shift);
+            handleEnd(eventData, deviceInfoId, orgFactoryId, ts, shift);
         }
     }
 
-    private void handleStart(Map<String, Object> eventData, String tenantId, String deviceInfoId,
+    private void handleStart(Map<String, Object> eventData, String deviceInfoId,
                              String orgFactoryId, Long ts, ShiftInfo shift) {
         // 若已有进行中记录，按需关闭；这里直接插入新记录
         DeviceProductionRecordDO record = new DeviceProductionRecordDO();
-        record.setTenantUuid(tenantId);
         record.setDeviceInfoId(deviceInfoId);
         record.setOrgFactoryId(orgFactoryId);
         record.setStartTs(ts);
@@ -98,13 +96,13 @@ public class DeviceProductionEventHandler implements WebhookEventHandler {
         deviceProductionRecordRepository.insert(record);
     }
 
-    private void handleEnd(Map<String, Object> eventData, String tenantId, String deviceInfoId,
+    private void handleEnd(Map<String, Object> eventData, String deviceInfoId,
                            String orgFactoryId, Long ts, ShiftInfo shift) {
-        Optional<DeviceProductionRecordDO> ongoingOpt = deviceProductionRecordRepository.findLatestOngoing(tenantId, deviceInfoId);
+        Optional<DeviceProductionRecordDO> ongoingOpt = deviceProductionRecordRepository.findLatestOngoing(deviceInfoId);
         if (ongoingOpt.isEmpty()) {
             // 若没有进行中，补一条仅 end 的记录（起止相同）
+            // 注意：device_production_record 表已删除 tenant_uuid 字段
             DeviceProductionRecordDO record = new DeviceProductionRecordDO();
-            record.setTenantUuid(tenantId);
             record.setDeviceInfoId(deviceInfoId);
             record.setOrgFactoryId(orgFactoryId);
             record.setStartTs(ts);
@@ -132,9 +130,9 @@ public class DeviceProductionEventHandler implements WebhookEventHandler {
         deviceProductionRecordRepository.updateById(ongoing);
     }
 
-    private ShiftInfo resolveShift(String tenantId, String factoryId, String deviceId, Long tsSeconds) {
+    private ShiftInfo resolveShift(String factoryId, String deviceId, Long tsSeconds) {
         long tsMs = tsSeconds * 1000L;
-        ShiftTimeRange range = shiftConfigurationService.calculateShiftRange(tenantId, factoryId, deviceId, tsMs);
+        ShiftTimeRange range = deviceShiftConfigService.calculateShiftRange(factoryId, deviceId, tsMs);
         LocalDate shiftDate = Instant.ofEpochMilli(range.getStartTs())
                 .atZone(ZoneOffset.systemDefault())
                 .toLocalDate();

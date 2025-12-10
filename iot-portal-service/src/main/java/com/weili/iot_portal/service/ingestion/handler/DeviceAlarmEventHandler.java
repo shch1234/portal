@@ -2,11 +2,11 @@ package com.weili.iot_portal.service.ingestion.handler;
 
 import com.weili.basic.common.enums.ErrorCodeConstants;
 import com.weili.basic.common.exception.ServiceException;
-import com.weili.iot_portal.dal.dataobject.devicemng.DeviceAlarmHistoryDO;
+import com.weili.iot_portal.dal.dataobject.device.DeviceAlarmHistoryDO;
 import com.weili.iot_portal.dal.dataobject.ingestion.WebhookInboxDO;
-import com.weili.iot_portal.dal.repository.devicemng.DeviceAlarmHistoryRepository;
+import com.weili.iot_portal.dal.repository.device.DeviceAlarmHistoryRepository;
 import com.weili.iot_portal.domain.ingestion.WebhookRequest;
-import com.weili.iot_portal.service.support.DeviceIdentityCacheService;
+import com.weili.iot_portal.service.cache.DeviceIdentityCacheService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -53,9 +53,8 @@ public class DeviceAlarmEventHandler implements WebhookEventHandler {
         
         // 解析设备身份
         DeviceIdentityCacheService.DeviceIdentity identity = deviceIdentityCacheService
-                .resolveByDeviceCode(request.getTenantId(), request.getDeviceCode(),
+                .resolveByDeviceCode(request.getDeviceCode(),
                         request.getDeviceId(), "DeviceAlarmEvent");
-        String tenantId = request.getTenantId();
         String deviceInfoId = identity.getDeviceId();
         String orgFactoryId = identity.getFactoryId();
 
@@ -63,7 +62,7 @@ public class DeviceAlarmEventHandler implements WebhookEventHandler {
                 : (request.getTimestamp() != null ? request.getTimestamp() : System.currentTimeMillis() / 1000);
 
         // 当前活跃报警
-        List<DeviceAlarmHistoryDO> activeList = deviceAlarmHistoryRepository.findActiveByDevice(tenantId, orgFactoryId, deviceInfoId);
+        List<DeviceAlarmHistoryDO> activeList = deviceAlarmHistoryRepository.findActiveByDevice(orgFactoryId, deviceInfoId);
         Map<String, DeviceAlarmHistoryDO> activeByCode = activeList.stream()
                 .filter(a -> StringUtils.isNotBlank(a.getAlarmCode()))
                 .collect(Collectors.toMap(DeviceAlarmHistoryDO::getAlarmCode, a -> a, (a, b) -> a));
@@ -85,7 +84,6 @@ public class DeviceAlarmEventHandler implements WebhookEventHandler {
             if (existing == null) {
                 // 新报警
                 DeviceAlarmHistoryDO record = new DeviceAlarmHistoryDO();
-                record.setTenantUuid(tenantId);
                 record.setDeviceInfoId(deviceInfoId);
                 record.setOrgFactoryId(orgFactoryId);
                 record.setAlarmCode(code);

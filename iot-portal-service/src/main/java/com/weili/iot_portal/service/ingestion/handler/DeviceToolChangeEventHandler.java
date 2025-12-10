@@ -3,11 +3,11 @@ package com.weili.iot_portal.service.ingestion.handler;
 import com.baomidou.mybatisplus.core.toolkit.IdWorker;
 import com.weili.basic.common.enums.ErrorCodeConstants;
 import com.weili.basic.common.exception.ServiceException;
-import com.weili.iot_portal.dal.dataobject.devicemng.ToolUsageHistoryDO;
+import com.weili.iot_portal.dal.dataobject.device.DeviceToolRecordDO;
 import com.weili.iot_portal.dal.dataobject.ingestion.WebhookInboxDO;
-import com.weili.iot_portal.dal.repository.devicemng.ToolUsageHistoryRepository;
+import com.weili.iot_portal.dal.repository.device.DeviceToolRecordRepository;
 import com.weili.iot_portal.domain.ingestion.WebhookRequest;
-import com.weili.iot_portal.service.support.DeviceIdentityCacheService;
+import com.weili.iot_portal.service.cache.DeviceIdentityCacheService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -17,13 +17,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.util.Map;
-import java.util.Optional;
 
 /**
  * 刀具换刀事件处理器
  * 事件类型：DEVICE_TOOL_CHANGE
  * 逻辑类似状态事件：比对上一个刀具号，关闭旧记录，插入新记录
- *
  * 事件数据要求（eventData）：
  * - previousToolNo: 上一个刀号
  * - currentToolNo: 当前刀号（必填）
@@ -40,7 +38,7 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
     private static final String LOCK_KEY_PREFIX = "device_tool_lock:";
     private static final long LOCK_TIMEOUT_SECONDS = 5;
 
-    private final ToolUsageHistoryRepository toolUsageHistoryRepository;
+    private final DeviceToolRecordRepository deviceToolRecordRepository;
     private final DeviceIdentityCacheService deviceIdentityCacheService;
     private final RedisTemplate<String, String> redisTemplate;
 
@@ -76,7 +74,7 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
 
         // 解析设备
         DeviceIdentityCacheService.DeviceIdentity identity = deviceIdentityCacheService
-                .resolveByDeviceCode(request.getTenantId(), request.getDeviceCode(),
+                .resolveByDeviceCode(request.getDeviceCode(),
                         request.getDeviceId(), "DeviceToolChangeEvent");
         String deviceInfoId = identity.getDeviceId();
 
@@ -91,7 +89,7 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
 
         try {
             // 1) 关闭旧刀记录（如果存在）
-            ToolUsageHistoryDO latest = toolUsageHistoryRepository.findLatestOngoing(request.getTenantId(), deviceInfoId);
+            DeviceToolRecordDO latest = deviceToolRecordRepository.findLatestOngoing(deviceInfoId);
             if (latest != null) {
                 if (StringUtils.isNotBlank(previousToolNo) && !previousToolNo.equalsIgnoreCase(latest.getToolNo())) {
                     log.warn("刀号不匹配: DB={}, eventPrevious={}, deviceInfoId={}", latest.getToolNo(), previousToolNo, deviceInfoId);
@@ -100,13 +98,13 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
                 if (latest.getStartTs() != null) {
                     latest.setDurationS((int) (eventTsSeconds - latest.getStartTs()));
                 }
-                toolUsageHistoryRepository.updateById(latest);
+                deviceToolRecordRepository.updateById(latest);
             }
 
             // 2) 插入新刀记录
-            ToolUsageHistoryDO newRecord = new ToolUsageHistoryDO();
+            DeviceToolRecordDO newRecord = new DeviceToolRecordDO();
             newRecord.setId(IdWorker.getIdStr());
-            newRecord.setTenantUuid(request.getTenantId());
+            // tenant_uuid 字段已删除
             newRecord.setDeviceInfoId(deviceInfoId);
             newRecord.setToolNo(currentToolNo);
             newRecord.setToolMagazineNo(getString(eventData, "toolHolderNumber"));
@@ -118,7 +116,7 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
             newRecord.setStartTs(eventTsSeconds);
             newRecord.setEndTs(null);
             newRecord.setDurationS(null);
-            toolUsageHistoryRepository.insert(newRecord);
+            deviceToolRecordRepository.insert(newRecord);
 
             log.info("刀具变更完成: deviceId={}, prev={}, curr={}, ts={}", deviceInfoId, previousToolNo, currentToolNo, eventTsSeconds);
         } finally {

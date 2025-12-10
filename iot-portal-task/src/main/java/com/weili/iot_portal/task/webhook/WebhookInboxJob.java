@@ -1,27 +1,15 @@
 package com.weili.iot_portal.task.webhook;
 
-import com.xxl.job.core.context.XxlJobHelper;
-import com.xxl.job.core.handler.annotation.XxlJob;
-import com.weili.iot_portal.service.ingestion.WebhookProcessWorker;
+import com.weili.iot_portal.service.webhook.WebhookProcessWorker;
 import com.weili.iot_portal.task.framework.BaseScheduledJob;
 import com.weili.iot_portal.task.framework.JobExecutionResult;
+import com.xxl.job.core.handler.annotation.XxlJob;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 /**
  * Webhook 收件箱处理任务（XXL-Job）
- * 
- * 功能：定时处理 Webhook 收件箱中的待处理消息
- * 
- * 配置说明：
- * - 建议在 Apollo 配置 cron、路由策略、执行器等
- * - 建议在XXL-Job中配置cron表达式，例如：每1分钟执行一次
- * 
- * 使用框架：BaseScheduledJob
- * - 自动异常处理
- * - 自动统计收集
- * - 自动日志记录
  */
 @Slf4j
 @Component

@@ -1,0 +1,35 @@
+package com.weili.iot_portal.dal.repository.device;
+
+import com.weili.basic.common.model.PageResult;
+import com.weili.iot_portal.dal.dataobject.device.DeviceInfoDO;
+import com.weili.iot_portal.dal.ddd.device.DeviceBaseInfoPageQuery;
+
+import java.util.List;
+import java.util.Optional;
+
+/**
+ * 设备基础信息仓储接口
+ */
+public interface DeviceInfoRepository {
+
+    Optional<DeviceInfoDO> findById(String id);
+
+    Optional<DeviceInfoDO> findByDeviceCode(String deviceCode);
+
+    Optional<DeviceInfoDO> findByTbDeviceId(String tbDeviceId);
+
+    boolean existsByDeviceCode(String deviceCode, String excludeId);
+
+    boolean existsByTbDeviceId(String tbDeviceId, String excludeId);
+
+    PageResult<DeviceInfoDO> selectPage(DeviceBaseInfoPageQuery query);
+
+    List<DeviceInfoDO> findByFactoryId(String factoryId);
+
+    void insert(DeviceInfoDO entity);
+
+    void update(DeviceInfoDO entity);
+
+    boolean deleteById(String id);
+}
+

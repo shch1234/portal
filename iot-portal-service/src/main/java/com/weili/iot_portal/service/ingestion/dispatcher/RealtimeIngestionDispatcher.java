@@ -1,7 +1,6 @@
 package com.weili.iot_portal.service.ingestion.dispatcher;
 
 import com.weili.iot_portal.service.ingestion.model.RealtimeIngestionEvent;
-import com.weili.iot_portal.service.ingestion.processor.RealtimeIngestionProcessor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -14,7 +13,7 @@ import java.util.List;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class RealtimeIngestionDispatcher {
+public abstract class RealtimeIngestionDispatcher {
 
     private final List<RealtimeIngestionProcessor> processors;
 

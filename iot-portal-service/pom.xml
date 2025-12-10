@@ -26,10 +26,6 @@
             <artifactId>iot-portal-dal</artifactId>
         </dependency>
         <dependency>
-            <groupId>com.weili.iot-portal</groupId>
-            <artifactId>iot-portal-api</artifactId>
-        </dependency>
-        <dependency>
             <groupId>com.weili.basic</groupId>
             <artifactId>weili-basic-framework</artifactId>
         </dependency>
@@ -37,11 +33,6 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-websocket</artifactId>
-        </dependency>
-        <!-- JSON处理 -->
-        <dependency>
-            <groupId>com.alibaba.fastjson2</groupId>
-            <artifactId>fastjson2</artifactId>
         </dependency>
         <dependency>
             <groupId>com.weili.basic</groupId>

@@ -7,8 +7,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
-
-import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -65,7 +63,7 @@ public class WebhookMonitorService {
     }
 
     private String safe(String v) {
-        return StringUtils.defaultString(v, "unknown");
+        return StringUtils.defaultIfBlank(v, "unknown");
     }
 }
 

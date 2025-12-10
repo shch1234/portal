@@ -6,7 +6,7 @@ import com.weili.iot_portal.common.constant.RedisConstant;
 import com.weili.iot_portal.dal.dataobject.ingestion.WebhookInboxDO;
 import com.weili.iot_portal.domain.ingestion.WebhookRequest;
 import com.weili.iot_portal.service.cache.RealTimeCacheService;
-import com.weili.iot_portal.service.support.DeviceIdentityCacheService;
+import com.weili.iot_portal.service.cache.DeviceIdentityCacheService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -72,7 +72,7 @@ public class DeviceAxisEventHandler implements WebhookEventHandler {
 
         // 解析设备标识（按 deviceCode / deviceId 解析为 portal 的 deviceInfoId / factoryId）
         DeviceIdentityCacheService.DeviceIdentity identity = deviceIdentityCacheService
-                .resolveByDeviceCode(request.getTenantId(), request.getDeviceCode(),
+                .resolveByDeviceCode(request.getDeviceCode(),
                         request.getDeviceId(), "DeviceAxisEvent");
         String deviceInfoId = identity.getDeviceId();
         String orgFactoryId = identity.getFactoryId();
@@ -106,7 +106,7 @@ public class DeviceAxisEventHandler implements WebhookEventHandler {
                 payload.put("ratio", String.valueOf(ratio));
             }
             String axisKey = String.format(RedisConstant.RT_AXIS,
-                    defaultBlank(request.getTenantId()), defaultBlank(orgFactoryId), defaultBlank(deviceInfoId));
+                    defaultBlank(orgFactoryId), defaultBlank(deviceInfoId));
             realTimeCacheService.hsetWithTtl(axisKey, payload, axisTtlMillis);
         }
 
@@ -139,9 +139,9 @@ public class DeviceAxisEventHandler implements WebhookEventHandler {
             return;
         }
         long ts = eventTimestamp != null ? eventTimestamp : System.currentTimeMillis();
-        String pointJson = String.format("{\"ts\":%d,\"value\":%s}", ts, value.toString());
-        String key = String.format("rt:axis:curve:%s:%s:%s:%s",
-                defaultBlank(metric), defaultBlank(request.getTenantId()), defaultBlank(orgFactoryId), defaultBlank(deviceInfoId));
+        String pointJson = String.format("{\"ts\":%d,\"value\":%s}", ts, value);
+        String key = String.format("rt:axis:curve:%s:%s:%s",
+                defaultBlank(metric), defaultBlank(orgFactoryId), defaultBlank(deviceInfoId));
         realTimeCacheService.lpushTrimExpire(key, pointJson, maxLen, axisCurveTtlMillis);
     }
 

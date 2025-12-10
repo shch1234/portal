@@ -19,19 +19,12 @@
     <dependencies>
         <dependency>
             <groupId>com.weili.iot-portal</groupId>
-            <artifactId>iot-portal-service</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.weili.iot-portal</groupId>
             <artifactId>iot-portal-domain</artifactId>
         </dependency>
-        <!-- XXL-Job 核心依赖 -->
         <dependency>
             <groupId>com.weili.basic</groupId>
             <artifactId>weili-basic-xxljob</artifactId>
         </dependency>
-        
-        <!-- 测试依赖 -->
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>
@@ -46,6 +39,14 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.weili.iot-portal</groupId>
+            <artifactId>iot-portal-dal</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.weili.iot-portal</groupId>
+            <artifactId>iot-portal-service</artifactId>
         </dependency>
     </dependencies>
 </project>
