@@ -1,6 +1,7 @@
 package com.weili.iot_portal.task.device;
 
 import com.weili.iot_portal.common.constant.RedisConstant;
+import com.weili.iot_portal.common.enums.DeviceStateEnum;
 import com.weili.iot_portal.dal.dataobject.device.DeviceInfoDO;
 import com.weili.iot_portal.dal.dataobject.device.DeviceParamConfigDO;
 import com.weili.iot_portal.dal.dataobject.device.DeviceStateRecordDO;
@@ -34,10 +35,6 @@ import java.util.Map;
 @Component
 @RequiredArgsConstructor
 public class DeviceMetricsJob extends BaseScheduledJob {
-
-    @Value("${rt.metrics.refresh-seconds:300}")
-    private long refreshSeconds;
-
     @Value("${rt.metrics.ttl-seconds:600}")
     private long ttlSeconds;
 
@@ -103,11 +100,11 @@ public class DeviceMetricsJob extends BaseScheduledJob {
         long plannedRuntime = Math.max(0, shiftDuration - plannedDowntime);
 
         Map<String, Long> stateDurations = sumStateDurations(deviceId, shiftStartSec, shiftEndSec, nowMs / 1000);
-        long workingDuration = stateDurations.getOrDefault("WORKING", 0L);
-        long faultDuration = stateDurations.getOrDefault("FAULT", 0L);
-        long unplannedDowntime = stateDurations.getOrDefault("STANDBY", 0L)
+        long workingDuration = stateDurations.getOrDefault(DeviceStateEnum.WORKING.name(), 0L);
+        long faultDuration = stateDurations.getOrDefault(DeviceStateEnum.FAULT.name(), 0L);
+        long unplannedDowntime = stateDurations.getOrDefault(DeviceStateEnum.STANDBY.name(), 0L)
                 + faultDuration
-                + stateDurations.getOrDefault("SHUTDOWN", 0L);
+                + stateDurations.getOrDefault(DeviceStateEnum.SHUTDOWN.name(), 0L);
         long actualRuntime = Math.max(0, plannedRuntime - unplannedDowntime);
 
         long actualOutput = deviceProductionRecordRepository.countCompletedInRange(deviceId, shiftStartSec, shiftEndSec);
