@@ -5,22 +5,24 @@ import com.weili.iot_portal.dal.dataobject.device.DeviceShiftConfigDO;
 import com.weili.iot_portal.dal.repository.device.DeviceShiftConfigRepository;
 import com.weili.iot_portal.service.shift.DeviceFactoryValidator;
 import com.weili.iot_portal.service.shift.IShiftConfigService;
-import com.weili.iot_portal.service.shift.model.ShiftInfo;
-import com.weili.iot_portal.service.shift.model.ShiftTimeRange;
+import com.weili.iot_portal.service.shift.ShiftConstants;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import java.time.*;
+import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
-import static com.weili.iot_portal.common.exception.IotPortalErrorCode.SHIFT_CONFIG_EMPTY;
-
 /**
  * 班次配置服务
- * 统一管理班次配置的查询和计算逻辑
+ * 负责班次配置的查询和管理，不涉及班次计算逻辑
+ * 班次计算逻辑请使用 {@link com.weili.iot_portal.service.shift.IShiftCalculationService}
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ShiftConfigService implements IShiftConfigService {
@@ -28,10 +30,18 @@ public class ShiftConfigService implements IShiftConfigService {
     private final DeviceShiftConfigRepository deviceShiftConfigRepository;
     private final DeviceFactoryValidator deviceFactoryValidator;
 
-    private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm:ss");
+    private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern(ShiftConstants.TIME_FORMAT);
+    
+    /**
+     * 默认班次模式：2-2班制，3-3班制
+     * 默认值为2（2班制）
+     */
+    @Value("${shift.default.mode:2}")
+    private Integer defaultShiftMode;
 
     /**
      * 获取设备在当前时间的生效班次配置（带工厂验证）
+     * 如果设备未配置班次，返回默认班次配置
      *
      * @param factoryId 工厂ID
      * @param deviceId  设备ID
@@ -44,83 +54,22 @@ public class ShiftConfigService implements IShiftConfigService {
 
         Optional<DeviceShiftConfigDO> configOpt = deviceShiftConfigRepository
                 .findActiveByDeviceAndTime(deviceId, timestamp);
-        return configOpt.orElseThrow(() -> new IotPortalException(SHIFT_CONFIG_EMPTY,
-                "设备未配置班次信息，请先配置班次"));
-    }
-
-    /**
-     * 根据时间点确定当前班次信息（带工厂验证）
-     *
-     * @param factoryId 工厂ID
-     * @param deviceId  设备ID
-     * @param timestamp 时间戳（毫秒）
-     * @return 班次信息
-     */
-    public ShiftInfo getCurrentShift(String factoryId, String deviceId, long timestamp) {
-        DeviceShiftConfigDO config = getCurrentConfiguration(factoryId, deviceId, timestamp);
-        return findShiftByTime(config, timestamp);
-    }
-
-    /**
-     * 计算班次的时间范围（带工厂验证）
-     *
-     * @param factoryId 工厂ID
-     * @param deviceId  设备ID
-     * @param timestamp 时间戳（毫秒）
-     * @return 班次时间范围
-     */
-    public ShiftTimeRange calculateShiftRange(String factoryId, String deviceId, long timestamp) {
-        DeviceShiftConfigDO config = getCurrentConfiguration(factoryId, deviceId, timestamp);
-        ShiftInfo shift = findShiftByTime(config, timestamp);
-
-        LocalDateTime baseTime = LocalDateTime.ofInstant(
-                Instant.ofEpochMilli(timestamp),
-                ZoneId.systemDefault());
-
-        LocalDate baseDate = baseTime.toLocalDate();
-        LocalTime startTime = LocalTime.parse(shift.getStartTime(), TIME_FORMATTER);
-        LocalTime endTime = LocalTime.parse(shift.getEndTime(), TIME_FORMATTER);
-
-        LocalDateTime shiftStart;
-        LocalDateTime shiftEnd;
-
-        LocalTime currentTime = baseTime.toLocalTime();
-
-        if (Boolean.TRUE.equals(shift.getCrossDay())) {
-            // 跨天班次处理
-            if (currentTime.isBefore(startTime)) {
-                // 当前时间在跨天班次的后半段（例如：00:00-08:00，当前是02:00）
-                shiftStart = baseDate.minusDays(1).atTime(startTime);
-                shiftEnd = baseDate.atTime(endTime);
-            } else {
-                // 当前时间在跨天班次的前半段（例如：20:00-次日08:00，当前是22:00）
-                shiftStart = baseDate.atTime(startTime);
-                shiftEnd = baseDate.plusDays(1).atTime(endTime);
+        
+        if (configOpt.isPresent()) {
+            DeviceShiftConfigDO config = configOpt.get();
+            // 确保 shifts 已构建
+            if (config.getShifts() == null || config.getShifts().isEmpty()) {
+                config.setShifts(buildShiftsFromFields(config));
             }
-        } else {
-            // 不跨天班次
-            if (currentTime.isBefore(startTime)) {
-                // 当前时间在班次开始前，说明是前一个班次
-                // 这种情况理论上不应该发生，因为应该找到正确的班次
-                shiftStart = baseDate.minusDays(1).atTime(startTime);
-                shiftEnd = baseDate.atTime(endTime);
-            } else {
-                shiftStart = baseDate.atTime(startTime);
-                shiftEnd = baseDate.atTime(endTime);
-            }
+            return config;
         }
-
-        long startTs = shiftStart.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
-        long endTs = shiftEnd.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
-
-        return ShiftTimeRange.builder()
-                .shiftCode(shift.getCode())
-                .shiftName(shift.getName())
-                .startTs(startTs)
-                .endTs(endTs)
-                .durationMs(endTs - startTs)
-                .build();
+        
+        // 设备未配置班次，使用默认班次配置
+        log.debug("[ShiftConfigService] 设备未配置班次信息，使用默认班次配置: deviceId={}, mode={}", 
+                deviceId, defaultShiftMode);
+        return createDefaultShiftConfig(defaultShiftMode);
     }
+
 
     /**
      * 获取时间范围内的所有配置版本（带工厂验证）
@@ -138,61 +87,178 @@ public class ShiftConfigService implements IShiftConfigService {
         return deviceShiftConfigRepository.findByDeviceAndTimeRange(deviceId, startTs, endTs);
     }
 
+    
     /**
-     * 根据时间点从配置中找到对应的班次
-     *
-     * @param config    班次配置
-     * @param timestamp 时间戳（毫秒）
-     * @return 班次信息
+     * 创建默认班次配置
+     * 
+     * @param mode 班次模式：2-2班制，3-3班制
+     * @return 默认班次配置
      */
-    private ShiftInfo findShiftByTime(DeviceShiftConfigDO config, long timestamp) {
-        LocalDateTime dateTime = LocalDateTime.ofInstant(
-                Instant.ofEpochMilli(timestamp),
-                ZoneId.systemDefault());
-        LocalTime currentTime = dateTime.toLocalTime();
-
-        List<DeviceShiftConfigDO.ShiftDefinition> shifts = config.getShifts();
-        if (shifts == null || shifts.isEmpty()) {
-            throw new IotPortalException(SHIFT_CONFIG_EMPTY);
+    private DeviceShiftConfigDO createDefaultShiftConfig(Integer mode) {
+        DeviceShiftConfigDO config = new DeviceShiftConfigDO();
+        config.setShiftMode(mode);
+        
+        List<DeviceShiftConfigDO.ShiftDefinition> shifts = new ArrayList<>();
+        
+        if (mode == ShiftConstants.SHIFT_MODE_2) {
+            // 2班制：早班8:00-20:00，晚班20:00-次日8:00
+            DeviceShiftConfigDO.ShiftDefinition shift1 = new DeviceShiftConfigDO.ShiftDefinition();
+            shift1.setCode(ShiftConstants.SHIFT_CODE_1);
+            shift1.setName(ShiftConstants.SHIFT_NAME_2MODE_DAY);
+            shift1.setStartTime(ShiftConstants.SHIFT_TIME_2MODE_DAY_START);
+            shift1.setEndTime(ShiftConstants.SHIFT_TIME_2MODE_DAY_END);
+            shift1.setDurationHours(ShiftConstants.SHIFT_DURATION_HOURS_2MODE);
+            shift1.setCrossDay(false);
+            shifts.add(shift1);
+            
+            DeviceShiftConfigDO.ShiftDefinition shift2 = new DeviceShiftConfigDO.ShiftDefinition();
+            shift2.setCode(ShiftConstants.SHIFT_CODE_2);
+            shift2.setName(ShiftConstants.SHIFT_NAME_2MODE_NIGHT);
+            shift2.setStartTime(ShiftConstants.SHIFT_TIME_2MODE_DAY_END);
+            shift2.setEndTime(ShiftConstants.SHIFT_TIME_2MODE_NIGHT_END);
+            shift2.setDurationHours(ShiftConstants.SHIFT_DURATION_HOURS_2MODE);
+            shift2.setCrossDay(true);
+            shifts.add(shift2);
+            
+            // 设置班次字段（用于兼容）
+            config.setShift1Code(ShiftConstants.SHIFT_CODE_1);
+            config.setShift1Name(ShiftConstants.SHIFT_NAME_2MODE_DAY);
+            config.setShift1StartTime(ShiftConstants.SHIFT_TIME_2MODE_DAY_START);
+            config.setShift1EndTime(ShiftConstants.SHIFT_TIME_2MODE_DAY_END);
+            config.setShift1DurationS(ShiftConstants.SHIFT_DURATION_HOURS_2MODE * ShiftConstants.SECONDS_PER_HOUR);
+            
+            config.setShift2Code(ShiftConstants.SHIFT_CODE_2);
+            config.setShift2Name(ShiftConstants.SHIFT_NAME_2MODE_NIGHT);
+            config.setShift2StartTime(ShiftConstants.SHIFT_TIME_2MODE_DAY_END);
+            config.setShift2EndTime(ShiftConstants.SHIFT_TIME_2MODE_NIGHT_END);
+            config.setShift2DurationS(ShiftConstants.SHIFT_DURATION_HOURS_2MODE * ShiftConstants.SECONDS_PER_HOUR);
+        } else if (mode == ShiftConstants.SHIFT_MODE_3) {
+            // 3班制：第一班8:00-16:00，第二班16:00-00:00，第三班00:00-08:00（每班8小时）
+            DeviceShiftConfigDO.ShiftDefinition shift1 = new DeviceShiftConfigDO.ShiftDefinition();
+            shift1.setCode(ShiftConstants.SHIFT_CODE_1);
+            shift1.setName(ShiftConstants.SHIFT_NAME_3MODE_FIRST);
+            shift1.setStartTime(ShiftConstants.SHIFT_TIME_3MODE_FIRST_START);
+            shift1.setEndTime(ShiftConstants.SHIFT_TIME_3MODE_FIRST_END);
+            shift1.setDurationHours(ShiftConstants.SHIFT_DURATION_HOURS_3MODE);
+            shift1.setCrossDay(false);
+            shifts.add(shift1);
+            
+            DeviceShiftConfigDO.ShiftDefinition shift2 = new DeviceShiftConfigDO.ShiftDefinition();
+            shift2.setCode(ShiftConstants.SHIFT_CODE_2);
+            shift2.setName(ShiftConstants.SHIFT_NAME_3MODE_SECOND);
+            shift2.setStartTime(ShiftConstants.SHIFT_TIME_3MODE_FIRST_END);
+            shift2.setEndTime(ShiftConstants.SHIFT_TIME_3MODE_SECOND_END);
+            shift2.setDurationHours(ShiftConstants.SHIFT_DURATION_HOURS_3MODE);
+            shift2.setCrossDay(true);
+            shifts.add(shift2);
+            
+            DeviceShiftConfigDO.ShiftDefinition shift3 = new DeviceShiftConfigDO.ShiftDefinition();
+            shift3.setCode(ShiftConstants.SHIFT_CODE_3);
+            shift3.setName(ShiftConstants.SHIFT_NAME_3MODE_THIRD);
+            shift3.setStartTime(ShiftConstants.SHIFT_TIME_3MODE_SECOND_END);
+            shift3.setEndTime(ShiftConstants.SHIFT_TIME_3MODE_THIRD_END);
+            shift3.setDurationHours(ShiftConstants.SHIFT_DURATION_HOURS_3MODE);
+            shift3.setCrossDay(true);
+            shifts.add(shift3);
+            
+            // 设置班次字段（用于兼容）
+            config.setShift1Code(ShiftConstants.SHIFT_CODE_1);
+            config.setShift1Name(ShiftConstants.SHIFT_NAME_3MODE_FIRST);
+            config.setShift1StartTime(ShiftConstants.SHIFT_TIME_3MODE_FIRST_START);
+            config.setShift1EndTime(ShiftConstants.SHIFT_TIME_3MODE_FIRST_END);
+            config.setShift1DurationS(ShiftConstants.SHIFT_DURATION_HOURS_3MODE * ShiftConstants.SECONDS_PER_HOUR);
+            
+            config.setShift2Code(ShiftConstants.SHIFT_CODE_2);
+            config.setShift2Name(ShiftConstants.SHIFT_NAME_3MODE_SECOND);
+            config.setShift2StartTime(ShiftConstants.SHIFT_TIME_3MODE_FIRST_END);
+            config.setShift2EndTime(ShiftConstants.SHIFT_TIME_3MODE_SECOND_END);
+            config.setShift2DurationS(ShiftConstants.SHIFT_DURATION_HOURS_3MODE * ShiftConstants.SECONDS_PER_HOUR);
+            
+            config.setShift3Code(ShiftConstants.SHIFT_CODE_3);
+            config.setShift3Name(ShiftConstants.SHIFT_NAME_3MODE_THIRD);
+            config.setShift3StartTime(ShiftConstants.SHIFT_TIME_3MODE_SECOND_END);
+            config.setShift3EndTime(ShiftConstants.SHIFT_TIME_3MODE_THIRD_END);
+            config.setShift3DurationS(ShiftConstants.SHIFT_DURATION_HOURS_3MODE * ShiftConstants.SECONDS_PER_HOUR);
+        } else {
+            throw new IllegalArgumentException(
+                    ShiftConstants.ERROR_UNSUPPORTED_SHIFT_MODE_PREFIX + mode + ShiftConstants.ERROR_UNSUPPORTED_SHIFT_MODE_SUFFIX);
         }
-
-        // 遍历所有班次，找到包含当前时间的班次
-        for (DeviceShiftConfigDO.ShiftDefinition shiftDef : shifts) {
-            LocalTime startTime = LocalTime.parse(shiftDef.getStartTime(), TIME_FORMATTER);
-            LocalTime endTime = LocalTime.parse(shiftDef.getEndTime(), TIME_FORMATTER);
-
-            boolean isInShift;
-            if (Boolean.TRUE.equals(shiftDef.getCrossDay())) {
-                // 跨天班次：例如 20:00-08:00
-                isInShift = currentTime.isAfter(startTime) || currentTime.isBefore(endTime);
-            } else {
-                // 不跨天班次：例如 08:00-20:00
-                isInShift = !currentTime.isBefore(startTime) && currentTime.isBefore(endTime);
-            }
-
-            if (isInShift) {
-                return ShiftInfo.builder()
-                        .code(shiftDef.getCode())
-                        .name(shiftDef.getName())
-                        .startTime(shiftDef.getStartTime())
-                        .endTime(shiftDef.getEndTime())
-                        .durationHours(shiftDef.getDurationHours())
-                        .crossDay(shiftDef.getCrossDay())
-                        .build();
-            }
-        }
-
-        // 如果没有找到，可能是时间点在班次间隙，返回第一个班次（作为默认）
-        // 或者抛出异常，根据业务需求决定
-        DeviceShiftConfigDO.ShiftDefinition firstShift = shifts.get(0);
-        return ShiftInfo.builder()
-                .code(firstShift.getCode())
-                .name(firstShift.getName())
-                .startTime(firstShift.getStartTime())
-                .endTime(firstShift.getEndTime())
-                .durationHours(firstShift.getDurationHours())
-                .crossDay(firstShift.getCrossDay())
-                .build();
+        
+        config.setShifts(shifts);
+        return config;
     }
+    
+    /**
+     * 从数据库字段构建班次定义列表
+     * 
+     * @param config 班次配置
+     * @return 班次定义列表
+     */
+    private List<DeviceShiftConfigDO.ShiftDefinition> buildShiftsFromFields(DeviceShiftConfigDO config) {
+        List<DeviceShiftConfigDO.ShiftDefinition> shifts = new ArrayList<>();
+        Integer mode = config.getShiftMode();
+        
+        if (mode == null) {
+            return shifts;
+        }
+        
+        // 构建班次1
+        if (config.getShift1Code() != null) {
+            DeviceShiftConfigDO.ShiftDefinition shift1 = new DeviceShiftConfigDO.ShiftDefinition();
+            shift1.setCode(config.getShift1Code());
+            shift1.setName(config.getShift1Name());
+            shift1.setStartTime(config.getShift1StartTime());
+            shift1.setEndTime(config.getShift1EndTime());
+            if (config.getShift1DurationS() != null) {
+                shift1.setDurationHours(config.getShift1DurationS() / ShiftConstants.SECONDS_PER_HOUR);
+            }
+            // 判断是否跨天：结束时间小于开始时间表示跨天
+            if (config.getShift1StartTime() != null && config.getShift1EndTime() != null) {
+                LocalTime startTime = LocalTime.parse(config.getShift1StartTime(), TIME_FORMATTER);
+                LocalTime endTime = LocalTime.parse(config.getShift1EndTime(), TIME_FORMATTER);
+                shift1.setCrossDay(endTime.isBefore(startTime) || endTime.equals(startTime));
+            }
+            shifts.add(shift1);
+        }
+        
+        // 构建班次2
+        if (config.getShift2Code() != null) {
+            DeviceShiftConfigDO.ShiftDefinition shift2 = new DeviceShiftConfigDO.ShiftDefinition();
+            shift2.setCode(config.getShift2Code());
+            shift2.setName(config.getShift2Name());
+            shift2.setStartTime(config.getShift2StartTime());
+            shift2.setEndTime(config.getShift2EndTime());
+            if (config.getShift2DurationS() != null) {
+                shift2.setDurationHours(config.getShift2DurationS() / ShiftConstants.SECONDS_PER_HOUR);
+            }
+            if (config.getShift2StartTime() != null && config.getShift2EndTime() != null) {
+                LocalTime startTime = LocalTime.parse(config.getShift2StartTime(), TIME_FORMATTER);
+                LocalTime endTime = LocalTime.parse(config.getShift2EndTime(), TIME_FORMATTER);
+                shift2.setCrossDay(endTime.isBefore(startTime) || endTime.equals(startTime));
+            }
+            shifts.add(shift2);
+        }
+        
+        // 构建班次3（仅3班制）
+        if (mode == ShiftConstants.SHIFT_MODE_3 && config.getShift3Code() != null) {
+            DeviceShiftConfigDO.ShiftDefinition shift3 = new DeviceShiftConfigDO.ShiftDefinition();
+            shift3.setCode(config.getShift3Code());
+            shift3.setName(config.getShift3Name());
+            shift3.setStartTime(config.getShift3StartTime());
+            shift3.setEndTime(config.getShift3EndTime());
+            if (config.getShift3DurationS() != null) {
+                shift3.setDurationHours(config.getShift3DurationS() / ShiftConstants.SECONDS_PER_HOUR);
+            }
+            if (config.getShift3StartTime() != null && config.getShift3EndTime() != null) {
+                LocalTime startTime = LocalTime.parse(config.getShift3StartTime(), TIME_FORMATTER);
+                LocalTime endTime = LocalTime.parse(config.getShift3EndTime(), TIME_FORMATTER);
+                shift3.setCrossDay(endTime.isBefore(startTime) || endTime.equals(startTime));
+            }
+            shifts.add(shift3);
+        }
+        
+        return shifts;
+    }
+
 }
 

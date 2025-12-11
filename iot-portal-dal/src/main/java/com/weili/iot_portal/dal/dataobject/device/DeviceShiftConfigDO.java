@@ -51,76 +51,91 @@ public class DeviceShiftConfigDO extends BaseDO {
     /**
      * 班次1编码：SHIFT_1（对应 shift_1_code 列）
      */
+    @TableField("shift_1_code")
     private String shift1Code;
 
     /**
      * 班次1名称：一班/早班（对应 shift_1_name 列）
      */
+    @TableField("shift_1_name")
     private String shift1Name;
 
     /**
      * 班次1开始时间：08:00:00（对应 shift_1_start_time 列）
      */
+    @TableField("shift_1_start_time")
     private String shift1StartTime;
 
     /**
      * 班次1结束时间：16:00:00（对应 shift_1_end_time 列）
      */
+    @TableField("shift_1_end_time")
     private String shift1EndTime;
 
     /**
      * 班次1时长（秒，对应 shift_1_duration_s 列）
      */
+    @TableField("shift_1_duration_s")
     private Integer shift1DurationS;
 
     /**
      * 班次2编码：SHIFT_2（对应 shift_2_code 列）
      */
+    @TableField("shift_2_code")
     private String shift2Code;
 
     /**
      * 班次2名称：二班/中班（对应 shift_2_name 列）
      */
+    @TableField("shift_2_name")
     private String shift2Name;
 
     /**
      * 班次2开始时间：16:00:00（对应 shift_2_start_time 列）
      */
+    @TableField("shift_2_start_time")
     private String shift2StartTime;
 
     /**
      * 班次2结束时间：00:00:00（对应 shift_2_end_time 列）
      */
+    @TableField("shift_2_end_time")
     private String shift2EndTime;
 
     /**
      * 班次2时长（秒，对应 shift_2_duration_s 列）
      */
+    @TableField("shift_2_duration_s")
     private Integer shift2DurationS;
 
     /**
      * 班次3编码：SHIFT_3（仅3班制时使用，对应 shift_3_code 列）
      */
+    @TableField("shift_3_code")
     private String shift3Code;
 
     /**
      * 班次3名称：三班/晚班（仅3班制时使用，对应 shift_3_name 列）
      */
+    @TableField("shift_3_name")
     private String shift3Name;
 
     /**
      * 班次3开始时间（仅3班制时使用，对应 shift_3_start_time 列）
      */
+    @TableField("shift_3_start_time")
     private String shift3StartTime;
 
     /**
      * 班次3结束时间（仅3班制时使用，对应 shift_3_end_time 列）
      */
+    @TableField("shift_3_end_time")
     private String shift3EndTime;
 
     /**
      * 班次3时长（秒，仅3班制时使用，对应 shift_3_duration_s 列）
      */
+    @TableField("shift_3_duration_s")
     private Integer shift3DurationS;
 
     /**

@@ -38,10 +38,10 @@ public class DeviceStateRecordDO implements Serializable {
     private String orgFactoryId;
 
     /**
-     * 设备状态编码（对应 state_code 列）
-     * 如：WORKING-加工中 STANDBY-待机 FAULT-故障 SHUTDOWN-关机
+     * 设备状态编码（对应 state_code 列，TINYINT UNSIGNED）
+     * 编码映射：0-SHUTDOWN（关机） 1-WORKING（加工中） 2-STANDBY（待机） 3-FAULT（故障） 255-UNKNOWN（未知）
      */
-    private String stateCode;
+    private Integer stateCode;
 
     /**
      * 状态开始时间戳（毫秒，Unix时间戳，对应 start_ts 列）

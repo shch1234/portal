@@ -49,12 +49,21 @@ public final class DeviceStateEventFields {
      */
     public static final String CURRENT_STATE = "currentState";
 
-    // ==================== 状态值常量 ====================
     /**
-     * 未知状态
-     * 当状态不匹配或出现异常时，使用此状态标记
+     * 事件数据中的时间戳字段（设备实际状态变化时间）
+     * 优先级：TIMESTAMP > TS > DATA_TIMESTAMP
      */
-    public static final String UNKNOWN_STATE = "UNKNOWN";
+    public static final String TIMESTAMP = "timestamp";
+    
+    /**
+     * 事件数据中的时间戳字段（简化形式）
+     */
+    public static final String TS = "ts";
+    
+    /**
+     * 事件数据中的时间戳字段（数据时间戳）
+     */
+    public static final String DATA_TIMESTAMP = "dataTimestamp";
 
     // ==================== 分布式锁相关 ====================
 
@@ -190,6 +199,12 @@ public final class DeviceStateEventFields {
      */
     public static final String DB_START_TS = "db_start_ts";
 
+    /**
+     * 异常原因字段
+     * 记录时间戳异常或其他异常的原因
+     */
+    public static final String ANOMALY_REASON = "anomaly_reason";
+
     // ==================== 错误类型 ====================
     /**
      * 错误类型：状态不匹配
@@ -200,6 +215,11 @@ public final class DeviceStateEventFields {
      * 错误类型：时间戳异常
      */
     public static final String ERROR_TYPE_TIMESTAMP_ANOMALY = "TIMESTAMP_ANOMALY";
+
+    /**
+     * 错误类型：未知状态值
+     */
+    public static final String ERROR_TYPE_UNKNOWN_STATE = "UNKNOWN_STATE";
 
     // ==================== 时间戳转换 ====================
     /**

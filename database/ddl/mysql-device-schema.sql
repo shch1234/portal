@@ -258,13 +258,19 @@ CREATE INDEX idx_location_factory ON device_location (org_factory_id, is_active)
 
 -- ============================================================
 -- 8. 设备状态明细表 device_state_record
---  state_code、shift_code放到字典中
+--  状态编码说明：
+--    0 - SHUTDOWN（关机）
+--    1 - WORKING（加工中）
+--    2 - STANDBY（待机）
+--    3 - FAULT（故障）
+--    255 - UNKNOWN（未知状态）
+--  shift_code放到字典中
 -- ============================================================
 CREATE TABLE IF NOT EXISTS device_state_record (
     id              BIGINT NOT NULL PRIMARY KEY COMMENT '主键ID（雪花算法）',
     device_info_id  BIGINT NOT NULL COMMENT '设备ID（关联 device_info.id，可通过 device_info.tb_device_id 查询 ThingsBoard 获取租户信息）',
     org_factory_id  BIGINT COMMENT '所属厂区ID（关联 device_org_relation.id，冗余字段，优化查询性能）',
-    state_code      VARCHAR(50) NOT NULL COMMENT '设备状态编码：WORKING-加工中 STANDBY-待机 FAULT-故障 SHUTDOWN-关机',
+    state_code      TINYINT UNSIGNED NOT NULL COMMENT '设备状态编码：0-关机 1-加工中 2-待机 3-故障 255-未知',
     start_ts        BIGINT NOT NULL COMMENT '状态开始时间戳（秒，Unix时间戳）',
     end_ts          BIGINT DEFAULT NULL COMMENT '状态结束时间戳（秒，Unix时间戳，NULL表示进行中）',
     duration_s      INT COMMENT '持续时长（秒）',

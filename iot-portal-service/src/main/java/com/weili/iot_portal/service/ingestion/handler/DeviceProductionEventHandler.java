@@ -8,17 +8,15 @@ import com.weili.iot_portal.dal.repository.device.DeviceProductionRecordReposito
 import com.weili.iot_portal.domain.ingestion.WebhookRequest;
 import com.weili.iot_portal.service.cache.DeviceIdentityCacheService;
 import com.weili.iot_portal.service.ingestion.handler.fields.DeviceProductionEventFields;
-import com.weili.iot_portal.service.shift.IShiftConfigService;
-import com.weili.iot_portal.service.shift.model.ShiftTimeRange;
+import com.weili.iot_portal.service.shift.IShiftCalculationService;
+import com.weili.iot_portal.service.shift.model.ShiftDateAndCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Instant;
 import java.time.LocalDate;
-import java.time.ZoneOffset;
 import java.util.Map;
 import java.util.Optional;
 
@@ -35,7 +33,7 @@ public class DeviceProductionEventHandler implements WebhookEventHandler {
 
     private final DeviceIdentityCacheService deviceIdentityCacheService;
     private final DeviceProductionRecordRepository deviceProductionRecordRepository;
-    private final IShiftConfigService deviceShiftConfigService;
+    private final IShiftCalculationService shiftCalculationService;
 
     @Override
     public boolean supports(String eventType) {
@@ -132,11 +130,8 @@ public class DeviceProductionEventHandler implements WebhookEventHandler {
 
     private ShiftInfo resolveShift(String factoryId, String deviceId, Long tsSeconds) {
         long tsMs = tsSeconds * DeviceProductionEventFields.SECONDS_TO_MILLIS;
-        ShiftTimeRange range = deviceShiftConfigService.calculateShiftRange(factoryId, deviceId, tsMs);
-        LocalDate shiftDate = Instant.ofEpochMilli(range.getStartTs())
-                .atZone(ZoneOffset.systemDefault())
-                .toLocalDate();
-        return new ShiftInfo(shiftDate, range.getShiftCode());
+        ShiftDateAndCode shiftInfo = shiftCalculationService.getShiftDateAndCode(factoryId, deviceId, tsMs);
+        return new ShiftInfo(shiftInfo.shiftDate(), shiftInfo.shiftCode());
     }
 
     private String toStr(Object v) {

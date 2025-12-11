@@ -6,7 +6,7 @@ import com.weili.iot_portal.dal.dataobject.device.DeviceProductionSummaryDO;
 import com.weili.iot_portal.dal.repository.device.DeviceInfoRepository;
 import com.weili.iot_portal.dal.repository.device.DeviceProductionRecordRepository;
 import com.weili.iot_portal.dal.repository.device.DeviceProductionSummaryRepository;
-import com.weili.iot_portal.service.shift.IShiftConfigService;
+import com.weili.iot_portal.service.shift.IShiftCalculationService;
 import com.weili.iot_portal.service.shift.model.ShiftTimeRange;
 import com.weili.iot_portal.task.framework.BaseScheduledJob;
 import com.weili.iot_portal.task.framework.JobExecutionResult;
@@ -39,7 +39,7 @@ public class DeviceProductionSummaryJob extends BaseScheduledJob {
     private final DeviceInfoRepository deviceInfoRepository;
     private final DeviceProductionRecordRepository productionRecordRepository;
     private final DeviceProductionSummaryRepository deviceProductionSummaryRepository;
-    private final IShiftConfigService shiftConfigurationService;
+    private final IShiftCalculationService shiftCalculationService;
 
     @Override
     protected String getJobName() {
@@ -97,7 +97,7 @@ public class DeviceProductionSummaryJob extends BaseScheduledJob {
      * 处理单台设备在统计时间点前已结束的班次
      */
     private boolean processDevice(DeviceInfoDO device, long statisticsTimeMs) {
-        ShiftTimeRange range = shiftConfigurationService.calculateShiftRange(device.getOrgFactoryId(), device.getId(), statisticsTimeMs);
+        ShiftTimeRange range = shiftCalculationService.calculateShiftRange(device.getOrgFactoryId(), device.getId(), statisticsTimeMs);
         if (range == null || range.getEndTs() == null) {
             return false;
         }
