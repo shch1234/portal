@@ -1,8 +1,8 @@
 package com.weili.iot_portal.dal.repository.effiency.impl;
 
-import com.weili.iot_portal.dal.dataobject.efficiency.FactoryMetricsShiftDO;
+import com.weili.iot_portal.dal.dataobject.effiency.FactoryMetricsSummaryDO;
+import com.weili.iot_portal.dal.mapper.effiency.FactoryMetricsSummaryMapper;
 import com.weili.iot_portal.dal.repository.effiency.FactoryMetricsRepository;
-import com.weili.iot_portal.dal.mapper.effiency.FactoryMetricsMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
@@ -16,17 +16,17 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class FactoryMetricsRepositoryImpl implements FactoryMetricsRepository {
 
-    private final FactoryMetricsMapper factoryMetricsMapper;
+    private final FactoryMetricsSummaryMapper factoryMetricsSummaryMapper;
 
     @Override
-    public Optional<FactoryMetricsShiftDO> findByShift(String factoryId, String shiftDate, String shiftCode) {
-        FactoryMetricsShiftDO result = factoryMetricsMapper.selectFactoryMetrics(factoryId, shiftDate, shiftCode);
+    public Optional<FactoryMetricsSummaryDO> findByShift(String factoryId, String shiftDate, String shiftCode) {
+        FactoryMetricsSummaryDO result = factoryMetricsSummaryMapper.selectFactoryMetrics(factoryId, shiftDate, shiftCode);
         return Optional.ofNullable(result);
     }
 
     @Override
-    public List<FactoryMetricsShiftDO> findHistory(String factoryId, String startDate, String endDate) {
-        return factoryMetricsMapper.selectFactoryMetricsHistory(factoryId, startDate, endDate);
+    public List<FactoryMetricsSummaryDO> findHistory(String factoryId, String startDate, String endDate) {
+        return factoryMetricsSummaryMapper.selectFactoryMetricsHistory(factoryId, startDate, endDate);
     }
 }
 

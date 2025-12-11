@@ -1,15 +1,15 @@
-package com.weili.iot_portal.dal.repository.devicebase.impl;
+package com.weili.iot_portal.dal.repository.device.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.support.SFunction;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.weili.basic.common.model.PageResult;
-import com.weili.iot_portal.dal.dataobject.devicebase.DeviceBaseInfoDO;
-import com.weili.iot_portal.dal.dataobject.devicebase.DeviceNetworkConfigDO;
+import com.weili.iot_portal.dal.dataobject.device.DeviceInfoDO;
+import com.weili.iot_portal.dal.dataobject.device.DeviceNetworkConfigDO;
 import com.weili.iot_portal.dal.ddd.device.DeviceNetworkConfigPageQuery;
-import com.weili.iot_portal.dal.mapper.devicebase.DeviceNetworkConfigMapper;
-import com.weili.iot_portal.dal.repository.devicebase.DeviceBaseInfoRepository;
-import com.weili.iot_portal.dal.repository.devicebase.DeviceNetworkConfigRepository;
+import com.weili.iot_portal.dal.mapper.device.DeviceNetworkConfigMapper;
+import com.weili.iot_portal.dal.repository.device.DeviceInfoRepository;
+import com.weili.iot_portal.dal.repository.device.DeviceNetworkConfigRepository;
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Repository;
@@ -23,7 +23,7 @@ import java.util.stream.Collectors;
 public class DeviceNetworkConfigRepositoryImpl implements DeviceNetworkConfigRepository {
 
     private final DeviceNetworkConfigMapper mapper;
-    private final DeviceBaseInfoRepository deviceBaseInfoRepository;
+    private final DeviceInfoRepository deviceInfoRepository;
 
     @Override
     public Optional<DeviceNetworkConfigDO> findById(String id) {
@@ -53,9 +53,9 @@ public class DeviceNetworkConfigRepositoryImpl implements DeviceNetworkConfigRep
         LambdaQueryWrapper<DeviceNetworkConfigDO> wrapper = new LambdaQueryWrapper<>();
 
         if (StringUtils.isNotBlank(query.getFactoryId())) {
-            List<String> deviceIds = deviceBaseInfoRepository.findByFactoryId(query.getFactoryId())
+            List<String> deviceIds = deviceInfoRepository.findByFactoryId(query.getFactoryId())
                     .stream()
-                    .map(DeviceBaseInfoDO::getId)
+                    .map(DeviceInfoDO::getId)
                     .collect(Collectors.toList());
             if (deviceIds.isEmpty()) {
                 return new PageResult<>(List.of(), 0L);

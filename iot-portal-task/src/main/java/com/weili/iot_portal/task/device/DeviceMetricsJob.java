@@ -1,20 +1,19 @@
-package com.weili.iot_portal.task.devicemng;
+package com.weili.iot_portal.task.device;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.xxl.job.core.context.XxlJobHelper;
-import com.xxl.job.core.handler.annotation.XxlJob;
 import com.weili.iot_portal.common.constant.RedisConstant;
-import com.weili.iot_portal.dal.dataobject.devicebase.DeviceBaseInfoDO;
-import com.weili.iot_portal.dal.dataobject.devicemng.DeviceParameterDO;
-import com.weili.iot_portal.dal.dataobject.devicemng.DeviceStateTimelineDO;
-import com.weili.iot_portal.dal.mapper.devicebase.DeviceBaseInfoMapper;
-import com.weili.iot_portal.dal.repository.devicemng.DeviceParameterRepository;
-import com.weili.iot_portal.dal.repository.devicemng.DeviceProductionRecordRepository;
-import com.weili.iot_portal.dal.repository.devicemng.DeviceStateTimelineRepository;
-import com.weili.iot_portal.service.support.ShiftConfigurationService;
-import com.weili.iot_portal.service.support.ShiftTimeRange;
+import com.weili.iot_portal.common.enums.DeviceStateEnum;
+import com.weili.iot_portal.dal.dataobject.device.DeviceInfoDO;
+import com.weili.iot_portal.dal.dataobject.device.DeviceParamConfigDO;
+import com.weili.iot_portal.dal.dataobject.device.DeviceStateRecordDO;
+import com.weili.iot_portal.dal.repository.device.DeviceInfoRepository;
+import com.weili.iot_portal.dal.repository.device.DeviceParamConfigRepository;
+import com.weili.iot_portal.dal.repository.device.DeviceProductionRecordRepository;
+import com.weili.iot_portal.dal.repository.device.DeviceStateRecordRepository;
+import com.weili.iot_portal.service.shift.IShiftConfigService;
+import com.weili.iot_portal.service.shift.model.ShiftTimeRange;
 import com.weili.iot_portal.task.framework.BaseScheduledJob;
 import com.weili.iot_portal.task.framework.JobExecutionResult;
+import com.xxl.job.core.handler.annotation.XxlJob;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -24,11 +23,9 @@ import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 /**
  * 设备实时指标计算任务（每5分钟刷新一次）
@@ -38,18 +35,14 @@ import java.util.stream.Collectors;
 @Component
 @RequiredArgsConstructor
 public class DeviceMetricsJob extends BaseScheduledJob {
-
-    @Value("${rt.metrics.refresh-seconds:300}")
-    private long refreshSeconds;
-
     @Value("${rt.metrics.ttl-seconds:600}")
     private long ttlSeconds;
 
-    private final DeviceBaseInfoMapper deviceBaseInfoMapper;
-    private final DeviceStateTimelineRepository deviceStateTimelineRepository;
-    private final DeviceParameterRepository deviceParameterRepository;
+    private final DeviceInfoRepository deviceInfoRepository;
+    private final DeviceStateRecordRepository deviceStateRecordRepository;
+    private final DeviceParamConfigRepository deviceParamConfigRepository;
     private final DeviceProductionRecordRepository deviceProductionRecordRepository;
-    private final ShiftConfigurationService shiftConfigurationService;
+    private final IShiftConfigService deviceShiftConfigService;
     private final StringRedisTemplate stringRedisTemplate;
 
     private static final String PARAM_PLANNED_DOWNTIME = "PLANNED_DOWNTIME";
@@ -68,13 +61,13 @@ public class DeviceMetricsJob extends BaseScheduledJob {
 
     @Override
     protected JobExecutionResult executeInternal() throws Exception {
-        List<DeviceBaseInfoDO> allDevices = queryAllDevices();
+        List<DeviceInfoDO> allDevices = queryAllDevices();
         if (allDevices.isEmpty()) {
             return JobExecutionResult.empty();
         }
         int success = 0, error = 0;
 
-        for (DeviceBaseInfoDO device : allDevices) {
+        for (DeviceInfoDO device : allDevices) {
             try {
                 processDevice(device);
                 success++;
@@ -86,19 +79,16 @@ public class DeviceMetricsJob extends BaseScheduledJob {
         return JobExecutionResult.of(success, 0, error);
     }
 
-    private List<DeviceBaseInfoDO> queryAllDevices() {
-        LambdaQueryWrapper<DeviceBaseInfoDO> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(DeviceBaseInfoDO::getDeleted, false)
-                .isNotNull(DeviceBaseInfoDO::getOrgFactoryId);
-        return deviceBaseInfoMapper.selectList(wrapper);
+    private List<DeviceInfoDO> queryAllDevices() {
+        return deviceInfoRepository.findActiveWithFactory();
     }
 
-    private void processDevice(DeviceBaseInfoDO device) {
+    private void processDevice(DeviceInfoDO device) {
         String factoryId = device.getOrgFactoryId();
         String deviceId = device.getId();
 
         long nowMs = System.currentTimeMillis();
-        ShiftTimeRange shift = shiftConfigurationService.calculateShiftRange(factoryId, deviceId, nowMs);
+        ShiftTimeRange shift = deviceShiftConfigService.calculateShiftRange(factoryId, deviceId, nowMs);
         if (shift == null || shift.getStartTs() == null) {
             return;
         }
@@ -110,11 +100,11 @@ public class DeviceMetricsJob extends BaseScheduledJob {
         long plannedRuntime = Math.max(0, shiftDuration - plannedDowntime);
 
         Map<String, Long> stateDurations = sumStateDurations(deviceId, shiftStartSec, shiftEndSec, nowMs / 1000);
-        long workingDuration = stateDurations.getOrDefault("WORKING", 0L);
-        long faultDuration = stateDurations.getOrDefault("FAULT", 0L);
-        long unplannedDowntime = stateDurations.getOrDefault("STANDBY", 0L)
+        long workingDuration = stateDurations.getOrDefault(DeviceStateEnum.WORKING.name(), 0L);
+        long faultDuration = stateDurations.getOrDefault(DeviceStateEnum.FAULT.name(), 0L);
+        long unplannedDowntime = stateDurations.getOrDefault(DeviceStateEnum.STANDBY.name(), 0L)
                 + faultDuration
-                + stateDurations.getOrDefault("SHUTDOWN", 0L);
+                + stateDurations.getOrDefault(DeviceStateEnum.SHUTDOWN.name(), 0L);
         long actualRuntime = Math.max(0, plannedRuntime - unplannedDowntime);
 
         long actualOutput = deviceProductionRecordRepository.countCompletedInRange(deviceId, shiftStartSec, shiftEndSec);
@@ -154,19 +144,19 @@ public class DeviceMetricsJob extends BaseScheduledJob {
     }
 
     private long getPlannedDowntimeSeconds(String deviceId) {
-        List<DeviceParameterDO> params = deviceParameterRepository.selectCurrent(deviceId);
+        List<DeviceParamConfigDO> params = deviceParamConfigRepository.selectCurrent(deviceId);
         return params.stream()
                 .filter(p -> PARAM_PLANNED_DOWNTIME.equalsIgnoreCase(p.getParameterType()))
                 .findFirst()
-                .map(DeviceParameterDO::getParameterValue)
-                .map(v -> v.longValue())
+                .map(DeviceParamConfigDO::getParameterValue)
+                .map(BigDecimal::longValue)
                 .orElse(0L);
     }
 
     private Map<String, Long> sumStateDurations(String deviceId, long startSec, long endSec, long nowSec) {
-        List<DeviceStateTimelineDO> timelines = deviceStateTimelineRepository.selectByRange(deviceId, startSec, endSec);
+        List<DeviceStateRecordDO> timelines = deviceStateRecordRepository.selectByRange(deviceId, startSec, endSec);
         Map<String, Long> result = new HashMap<>();
-        for (DeviceStateTimelineDO t : timelines) {
+        for (DeviceStateRecordDO t : timelines) {
             String state = t.getStateCode();
             if (StringUtils.isBlank(state)) {
                 continue;
@@ -182,12 +172,12 @@ public class DeviceMetricsJob extends BaseScheduledJob {
     }
 
     private long getTheoreticalCycleSeconds(String deviceId) {
-        List<DeviceParameterDO> params = deviceParameterRepository.selectCurrent(deviceId);
+        List<DeviceParamConfigDO> params = deviceParamConfigRepository.selectCurrent(deviceId);
         return params.stream()
                 .filter(p -> PARAM_THEORETICAL_CYCLE.equalsIgnoreCase(p.getParameterType()))
                 .findFirst()
-                .map(DeviceParameterDO::getParameterValue)
-                .map(v -> v.longValue())
+                .map(DeviceParamConfigDO::getParameterValue)
+                .map(BigDecimal::longValue)
                 .orElse(0L);
     }
 

@@ -1,12 +1,12 @@
-package com.weili.iot_portal.service.support;
+package com.weili.iot_portal.service.cache;
 
-import com.weili.basic.common.enums.ErrorCodeConstants;
-import com.weili.basic.common.exception.ServiceException;
 import com.weili.basic.common.util.JsonUtils;
 import com.weili.basic.redis.client.RedisClient;
 import com.weili.iot_portal.common.constant.RedisConstant;
-import com.weili.iot_portal.dal.dataobject.devicebase.DeviceBaseInfoDO;
-import com.weili.iot_portal.dal.repository.devicebase.DeviceBaseInfoRepository;
+import com.weili.iot_portal.common.exception.IotPortalErrorCode;
+import com.weili.iot_portal.common.exception.IotPortalException;
+import com.weili.iot_portal.dal.dataobject.device.DeviceInfoDO;
+import com.weili.iot_portal.dal.repository.device.DeviceInfoRepository;
 import com.weili.iot_portal.service.ingestion.support.UnknownDeviceAlertService;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -25,46 +25,45 @@ public class DeviceIdentityCacheService {
     private static final long DEFAULT_TTL_SECONDS = Duration.ofHours(6).toSeconds();
 
     private final RedisClient redisClient;
-    private final DeviceBaseInfoRepository deviceBaseInfoRepository;
+    private final DeviceInfoRepository deviceInfoRepository;
     private final UnknownDeviceAlertService unknownDeviceAlertService;
 
     public DeviceIdentityCacheService(RedisClient redisClient,
-                                      DeviceBaseInfoRepository deviceBaseInfoRepository,
+                                      DeviceInfoRepository deviceInfoRepository,
                                       UnknownDeviceAlertService unknownDeviceAlertService) {
         this.redisClient = redisClient;
-        this.deviceBaseInfoRepository = deviceBaseInfoRepository;
+        this.deviceInfoRepository = deviceInfoRepository;
         this.unknownDeviceAlertService = unknownDeviceAlertService;
     }
 
     public DeviceIdentity resolveByDeviceCode(String deviceCode, String tbDeviceId, String source) {
         if (StringUtils.isBlank(deviceCode)) {
-            throw new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "设备编号不能为空");
+            throw new IotPortalException(IotPortalErrorCode.DEVICE_CODE_EMPTY);
         }
         String cacheKey = buildKey(deviceCode);
         String cached = redisClient.get(cacheKey);
         if (StringUtils.isNotBlank(cached)) {
             return JsonUtils.parseObject(cached, DeviceIdentity.class);
         }
-        DeviceBaseInfoDO device = deviceBaseInfoRepository.findByDeviceCode(deviceCode)
+        DeviceInfoDO device = deviceInfoRepository.findByDeviceCode( deviceCode)
                 .orElseGet(() -> handleUnknownDevice(deviceCode, tbDeviceId, source));
         if (StringUtils.isBlank(device.getOrgFactoryId())) {
-            throw new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "设备未关联工厂");
+            throw new IotPortalException(IotPortalErrorCode.DEVICE_NOT_ASSOCIATED_FACTORY);
         }
         DeviceIdentity identity = new DeviceIdentity(device.getId(), device.getOrgFactoryId());
         cache(deviceCode, identity);
         return identity;
     }
 
-    private DeviceBaseInfoDO handleUnknownDevice(String deviceCode, String tbDeviceId, String source) {
+    private DeviceInfoDO handleUnknownDevice(String deviceCode, String tbDeviceId, String source) {
         unknownDeviceAlertService.record(deviceCode, tbDeviceId, source);
-        throw new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(),
-                "设备未建档，请检查设备编号或在组织架构中新增设备");
+        throw new IotPortalException(IotPortalErrorCode.DEVICE_NOT_REGISTERED);
     }
 
     /**
      * 刷新设备身份缓存（对应 device_info 表的 org_factory_id）
      */
-    public void refresh(DeviceBaseInfoDO device) {
+    public void refresh(DeviceInfoDO device) {
         if (device == null || StringUtils.isBlank(device.getDeviceCode())) {
             return;
         }
@@ -75,7 +74,7 @@ public class DeviceIdentityCacheService {
         cache(device.getDeviceCode(), new DeviceIdentity(device.getId(), device.getOrgFactoryId()));
     }
 
-    public void refresh(DeviceBaseInfoDO device, String oldDeviceCode) {
+    public void refresh(DeviceInfoDO device, String oldDeviceCode) {
         if (StringUtils.isNotBlank(oldDeviceCode) &&
                 !StringUtils.equals(oldDeviceCode, device.getDeviceCode())) {
             evict(oldDeviceCode);

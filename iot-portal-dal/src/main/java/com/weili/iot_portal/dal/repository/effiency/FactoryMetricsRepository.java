@@ -1,6 +1,6 @@
 package com.weili.iot_portal.dal.repository.effiency;
 
-import com.weili.iot_portal.dal.dataobject.efficiency.FactoryMetricsShiftDO;
+import com.weili.iot_portal.dal.dataobject.effiency.FactoryMetricsSummaryDO;
 
 import java.util.List;
 import java.util.Optional;
@@ -18,7 +18,7 @@ public interface FactoryMetricsRepository {
      * @param shiftCode 班次编码
      * @return 工厂级效率指标
      */
-    Optional<FactoryMetricsShiftDO> findByShift(String factoryId, String shiftDate, String shiftCode);
+    Optional<FactoryMetricsSummaryDO> findByShift(String factoryId, String shiftDate, String shiftCode);
 
     /**
      * 查询工厂级效率指标历史趋势（过去N天）
@@ -28,6 +28,6 @@ public interface FactoryMetricsRepository {
      * @param endDate 结束日期（包含）
      * @return 工厂级效率指标列表
      */
-    List<FactoryMetricsShiftDO> findHistory(String factoryId, String startDate, String endDate);
+    List<FactoryMetricsSummaryDO> findHistory(String factoryId, String startDate, String endDate);
 }
 

@@ -1,18 +1,17 @@
-package com.weili.iot_portal.task.devicemng;
+package com.weili.iot_portal.task.device;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.IdWorker;
-import com.xxl.job.core.handler.annotation.XxlJob;
-import com.xxl.job.core.context.XxlJobHelper;
-import com.weili.iot_portal.dal.dataobject.devicebase.DeviceBaseInfoDO;
-import com.weili.iot_portal.dal.dataobject.devicemng.ProductionCounterDO;
-import com.weili.iot_portal.dal.mapper.devicebase.DeviceBaseInfoMapper;
-import com.weili.iot_portal.dal.mapper.devicemng.ProductionCounterMapper;
-import com.weili.iot_portal.dal.repository.devicemng.DeviceProductionRecordRepository;
-import com.weili.iot_portal.service.support.ShiftConfigurationService;
-import com.weili.iot_portal.service.support.ShiftTimeRange;
+import com.weili.iot_portal.dal.dataobject.device.DeviceInfoDO;
+import com.weili.iot_portal.dal.dataobject.device.DeviceProductionSummaryDO;
+import com.weili.iot_portal.dal.repository.device.DeviceInfoRepository;
+import com.weili.iot_portal.dal.repository.device.DeviceProductionRecordRepository;
+import com.weili.iot_portal.dal.repository.device.DeviceProductionSummaryRepository;
+import com.weili.iot_portal.service.shift.IShiftConfigService;
+import com.weili.iot_portal.service.shift.model.ShiftTimeRange;
 import com.weili.iot_portal.task.framework.BaseScheduledJob;
 import com.weili.iot_portal.task.framework.JobExecutionResult;
+import com.xxl.job.core.context.XxlJobHelper;
+import com.xxl.job.core.handler.annotation.XxlJob;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -37,14 +36,10 @@ public class DeviceProductionSummaryJob extends BaseScheduledJob {
 
     @Value("${shift.summary.delay-minutes:5}")
     private int delayMinutes;
-
-    @Value("${shift.summary.batch-size:50}")
-    private int batchSize;
-
-    private final DeviceBaseInfoMapper deviceBaseInfoMapper;
+    private final DeviceInfoRepository deviceInfoRepository;
     private final DeviceProductionRecordRepository productionRecordRepository;
-    private final ProductionCounterMapper productionCounterMapper;
-    private final ShiftConfigurationService shiftConfigurationService;
+    private final DeviceProductionSummaryRepository deviceProductionSummaryRepository;
+    private final IShiftConfigService shiftConfigurationService;
 
     @Override
     protected String getJobName() {
@@ -64,29 +59,32 @@ public class DeviceProductionSummaryJob extends BaseScheduledJob {
         long statisticsTimeMs = statisticsTimeSeconds * 1000;
         XxlJobHelper.log("产量汇总统计时间: {}, 延迟: {} 分钟", Instant.ofEpochSecond(statisticsTimeSeconds), delayMinutes);
 
-        List<DeviceBaseInfoDO> allDevices = queryAllDevices();
+        List<DeviceInfoDO> allDevices = queryAllDevices();
         if (allDevices.isEmpty()) {
             return JobExecutionResult.empty();
         }
 
         int success = 0, skip = 0, error = 0;
-        Map<String, List<DeviceBaseInfoDO>> grouped = allDevices.stream()
+        Map<String, Map<String, List<DeviceInfoDO>>> grouped = allDevices.stream()
                 .filter(d -> StringUtils.isNotBlank(d.getOrgFactoryId()))
-                .collect(Collectors.groupingBy(DeviceBaseInfoDO::getOrgFactoryId));
+                .collect(Collectors.groupingBy(DeviceInfoDO::getTenantUuid,
+                        Collectors.groupingBy(DeviceInfoDO::getOrgFactoryId)));
 
-        for (Map.Entry<String, List<DeviceBaseInfoDO>> factoryEntry : grouped.entrySet()) {
-            List<DeviceBaseInfoDO> devices = factoryEntry.getValue();
-            for (DeviceBaseInfoDO device : devices) {
-                try {
-                    boolean processed = processDevice(device, statisticsTimeMs);
-                    if (processed) {
-                        success++;
-                    } else {
-                        skip++;
+        for (Map.Entry<String, Map<String, List<DeviceInfoDO>>> tenantEntry : grouped.entrySet()) {
+            for (Map.Entry<String, List<DeviceInfoDO>> factoryEntry : tenantEntry.getValue().entrySet()) {
+                List<DeviceInfoDO> devices = factoryEntry.getValue();
+                for (DeviceInfoDO device : devices) {
+                    try {
+                        boolean processed = processDevice(device, statisticsTimeMs);
+                        if (processed) {
+                            success++;
+                        } else {
+                            skip++;
+                        }
+                    } catch (Exception e) {
+                        error++;
+                        log.error("产量汇总失败 deviceId={}", device.getId(), e);
                     }
-                } catch (Exception e) {
-                    error++;
-                    log.error("产量汇总失败 deviceId={}", device.getId(), e);
                 }
             }
         }
@@ -94,16 +92,14 @@ public class DeviceProductionSummaryJob extends BaseScheduledJob {
         return JobExecutionResult.of(success, skip, error);
     }
 
-    private List<DeviceBaseInfoDO> queryAllDevices() {
-        LambdaQueryWrapper<DeviceBaseInfoDO> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(DeviceBaseInfoDO::getDeleted, false);
-        return deviceBaseInfoMapper.selectList(wrapper);
+    private List<DeviceInfoDO> queryAllDevices() {
+        return deviceInfoRepository.findAllActive();
     }
 
     /**
      * 处理单台设备在统计时间点前已结束的班次
      */
-    private boolean processDevice(DeviceBaseInfoDO device, long statisticsTimeMs) {
+    private boolean processDevice(DeviceInfoDO device, long statisticsTimeMs) {
         ShiftTimeRange range = shiftConfigurationService.calculateShiftRange(device.getOrgFactoryId(), device.getId(), statisticsTimeMs);
         if (range == null || range.getEndTs() == null) {
             return false;
@@ -124,16 +120,10 @@ public class DeviceProductionSummaryJob extends BaseScheduledJob {
 
     private void upsertSummary(String deviceId, LocalDate shiftDate, String shiftCode,
                                long shiftStartSec, long shiftEndSec, long partCount, long calculatedTimeSec) {
-        // 注意：device_production_summary 表已删除 tenant_uuid 字段
-        LambdaQueryWrapper<ProductionCounterDO> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(ProductionCounterDO::getDeviceInfoId, deviceId)
-                .eq(ProductionCounterDO::getShiftDate, shiftDate)
-                .eq(ProductionCounterDO::getShiftCode, shiftCode);
-        ProductionCounterDO existing = productionCounterMapper.selectOne(wrapper);
+        DeviceProductionSummaryDO existing = deviceProductionSummaryRepository.findByShift(deviceId, shiftDate, shiftCode);
         if (existing == null) {
-            ProductionCounterDO summary = new ProductionCounterDO();
+            DeviceProductionSummaryDO summary = new DeviceProductionSummaryDO();
             summary.setId(IdWorker.getIdStr());
-            // tenant_uuid 字段已删除
             summary.setDeviceInfoId(deviceId);
             summary.setShiftDate(shiftDate);
             summary.setShiftCode(shiftCode);
@@ -144,7 +134,7 @@ public class DeviceProductionSummaryJob extends BaseScheduledJob {
             summary.setDefectCount(0);
             summary.setIsFinalized(true);
             summary.setCalculatedTime(calculatedTimeSec);
-            productionCounterMapper.insert(summary);
+            deviceProductionSummaryRepository.insert(summary);
         } else {
             existing.setShiftStartTs(shiftStartSec);
             existing.setShiftEndTs(shiftEndSec);
@@ -153,7 +143,7 @@ public class DeviceProductionSummaryJob extends BaseScheduledJob {
             existing.setDefectCount(existing.getDefectCount() == null ? 0 : existing.getDefectCount());
             existing.setIsFinalized(true);
             existing.setCalculatedTime(calculatedTimeSec);
-            productionCounterMapper.updateById(existing);
+            deviceProductionSummaryRepository.update(existing);
         }
     }
 }

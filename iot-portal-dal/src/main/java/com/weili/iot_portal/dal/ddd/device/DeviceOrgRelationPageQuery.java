@@ -8,7 +8,7 @@ import java.util.List;
  * 组织单元分页查询条件（对应 device_org_relation 表）
  */
 @Data
-public class OrganizationUnitPageQuery {
+public class DeviceOrgRelationPageQuery {
 
     /**
      * 单元编码模糊查询（对应 unit_code）

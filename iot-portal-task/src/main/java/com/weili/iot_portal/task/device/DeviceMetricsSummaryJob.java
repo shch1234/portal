@@ -1,20 +1,15 @@
-package com.weili.iot_portal.task.devicemng;
+package com.weili.iot_portal.task.device;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.IdWorker;
-import com.xxl.job.core.context.XxlJobHelper;
-import com.xxl.job.core.handler.annotation.XxlJob;
-import com.weili.iot_portal.dal.dataobject.devicebase.DeviceBaseInfoDO;
-import com.weili.iot_portal.dal.dataobject.devicemng.DeviceMetricsShiftDO;
-import com.weili.iot_portal.dal.dataobject.devicemng.DeviceParameterDO;
-import com.weili.iot_portal.dal.dataobject.devicemng.DeviceStateSummaryDO;
-import com.weili.iot_portal.dal.repository.devicemng.DeviceProductionRecordRepository;
-import com.weili.iot_portal.dal.mapper.devicemng.DeviceMetricsShiftMapper;
-import com.weili.iot_portal.dal.mapper.devicebase.DeviceBaseInfoMapper;
-import com.weili.iot_portal.dal.repository.devicemng.DeviceParameterRepository;
-import com.weili.iot_portal.dal.repository.devicemng.DeviceStateSummaryRepository;
+import com.weili.iot_portal.dal.dataobject.device.DeviceInfoDO;
+import com.weili.iot_portal.dal.dataobject.device.DeviceMetricSummaryDO;
+import com.weili.iot_portal.dal.dataobject.device.DeviceParamConfigDO;
+import com.weili.iot_portal.dal.dataobject.device.DeviceStateSummaryDO;
+import com.weili.iot_portal.dal.repository.device.*;
 import com.weili.iot_portal.task.framework.BaseScheduledJob;
 import com.weili.iot_portal.task.framework.JobExecutionResult;
+import com.xxl.job.core.context.XxlJobHelper;
+import com.xxl.job.core.handler.annotation.XxlJob;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -24,8 +19,6 @@ import org.springframework.stereotype.Component;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
-import java.time.LocalDate;
-import java.time.ZoneId;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -43,10 +36,10 @@ public class DeviceMetricsSummaryJob extends BaseScheduledJob {
     @Value("${shift.summary.delay-minutes:5}")
     private int delayMinutes;
 
-    private final DeviceBaseInfoMapper deviceBaseInfoMapper;
+    private final DeviceInfoRepository deviceInfoRepository;
     private final DeviceStateSummaryRepository deviceStateSummaryRepository;
-    private final DeviceParameterRepository deviceParameterRepository;
-    private final DeviceMetricsShiftMapper deviceMetricsShiftMapper;
+    private final DeviceParamConfigRepository deviceParamConfigRepository;
+    private final DeviceMetricSummaryRepository deviceMetricSummaryRepository;
     private final DeviceProductionRecordRepository deviceProductionRecordRepository;
 
     private static final String PARAM_PLANNED_DOWNTIME = "PLANNED_DOWNTIME";
@@ -70,39 +63,40 @@ public class DeviceMetricsSummaryJob extends BaseScheduledJob {
         long statPoint = nowSec - delayMinutes * 60L;
         XxlJobHelper.log("指标汇总统计时间点: {}, 延迟: {} 分钟", Instant.ofEpochSecond(statPoint), delayMinutes);
 
-        List<DeviceBaseInfoDO> devices = queryAllDevices();
+        List<DeviceInfoDO> devices = queryAllDevices();
         if (devices.isEmpty()) {
             return JobExecutionResult.empty();
         }
 
         int success = 0, skip = 0, error = 0;
-        List<DeviceBaseInfoDO> filteredDevices = devices.stream()
+        Map<String, List<DeviceInfoDO>> grouped = devices.stream()
                 .filter(d -> StringUtils.isNotBlank(d.getOrgFactoryId()))
-                .collect(Collectors.toList());
+                .collect(Collectors.groupingBy(DeviceInfoDO::getTenantUuid));
 
-        for (DeviceBaseInfoDO device : filteredDevices) {
-            try {
-                boolean processed = processDevice(device, statPoint);
-                if (processed) success++; else skip++;
-            } catch (Exception e) {
-                error++;
-                log.error("指标汇总失败 deviceId={}", device.getId(), e);
+        for (Map.Entry<String, List<DeviceInfoDO>> tenantEntry : grouped.entrySet()) {
+            for (DeviceInfoDO device : tenantEntry.getValue()) {
+                try {
+                    boolean processed = processDevice(device, statPoint);
+                    if (processed) success++;
+                    else skip++;
+                } catch (Exception e) {
+                    error++;
+                    log.error("指标汇总失败 deviceId={}", device.getId(), e);
+                }
             }
         }
 
         return JobExecutionResult.of(success, skip, error);
     }
 
-    private List<DeviceBaseInfoDO> queryAllDevices() {
-        LambdaQueryWrapper<DeviceBaseInfoDO> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(DeviceBaseInfoDO::getDeleted, false);
-        return deviceBaseInfoMapper.selectList(wrapper);
+    private List<DeviceInfoDO> queryAllDevices() {
+        return deviceInfoRepository.findAllActive();
     }
 
     /**
      * 处理单台设备在统计时间点前已结束并已汇总的班次
      */
-    private boolean processDevice(DeviceBaseInfoDO device, long statPointSec) {
+    private boolean processDevice(DeviceInfoDO device, long statPointSec) {
         // 找到已结束且 finalized 的状态汇总（shift_end_ts <= statPointSec 且 is_finalized=1）
         List<DeviceStateSummaryDO> summaries = deviceStateSummaryRepository.selectByRange(
                 device.getId(), null, statPointSec);
@@ -121,7 +115,7 @@ public class DeviceMetricsSummaryJob extends BaseScheduledJob {
         return processed > 0;
     }
 
-    private void upsertMetrics(DeviceStateSummaryDO stateSummary, DeviceBaseInfoDO device) {
+    private void upsertMetrics(DeviceStateSummaryDO stateSummary, DeviceInfoDO device) {
         long shiftStart = stateSummary.getShiftStartTs();
         long shiftEnd = stateSummary.getShiftEndTs();
         if (shiftStart <= 0 || shiftEnd <= 0 || shiftEnd <= shiftStart) {
@@ -193,13 +187,10 @@ public class DeviceMetricsSummaryJob extends BaseScheduledJob {
         calcData.put("working", working);
         calcData.put("faultDuration", fault);
 
-        LambdaQueryWrapper<DeviceMetricsShiftDO> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(DeviceMetricsShiftDO::getDeviceInfoId, device.getId())
-                .eq(DeviceMetricsShiftDO::getShiftDate, stateSummary.getSummaryDate())
-                .eq(DeviceMetricsShiftDO::getShiftCode, stateSummary.getShiftCode());
-        DeviceMetricsShiftDO existing = deviceMetricsShiftMapper.selectOne(wrapper);
+        DeviceMetricSummaryDO existing = deviceMetricSummaryRepository.findByShift(
+                device.getId(), stateSummary.getSummaryDate(), stateSummary.getShiftCode());
         if (existing == null) {
-            DeviceMetricsShiftDO record = new DeviceMetricsShiftDO();
+            DeviceMetricSummaryDO record = new DeviceMetricSummaryDO();
             record.setId(IdWorker.getIdStr());
             record.setDeviceInfoId(device.getId());
             record.setShiftDate(stateSummary.getSummaryDate());
@@ -216,7 +207,7 @@ public class DeviceMetricsSummaryJob extends BaseScheduledJob {
             record.setCalculationStatus("CALCULATED");
             record.setCalculatedTime(System.currentTimeMillis() / 1000);
             record.setCalculationSource(CALC_SOURCE);
-            deviceMetricsShiftMapper.insert(record);
+            deviceMetricSummaryRepository.insert(record);
         } else {
             existing.setShiftStartTs(stateSummary.getShiftStartTs());
             existing.setShiftEndTs(stateSummary.getShiftEndTs());
@@ -230,26 +221,26 @@ public class DeviceMetricsSummaryJob extends BaseScheduledJob {
             existing.setCalculationStatus("CALCULATED");
             existing.setCalculatedTime(System.currentTimeMillis() / 1000);
             existing.setCalculationSource(CALC_SOURCE);
-            deviceMetricsShiftMapper.updateById(existing);
+            deviceMetricSummaryRepository.update(existing);
         }
     }
 
     private long getPlannedDowntimeSeconds(String deviceId) {
-        List<DeviceParameterDO> params = deviceParameterRepository.selectCurrent(deviceId);
+        List<DeviceParamConfigDO> params = deviceParamConfigRepository.selectCurrent(deviceId);
         return params.stream()
                 .filter(p -> PARAM_PLANNED_DOWNTIME.equalsIgnoreCase(p.getParameterType()))
                 .findFirst()
-                .map(DeviceParameterDO::getParameterValue)
+                .map(DeviceParamConfigDO::getParameterValue)
                 .map(v -> v.longValue())
                 .orElse(0L);
     }
 
     private long getTheoreticalCycleSeconds(String deviceId) {
-        List<DeviceParameterDO> params = deviceParameterRepository.selectCurrent(deviceId);
+        List<DeviceParamConfigDO> params = deviceParamConfigRepository.selectCurrent(deviceId);
         return params.stream()
                 .filter(p -> PARAM_THEORETICAL_CYCLE.equalsIgnoreCase(p.getParameterType()))
                 .findFirst()
-                .map(DeviceParameterDO::getParameterValue)
+                .map(DeviceParamConfigDO::getParameterValue)
                 .map(v -> v.longValue())
                 .orElse(0L);
     }

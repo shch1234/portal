@@ -1,6 +1,6 @@
-package com.weili.iot_portal.dal.repository.devicemng;
+package com.weili.iot_portal.dal.repository.device;
 
-import com.weili.iot_portal.dal.dataobject.devicemng.ShiftConfigurationDO;
+import com.weili.iot_portal.dal.dataobject.device.DeviceShiftConfigDO;
 
 import java.util.List;
 import java.util.Optional;
@@ -8,7 +8,7 @@ import java.util.Optional;
 /**
  * 班次配置仓储
  */
-public interface ShiftConfigurationRepository {
+public interface DeviceShiftConfigRepository {
 
     /**
      * 查询设备在当前时间生效的班次配置
@@ -17,7 +17,7 @@ public interface ShiftConfigurationRepository {
      * @param timestamp 时间戳
      * @return 班次配置
      */
-    Optional<ShiftConfigurationDO> findActiveByDeviceAndTime(String deviceId, long timestamp);
+    Optional<DeviceShiftConfigDO> findActiveByDeviceAndTime(String deviceId, long timestamp);
 
     /**
      * 查询设备在时间范围内的所有班次配置（按生效时间倒序）
@@ -27,14 +27,14 @@ public interface ShiftConfigurationRepository {
      * @param endTs 结束时间戳
      * @return 班次配置列表
      */
-    List<ShiftConfigurationDO> findByDeviceAndTimeRange(String deviceId, long startTs, long endTs);
+    List<DeviceShiftConfigDO> findByDeviceAndTimeRange(String deviceId, long startTs, long endTs);
 
     /**
      * 插入班次配置
      *
      * @param entity 班次配置
      */
-    void insert(ShiftConfigurationDO entity);
+    void insert(DeviceShiftConfigDO entity);
 
     /**
      * 更新班次配置的生效结束时间（用于配置变更）

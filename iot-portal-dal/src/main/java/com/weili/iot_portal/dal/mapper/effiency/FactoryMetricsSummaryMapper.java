@@ -1,6 +1,6 @@
 package com.weili.iot_portal.dal.mapper.effiency;
 
-import com.weili.iot_portal.dal.dataobject.efficiency.FactoryMetricsShiftDO;
+import com.weili.iot_portal.dal.dataobject.effiency.FactoryMetricsSummaryDO;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
@@ -10,7 +10,7 @@ import java.util.List;
  * 工厂级效率指标Mapper
  */
 @Mapper
-public interface FactoryMetricsMapper {
+public interface FactoryMetricsSummaryMapper {
 
     /**
      * 查询工厂级效率指标（按班次）
@@ -20,7 +20,7 @@ public interface FactoryMetricsMapper {
      * @param shiftCode 班次编码
      * @return 工厂级效率指标
      */
-    FactoryMetricsShiftDO selectFactoryMetrics(
+    FactoryMetricsSummaryDO selectFactoryMetrics(
             @Param("factoryId") String factoryId,
             @Param("shiftDate") String shiftDate,
             @Param("shiftCode") String shiftCode);
@@ -33,7 +33,7 @@ public interface FactoryMetricsMapper {
      * @param endDate 结束日期（包含）
      * @return 工厂级效率指标列表
      */
-    List<FactoryMetricsShiftDO> selectFactoryMetricsHistory(
+    List<FactoryMetricsSummaryDO> selectFactoryMetricsHistory(
             @Param("factoryId") String factoryId,
             @Param("startDate") String startDate,
             @Param("endDate") String endDate);

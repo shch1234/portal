@@ -1,9 +1,12 @@
-package com.weili.iot_portal.service.support;
+package com.weili.iot_portal.service.shift.impl;
 
-import com.weili.basic.common.enums.ErrorCodeConstants;
-import com.weili.basic.common.exception.ServiceException;
-import com.weili.iot_portal.dal.dataobject.devicemng.ShiftConfigurationDO;
-import com.weili.iot_portal.dal.repository.devicemng.ShiftConfigurationRepository;
+import com.weili.iot_portal.common.exception.IotPortalException;
+import com.weili.iot_portal.dal.dataobject.device.DeviceShiftConfigDO;
+import com.weili.iot_portal.dal.repository.device.DeviceShiftConfigRepository;
+import com.weili.iot_portal.service.shift.DeviceFactoryValidator;
+import com.weili.iot_portal.service.shift.IShiftConfigService;
+import com.weili.iot_portal.service.shift.model.ShiftInfo;
+import com.weili.iot_portal.service.shift.model.ShiftTimeRange;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -12,15 +15,17 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Optional;
 
+import static com.weili.iot_portal.common.exception.IotPortalErrorCode.SHIFT_CONFIG_EMPTY;
+
 /**
  * 班次配置服务
  * 统一管理班次配置的查询和计算逻辑
  */
 @Service
 @RequiredArgsConstructor
-public class ShiftConfigurationService {
+public class ShiftConfigService implements IShiftConfigService {
 
-    private final ShiftConfigurationRepository shiftConfigurationRepository;
+    private final DeviceShiftConfigRepository deviceShiftConfigRepository;
     private final DeviceFactoryValidator deviceFactoryValidator;
 
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm:ss");
@@ -29,18 +34,17 @@ public class ShiftConfigurationService {
      * 获取设备在当前时间的生效班次配置（带工厂验证）
      *
      * @param factoryId 工厂ID
-     * @param deviceId 设备ID
+     * @param deviceId  设备ID
      * @param timestamp 时间戳（毫秒）
      * @return 班次配置
      */
-    public ShiftConfigurationDO getCurrentConfiguration(String factoryId, String deviceId, long timestamp) {
+    public DeviceShiftConfigDO getCurrentConfiguration(String factoryId, String deviceId, long timestamp) {
         // 验证设备属于指定工厂
         deviceFactoryValidator.ensureDeviceBelongsToFactory(factoryId, deviceId);
-        
-        Optional<ShiftConfigurationDO> configOpt = shiftConfigurationRepository
+
+        Optional<DeviceShiftConfigDO> configOpt = deviceShiftConfigRepository
                 .findActiveByDeviceAndTime(deviceId, timestamp);
-        return configOpt.orElseThrow(() -> new ServiceException(
-                ErrorCodeConstants.DEFAULT_ERROR.getCode(),
+        return configOpt.orElseThrow(() -> new IotPortalException(SHIFT_CONFIG_EMPTY,
                 "设备未配置班次信息，请先配置班次"));
     }
 
@@ -48,12 +52,12 @@ public class ShiftConfigurationService {
      * 根据时间点确定当前班次信息（带工厂验证）
      *
      * @param factoryId 工厂ID
-     * @param deviceId 设备ID
+     * @param deviceId  设备ID
      * @param timestamp 时间戳（毫秒）
      * @return 班次信息
      */
     public ShiftInfo getCurrentShift(String factoryId, String deviceId, long timestamp) {
-        ShiftConfigurationDO config = getCurrentConfiguration(factoryId, deviceId, timestamp);
+        DeviceShiftConfigDO config = getCurrentConfiguration(factoryId, deviceId, timestamp);
         return findShiftByTime(config, timestamp);
     }
 
@@ -61,12 +65,12 @@ public class ShiftConfigurationService {
      * 计算班次的时间范围（带工厂验证）
      *
      * @param factoryId 工厂ID
-     * @param deviceId 设备ID
+     * @param deviceId  设备ID
      * @param timestamp 时间戳（毫秒）
      * @return 班次时间范围
      */
     public ShiftTimeRange calculateShiftRange(String factoryId, String deviceId, long timestamp) {
-        ShiftConfigurationDO config = getCurrentConfiguration(factoryId, deviceId, timestamp);
+        DeviceShiftConfigDO config = getCurrentConfiguration(factoryId, deviceId, timestamp);
         ShiftInfo shift = findShiftByTime(config, timestamp);
 
         LocalDateTime baseTime = LocalDateTime.ofInstant(
@@ -122,41 +126,38 @@ public class ShiftConfigurationService {
      * 获取时间范围内的所有配置版本（带工厂验证）
      *
      * @param factoryId 工厂ID
-     * @param deviceId 设备ID
-     * @param startTs 开始时间戳
-     * @param endTs 结束时间戳
+     * @param deviceId  设备ID
+     * @param startTs   开始时间戳
+     * @param endTs     结束时间戳
      * @return 班次配置列表（按生效时间倒序）
      */
-    public List<ShiftConfigurationDO> getConfigurationsInRange(
-            String factoryId, String deviceId, long startTs, long endTs) {
+    public List<DeviceShiftConfigDO> getConfigurationsInRange(String factoryId, String deviceId, long startTs, long endTs) {
         // 验证设备属于指定工厂
         deviceFactoryValidator.ensureDeviceBelongsToFactory(factoryId, deviceId);
-        
-        return shiftConfigurationRepository.findByDeviceAndTimeRange(deviceId, startTs, endTs);
+
+        return deviceShiftConfigRepository.findByDeviceAndTimeRange(deviceId, startTs, endTs);
     }
 
     /**
      * 根据时间点从配置中找到对应的班次
      *
-     * @param config 班次配置
+     * @param config    班次配置
      * @param timestamp 时间戳（毫秒）
      * @return 班次信息
      */
-    private ShiftInfo findShiftByTime(ShiftConfigurationDO config, long timestamp) {
+    private ShiftInfo findShiftByTime(DeviceShiftConfigDO config, long timestamp) {
         LocalDateTime dateTime = LocalDateTime.ofInstant(
                 Instant.ofEpochMilli(timestamp),
                 ZoneId.systemDefault());
         LocalTime currentTime = dateTime.toLocalTime();
 
-        List<ShiftConfigurationDO.ShiftDefinition> shifts = config.getShifts();
+        List<DeviceShiftConfigDO.ShiftDefinition> shifts = config.getShifts();
         if (shifts == null || shifts.isEmpty()) {
-            throw new ServiceException(
-                    ErrorCodeConstants.DEFAULT_ERROR.getCode(),
-                    "班次配置为空");
+            throw new IotPortalException(SHIFT_CONFIG_EMPTY);
         }
 
         // 遍历所有班次，找到包含当前时间的班次
-        for (ShiftConfigurationDO.ShiftDefinition shiftDef : shifts) {
+        for (DeviceShiftConfigDO.ShiftDefinition shiftDef : shifts) {
             LocalTime startTime = LocalTime.parse(shiftDef.getStartTime(), TIME_FORMATTER);
             LocalTime endTime = LocalTime.parse(shiftDef.getEndTime(), TIME_FORMATTER);
 
@@ -183,7 +184,7 @@ public class ShiftConfigurationService {
 
         // 如果没有找到，可能是时间点在班次间隙，返回第一个班次（作为默认）
         // 或者抛出异常，根据业务需求决定
-        ShiftConfigurationDO.ShiftDefinition firstShift = shifts.get(0);
+        DeviceShiftConfigDO.ShiftDefinition firstShift = shifts.get(0);
         return ShiftInfo.builder()
                 .code(firstShift.getCode())
                 .name(firstShift.getName())
