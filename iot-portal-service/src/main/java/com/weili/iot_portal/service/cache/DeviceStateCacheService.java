@@ -2,7 +2,6 @@ package com.weili.iot_portal.service.cache;
 
 import com.weili.iot_portal.common.constant.RedisConstant;
 import com.weili.iot_portal.service.ingestion.handler.fields.DeviceStateEventFields;
-import com.weili.iot_portal.service.ingestion.handler.fields.DeviceToolEventFields;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
