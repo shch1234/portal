@@ -61,9 +61,6 @@ public class MenuRespVO  extends BaseVO {
     @Schema(description = "是否可见", example = "false")
     private Boolean visible;
 
-    @Schema(description = "是否缓存", example = "false")
-    private Boolean keepAlive;
-
     @Schema(description = "是否总是显示", example = "false")
     private Boolean alwaysShow;
 

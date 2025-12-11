@@ -7,9 +7,7 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
-import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 /**
  * 实时数据缓存通用服务
@@ -51,35 +49,11 @@ public class RealTimeCacheService {
         }
     }
 
-    public Map<String, String> getHash(String key) {
-        Map<Object, Object> entries = redisTemplate.opsForHash().entries(key);
-        if (entries == null || entries.isEmpty()) {
-            return null;
-        }
-        return entries.entrySet().stream()
-                .collect(Collectors.toMap(e -> String.valueOf(e.getKey()), e -> String.valueOf(e.getValue())));
-    }
-
-    public List<String> getList(String key, int limit) {
-        if (limit <= 0) {
-            return redisTemplate.opsForList().range(key, 0, -1);
-        }
-        return redisTemplate.opsForList().range(key, 0, limit - 1);
-    }
-
     public void setWithTtlSeconds(String key, String value, long ttlSeconds) {
         if (StringUtils.isBlank(key)) {
             return;
         }
         redisTemplate.opsForValue().set(key, value, Duration.ofSeconds(ttlSeconds));
-    }
-
-    public boolean hasKey(String key) {
-        return Boolean.TRUE.equals(redisTemplate.hasKey(key));
-    }
-
-    public Long getTtlSeconds(String key) {
-        return redisTemplate.getExpire(key);
     }
 }
 

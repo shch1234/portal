@@ -1,33 +1,28 @@
 package com.weili.iot_portal.service.ingestion.impl;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.weili.basic.common.util.JsonUtils;
 import com.weili.iot_portal.dal.dataobject.ingestion.WebhookFailLogDO;
-import com.weili.iot_portal.dal.mapper.ingestion.WebhookFailLogMapper;
+import com.weili.iot_portal.dal.repository.ingestion.WebhookFailLogRepository;
 import com.weili.iot_portal.domain.ingestion.WebhookRequest;
 import com.weili.iot_portal.service.ingestion.WebhookFailLogService;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Webhook失败日志服务实现
  */
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class WebhookFailLogServiceImpl implements WebhookFailLogService {
 
-    @Autowired
-    private WebhookFailLogMapper failLogMapper;
-
-    @Autowired
-    private ObjectMapper objectMapper;
+    private final WebhookFailLogRepository failLogRepository;
 
     @Override
     public void saveFailLog(WebhookRequest request, String errorType, String errorMessage, boolean needManual) {
@@ -40,13 +35,11 @@ public class WebhookFailLogServiceImpl implements WebhookFailLogService {
                 fail.setTbDeviceId(request.getDeviceId());
                 fail.setDeviceCode(request.getDeviceCode());
                 fail.setEventType(request.getEventType());
-                
                 // 转换payload
                 try {
-                    Map<String, Object> payload = objectMapper.convertValue(request, Map.class);
-                    fail.setPayload(payload);
+                    fail.setPayload(JsonUtils.toJSONObject(request));
                 } catch (Exception ex) {
-                    log.warn("转换WebhookRequest为Map失败，跳过payload设置", ex);
+                    log.warn("转换WebhookRequest为JSONObject失败，跳过payload设置", ex);
                 }
             }
             
@@ -58,7 +51,7 @@ public class WebhookFailLogServiceImpl implements WebhookFailLogService {
             fail.setRecovered(false);
             fail.setFailedTime(LocalDateTime.now());
             
-            failLogMapper.insert(fail);
+            failLogRepository.insert(fail);
             log.debug("记录Webhook失败日志成功: messageId={}, errorType={}, needManual={}", 
                     fail.getMessageId(), errorType, needManual);
         } catch (Exception ex) {
@@ -75,13 +68,7 @@ public class WebhookFailLogServiceImpl implements WebhookFailLogService {
         }
         
         try {
-            LambdaQueryWrapper<WebhookFailLogDO> wrapper = new LambdaQueryWrapper<>();
-            wrapper.eq(WebhookFailLogDO::getRecovered, false)
-                   .eq(WebhookFailLogDO::getNeedManual, false)
-                   .orderByAsc(WebhookFailLogDO::getFailedTime)
-                   .last("LIMIT " + batchSize);
-            
-            return failLogMapper.selectList(wrapper);
+            return failLogRepository.findUnrecovered(batchSize);
         } catch (Exception ex) {
             log.error("查询待恢复的失败日志异常", ex);
             return Collections.emptyList();
@@ -96,7 +83,7 @@ public class WebhookFailLogServiceImpl implements WebhookFailLogService {
         }
         
         try {
-            WebhookFailLogDO fail = failLogMapper.selectById(failLogId);
+            WebhookFailLogDO fail = failLogRepository.findById(failLogId).orElse(null);
             if (fail == null) {
                 log.warn("标记恢复失败：找不到失败日志，failLogId={}", failLogId);
                 return;
@@ -104,7 +91,7 @@ public class WebhookFailLogServiceImpl implements WebhookFailLogService {
             
             fail.setRecovered(true);
             fail.setUpdateTime(LocalDateTime.now());
-            failLogMapper.updateById(fail);
+            failLogRepository.update(fail);
             
             log.debug("标记失败日志为已恢复成功: failLogId={}, messageId={}", failLogId, fail.getMessageId());
         } catch (Exception ex) {
@@ -120,12 +107,7 @@ public class WebhookFailLogServiceImpl implements WebhookFailLogService {
         }
         
         try {
-            LambdaQueryWrapper<WebhookFailLogDO> wrapper = new LambdaQueryWrapper<>();
-            wrapper.eq(WebhookFailLogDO::getMessageId, messageId)
-                   .orderByDesc(WebhookFailLogDO::getFailedTime)
-                   .last("LIMIT 1");
-            
-            return failLogMapper.selectOne(wrapper);
+            return failLogRepository.findLatestByMessageId(messageId).orElse(null);
         } catch (Exception ex) {
             log.error("根据messageId查询失败日志异常: messageId={}", messageId, ex);
             return null;

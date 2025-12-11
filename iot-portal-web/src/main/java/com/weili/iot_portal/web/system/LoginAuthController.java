@@ -3,7 +3,6 @@ package com.weili.iot_portal.web.system;
 import com.weili.basic.authorization.security.SecurityContextUtils;
 import com.weili.basic.common.model.CommonResult;
 import com.weili.basic.common.model.PageResult;
-import com.weili.basic.framework.annotation.ApiInterceptor;
 import com.weili.basic.oauth2.oidc.Oauth2UserDetail;
 import com.weili.iot_portal.dal.dataobject.system.MenuDO;
 import com.weili.iot_portal.dal.dataobject.system.RoleDO;

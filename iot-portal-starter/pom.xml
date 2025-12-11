@@ -39,10 +39,6 @@
         </dependency>
         <dependency>
             <groupId>com.weili.iot-portal</groupId>
-            <artifactId>iot-portal-api</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.weili.iot-portal</groupId>
             <artifactId>iot-portal-task</artifactId>
         </dependency>
         <dependency>

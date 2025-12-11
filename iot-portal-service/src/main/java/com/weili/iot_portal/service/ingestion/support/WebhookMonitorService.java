@@ -1,71 +1,64 @@
 package com.weili.iot_portal.service.ingestion.support;
 
-import io.micrometer.core.instrument.Counter;
-import io.micrometer.core.instrument.MeterRegistry;
-import io.micrometer.core.instrument.Timer;
+import com.weili.iot_portal.dal.dataobject.ingestion.WebhookMonitorRecordDO;
+import com.weili.iot_portal.dal.repository.ingestion.WebhookMonitorRecordRepository;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import java.time.Duration;
-import java.util.concurrent.TimeUnit;
+import java.time.LocalDateTime;
 
 /**
  * Webhook 监控与告警埋点（可选，依赖 Micrometer）
  */
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class WebhookMonitorService {
 
-    @Autowired(required = false)
-    private MeterRegistry meterRegistry;
+    private final WebhookMonitorRecordRepository monitorRecordRepository;
 
     public void recordMatched(String eventType, String handlerName) {
         log.debug("Webhook matched handler: eventType={}, handler={}", eventType, handlerName);
-        if (meterRegistry != null) {
-            Counter.builder("webhook.handler.matched")
-                    .tag("eventType", safe(eventType))
-                    .tag("handler", safe(handlerName))
-                    .register(meterRegistry)
-                    .increment();
-        }
+        persist(eventType, handlerName, "MATCHED", null, null, null);
     }
 
     public void recordUnmatched(String eventType) {
         log.warn("Webhook unmatched handler: eventType={}", eventType);
-        if (meterRegistry != null) {
-            Counter.builder("webhook.handler.unmatched")
-                    .tag("eventType", safe(eventType))
-                    .register(meterRegistry)
-                    .increment();
-        }
+        persist(eventType, null, "UNMATCHED", null, null, null);
     }
 
     public void recordSuccess(String eventType, long elapsedMs) {
         log.info("Webhook handled success: eventType={}, cost={}ms", eventType, elapsedMs);
-        if (meterRegistry != null) {
-            Timer.builder("webhook.handler.success")
-                    .tag("eventType", safe(eventType))
-                    .register(meterRegistry)
-                    .record(elapsedMs, TimeUnit.MILLISECONDS);
-        }
+        persist(eventType, null, "SUCCESS", elapsedMs, null, null);
     }
 
     public void recordFailure(String eventType, String error, long elapsedMs, boolean willRetry) {
         log.error("Webhook handled failure: eventType={}, cost={}ms, willRetry={}, error={}",
                 eventType, elapsedMs, willRetry, error);
-        if (meterRegistry != null) {
-            Timer.builder("webhook.handler.failure")
-                    .tag("eventType", safe(eventType))
-                    .tag("retry", String.valueOf(willRetry))
-                    .register(meterRegistry)
-                    .record(elapsedMs, TimeUnit.MILLISECONDS);
-        }
+        persist(eventType, null, "FAILURE", elapsedMs, error, willRetry);
     }
 
     private String safe(String v) {
-        return StringUtils.defaultString(v, "unknown");
+        return StringUtils.defaultIfBlank(v, "unknown");
+    }
+
+    /**
+     * 将监控指标落库，便于离线统计/查询。
+     */
+    private void persist(String eventType, String handlerName, String status,
+                         Long elapsedMs, String error, Boolean willRetry) {
+        WebhookMonitorRecordDO record = new WebhookMonitorRecordDO();
+        record.setEventType(safe(eventType));
+        record.setHandlerName(StringUtils.isNotBlank(handlerName) ? handlerName : null);
+        record.setStatus(status);
+        record.setElapsedMs(elapsedMs);
+        record.setErrorMessage(error);
+        record.setWillRetry(willRetry);
+        record.setCreateTime(LocalDateTime.now());
+        record.setUpdateTime(LocalDateTime.now());
+        monitorRecordRepository.insert(record);
     }
 }
 

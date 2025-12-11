@@ -23,7 +23,6 @@
         <module>iot-portal-service</module>
         <module>iot-portal-web</module>
         <module>iot-portal-task</module>
-        <module>iot-portal-api</module>
     </modules>
 
     <properties>
@@ -71,11 +70,6 @@
             <dependency>
                 <groupId>com.weili.iot-portal</groupId>
                 <artifactId>iot-portal-task</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.weili.iot-portal</groupId>
-                <artifactId>iot-portal-api</artifactId>
                 <version>${project.version}</version>
             </dependency>
 

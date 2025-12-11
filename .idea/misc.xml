@@ -10,6 +10,7 @@
     <option name="ignoredFiles">
       <set>
         <option value="$PROJECT_DIR$/iot-business/pom.xml" />
+        <option value="$PROJECT_DIR$/iot-portal-api/pom.xml" />
         <option value="$PROJECT_DIR$/iot-portal-biz-alarm/pom.xml" />
         <option value="$PROJECT_DIR$/iot-portal-data-sync/pom.xml" />
         <option value="$PROJECT_DIR$/iot-portal-service-device/pom.xml" />

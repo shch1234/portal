@@ -26,5 +26,9 @@
             <groupId>com.weili.basic</groupId>
             <artifactId>weili-basic-common</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.weili.iot-portal</groupId>
+            <artifactId>iot-portal-common</artifactId>
+        </dependency>
     </dependencies>
 </project>

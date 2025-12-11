@@ -1,13 +1,14 @@
 package com.weili.iot_portal.service.ingestion;
 
-import com.weili.basic.common.exception.ServiceException;
-import com.weili.iot_portal.dal.dataobject.devicebase.DeviceBaseInfoDO;
+import com.weili.iot_portal.common.enums.WebHookCategoryType;
+import com.weili.iot_portal.common.exception.IotPortalErrorCode;
+import com.weili.iot_portal.common.exception.IotPortalException;
+import com.weili.iot_portal.dal.dataobject.device.DeviceInfoDO;
 import com.weili.iot_portal.domain.ingestion.WebhookRequest;
 import com.weili.iot_portal.service.ingestion.support.DeviceMatchingService;
 import com.weili.iot_portal.service.ingestion.support.RealtimeWebhookCacheService;
 import com.weili.iot_portal.service.ingestion.support.WebhookIdempotentService;
 import com.weili.iot_portal.service.ingestion.support.WebhookInboxService;
-import com.weili.iot_portal.service.ingestion.support.WebhookSecurityService;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -55,12 +56,12 @@ public class WebhookReceiveService {
             return;
         }
         // 4) 设备匹配
-        Optional<DeviceBaseInfoDO> deviceOpt = deviceMatchingService.match(request.getDeviceCode());
+        Optional<DeviceInfoDO> deviceOpt = deviceMatchingService.match(request.getDeviceCode());
         if (deviceOpt.isEmpty()) {
             log.warn("Webhook 设备未匹配，直接ACK: messageId={}, deviceCode={}", request.getMessageId(), request.getDeviceCode());
             return;
         }
-        DeviceBaseInfoDO device = deviceOpt.get();
+        DeviceInfoDO device = deviceOpt.get();
         // 补充设备/租户信息
         if (StringUtils.isBlank(request.getDeviceId())) {
             request.setDeviceId(device.getTbDeviceId());
@@ -70,12 +71,12 @@ public class WebhookReceiveService {
         request.setEventType(eventType);
 
         // 5) 分类处理
-        if ("BUSINESS".equalsIgnoreCase(category)) {
-            webhookInboxService.saveToInbox(request, device);
-        } else if ("REALTIME".equalsIgnoreCase(category)) {
+        if (WebHookCategoryType.BUSINESS.name().equalsIgnoreCase(category)) {
+            webhookInboxService.saveToInbox(request);
+        } else if (WebHookCategoryType.REALTIME.name().equalsIgnoreCase(category)) {
             realtimeWebhookCacheService.cache(eventType, device.getDeviceCode(), request);
         } else {
-            throw new ServiceException(400, "不支持的 webhook category");
+            throw new IotPortalException(IotPortalErrorCode.WEBHOOK_CATEGORY_NOT_SUPPORTED);
         }
     }
 }

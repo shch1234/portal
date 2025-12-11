@@ -2,7 +2,6 @@ package com.weili.iot_portal.task.framework;
 
 import com.xxl.job.core.context.XxlJobHelper;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 
 /**
  * 补偿任务基类

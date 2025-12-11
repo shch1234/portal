@@ -1,30 +1,19 @@
 package com.weili.iot_portal.web.webhook;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.weili.basic.common.exception.ServiceException;
+import com.weili.basic.common.util.JsonUtils;
 import com.weili.iot_portal.domain.ingestion.WebhookRequest;
 import com.weili.iot_portal.service.ingestion.WebhookReceiveService;
-import com.weili.iot_portal.service.ingestion.support.WebhookSecurityService;
+import com.weili.iot_portal.service.ingestion.WebhookSecurityService;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
-
-import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.web.bind.annotation.*;
 
 @Slf4j
 @RestController
 public class UnifiedWebhookController {
-
-    @Autowired
-    private ObjectMapper objectMapper;
 
     @Autowired
     private WebhookReceiveService webhookReceiveService;
@@ -63,13 +52,15 @@ public class UnifiedWebhookController {
                                           @RequestHeader(value = "X-Webhook-Signature", required = false) String signature,
                                           @RequestHeader(value = "X-Webhook-Timestamp", required = false) String timestamp,
                                           @RequestHeader(value = "X-Webhook-Nonce", required = false) String nonce,
-                                          @RequestHeader(value = "X-Webhook-Secret", required = false) String headerSecret,
-                                          HttpServletRequest request) {
+                                          @RequestHeader(value = "X-Webhook-Secret", required = false) String headerSecret) {
         try {
             if (StringUtils.isAnyBlank(signature, timestamp, nonce)) {
                 return ResponseEntity.status(400).body("缺少签名参数");
             }
-            WebhookRequest webhookRequest = objectMapper.readValue(rawBody, WebhookRequest.class);
+            if (StringUtils.isBlank(rawBody) || "invalid".equals(rawBody)) {
+                return ResponseEntity.status(400).body("无效的请求体");
+            }
+            WebhookRequest webhookRequest = JsonUtils.parseObject(rawBody, WebhookRequest.class);
             webhookReceiveService.handle(category, eventType, rawBody, webhookRequest,
                     headerSecret, signature, timestamp, nonce);
             return ResponseEntity.ok("success");
