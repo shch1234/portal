@@ -1,19 +1,19 @@
 package com.weili.iot_portal.task.device;
 
+import com.weili.iot_portal.dal.dataobject.device.DeviceInfoDO;
 import com.weili.iot_portal.dal.dataobject.device.DeviceShiftConfigDO;
 import com.weili.iot_portal.dal.dataobject.device.DeviceStateRecordDO;
+import com.weili.iot_portal.dal.dataobject.device.DeviceStateSummaryDO;
+import com.weili.iot_portal.dal.repository.device.DeviceInfoRepository;
+import com.weili.iot_portal.dal.repository.device.DeviceShiftConfigRepository;
+import com.weili.iot_portal.dal.repository.device.DeviceStateRecordRepository;
+import com.weili.iot_portal.dal.repository.device.DeviceStateSummaryRepository;
 import com.weili.iot_portal.service.shift.IShiftConfigService;
 import com.weili.iot_portal.service.shift.model.ShiftTimeRange;
-import com.xxl.job.core.context.XxlJobHelper;
-import com.xxl.job.core.handler.annotation.XxlJob;
-import com.weili.iot_portal.dal.dataobject.device.DeviceStateSummaryDO;
-import com.weili.iot_portal.dal.dataobject.device.DeviceInfoDO;
-import com.weili.iot_portal.dal.repository.device.DeviceInfoRepository;
-import com.weili.iot_portal.dal.repository.device.DeviceStateSummaryRepository;
-import com.weili.iot_portal.dal.repository.device.DeviceStateRecordRepository;
-import com.weili.iot_portal.dal.repository.device.DeviceShiftConfigRepository;
 import com.weili.iot_portal.task.framework.BaseCompensationJob;
 import com.weili.iot_portal.task.framework.ItemProcessResult;
+import com.xxl.job.core.context.XxlJobHelper;
+import com.xxl.job.core.handler.annotation.XxlJob;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;

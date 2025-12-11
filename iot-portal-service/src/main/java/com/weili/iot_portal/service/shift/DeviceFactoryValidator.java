@@ -1,7 +1,7 @@
 package com.weili.iot_portal.service.shift;
 
-import com.weili.basic.common.enums.ErrorCodeConstants;
-import com.weili.basic.common.exception.ServiceException;
+import com.weili.iot_portal.common.exception.IotPortalException;
+import com.weili.iot_portal.common.exception.IotPortalErrorCode;
 import com.weili.iot_portal.dal.dataobject.device.DeviceInfoDO;
 import com.weili.iot_portal.dal.repository.device.DeviceInfoRepository;
 import com.weili.iot_portal.service.cache.DeviceFactoryCacheService;
@@ -24,18 +24,17 @@ public class DeviceFactoryValidator {
      *
      * @param factoryId 工厂ID
      * @param deviceId 设备ID
-     * @throws ServiceException 如果设备不存在或不属于指定工厂
+     * @throws IotPortalException 如果设备不存在或不属于指定工厂
      */
     public void ensureDeviceBelongsToFactory(String factoryId, String deviceId) {
         if (StringUtils.isBlank(factoryId)) {
-            throw new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "未获取到工厂信息，请先选择工厂");
+            throw new IotPortalException(IotPortalErrorCode.FACTORY_INFO_NOT_FOUND);
         }
         
         String actualFactoryId = resolveFactoryId(deviceId);
 
         if (!factoryId.equals(actualFactoryId)) {
-            throw new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), 
-                "设备不属于当前选择的工厂，无权访问");
+            throw new IotPortalException(IotPortalErrorCode.DEVICE_NOT_BELONG_TO_FACTORY);
         }
     }
 
@@ -44,7 +43,7 @@ public class DeviceFactoryValidator {
      */
     public String resolveFactoryId(String deviceId) {
         if (StringUtils.isBlank(deviceId)) {
-            throw new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "设备ID不能为空");
+            throw new IotPortalException(IotPortalErrorCode.DEVICE_ID_EMPTY);
         }
 
         String cached = deviceFactoryCacheService.get(deviceId);
@@ -53,10 +52,10 @@ public class DeviceFactoryValidator {
         }
 
         DeviceInfoDO device = deviceInfoRepository.findById(deviceId)
-                .orElseThrow(() -> new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "设备不存在"));
+                .orElseThrow(() -> new IotPortalException(IotPortalErrorCode.DEVICE_NOT_FOUND));
 
         if (StringUtils.isBlank(device.getOrgFactoryId())) {
-            throw new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "设备未关联工厂");
+            throw new IotPortalException(IotPortalErrorCode.DEVICE_NOT_ASSOCIATED_FACTORY);
         }
 
         deviceFactoryCacheService.cache(device.getId(), device.getOrgFactoryId());

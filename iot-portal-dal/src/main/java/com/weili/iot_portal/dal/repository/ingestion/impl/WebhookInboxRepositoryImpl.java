@@ -1,6 +1,7 @@
 package com.weili.iot_portal.dal.repository.ingestion.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.weili.iot_portal.common.enums.InboxStatusEnum;
 import com.weili.iot_portal.dal.dataobject.ingestion.WebhookInboxDO;
 import com.weili.iot_portal.dal.mapper.ingestion.WebhookInboxMapper;
 import com.weili.iot_portal.dal.repository.ingestion.WebhookInboxRepository;
@@ -25,7 +26,7 @@ public class WebhookInboxRepositoryImpl implements WebhookInboxRepository {
     public List<WebhookInboxDO> fetchDue(int limit, LocalDateTime now) {
         return inboxMapper.selectList(
                 new LambdaQueryWrapper<WebhookInboxDO>()
-                        .in(WebhookInboxDO::getStatus, "PENDING", "FAILED")
+                        .in(WebhookInboxDO::getStatus, InboxStatusEnum.PENDING.name(), InboxStatusEnum.FAILED.name())
                         .and(w -> w.isNull(WebhookInboxDO::getNextRetryTime)
                                 .or()
                                 .le(WebhookInboxDO::getNextRetryTime, now))
@@ -39,5 +40,6 @@ public class WebhookInboxRepositoryImpl implements WebhookInboxRepository {
         inboxMapper.updateById(inbox);
     }
 }
+
 
 

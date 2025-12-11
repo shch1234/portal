@@ -1,8 +1,8 @@
 package com.weili.iot_portal.dal.repository.effiency.impl;
 
 import com.weili.iot_portal.dal.dataobject.effiency.FactoryMetricsSummaryDO;
-import com.weili.iot_portal.dal.repository.effiency.FactoryMetricsRepository;
 import com.weili.iot_portal.dal.mapper.effiency.FactoryMetricsSummaryMapper;
+import com.weili.iot_portal.dal.repository.effiency.FactoryMetricsRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 

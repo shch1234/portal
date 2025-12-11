@@ -67,6 +67,7 @@ public class WebhookInboxDO extends BaseDO {
 
     /**
      * 状态：PENDING/PROCESSING/SUCCESS/FAILED（对应 status 列）
+     * @see com.weili.iot_portal.common.enums.InboxStatusEnum
      */
     private String status;
 

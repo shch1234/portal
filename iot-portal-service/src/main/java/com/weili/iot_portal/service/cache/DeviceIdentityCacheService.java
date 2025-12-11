@@ -1,7 +1,7 @@
 package com.weili.iot_portal.service.cache;
 
-import com.weili.basic.common.enums.ErrorCodeConstants;
-import com.weili.basic.common.exception.ServiceException;
+import com.weili.iot_portal.common.exception.IotPortalException;
+import com.weili.iot_portal.common.exception.IotPortalErrorCode;
 import com.weili.basic.common.util.JsonUtils;
 import com.weili.basic.redis.client.RedisClient;
 import com.weili.iot_portal.common.constant.RedisConstant;
@@ -38,7 +38,7 @@ public class DeviceIdentityCacheService {
 
     public DeviceIdentity resolveByDeviceCode(String deviceCode, String tbDeviceId, String source) {
         if (StringUtils.isBlank(deviceCode)) {
-            throw new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "设备编号不能为空");
+            throw new IotPortalException(IotPortalErrorCode.DEVICE_CODE_EMPTY);
         }
         String cacheKey = buildKey(deviceCode);
         String cached = redisClient.get(cacheKey);
@@ -48,7 +48,7 @@ public class DeviceIdentityCacheService {
         DeviceInfoDO device = deviceInfoRepository.findByDeviceCode( deviceCode)
                 .orElseGet(() -> handleUnknownDevice(deviceCode, tbDeviceId, source));
         if (StringUtils.isBlank(device.getOrgFactoryId())) {
-            throw new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "设备未关联工厂");
+            throw new IotPortalException(IotPortalErrorCode.DEVICE_NOT_ASSOCIATED_FACTORY);
         }
         DeviceIdentity identity = new DeviceIdentity(device.getId(), device.getOrgFactoryId());
         cache(deviceCode, identity);
@@ -57,8 +57,7 @@ public class DeviceIdentityCacheService {
 
     private DeviceInfoDO handleUnknownDevice(String deviceCode, String tbDeviceId, String source) {
         unknownDeviceAlertService.record(deviceCode, tbDeviceId, source);
-        throw new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(),
-                "设备未建档，请检查设备编号或在组织架构中新增设备");
+        throw new IotPortalException(IotPortalErrorCode.DEVICE_NOT_REGISTERED);
     }
 
     /**

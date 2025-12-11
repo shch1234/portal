@@ -1,7 +1,7 @@
 package com.weili.iot_portal.service.ingestion;
 
-import com.weili.basic.common.enums.ErrorCodeConstants;
-import com.weili.basic.common.exception.ServiceException;
+import com.weili.iot_portal.common.exception.IotPortalException;
+import com.weili.iot_portal.common.exception.IotPortalErrorCode;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -42,7 +42,7 @@ public class WebhookSecurityService {
             return;
         }
         if (!StringUtils.equals(globalSecret, providedSecret)) {
-            throw new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "Webhook密钥验证失败");
+            throw new IotPortalException(IotPortalErrorCode.WEBHOOK_SECRET_VALIDATION_FAILED);
         }
     }
 
@@ -51,16 +51,16 @@ public class WebhookSecurityService {
      */
     public void validateSignature(String signature, String timestamp, String nonce, String messageBody) {
         if (StringUtils.isAnyBlank(signatureToken, signature, timestamp, nonce)) {
-            throw new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "Webhook签名参数缺失");
+            throw new IotPortalException(IotPortalErrorCode.WEBHOOK_SIGNATURE_PARAMS_MISSING);
         }
         if (!verifyTimestamp(timestamp)) {
-            throw new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "Webhook请求已过期");
+            throw new IotPortalException(IotPortalErrorCode.WEBHOOK_REQUEST_EXPIRED);
         }
         if (!verifyNonce(nonce)) {
-            throw new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "Webhook重复请求");
+            throw new IotPortalException(IotPortalErrorCode.WEBHOOK_DUPLICATE_REQUEST);
         }
         if (!verifySignatureInternal(signature, timestamp, nonce, messageBody)) {
-            throw new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "Webhook签名验证失败");
+            throw new IotPortalException(IotPortalErrorCode.WEBHOOK_SIGNATURE_VALIDATION_FAILED);
         }
     }
 
@@ -102,7 +102,7 @@ public class WebhookSecurityService {
             }
             return hex.toString();
         } catch (NoSuchAlgorithmException e) {
-            throw new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "签名算法不可用");
+            throw new IotPortalException(IotPortalErrorCode.WEBHOOK_SIGNATURE_ALGORITHM_UNAVAILABLE);
         }
     }
 }

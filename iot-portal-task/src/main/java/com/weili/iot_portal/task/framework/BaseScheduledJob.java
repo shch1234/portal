@@ -1,7 +1,6 @@
 package com.weili.iot_portal.task.framework;
 
 import com.xxl.job.core.context.XxlJobHelper;
-import com.xxl.job.core.handler.annotation.XxlJob;
 import lombok.extern.slf4j.Slf4j;
 
 /**

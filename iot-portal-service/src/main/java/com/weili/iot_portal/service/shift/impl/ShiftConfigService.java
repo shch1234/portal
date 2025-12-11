@@ -1,13 +1,12 @@
 package com.weili.iot_portal.service.shift.impl;
 
-import com.weili.basic.common.enums.ErrorCodeConstants;
-import com.weili.basic.common.exception.ServiceException;
+import com.weili.iot_portal.common.exception.IotPortalException;
 import com.weili.iot_portal.dal.dataobject.device.DeviceShiftConfigDO;
 import com.weili.iot_portal.dal.repository.device.DeviceShiftConfigRepository;
+import com.weili.iot_portal.service.shift.DeviceFactoryValidator;
 import com.weili.iot_portal.service.shift.IShiftConfigService;
 import com.weili.iot_portal.service.shift.model.ShiftInfo;
 import com.weili.iot_portal.service.shift.model.ShiftTimeRange;
-import com.weili.iot_portal.service.shift.DeviceFactoryValidator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -15,6 +14,8 @@ import java.time.*;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Optional;
+
+import static com.weili.iot_portal.common.exception.IotPortalErrorCode.SHIFT_CONFIG_EMPTY;
 
 /**
  * 班次配置服务
@@ -43,8 +44,7 @@ public class ShiftConfigService implements IShiftConfigService {
 
         Optional<DeviceShiftConfigDO> configOpt = deviceShiftConfigRepository
                 .findActiveByDeviceAndTime(deviceId, timestamp);
-        return configOpt.orElseThrow(() -> new ServiceException(
-                ErrorCodeConstants.DEFAULT_ERROR.getCode(),
+        return configOpt.orElseThrow(() -> new IotPortalException(SHIFT_CONFIG_EMPTY,
                 "设备未配置班次信息，请先配置班次"));
     }
 
@@ -153,9 +153,7 @@ public class ShiftConfigService implements IShiftConfigService {
 
         List<DeviceShiftConfigDO.ShiftDefinition> shifts = config.getShifts();
         if (shifts == null || shifts.isEmpty()) {
-            throw new ServiceException(
-                    ErrorCodeConstants.DEFAULT_ERROR.getCode(),
-                    "班次配置为空");
+            throw new IotPortalException(SHIFT_CONFIG_EMPTY);
         }
 
         // 遍历所有班次，找到包含当前时间的班次

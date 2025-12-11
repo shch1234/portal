@@ -1,6 +1,8 @@
 package com.weili.iot_portal.service.ingestion;
 
-import com.weili.basic.common.exception.ServiceException;
+import com.weili.iot_portal.common.exception.IotPortalException;
+import com.weili.iot_portal.common.exception.IotPortalErrorCode;
+import com.weili.iot_portal.common.enums.WebHookCategoryType;
 import com.weili.iot_portal.dal.dataobject.device.DeviceInfoDO;
 import com.weili.iot_portal.domain.ingestion.WebhookRequest;
 import com.weili.iot_portal.service.ingestion.support.DeviceMatchingService;
@@ -71,12 +73,12 @@ public class WebhookReceiveService {
         request.setEventType(eventType);
 
         // 5) 分类处理
-        if ("BUSINESS".equalsIgnoreCase(category)) {
+        if (WebHookCategoryType.BUSINESS.name().equalsIgnoreCase(category)) {
             webhookInboxService.saveToInbox(request);
-        } else if ("REALTIME".equalsIgnoreCase(category)) {
+        } else if (WebHookCategoryType.REALTIME.name().equalsIgnoreCase(category)) {
             realtimeWebhookCacheService.cache(eventType, device.getDeviceCode(), request);
         } else {
-            throw new ServiceException(400, "不支持的 webhook category");
+            throw new IotPortalException(IotPortalErrorCode.WEBHOOK_CATEGORY_NOT_SUPPORTED);
         }
     }
 }

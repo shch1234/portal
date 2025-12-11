@@ -1,7 +1,7 @@
 package com.weili.iot_portal.service.ingestion.handler;
 
-import com.weili.basic.common.enums.ErrorCodeConstants;
-import com.weili.basic.common.exception.ServiceException;
+import com.weili.iot_portal.common.exception.IotPortalException;
+import com.weili.iot_portal.common.exception.IotPortalErrorCode;
 import com.weili.iot_portal.common.constant.RedisConstant;
 import com.weili.iot_portal.dal.dataobject.ingestion.WebhookInboxDO;
 import com.weili.iot_portal.domain.ingestion.WebhookRequest;
@@ -59,7 +59,7 @@ public class DeviceAxisEventHandler implements WebhookEventHandler {
 
     @Override
     public int order() {
-        return 20; // 在状态事件之后处理
+        return WebhookHandlerOrder.DEVICE_AXIS;
     }
 
     @Override
@@ -67,7 +67,7 @@ public class DeviceAxisEventHandler implements WebhookEventHandler {
     public void handle(WebhookInboxDO inbox, WebhookRequest request) throws Exception {
         Map<String, Object> eventData = request.getEventData();
         if (eventData == null || eventData.isEmpty()) {
-            throw new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "事件数据不能为空");
+            throw new IotPortalException(IotPortalErrorCode.EVENT_DATA_EMPTY);
         }
 
         // 解析设备标识（按 deviceCode / deviceId 解析为 portal 的 deviceInfoId / factoryId）

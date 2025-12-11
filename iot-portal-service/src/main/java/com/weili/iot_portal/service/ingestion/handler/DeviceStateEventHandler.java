@@ -1,8 +1,8 @@
 package com.weili.iot_portal.service.ingestion.handler;
 
 import com.baomidou.mybatisplus.core.toolkit.IdWorker;
-import com.weili.basic.common.enums.ErrorCodeConstants;
-import com.weili.basic.common.exception.ServiceException;
+import com.weili.iot_portal.common.exception.IotPortalException;
+import com.weili.iot_portal.common.exception.IotPortalErrorCode;
 import com.weili.iot_portal.common.constant.RedisConstant;
 import com.weili.iot_portal.dal.dataobject.device.DeviceStateRecordDO;
 import com.weili.iot_portal.dal.dataobject.ingestion.WebhookInboxDO;
@@ -64,7 +64,7 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
 
     @Override
     public int order() {
-        return 10; // 较高优先级
+        return WebhookHandlerOrder.DEVICE_STATE;
     }
 
     @Override
@@ -77,13 +77,13 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
         // 1. 解析事件数据
         Map<String, Object> eventData = request.getEventData();
         if (eventData == null) {
-            throw new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "事件数据不能为空");
+            throw new IotPortalException(IotPortalErrorCode.EVENT_DATA_EMPTY);
         }
 
         String previousState = getStringValue(eventData, "previousState");
         String currentState = getStringValue(eventData, "currentState");
         if (StringUtils.isBlank(currentState)) {
-            throw new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "当前状态不能为空");
+            throw new IotPortalException(IotPortalErrorCode.EVENT_CURRENT_STATE_EMPTY);
         }
 
         // 优先使用 dataTimestamp，否则使用 timestamp
@@ -91,7 +91,7 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
                 ? request.getDataTimestamp()
                 : request.getTimestamp();
         if (eventTimestamp == null) {
-            throw new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "事件时间戳不能为空");
+            throw new IotPortalException(IotPortalErrorCode.EVENT_TIMESTAMP_EMPTY);
         }
 
         // 2. 解析设备信息
@@ -108,7 +108,7 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
 
         if (!Boolean.TRUE.equals(lockAcquired)) {
             log.warn("获取设备状态锁失败，可能正在并发处理: deviceInfoId={}", deviceInfoId);
-            throw new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "设备状态正在处理中，请稍后重试");
+            throw new IotPortalException(IotPortalErrorCode.EVENT_DEVICE_STATE_PROCESSING);
         }
 
         try {
@@ -423,11 +423,11 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
     private void handleHeartbeat(WebhookRequest request) {
         Map<String, Object> eventData = request.getEventData();
         if (eventData == null) {
-            throw new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "事件数据不能为空");
+            throw new IotPortalException(IotPortalErrorCode.EVENT_DATA_EMPTY);
         }
         String currentState = getStringValue(eventData, "currentState");
         if (StringUtils.isBlank(currentState)) {
-            throw new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "当前状态不能为空");
+            throw new IotPortalException(IotPortalErrorCode.EVENT_CURRENT_STATE_EMPTY);
         }
 
         // 解析设备身份

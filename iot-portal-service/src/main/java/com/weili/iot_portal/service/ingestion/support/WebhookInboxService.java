@@ -1,6 +1,8 @@
 package com.weili.iot_portal.service.ingestion.support;
 
-import com.weili.basic.common.exception.ServiceException;
+import com.weili.iot_portal.common.enums.InboxStatusEnum;
+import com.weili.iot_portal.common.exception.IotPortalErrorCode;
+import com.weili.iot_portal.common.exception.IotPortalException;
 import com.weili.iot_portal.dal.dataobject.ingestion.WebhookInboxDO;
 import com.weili.iot_portal.dal.repository.ingestion.WebhookInboxRepository;
 import com.weili.iot_portal.domain.ingestion.WebhookRequest;
@@ -35,14 +37,13 @@ public class WebhookInboxService {
 
     public void saveToInbox(WebhookRequest request) {
         if (request == null || StringUtils.isBlank(request.getMessageId())) {
-            throw new ServiceException(400, "缺少 messageId");
+            throw new IotPortalException(IotPortalErrorCode.WEBHOOK_MESSAGE_ID_MISSING);
         }
         Map<String, Object> payload = new HashMap<>();
         payload.put("eventData", request.getEventData());
         payload.put("telemetryData", request.getTelemetryData());
         payload.put("metadata", request.getMetadata());
         payload.put("transactionInfo", request.getTransactionInfo());
-
         WebhookInboxDO inbox = new WebhookInboxDO();
         inbox.setMessageId(request.getMessageId());
         inbox.setTbDeviceId(request.getDeviceId());
@@ -50,7 +51,7 @@ public class WebhookInboxService {
         inbox.setEventType(request.getEventType());
         inbox.setWebhookCategory(request.getWebhookCategory());
         inbox.setPayload(payload);
-        inbox.setStatus("PENDING");
+        inbox.setStatus(InboxStatusEnum.PENDING.name());
         inbox.setProcessCount(0);
         inbox.setReceivedTime(LocalDateTime.now());
         inboxRepository.insert(inbox);
@@ -65,13 +66,13 @@ public class WebhookInboxService {
     }
 
     public void markProcessing(WebhookInboxDO inbox) {
-        inbox.setStatus("PROCESSING");
+        inbox.setStatus(InboxStatusEnum.PROCESSING.name());
         inbox.setUpdateTime(LocalDateTime.now());
         inboxRepository.update(inbox);
     }
 
     public void markSuccess(WebhookInboxDO inbox) {
-        inbox.setStatus("SUCCESS");
+        inbox.setStatus(InboxStatusEnum.SUCCESS.name());
         inbox.setProcessedTime(LocalDateTime.now());
         inbox.setUpdateTime(LocalDateTime.now());
         inboxRepository.update(inbox);
@@ -80,7 +81,7 @@ public class WebhookInboxService {
     public void markFailed(WebhookInboxDO inbox, String errorMessage) {
         int currentRetry = Objects.requireNonNullElse(inbox.getProcessCount(), 0);
         inbox.setProcessCount(currentRetry + 1);
-        inbox.setStatus("FAILED");
+        inbox.setStatus(InboxStatusEnum.FAILED.name());
         inbox.setLastError(errorMessage);
         inbox.setNextRetryTime(calculateNextRetryTime(currentRetry + 1));
         inbox.setUpdateTime(LocalDateTime.now());
@@ -96,7 +97,7 @@ public class WebhookInboxService {
      */
     public void markFailedNoRetry(WebhookInboxDO inbox, String errorMessage) {
         inbox.setProcessCount(maxRetryCount);
-        inbox.setStatus("FAILED");
+        inbox.setStatus(InboxStatusEnum.FAILED.name());
         inbox.setLastError(errorMessage);
         inbox.setNextRetryTime(null);
         inbox.setUpdateTime(LocalDateTime.now());

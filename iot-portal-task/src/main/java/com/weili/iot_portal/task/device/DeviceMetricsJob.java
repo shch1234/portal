@@ -1,10 +1,5 @@
 package com.weili.iot_portal.task.device;
 
-import com.weili.iot_portal.service.shift.IShiftConfigService;
-import com.weili.iot_portal.service.shift.model.ShiftTimeRange;
-import com.weili.iot_portal.task.framework.BaseScheduledJob;
-import com.weili.iot_portal.task.framework.JobExecutionResult;
-import com.xxl.job.core.handler.annotation.XxlJob;
 import com.weili.iot_portal.common.constant.RedisConstant;
 import com.weili.iot_portal.dal.dataobject.device.DeviceInfoDO;
 import com.weili.iot_portal.dal.dataobject.device.DeviceParamConfigDO;
@@ -13,6 +8,11 @@ import com.weili.iot_portal.dal.repository.device.DeviceInfoRepository;
 import com.weili.iot_portal.dal.repository.device.DeviceParamConfigRepository;
 import com.weili.iot_portal.dal.repository.device.DeviceProductionRecordRepository;
 import com.weili.iot_portal.dal.repository.device.DeviceStateRecordRepository;
+import com.weili.iot_portal.service.shift.IShiftConfigService;
+import com.weili.iot_portal.service.shift.model.ShiftTimeRange;
+import com.weili.iot_portal.task.framework.BaseScheduledJob;
+import com.weili.iot_portal.task.framework.JobExecutionResult;
+import com.xxl.job.core.handler.annotation.XxlJob;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;

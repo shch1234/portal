@@ -3,8 +3,8 @@ package com.weili.iot_portal.dal.repository.device.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.weili.iot_portal.dal.dataobject.device.DeviceShiftConfigDO;
-import com.weili.iot_portal.dal.repository.device.DeviceShiftConfigRepository;
 import com.weili.iot_portal.dal.mapper.device.DeviceShiftConfigMapper;
+import com.weili.iot_portal.dal.repository.device.DeviceShiftConfigRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 

@@ -1,17 +1,17 @@
 package com.weili.iot_portal.task.device;
 
 import com.baomidou.mybatisplus.core.toolkit.IdWorker;
+import com.weili.iot_portal.dal.dataobject.device.DeviceInfoDO;
 import com.weili.iot_portal.dal.dataobject.device.DeviceProductionSummaryDO;
+import com.weili.iot_portal.dal.repository.device.DeviceInfoRepository;
+import com.weili.iot_portal.dal.repository.device.DeviceProductionRecordRepository;
+import com.weili.iot_portal.dal.repository.device.DeviceProductionSummaryRepository;
 import com.weili.iot_portal.service.shift.IShiftConfigService;
 import com.weili.iot_portal.service.shift.model.ShiftTimeRange;
-import com.xxl.job.core.handler.annotation.XxlJob;
-import com.xxl.job.core.context.XxlJobHelper;
-import com.weili.iot_portal.dal.dataobject.device.DeviceInfoDO;
-import com.weili.iot_portal.dal.repository.device.DeviceInfoRepository;
-import com.weili.iot_portal.dal.repository.device.DeviceProductionSummaryRepository;
-import com.weili.iot_portal.dal.repository.device.DeviceProductionRecordRepository;
 import com.weili.iot_portal.task.framework.BaseScheduledJob;
 import com.weili.iot_portal.task.framework.JobExecutionResult;
+import com.xxl.job.core.context.XxlJobHelper;
+import com.xxl.job.core.handler.annotation.XxlJob;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;

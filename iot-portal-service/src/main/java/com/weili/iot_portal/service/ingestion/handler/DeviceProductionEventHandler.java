@@ -1,7 +1,7 @@
 package com.weili.iot_portal.service.ingestion.handler;
 
-import com.weili.basic.common.enums.ErrorCodeConstants;
-import com.weili.basic.common.exception.ServiceException;
+import com.weili.iot_portal.common.exception.IotPortalException;
+import com.weili.iot_portal.common.exception.IotPortalErrorCode;
 import com.weili.iot_portal.dal.dataobject.device.DeviceProductionRecordDO;
 import com.weili.iot_portal.dal.dataobject.ingestion.WebhookInboxDO;
 import com.weili.iot_portal.dal.repository.device.DeviceProductionRecordRepository;
@@ -44,7 +44,7 @@ public class DeviceProductionEventHandler implements WebhookEventHandler {
 
     @Override
     public int order() {
-        return 25;
+        return WebhookHandlerOrder.DEVICE_PRODUCTION;
     }
 
     @Override
@@ -52,18 +52,18 @@ public class DeviceProductionEventHandler implements WebhookEventHandler {
     public void handle(WebhookInboxDO inbox, WebhookRequest request) throws Exception {
         Map<String, Object> eventData = request.getEventData();
         if (eventData == null) {
-            throw new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "事件数据不能为空");
+            throw new IotPortalException(IotPortalErrorCode.EVENT_DATA_EMPTY);
         }
         String status = toStr(eventData.get("status"));
         if (!("start".equalsIgnoreCase(status) || "end".equalsIgnoreCase(status))) {
-            throw new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "status 必须为 start/end");
+            throw new IotPortalException(IotPortalErrorCode.EVENT_PRODUCTION_STATUS_INVALID);
         }
 
         Long ts = request.getDataTimestamp() != null
                 ? request.getDataTimestamp()
                 : (request.getTimestamp() != null ? request.getTimestamp() : null);
         if (ts == null) {
-            throw new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "ts 不能为空");
+            throw new IotPortalException(IotPortalErrorCode.EVENT_PRODUCTION_TIMESTAMP_EMPTY);
         }
 
         DeviceIdentityCacheService.DeviceIdentity identity = deviceIdentityCacheService

@@ -1,7 +1,7 @@
 package com.weili.iot_portal.service.ingestion.handler;
 
-import com.weili.basic.common.enums.ErrorCodeConstants;
-import com.weili.basic.common.exception.ServiceException;
+import com.weili.iot_portal.common.exception.IotPortalException;
+import com.weili.iot_portal.common.exception.IotPortalErrorCode;
 import com.weili.iot_portal.dal.dataobject.device.DeviceAlarmHistoryDO;
 import com.weili.iot_portal.dal.dataobject.ingestion.WebhookInboxDO;
 import com.weili.iot_portal.dal.repository.device.DeviceAlarmHistoryRepository;
@@ -38,7 +38,7 @@ public class DeviceAlarmEventHandler implements WebhookEventHandler {
 
     @Override
     public int order() {
-        return 40; // 状态、轴、刀具之后
+        return WebhookHandlerOrder.DEVICE_ALARM;
     }
 
     @Override
@@ -46,7 +46,7 @@ public class DeviceAlarmEventHandler implements WebhookEventHandler {
     public void handle(WebhookInboxDO inbox, WebhookRequest request) throws Exception {
         Map<String, Object> eventData = request.getEventData();
         if (eventData == null) {
-            throw new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "事件数据不能为空");
+            throw new IotPortalException(IotPortalErrorCode.EVENT_DATA_EMPTY);
         }
 
         List<Map<String, Object>> alarms = extractAlarms(eventData);
