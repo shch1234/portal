@@ -1,6 +1,5 @@
 package com.weili.iot_portal.service.ingestion.handler;
 
-import com.weili.iot_portal.common.constant.RedisConstant;
 import com.weili.iot_portal.common.exception.IotPortalErrorCode;
 import com.weili.iot_portal.common.exception.IotPortalException;
 import com.weili.iot_portal.dal.dataobject.device.DeviceToolCompensationDO;
@@ -8,7 +7,7 @@ import com.weili.iot_portal.dal.dataobject.ingestion.WebhookInboxDO;
 import com.weili.iot_portal.dal.repository.device.DeviceToolCompensationRepository;
 import com.weili.iot_portal.domain.ingestion.WebhookRequest;
 import com.weili.iot_portal.service.cache.DeviceIdentityCacheService;
-import com.weili.iot_portal.service.cache.RealTimeCacheService;
+import com.weili.iot_portal.service.cache.DeviceToolCacheService;
 import com.weili.iot_portal.service.ingestion.handler.fields.DeviceToolEventFields;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -43,11 +42,8 @@ import java.util.Objects;
 public class DeviceToolEventHandler implements WebhookEventHandler {
 
     private final DeviceIdentityCacheService deviceIdentityCacheService;
-    private final RealTimeCacheService realTimeCacheService;
+    private final DeviceToolCacheService deviceToolCacheService;
     private final DeviceToolCompensationRepository deviceToolCompensationRepository;
-
-    @Value("${rt.tool.ttl-millis:300000}")
-    private long toolTtlMillis;
 
     @Override
     public boolean supports(String eventType) {
@@ -99,9 +95,8 @@ public class DeviceToolEventHandler implements WebhookEventHandler {
             payload.put(DeviceToolEventFields.TRACE_ID, request.getMessageId());
         }
 
-        String key = String.format(RedisConstant.RT_TOOL,
-                defaultBlank(orgFactoryId), defaultBlank(deviceInfoId));
-        realTimeCacheService.hsetWithTtl(key, payload, toolTtlMillis);
+        deviceToolCacheService.saveTool(orgFactoryId, deviceInfoId, payload,
+                eventTimestamp, DeviceToolEventFields.SOURCE_TB, request.getMessageId());
 
         // 写入刀补补偿表（版本化覆盖）
         if (StringUtils.isNotBlank(holderNumber)) {
@@ -148,16 +143,6 @@ public class DeviceToolEventHandler implements WebhookEventHandler {
         return map;
     }
 
-    /**
-     * 默认空值处理
-     * 当值为空时，返回占位符，用于 Redis Key 构建
-     *
-     * @param value 原始值
-     * @return 非空值或占位符
-     */
-    private String defaultBlank(String value) {
-        return StringUtils.defaultIfBlank(value, DeviceToolEventFields.DEFAULT_BLANK_PLACEHOLDER);
-    }
 
     /**
      * 提取补偿值：保留所有 offset/comp/holder/tool 字段原样作为 JSON

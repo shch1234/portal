@@ -3,24 +3,21 @@ package com.weili.iot_portal.service.ingestion.handler;
 import com.baomidou.mybatisplus.core.toolkit.IdWorker;
 import com.weili.iot_portal.common.exception.IotPortalException;
 import com.weili.iot_portal.common.exception.IotPortalErrorCode;
-import com.weili.iot_portal.common.constant.RedisConstant;
 import com.weili.iot_portal.dal.dataobject.device.DeviceStateRecordDO;
 import com.weili.iot_portal.dal.dataobject.ingestion.WebhookInboxDO;
 import com.weili.iot_portal.dal.repository.device.DeviceStateRecordRepository;
 import com.weili.iot_portal.domain.ingestion.WebhookRequest;
 import com.weili.iot_portal.service.cache.DeviceIdentityCacheService;
-import com.weili.iot_portal.service.cache.RealTimeCacheService;
+import com.weili.iot_portal.service.cache.DeviceLockService;
+import com.weili.iot_portal.service.cache.DeviceStateCacheService;
 import com.weili.iot_portal.service.ingestion.WebhookFailLogService;
 import com.weili.iot_portal.service.ingestion.handler.fields.DeviceStateEventFields;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -44,14 +41,8 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
     private final DeviceStateRecordRepository stateTimelineRepository;
     private final DeviceIdentityCacheService deviceIdentityCacheService;
     private final WebhookFailLogService webhookFailLogService;
-    private final RedisTemplate<String, String> redisTemplate;
-    private final RealTimeCacheService realTimeCacheService;
-
-    @Value("${rt.state.ttl-millis:600000}")
-    private long stateTtlMillis;
-
-    @Value("${rt.state.heartbeat-ttl-seconds:300}")
-    private long stateHeartbeatTtlSeconds;
+    private final DeviceLockService deviceLockService;
+    private final DeviceStateCacheService deviceStateCacheService;
 
     @Override
     public boolean supports(String eventType) {
@@ -99,12 +90,7 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
         String orgFactoryId = identity.getFactoryId();
 
         // 3. 使用分布式锁保证同一设备的状态更新串行化
-        String lockKey = DeviceStateEventFields.LOCK_KEY_PREFIX + deviceInfoId;
-        Boolean lockAcquired = redisTemplate.opsForValue()
-                .setIfAbsent(lockKey, DeviceStateEventFields.LOCK_VALUE,
-                        Duration.ofSeconds(DeviceStateEventFields.LOCK_TIMEOUT_SECONDS));
-
-        if (!Boolean.TRUE.equals(lockAcquired)) {
+        if (!deviceLockService.tryLockState(deviceInfoId, DeviceStateEventFields.LOCK_TIMEOUT_SECONDS)) {
             log.warn("获取设备状态锁失败，可能正在并发处理: deviceInfoId={}", deviceInfoId);
             throw new IotPortalException(IotPortalErrorCode.EVENT_DEVICE_STATE_PROCESSING);
         }
@@ -126,7 +112,7 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
                 DeviceStateRecordDO latestState = latestStateOpt.get();
                 if (currentState.equalsIgnoreCase(latestState.getStateCode())) {
                     // 状态未变化，刷新缓存 TTL 和心跳，但不写入时间线
-                    refreshStateCacheAndHeartbeat(orgFactoryId, deviceInfoId, eventTimestamp, request.getMessageId());
+                    refreshStateCacheAndHeartbeat(orgFactoryId, deviceInfoId, request.getMessageId());
                     log.debug("状态未变化，刷新缓存TTL和心跳: deviceInfoId={}, state={}", deviceInfoId, currentState);
                     return;
                 }
@@ -142,20 +128,12 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
             }
 
             // 写入实时状态缓存（覆盖写，供前端轮询）
-            Map<String, String> payload = new HashMap<>();
-            long ts = eventTimestamp;
-            payload.put(DeviceStateEventFields.STATE, currentState);
-            payload.put(DeviceStateEventFields.UPDATED_AT, String.valueOf(ts));
-            payload.put(DeviceStateEventFields.SOURCE, DeviceStateEventFields.SOURCE_TB);
-            if (StringUtils.isNotBlank(request.getMessageId())) {
-                payload.put(DeviceStateEventFields.TRACE_ID, request.getMessageId());
-            }
-            String stateKey = formatStateKey(orgFactoryId, deviceInfoId);
-            realTimeCacheService.hsetWithTtl(stateKey, payload, stateTtlMillis);
-            refreshHeartbeat(orgFactoryId, deviceInfoId, request.getMessageId());
+            deviceStateCacheService.saveState(orgFactoryId, deviceInfoId, currentState,
+                    eventTimestamp, DeviceStateEventFields.SOURCE_TB, request.getMessageId());
+            deviceStateCacheService.saveHeartbeat(orgFactoryId, deviceInfoId, request.getMessageId());
         } finally {
             // 释放锁
-            redisTemplate.delete(lockKey);
+            deviceLockService.unlockState(deviceInfoId);
         }
     }
 
@@ -163,20 +141,10 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
      * 状态未变化时，刷新状态缓存 TTL（不改值）并刷新心跳
      */
     private void refreshStateCacheAndHeartbeat(String factoryId, String deviceId,
-                                               Long eventTimestamp, String traceId) {
-        String stateKey = formatStateKey(factoryId, deviceId);
+                                               String traceId) {
         // 仅刷新 TTL，保持原值（避免 updatedAt 误更新）
-        redisTemplate.expire(stateKey, Duration.ofMillis(stateTtlMillis));
-        refreshHeartbeat(factoryId, deviceId, traceId);
-    }
-
-    /**
-     * 写入/刷新状态心跳 key（短 TTL），用于实时性判断，避免数据过期后取不到
-     */
-    private void refreshHeartbeat(String factoryId, String deviceId, String traceId) {
-        String hbKey = formatStateHeartbeatKey(factoryId, deviceId);
-        String value = StringUtils.defaultIfBlank(traceId, DeviceStateEventFields.DEFAULT_HEARTBEAT_VALUE);
-        realTimeCacheService.setWithTtlSeconds(hbKey, value, stateHeartbeatTtlSeconds);
+        deviceStateCacheService.refreshStateTtl(factoryId, deviceId);
+        deviceStateCacheService.saveHeartbeat(factoryId, deviceId, traceId);
     }
 
     /**
@@ -224,8 +192,6 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
                 deviceInfoId, latestState.getStateCode(), previousState, currentState, eventTimestamp);
 
         boolean isOngoing = latestState.getEndTs() == null;
-        boolean needManual = true; // 状态不匹配需要人工审核
-
         if (isOngoing) {
             // 子情况C2：数据库状态进行中（end_ts IS NULL）
             handleOngoingStateMismatch(latestState, previousState, currentState, eventTimestamp,
@@ -403,17 +369,6 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
         return value.toString();
     }
 
-    private String defaultBlank(String value) {
-        return StringUtils.defaultIfBlank(value, DeviceStateEventFields.DEFAULT_BLANK_PLACEHOLDER);
-    }
-
-    private String formatStateKey(String factoryId, String deviceId) {
-        return String.format(RedisConstant.RT_STATE, defaultBlank(factoryId), defaultBlank(deviceId));
-    }
-
-    private String formatStateHeartbeatKey(String factoryId, String deviceId) {
-        return String.format(RedisConstant.RT_STATE_HEARTBEAT, defaultBlank(factoryId), defaultBlank(deviceId));
-    }
 
     /**
      * 设备状态心跳事件：不写时间线，仅续租实时缓存 TTL 并更新心跳
@@ -442,18 +397,11 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
                 : System.currentTimeMillis() / DeviceStateEventFields.MILLIS_TO_SECONDS);
 
         // 覆盖写实时状态 + 续租 TTL
-        Map<String, String> payload = new HashMap<>();
-        payload.put(DeviceStateEventFields.STATE, currentState);
-        payload.put(DeviceStateEventFields.UPDATED_AT, String.valueOf(ts));
-        payload.put(DeviceStateEventFields.SOURCE, DeviceStateEventFields.SOURCE_TB);
-        if (StringUtils.isNotBlank(request.getMessageId())) {
-            payload.put(DeviceStateEventFields.TRACE_ID, request.getMessageId());
-        }
-        String stateKey = formatStateKey(orgFactoryId, deviceInfoId);
-        realTimeCacheService.hsetWithTtl(stateKey, payload, stateTtlMillis);
+        deviceStateCacheService.saveState(orgFactoryId, deviceInfoId, currentState,
+                ts, DeviceStateEventFields.SOURCE_TB, request.getMessageId());
 
         // 刷新心跳（短 TTL）
-        refreshHeartbeat(orgFactoryId, deviceInfoId, request.getMessageId());
+        deviceStateCacheService.saveHeartbeat(orgFactoryId, deviceInfoId, request.getMessageId());
     }
 }
 

@@ -57,11 +57,6 @@ public final class DeviceStateEventFields {
     public static final String UNKNOWN_STATE = "UNKNOWN";
 
     // ==================== 分布式锁相关 ====================
-    /**
-     * 分布式锁键前缀：设备状态锁
-     * 用于防止同一设备的状态更新并发操作
-     */
-    public static final String LOCK_KEY_PREFIX = "device_state_lock:";
 
     /**
      * 分布式锁超时时间（秒）

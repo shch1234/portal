@@ -2,10 +2,9 @@ package com.weili.iot_portal.service.ingestion.handler;
 
 import com.weili.iot_portal.common.exception.IotPortalException;
 import com.weili.iot_portal.common.exception.IotPortalErrorCode;
-import com.weili.iot_portal.common.constant.RedisConstant;
 import com.weili.iot_portal.dal.dataobject.ingestion.WebhookInboxDO;
 import com.weili.iot_portal.domain.ingestion.WebhookRequest;
-import com.weili.iot_portal.service.cache.RealTimeCacheService;
+import com.weili.iot_portal.service.cache.DeviceAxisCacheService;
 import com.weili.iot_portal.service.cache.DeviceIdentityCacheService;
 import com.weili.iot_portal.service.ingestion.handler.fields.DeviceAxisEventFields;
 import lombok.RequiredArgsConstructor;
@@ -35,13 +34,7 @@ public class DeviceAxisEventHandler implements WebhookEventHandler {
 
 
     private final DeviceIdentityCacheService deviceIdentityCacheService;
-    private final RealTimeCacheService realTimeCacheService;
-
-    @Value("${rt.axis.ttl-millis:300000}")
-    private long axisTtlMillis;
-
-    @Value("${rt.axis.curve.ttl-millis:600000}")
-    private long axisCurveTtlMillis;
+    private final DeviceAxisCacheService deviceAxisCacheService;
 
     @Value("${rt.axis.curve.maxlen.load:2000}")
     private int axisCurveMaxLenLoad;
@@ -90,30 +83,20 @@ public class DeviceAxisEventHandler implements WebhookEventHandler {
         if (axisFields.isEmpty()) {
             log.warn("DEVICE_AXIS 事件未包含 axis.* 字段，跳过写入: deviceInfoId={}", deviceInfoId);
         } else {
-            Map<String, String> payload = new HashMap<>();
-            axisFields.forEach((k, v) -> payload.put(k, String.valueOf(v)));
-            payload.put(DeviceAxisEventFields.UPDATED_AT, String.valueOf(eventTimestamp));
-            payload.put(DeviceAxisEventFields.SOURCE, DeviceAxisEventFields.SOURCE_TB);
-            if (StringUtils.isNotBlank(request.getMessageId())) {
-                payload.put(DeviceAxisEventFields.TRACE_ID, request.getMessageId());
-            }
             // 倍率值
             Object ratio = eventData.get(DeviceAxisEventFields.RATIO);
             if (ratio == null) {
                 ratio = eventData.get(DeviceAxisEventFields.OVERRIDE);
             }
-            if (ratio != null) {
-                payload.put(DeviceAxisEventFields.RATIO, String.valueOf(ratio));
-            }
-            String axisKey = String.format(RedisConstant.RT_AXIS,
-                    defaultBlank(orgFactoryId), defaultBlank(deviceInfoId));
-            realTimeCacheService.hsetWithTtl(axisKey, payload, axisTtlMillis);
+            deviceAxisCacheService.saveAxisData(orgFactoryId, deviceInfoId, axisFields,
+                    eventTimestamp, DeviceAxisEventFields.SOURCE_TB,
+                    request.getMessageId(), ratio);
         }
 
         // 写入曲线：负载/转速/进给（如果上报了相应字段）
-        appendCurveIfPresent(DeviceAxisEventFields.METRIC_LOAD, eventTimestamp, request, orgFactoryId, deviceInfoId, eventData, axisCurveMaxLenLoad);
-        appendCurveIfPresent(DeviceAxisEventFields.METRIC_RPM, eventTimestamp, request, orgFactoryId, deviceInfoId, eventData, axisCurveMaxLenRpm);
-        appendCurveIfPresent(DeviceAxisEventFields.METRIC_FEED, eventTimestamp, request, orgFactoryId, deviceInfoId, eventData, axisCurveMaxLenFeed);
+        appendCurveIfPresent(DeviceAxisEventFields.METRIC_LOAD, eventTimestamp, orgFactoryId, deviceInfoId, eventData, axisCurveMaxLenLoad);
+        appendCurveIfPresent(DeviceAxisEventFields.METRIC_RPM, eventTimestamp, orgFactoryId, deviceInfoId, eventData, axisCurveMaxLenRpm);
+        appendCurveIfPresent(DeviceAxisEventFields.METRIC_FEED, eventTimestamp, orgFactoryId, deviceInfoId, eventData, axisCurveMaxLenFeed);
     }
 
     /**
@@ -130,23 +113,17 @@ public class DeviceAxisEventHandler implements WebhookEventHandler {
     }
 
     /**
-     * 写入曲线点（若存在），key 为 rt:axis:curve:{metric}:...
+     * 写入曲线点（若存在）
      */
-    private void appendCurveIfPresent(String metric, Long eventTimestamp, WebhookRequest request,
-                                      String orgFactoryId, String deviceInfoId, Map<String, Object> eventData, int maxLen) {
+    private void appendCurveIfPresent(String metric, Long eventTimestamp,
+                                      String orgFactoryId, String deviceInfoId,
+                                      Map<String, Object> eventData, int maxLen) {
         Object value = eventData.get(metric);
         if (value == null) {
             return;
         }
         long ts = eventTimestamp != null ? eventTimestamp : System.currentTimeMillis();
-        String pointJson = String.format("{\"ts\":%d,\"value\":%s}", ts, value);
-        String key = String.format(DeviceAxisEventFields.CURVE_KEY_FORMAT,
-                defaultBlank(metric), defaultBlank(orgFactoryId), defaultBlank(deviceInfoId));
-        realTimeCacheService.lpushTrimExpire(key, pointJson, maxLen, axisCurveTtlMillis);
-    }
-
-    private String defaultBlank(String value) {
-        return StringUtils.defaultIfBlank(value, DeviceAxisEventFields.DEFAULT_BLANK_PLACEHOLDER);
+        deviceAxisCacheService.appendCurvePoint(orgFactoryId, deviceInfoId, metric, ts, value, maxLen);
     }
 }
 

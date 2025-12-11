@@ -8,15 +8,14 @@ import com.weili.iot_portal.dal.dataobject.ingestion.WebhookInboxDO;
 import com.weili.iot_portal.dal.repository.device.DeviceToolRecordRepository;
 import com.weili.iot_portal.domain.ingestion.WebhookRequest;
 import com.weili.iot_portal.service.cache.DeviceIdentityCacheService;
+import com.weili.iot_portal.service.cache.DeviceLockService;
 import com.weili.iot_portal.service.ingestion.handler.fields.DeviceToolEventFields;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Duration;
 import java.util.Map;
 
 /**
@@ -43,8 +42,7 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
 
     private final DeviceToolRecordRepository deviceToolRecordRepository;
     private final DeviceIdentityCacheService deviceIdentityCacheService;
-
-    private final RedisTemplate<String, String> redisTemplate;
+    private final DeviceLockService deviceLockService;
 
     @Override
     public boolean supports(String eventType) {
@@ -83,11 +81,7 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
         String deviceInfoId = identity.getDeviceId();
 
         // 分布式锁，避免并发换刀
-        String lockKey = DeviceToolEventFields.LOCK_KEY_PREFIX_TOOL_CHANGE + deviceInfoId;
-        Boolean lockAcquired = redisTemplate.opsForValue()
-                .setIfAbsent(lockKey, DeviceToolEventFields.LOCK_VALUE,
-                        Duration.ofSeconds(DeviceToolEventFields.LOCK_TIMEOUT_SECONDS_TOOL_CHANGE));
-        if (!Boolean.TRUE.equals(lockAcquired)) {
+        if (!deviceLockService.tryLockToolChange(deviceInfoId, DeviceToolEventFields.LOCK_TIMEOUT_SECONDS_TOOL_CHANGE)) {
             log.warn("获取刀具锁失败，可能正在并发处理: deviceInfoId={}", deviceInfoId);
             throw new IotPortalException(IotPortalErrorCode.EVENT_TOOL_CHANGE_PROCESSING);
         }
@@ -125,7 +119,7 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
 
             log.info("刀具变更完成: deviceId={}, prev={}, curr={}, ts={}", deviceInfoId, previousToolNo, currentToolNo, eventTsSeconds);
         } finally {
-            redisTemplate.delete(lockKey);
+            deviceLockService.unlockToolChange(deviceInfoId);
         }
     }
 

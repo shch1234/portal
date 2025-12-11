@@ -166,12 +166,6 @@ public final class DeviceToolEventFields {
 
     // ==================== 业务常量值 ====================
     /**
-     * 默认空值占位符
-     * 当工厂ID或设备ID为空时，使用此值作为 Redis Key 的占位符
-     */
-    public static final String DEFAULT_BLANK_PLACEHOLDER = "none";
-
-    /**
      * 初始版本号
      * 新创建的刀补补偿记录的初始版本号
      */
@@ -196,23 +190,12 @@ public final class DeviceToolEventFields {
     public static final long MILLIS_TO_SECONDS = 1000L;
 
     // ==================== 刀具变更事件相关 ====================
-    /**
-     * 分布式锁键前缀：刀具变更
-     * 用于防止同一设备的并发换刀操作
-     */
-    public static final String LOCK_KEY_PREFIX_TOOL_CHANGE = "device_tool_lock:";
 
     /**
      * 分布式锁超时时间（秒）：刀具变更
      * 刀具变更操作的锁超时时间，防止死锁
      */
     public static final long LOCK_TIMEOUT_SECONDS_TOOL_CHANGE = 5L;
-
-    /**
-     * 分布式锁值
-     * Redis 锁的占位值，表示锁已被占用
-     */
-    public static final String LOCK_VALUE = "1";
 
     // ==================== 辅助方法 ====================
     /**

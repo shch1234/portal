@@ -2,10 +2,9 @@ package com.weili.iot_portal.service.ingestion.handler;
 
 import com.weili.iot_portal.common.exception.IotPortalException;
 import com.weili.iot_portal.common.exception.IotPortalErrorCode;
-import com.weili.iot_portal.common.constant.RedisConstant;
 import com.weili.iot_portal.dal.dataobject.ingestion.WebhookInboxDO;
 import com.weili.iot_portal.domain.ingestion.WebhookRequest;
-import com.weili.iot_portal.service.cache.RealTimeCacheService;
+import com.weili.iot_portal.service.cache.DeviceProgramCacheService;
 import com.weili.iot_portal.service.cache.DeviceIdentityCacheService;
 import com.weili.iot_portal.service.ingestion.handler.fields.DeviceProgramEventFields;
 import lombok.RequiredArgsConstructor;
@@ -30,10 +29,7 @@ public class DeviceProgramEventHandler implements WebhookEventHandler {
 
 
     private final DeviceIdentityCacheService deviceIdentityCacheService;
-    private final RealTimeCacheService realTimeCacheService;
-
-    @Value("${rt.program.ttl-millis:300000}")
-    private long programTtlMillis;
+    private final DeviceProgramCacheService deviceProgramCacheService;
 
     @Override
     public boolean supports(String eventType) {
@@ -63,20 +59,13 @@ public class DeviceProgramEventHandler implements WebhookEventHandler {
                 ? request.getDataTimestamp()
                 : (request.getTimestamp() != null ? request.getTimestamp() : System.currentTimeMillis());
 
-        Map<String, String> payload = extractProgramFields(eventData);
-        if (payload.isEmpty()) {
+        Map<String, String> programData = extractProgramFields(eventData);
+        if (programData.isEmpty()) {
             log.warn("DEVICE_PROGRAM 事件未包含程序字段，跳过: deviceInfoId={}", deviceInfoId);
             return;
         }
-        payload.put(DeviceProgramEventFields.UPDATED_AT, String.valueOf(eventTimestamp));
-        payload.put(DeviceProgramEventFields.SOURCE, DeviceProgramEventFields.SOURCE_TB);
-        if (StringUtils.isNotBlank(request.getMessageId())) {
-            payload.put(DeviceProgramEventFields.TRACE_ID, request.getMessageId());
-        }
-
-        String key = String.format(RedisConstant.RT_PROGRAM,
-                defaultBlank(orgFactoryId), defaultBlank(deviceInfoId));
-        realTimeCacheService.hsetWithTtl(key, payload, programTtlMillis);
+        deviceProgramCacheService.saveProgram(orgFactoryId, deviceInfoId, programData,
+                eventTimestamp, DeviceProgramEventFields.SOURCE_TB, request.getMessageId());
     }
 
     private Map<String, String> extractProgramFields(Map<String, Object> eventData) {
@@ -101,9 +90,6 @@ public class DeviceProgramEventHandler implements WebhookEventHandler {
         return map;
     }
 
-    private String defaultBlank(String value) {
-        return StringUtils.defaultIfBlank(value, DeviceProgramEventFields.DEFAULT_BLANK_PLACEHOLDER);
-    }
 }
 
 
