@@ -1,12 +1,12 @@
 package com.weili.iot_portal.service.cache;
 
+import com.weili.basic.redis.client.RedisClient;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
-import java.time.Duration;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 /**
@@ -22,12 +22,7 @@ import java.util.function.Supplier;
 @RequiredArgsConstructor
 public class DeviceLockService {
 
-    private final RedisTemplate<String, String> redisTemplate;
-
-    /**
-     * 锁值占位符
-     */
-    private static final String LOCK_VALUE = "1";
+    private final RedisClient redisClient;
 
     /**
      * 默认锁超时时间（秒）
@@ -164,6 +159,7 @@ public class DeviceLockService {
     // ==================== 通用锁操作方法 ====================
     /**
      * 尝试获取锁
+     * 使用 RedisClient.tryLock() 方法，直接使用原生 Redis 连接，不受 Spring 事务管理影响
      *
      * @param lockKey 锁键
      * @param timeoutSeconds 超时时间（秒）
@@ -171,21 +167,42 @@ public class DeviceLockService {
      */
     private boolean tryLock(String lockKey, long timeoutSeconds) {
         if (StringUtils.isBlank(lockKey)) {
+            log.warn("[DeviceLock] 锁键为空，无法获取锁");
             return false;
         }
-        Boolean acquired = redisTemplate.opsForValue()
-                .setIfAbsent(lockKey, LOCK_VALUE, Duration.ofSeconds(timeoutSeconds));
-        return Boolean.TRUE.equals(acquired);
+        try {
+            // 使用 RedisClient.tryLock() 方法，直接使用原生 Redis 连接
+            // 不受 Spring 事务管理影响，确保在事务外执行
+            boolean result = redisClient.tryLock(lockKey, timeoutSeconds, TimeUnit.SECONDS);
+            if (!result) {
+                log.debug("[DeviceLock] 获取锁失败: lockKey={}", lockKey);
+            } else {
+                log.debug("[DeviceLock] 成功获取锁: lockKey={}, timeout={}秒", lockKey, timeoutSeconds);
+            }
+            return result;
+        } catch (Exception e) {
+            log.error("[DeviceLock] 获取锁异常: lockKey={}, error={}", lockKey, e.getMessage(), e);
+            return false;
+        }
     }
 
     /**
      * 释放锁
+     * 使用 RedisClient.releaseLock() 方法，直接使用原生 Redis 连接，不受 Spring 事务管理影响
      *
      * @param lockKey 锁键
      */
     private void unlock(String lockKey) {
-        if (StringUtils.isNotBlank(lockKey)) {
-            redisTemplate.delete(lockKey);
+        if (StringUtils.isBlank(lockKey)) {
+            return;
+        }
+        try {
+            // 使用 RedisClient.releaseLock() 方法，直接使用原生 Redis 连接
+            // 不受 Spring 事务管理影响，确保在事务外执行
+            redisClient.releaseLock(lockKey);
+            log.debug("[DeviceLock] 释放锁: lockKey={}", lockKey);
+        } catch (Exception e) {
+            log.error("[DeviceLock] 释放锁异常: lockKey={}, error={}", lockKey, e.getMessage(), e);
         }
     }
 
@@ -218,7 +235,10 @@ public class DeviceLockService {
      * @return 锁键
      */
     private String buildStateLockKey(String deviceId) {
-        return LOCK_KEY_PREFIX_STATE + defaultBlank(deviceId);
+        if (StringUtils.isBlank(deviceId)) {
+            throw new IllegalArgumentException("DeviceId cannot be blank for lock key");
+        }
+        return LOCK_KEY_PREFIX_STATE + deviceId;
     }
 
     /**
@@ -228,14 +248,11 @@ public class DeviceLockService {
      * @return 锁键
      */
     private String buildToolChangeLockKey(String deviceId) {
-        return LOCK_KEY_PREFIX_TOOL_CHANGE + defaultBlank(deviceId);
+        if (StringUtils.isBlank(deviceId)) {
+            throw new IllegalArgumentException("DeviceId cannot be blank for lock key");
+        }
+        return LOCK_KEY_PREFIX_TOOL_CHANGE + deviceId;
     }
 
-    /**
-     * 默认空值处理
-     */
-    private String defaultBlank(String value) {
-        return StringUtils.defaultIfBlank(value, "unknown");
-    }
 }
 
