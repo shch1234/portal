@@ -6,6 +6,7 @@ import org.mybatis.spring.annotation.MapperScan;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.FilterType;
+import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
 
 /**
@@ -21,6 +22,7 @@ import org.springframework.transaction.annotation.EnableTransactionManagement;
                 pattern = "com.weili.iot_portal.dal.mapper..*"
         ))
 @EnableTransactionManagement
+@EnableAsync
 @SpringBootApplication
 @ComponentScan(basePackages = {"com.weili.iot_portal"})
 public class IotPortalApplication extends WeiLiSpringApplication {

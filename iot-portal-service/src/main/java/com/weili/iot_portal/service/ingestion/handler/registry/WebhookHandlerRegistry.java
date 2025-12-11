@@ -69,30 +69,66 @@ public class WebhookHandlerRegistry {
 
     public Optional<WebhookEventHandler> resolve(String eventType) {
         if (StringUtils.isBlank(eventType)) {
+            log.debug("[Webhook-Registry] eventType为空，返回空");
             return Optional.empty();
         }
-        return matchCache.computeIfAbsent(eventType, this::doResolve);
+        
+        log.debug("[Webhook-Registry] 解析Handler: eventType={}", eventType);
+        Optional<WebhookEventHandler> result = matchCache.computeIfAbsent(eventType, this::doResolve);
+        
+        if (result.isPresent()) {
+            log.debug("[Webhook-Registry] 找到Handler: eventType={}, handlerClass={}", 
+                eventType, result.get().getClass().getSimpleName());
+        } else {
+            log.debug("[Webhook-Registry] 未找到Handler: eventType={}", eventType);
+        }
+        
+        return result;
     }
 
     private Optional<WebhookEventHandler> doResolve(String eventType) {
+        log.debug("[Webhook-Registry] 开始匹配Handler: eventType={}", eventType);
+        
         // 1) 代码 handler（包含精确/通配，按 order）
+        log.debug("[Webhook-Registry] [步骤1] 检查代码注册的Handler: count={}", codeHandlers.size());
         for (WebhookEventHandler handler : codeHandlers) {
-            if (handler.supports(eventType)) {
+            boolean supports = handler.supports(eventType);
+            log.debug("[Webhook-Registry] [步骤1] 检查Handler: handlerClass={}, supports={}", 
+                handler.getClass().getSimpleName(), supports);
+            if (supports) {
+                log.debug("[Webhook-Registry] [步骤1] 匹配成功: eventType={}, handlerClass={}", 
+                    eventType, handler.getClass().getSimpleName());
                 return Optional.of(handler);
             }
         }
+        
         // 2) 配置精确
+        log.debug("[Webhook-Registry] [步骤2] 检查配置精确匹配: count={}", configExactHandlers.size());
         for (PatternHandler ph : configExactHandlers) {
-            if (ph.pattern.matcher(eventType).matches()) {
+            boolean matches = ph.pattern.matcher(eventType).matches();
+            log.debug("[Webhook-Registry] [步骤2] 检查精确模式: pattern={}, matches={}, handlerClass={}", 
+                ph.pattern.pattern(), matches, ph.handler.getClass().getSimpleName());
+            if (matches) {
+                log.debug("[Webhook-Registry] [步骤2] 精确匹配成功: eventType={}, handlerClass={}", 
+                    eventType, ph.handler.getClass().getSimpleName());
                 return Optional.of(ph.handler);
             }
         }
+        
         // 3) 配置通配
+        log.debug("[Webhook-Registry] [步骤3] 检查配置通配匹配: count={}", configWildcardHandlers.size());
         for (PatternHandler ph : configWildcardHandlers) {
-            if (ph.pattern.matcher(eventType).matches()) {
+            boolean matches = ph.pattern.matcher(eventType).matches();
+            log.debug("[Webhook-Registry] [步骤3] 检查通配模式: pattern={}, matches={}, handlerClass={}", 
+                ph.pattern.pattern(), matches, ph.handler.getClass().getSimpleName());
+            if (matches) {
+                log.debug("[Webhook-Registry] [步骤3] 通配匹配成功: eventType={}, handlerClass={}", 
+                    eventType, ph.handler.getClass().getSimpleName());
                 return Optional.of(ph.handler);
             }
         }
+        
+        log.debug("[Webhook-Registry] 未找到匹配的Handler: eventType={}", eventType);
         return Optional.empty();
     }
 

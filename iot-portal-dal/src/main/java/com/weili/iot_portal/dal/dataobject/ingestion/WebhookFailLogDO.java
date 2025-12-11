@@ -5,7 +5,6 @@ import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
-import com.weili.basic.framework.mybatis.domain.BaseDO;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
@@ -18,9 +17,9 @@ import java.util.Map;
  * 记录处理失败或需人工介入的消息
  */
 @Data
-@EqualsAndHashCode(callSuper = true)
+@EqualsAndHashCode
 @TableName(value = "webhook_fail_log", autoResultMap = true)
-public class WebhookFailLogDO extends BaseDO {
+public class WebhookFailLogDO {
 
     @Serial
     private static final long serialVersionUID = 2113456789012345679L;
@@ -34,12 +33,7 @@ public class WebhookFailLogDO extends BaseDO {
     private String messageId;
 
     /**
-     * 租户UUID（对应 tenant_id 列）
-     */
-    private String tenantUuid;
-
-    /**
-     * TB设备ID（对应 device_id 列）
+     * TB设备ID
      */
     private String tbDeviceId;
 

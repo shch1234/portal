@@ -11,14 +11,20 @@ import com.weili.iot_portal.service.cache.DeviceIdentityCacheService;
 import com.weili.iot_portal.service.cache.DeviceLockService;
 import com.weili.iot_portal.service.cache.DeviceStateCacheService;
 import com.weili.iot_portal.service.ingestion.WebhookFailLogService;
+import com.weili.iot_portal.service.ingestion.support.WebhookInboxService;
+import com.weili.iot_portal.service.ingestion.support.DistributedLockService;
 import com.weili.iot_portal.service.ingestion.handler.fields.DeviceStateEventFields;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -41,8 +47,15 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
     private final DeviceStateRecordRepository stateTimelineRepository;
     private final DeviceIdentityCacheService deviceIdentityCacheService;
     private final WebhookFailLogService webhookFailLogService;
-    private final DeviceLockService deviceLockService;
-    private final DeviceStateCacheService deviceStateCacheService;
+    private final WebhookInboxService inboxService;
+    private final DistributedLockService distributedLockService;
+    private final RealTimeCacheService realTimeCacheService;
+
+    @Value("${rt.state.ttl-millis:600000}")
+    private long stateTtlMillis;
+
+    @Value("${rt.state.heartbeat-ttl-seconds:300}")
+    private long stateHeartbeatTtlSeconds;
 
     @Override
     public boolean supports(String eventType) {
@@ -58,10 +71,18 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void handle(WebhookInboxDO inbox, WebhookRequest request) throws Exception {
+        log.info("[Webhook-Handler-DeviceState] ====== 开始处理设备状态事件 ======");
+        log.info("[Webhook-Handler-DeviceState] messageId={}, eventType={}, deviceCode={}, deviceId={}", 
+            request.getMessageId(), request.getEventType(), request.getDeviceCode(), request.getDeviceId());
+        
         if (DeviceStateEventFields.EVENT_TYPE_HEARTBEAT.equals(request.getEventType())) {
+            log.debug("[Webhook-Handler-DeviceState] 处理心跳事件: messageId={}", request.getMessageId());
             handleHeartbeat(request);
+            log.debug("[Webhook-Handler-DeviceState] 心跳事件处理完成: messageId={}", request.getMessageId());
             return;
         }
+        
+        log.debug("[Webhook-Handler-DeviceState] 处理状态变化事件: messageId={}", request.getMessageId());
         // 1. 解析事件数据
         Map<String, Object> eventData = request.getEventData();
         if (eventData == null) {
@@ -73,13 +94,24 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
         if (StringUtils.isBlank(currentState)) {
             throw new IotPortalException(IotPortalErrorCode.EVENT_CURRENT_STATE_EMPTY);
         }
+        
+        // 统一转换为大写，确保状态值一致性
+        if (previousState != null) {
+            previousState = previousState.toUpperCase();
+        }
+        currentState = currentState.toUpperCase();
+        
+        log.info("[Webhook-Handler-DeviceState] 状态值转换后: previousState={}, currentState={}", 
+            previousState, currentState);
 
         // 优先使用 dataTimestamp，否则使用 timestamp
         Long eventTimestamp = request.getDataTimestamp() != null
                 ? request.getDataTimestamp()
                 : request.getTimestamp();
+        // 如果时间戳为空，使用当前时间作为默认值（与其他Handler保持一致）
         if (eventTimestamp == null) {
             throw new IotPortalException(IotPortalErrorCode.EVENT_TIMESTAMP_EMPTY);
+            eventTimestamp = System.currentTimeMillis() / 1000; // 转换为秒
         }
 
         // 2. 解析设备信息
@@ -90,9 +122,13 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
         String orgFactoryId = identity.getFactoryId();
 
         // 3. 使用分布式锁保证同一设备的状态更新串行化
-        if (!deviceLockService.tryLockState(deviceInfoId, DeviceStateEventFields.LOCK_TIMEOUT_SECONDS)) {
+        String lockKey = LOCK_KEY_PREFIX + deviceInfoId;
+        Boolean lockAcquired = redisTemplate.opsForValue()
+                .setIfAbsent(lockKey, "1", Duration.ofSeconds(LOCK_TIMEOUT_SECONDS));
+        
+        if (!Boolean.TRUE.equals(lockAcquired)) {
             log.warn("获取设备状态锁失败，可能正在并发处理: deviceInfoId={}", deviceInfoId);
-            throw new IotPortalException(IotPortalErrorCode.EVENT_DEVICE_STATE_PROCESSING);
+            throw new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "设备状态正在处理中，请稍后重试");
         }
 
         try {
@@ -103,27 +139,36 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
             // 5. 根据情况处理
             if (latestStateOpt.isEmpty()) {
                 // 情况D：数据库无记录（首次记录）
+                log.info("[Webhook-Handler-DeviceState] 首次记录状态: currentState={}, deviceInfoId={}", 
+                    currentState, deviceInfoId);
                 handleFirstRecord(deviceInfoId, orgFactoryId, currentState, eventTimestamp, previousState);
             } else if (StringUtils.isBlank(previousState)) {
                 // 情况A：首次连接（previousState = NULL）
+                log.info("[Webhook-Handler-DeviceState] 首次连接: currentState={}, deviceInfoId={}", 
+                    currentState, deviceInfoId);
                 handleFirstConnection(deviceInfoId, orgFactoryId, currentState, eventTimestamp);
             } else {
                 // 情况B或C：正常匹配或状态不匹配
                 DeviceStateRecordDO latestState = latestStateOpt.get();
                 if (currentState.equalsIgnoreCase(latestState.getStateCode())) {
                     // 状态未变化，刷新缓存 TTL 和心跳，但不写入时间线
-                    refreshStateCacheAndHeartbeat(orgFactoryId, deviceInfoId, request.getMessageId());
-                    log.debug("状态未变化，刷新缓存TTL和心跳: deviceInfoId={}, state={}", deviceInfoId, currentState);
+                    refreshStateCacheAndHeartbeat(orgFactoryId, deviceInfoId, eventTimestamp, request.getMessageId());
+                    log.info("[Webhook-Handler-DeviceState] 状态未变化，刷新缓存TTL和心跳: deviceInfoId={}, state={}", 
+                        deviceInfoId, currentState);
                     return;
                 }
 
                 if (previousState.equalsIgnoreCase(latestState.getStateCode())) {
                     // 情况B：正常匹配
+                    log.info("[Webhook-Handler-DeviceState] 正常状态转换: previousState={} -> currentState={}, deviceInfoId={}", 
+                        previousState, currentState, deviceInfoId);
                     handleNormalTransition(latestState, orgFactoryId, currentState, eventTimestamp);
                 } else {
                     // 情况C：状态不匹配（异常情况）
-                    handleStateMismatch(latestState, previousState, currentState, eventTimestamp,
-                            deviceInfoId, orgFactoryId, request);
+                    log.warn("[Webhook-Handler-DeviceState] 状态不匹配: DB状态={}, 事件previousState={}, 事件currentState={}, deviceInfoId={}", 
+                        latestState.getStateCode(), previousState, currentState, deviceInfoId);
+                    handleStateMismatch(latestState, previousState, currentState, eventTimestamp, 
+                        deviceInfoId, orgFactoryId, request);
                 }
             }
 
@@ -133,7 +178,9 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
             deviceStateCacheService.saveHeartbeat(orgFactoryId, deviceInfoId, request.getMessageId());
         } finally {
             // 释放锁
-            deviceLockService.unlockState(deviceInfoId);
+            distributedLockService.releaseLock(lockKey);
+            log.debug("[Webhook-Handler-DeviceState] 释放设备状态锁: lockKey={}, deviceInfoId={}, messageId={}", 
+                lockKey, deviceInfoId, request.getMessageId());
         }
     }
 
@@ -143,8 +190,21 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
     private void refreshStateCacheAndHeartbeat(String factoryId, String deviceId,
                                                String traceId) {
         // 仅刷新 TTL，保持原值（避免 updatedAt 误更新）
-        deviceStateCacheService.refreshStateTtl(factoryId, deviceId);
-        deviceStateCacheService.saveHeartbeat(factoryId, deviceId, traceId);
+        // 通过重新设置 hash 来刷新 TTL（保持原值不变）
+        Map<String, String> currentState = realTimeCacheService.getHash(stateKey);
+        if (currentState != null && !currentState.isEmpty()) {
+            realTimeCacheService.hsetWithTtl(stateKey, currentState, stateTtlMillis);
+        }
+        refreshHeartbeat(factoryId, deviceId, traceId);
+    }
+
+    /**
+     * 写入/刷新状态心跳 key（短 TTL），用于实时性判断，避免数据过期后取不到
+     */
+    private void refreshHeartbeat(String factoryId, String deviceId, String traceId) {
+        String hbKey = formatStateHeartbeatKey(factoryId, deviceId);
+        String value = StringUtils.defaultIfBlank(traceId, DeviceStateEventFields.DEFAULT_HEARTBEAT_VALUE);
+        realTimeCacheService.setWithTtlSeconds(hbKey, value, stateHeartbeatTtlSeconds);
     }
 
     /**
@@ -369,6 +429,19 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
         return value.toString();
     }
 
+    private String defaultBlank(String value) {
+        return StringUtils.defaultIfBlank(value, DeviceStateEventFields.DEFAULT_BLANK_PLACEHOLDER);
+    }
+
+    private String formatStateKey(String factoryId, String deviceId) {
+        return String.format(RedisConstant.RT_STATE,
+                "none", defaultBlank(factoryId), defaultBlank(deviceId));
+    }
+
+    private String formatStateHeartbeatKey(String factoryId, String deviceId) {
+        return String.format(RedisConstant.RT_STATE_HEARTBEAT,
+                "none", defaultBlank(factoryId), defaultBlank(deviceId));
+    }
 
     /**
      * 设备状态心跳事件：不写时间线，仅续租实时缓存 TTL 并更新心跳
@@ -382,6 +455,9 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
         if (StringUtils.isBlank(currentState)) {
             throw new IotPortalException(IotPortalErrorCode.EVENT_CURRENT_STATE_EMPTY);
         }
+        
+        // 统一转换为大写，确保状态值一致性
+        currentState = currentState.toUpperCase();
 
         // 解析设备身份
         DeviceIdentityCacheService.DeviceIdentity identity = deviceIdentityCacheService
@@ -402,6 +478,224 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
 
         // 刷新心跳（短 TTL）
         deviceStateCacheService.saveHeartbeat(orgFactoryId, deviceInfoId, request.getMessageId());
+    }
+
+    /**
+     * 在事务外获取分布式锁（避免事务导致 setIfAbsent 返回 null）
+     * 
+     * @param lockKey 锁的键
+     * @param deviceInfoId 设备ID
+     * @param request Webhook请求
+     * @param currentState 当前状态
+     * @param previousState 之前状态
+     */
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    private void acquireLock(String lockKey, String deviceInfoId, WebhookRequest request, 
+                             String currentState, String previousState) {
+        // 获取锁之前，记录详细信息（包括时间戳，用于诊断相同时间戳的并发问题）
+        log.debug("[Webhook-Handler-DeviceState] 尝试获取设备状态锁: lockKey={}, deviceInfoId={}, deviceCode={}, messageId={}, currentState={}, previousState={}, timestamp={}, dataTimestamp={}", 
+            lockKey, deviceInfoId, request.getDeviceCode(), request.getMessageId(), currentState, previousState, 
+            request.getTimestamp(), request.getDataTimestamp());
+        
+        // 检查锁的当前状态（用于诊断）
+        Boolean isLocked = distributedLockService.isLocked(lockKey);
+        Long lockTtl = distributedLockService.getLockTtl(lockKey);
+        String currentLockValue = Boolean.TRUE.equals(isLocked) ? "1" : null;
+        if (currentLockValue != null) {
+            log.warn("[Webhook-Handler-DeviceState] 锁已被占用: lockKey={}, currentValue={}, ttl={}秒, deviceInfoId={}, messageId={}", 
+                lockKey, currentLockValue, lockTtl, deviceInfoId, request.getMessageId());
+            
+            // 查询是否有同一设备的其他消息正在处理中（用于诊断，排除当前消息）
+            try {
+                List<WebhookInboxDO> processingMessages = inboxService.findProcessingByDevice(request.getDeviceCode(), request.getMessageId());
+                if (!processingMessages.isEmpty()) {
+                    log.warn("[Webhook-Handler-DeviceState] 发现同一设备有其他消息正在处理: deviceCode={}, processingCount={}, messageIds={}, currentMessageId={}", 
+                        request.getDeviceCode(), processingMessages.size(), 
+                        processingMessages.stream().map(WebhookInboxDO::getMessageId).collect(java.util.stream.Collectors.toList()),
+                        request.getMessageId());
+                }
+            } catch (Exception e) {
+                log.debug("[Webhook-Handler-DeviceState] 查询正在处理的消息失败（不影响主流程）: {}", e.getMessage());
+            }
+        }
+        
+        // 尝试获取锁，记录操作前后的时间戳用于诊断
+        // 使用独立的 DistributedLockService，通过 Spring 代理调用，确保在非事务模式下执行
+        long beforeLock = System.currentTimeMillis();
+        Boolean lockAcquired = distributedLockService.tryLock(lockKey, LOCK_TIMEOUT_SECONDS);
+        long afterLock = System.currentTimeMillis();
+        log.debug("[Webhook-Handler-DeviceState] 锁获取操作: lockKey={}, result={}, 耗时={}ms", 
+            lockKey, lockAcquired, afterLock - beforeLock);
+        
+        // 如果返回 null 或 false，都视为获取锁失败
+        // null 可能是 Redis 连接问题或异常，应该当作失败处理
+        if (!Boolean.TRUE.equals(lockAcquired)) {
+            if (lockAcquired == null) {
+                log.error("[Webhook-Handler-DeviceState] 锁获取返回null（可能是Redis连接问题）: lockKey={}, deviceInfoId={}, messageId={}", 
+                    lockKey, deviceInfoId, request.getMessageId());
+            } else {
+                // lockAcquired == false，说明锁被占用
+                log.debug("[Webhook-Handler-DeviceState] 锁被占用，等待检查: lockKey={}, deviceInfoId={}, messageId={}", 
+                    lockKey, deviceInfoId, request.getMessageId());
+            }
+            
+            // 获取锁失败后，再次检查锁的当前状态（用于诊断）
+            // 注意：这里可能存在竞态条件，锁可能在 setIfAbsent 和检查之间被释放
+            Boolean actualIsLocked = distributedLockService.isLocked(lockKey);
+            Long actualLockTtl = distributedLockService.getLockTtl(lockKey);
+            String actualLockValue = Boolean.TRUE.equals(actualIsLocked) ? "1" : null;
+            
+            if (Boolean.TRUE.equals(lockAcquired) == false && !Boolean.TRUE.equals(actualIsLocked)) {
+                // setIfAbsent 返回 false，但检查时锁不存在，说明锁在获取和检查之间被释放了
+                log.warn("[Webhook-Handler-DeviceState] ⚠️ 竞态条件：setIfAbsent返回false但检查时锁不存在（可能在获取和检查之间被释放）: lockKey={}, deviceInfoId={}, deviceCode={}, messageId={}", 
+                    lockKey, deviceInfoId, request.getDeviceCode(), request.getMessageId());
+            }
+            
+            log.warn("[Webhook-Handler-DeviceState] 获取设备状态锁失败: lockKey={}, deviceInfoId={}, deviceCode={}, messageId={}, currentState={}, previousState={}, setIfAbsent结果={}, 检查时lockValue={}, 检查时lockTtl={}秒, 再次检查lockValue={}, 再次检查lockTtl={}秒", 
+                lockKey, deviceInfoId, request.getDeviceCode(), request.getMessageId(), currentState, previousState, 
+                lockAcquired, currentLockValue, lockTtl, actualLockValue, actualLockTtl);
+            
+            // 查询是否有同一设备的其他消息正在处理中（用于诊断，排除当前消息）
+            try {
+                List<WebhookInboxDO> processingMessages = inboxService.findProcessingByDevice(request.getDeviceCode(), request.getMessageId());
+                if (!processingMessages.isEmpty()) {
+                    log.warn("[Webhook-Handler-DeviceState] 发现同一设备有其他消息正在处理: deviceCode={}, processingCount={}, messageIds={}, statuses={}, currentMessageId={}", 
+                        request.getDeviceCode(), processingMessages.size(), 
+                        processingMessages.stream().map(WebhookInboxDO::getMessageId).collect(java.util.stream.Collectors.toList()),
+                        processingMessages.stream().map(WebhookInboxDO::getStatus).collect(java.util.stream.Collectors.toList()),
+                        request.getMessageId());
+                } else {
+                    log.warn("[Webhook-Handler-DeviceState] 锁获取失败但未发现其他正在处理的消息，可能是其他进程/实例持有锁或Redis问题: deviceCode={}, lockKey={}, currentMessageId={}, setIfAbsent返回值={}", 
+                        request.getDeviceCode(), lockKey, request.getMessageId(), lockAcquired);
+                }
+                
+                // 检查是否有相同 dataTimestamp 的消息（用于诊断相同时间戳导致的并发问题）
+                if (request.getDataTimestamp() != null) {
+                    List<WebhookInboxDO> sameTimestampMessages = inboxService.findPendingByDeviceAndTimestamp(
+                        request.getDeviceCode(), request.getDataTimestamp(), request.getMessageId());
+                    if (!sameTimestampMessages.isEmpty()) {
+                        log.warn("[Webhook-Handler-DeviceState] ⚠️ 发现相同dataTimestamp的消息（可能是并发问题的根源）: deviceCode={}, dataTimestamp={}, sameTimestampCount={}, messageIds={}, statuses={}, currentMessageId={}", 
+                            request.getDeviceCode(), request.getDataTimestamp(), sameTimestampMessages.size(),
+                            sameTimestampMessages.stream().map(WebhookInboxDO::getMessageId).collect(java.util.stream.Collectors.toList()),
+                            sameTimestampMessages.stream().map(WebhookInboxDO::getStatus).collect(java.util.stream.Collectors.toList()),
+                            request.getMessageId());
+                    }
+                }
+            } catch (Exception e) {
+                log.debug("[Webhook-Handler-DeviceState] 查询正在处理的消息失败（不影响主流程）: {}", e.getMessage());
+            }
+            
+            throw new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "设备状态正在处理中，请稍后重试");
+        }
+    }
+
+    /**
+     * 在事务外获取分布式锁（避免事务导致 setIfAbsent 返回 null）
+     * 
+     * @param lockKey 锁的键
+     * @param deviceInfoId 设备ID
+     * @param request Webhook请求
+     * @param currentState 当前状态
+     * @param previousState 之前状态
+     */
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    private void acquireLock(String lockKey, String deviceInfoId, WebhookRequest request, 
+                             String currentState, String previousState) {
+        // 获取锁之前，记录详细信息（包括时间戳，用于诊断相同时间戳的并发问题）
+        log.debug("[Webhook-Handler-DeviceState] 尝试获取设备状态锁: lockKey={}, deviceInfoId={}, deviceCode={}, messageId={}, currentState={}, previousState={}, timestamp={}, dataTimestamp={}", 
+            lockKey, deviceInfoId, request.getDeviceCode(), request.getMessageId(), currentState, previousState, 
+            request.getTimestamp(), request.getDataTimestamp());
+        
+        // 检查锁的当前状态（用于诊断）
+        Boolean isLocked = distributedLockService.isLocked(lockKey);
+        Long lockTtl = distributedLockService.getLockTtl(lockKey);
+        String currentLockValue = Boolean.TRUE.equals(isLocked) ? "1" : null;
+        if (currentLockValue != null) {
+            log.warn("[Webhook-Handler-DeviceState] 锁已被占用: lockKey={}, currentValue={}, ttl={}秒, deviceInfoId={}, messageId={}", 
+                lockKey, currentLockValue, lockTtl, deviceInfoId, request.getMessageId());
+            
+            // 查询是否有同一设备的其他消息正在处理中（用于诊断，排除当前消息）
+            try {
+                List<WebhookInboxDO> processingMessages = inboxService.findProcessingByDevice(request.getDeviceCode(), request.getMessageId());
+                if (!processingMessages.isEmpty()) {
+                    log.warn("[Webhook-Handler-DeviceState] 发现同一设备有其他消息正在处理: deviceCode={}, processingCount={}, messageIds={}, currentMessageId={}", 
+                        request.getDeviceCode(), processingMessages.size(), 
+                        processingMessages.stream().map(WebhookInboxDO::getMessageId).collect(java.util.stream.Collectors.toList()),
+                        request.getMessageId());
+                }
+            } catch (Exception e) {
+                log.debug("[Webhook-Handler-DeviceState] 查询正在处理的消息失败（不影响主流程）: {}", e.getMessage());
+            }
+        }
+        
+        // 尝试获取锁，记录操作前后的时间戳用于诊断
+        // 使用独立的 DistributedLockService，通过 Spring 代理调用，确保在非事务模式下执行
+        long beforeLock = System.currentTimeMillis();
+        Boolean lockAcquired = distributedLockService.tryLock(lockKey, LOCK_TIMEOUT_SECONDS);
+        long afterLock = System.currentTimeMillis();
+        log.debug("[Webhook-Handler-DeviceState] 锁获取操作: lockKey={}, result={}, 耗时={}ms", 
+            lockKey, lockAcquired, afterLock - beforeLock);
+        
+        // 如果返回 null 或 false，都视为获取锁失败
+        // null 可能是 Redis 连接问题或异常，应该当作失败处理
+        if (!Boolean.TRUE.equals(lockAcquired)) {
+            if (lockAcquired == null) {
+                log.error("[Webhook-Handler-DeviceState] 锁获取返回null（可能是Redis连接问题）: lockKey={}, deviceInfoId={}, messageId={}", 
+                    lockKey, deviceInfoId, request.getMessageId());
+            } else {
+                // lockAcquired == false，说明锁被占用
+                log.debug("[Webhook-Handler-DeviceState] 锁被占用，等待检查: lockKey={}, deviceInfoId={}, messageId={}", 
+                    lockKey, deviceInfoId, request.getMessageId());
+            }
+            
+            // 获取锁失败后，再次检查锁的当前状态（用于诊断）
+            // 注意：这里可能存在竞态条件，锁可能在 setIfAbsent 和检查之间被释放
+            Boolean actualIsLocked = distributedLockService.isLocked(lockKey);
+            Long actualLockTtl = distributedLockService.getLockTtl(lockKey);
+            String actualLockValue = Boolean.TRUE.equals(actualIsLocked) ? "1" : null;
+            
+            if (Boolean.TRUE.equals(lockAcquired) == false && !Boolean.TRUE.equals(actualIsLocked)) {
+                // setIfAbsent 返回 false，但检查时锁不存在，说明锁在获取和检查之间被释放了
+                log.warn("[Webhook-Handler-DeviceState] ⚠️ 竞态条件：setIfAbsent返回false但检查时锁不存在（可能在获取和检查之间被释放）: lockKey={}, deviceInfoId={}, deviceCode={}, messageId={}", 
+                    lockKey, deviceInfoId, request.getDeviceCode(), request.getMessageId());
+            }
+            
+            log.warn("[Webhook-Handler-DeviceState] 获取设备状态锁失败: lockKey={}, deviceInfoId={}, deviceCode={}, messageId={}, currentState={}, previousState={}, setIfAbsent结果={}, 检查时lockValue={}, 检查时lockTtl={}秒, 再次检查lockValue={}, 再次检查lockTtl={}秒", 
+                lockKey, deviceInfoId, request.getDeviceCode(), request.getMessageId(), currentState, previousState, 
+                lockAcquired, currentLockValue, lockTtl, actualLockValue, actualLockTtl);
+            
+            // 查询是否有同一设备的其他消息正在处理中（用于诊断，排除当前消息）
+            try {
+                List<WebhookInboxDO> processingMessages = inboxService.findProcessingByDevice(request.getDeviceCode(), request.getMessageId());
+                if (!processingMessages.isEmpty()) {
+                    log.warn("[Webhook-Handler-DeviceState] 发现同一设备有其他消息正在处理: deviceCode={}, processingCount={}, messageIds={}, statuses={}, currentMessageId={}", 
+                        request.getDeviceCode(), processingMessages.size(), 
+                        processingMessages.stream().map(WebhookInboxDO::getMessageId).collect(java.util.stream.Collectors.toList()),
+                        processingMessages.stream().map(WebhookInboxDO::getStatus).collect(java.util.stream.Collectors.toList()),
+                        request.getMessageId());
+                } else {
+                    log.warn("[Webhook-Handler-DeviceState] 锁获取失败但未发现其他正在处理的消息，可能是其他进程/实例持有锁或Redis问题: deviceCode={}, lockKey={}, currentMessageId={}, setIfAbsent返回值={}", 
+                        request.getDeviceCode(), lockKey, request.getMessageId(), lockAcquired);
+                }
+                
+                // 检查是否有相同 dataTimestamp 的消息（用于诊断相同时间戳导致的并发问题）
+                if (request.getDataTimestamp() != null) {
+                    List<WebhookInboxDO> sameTimestampMessages = inboxService.findPendingByDeviceAndTimestamp(
+                        request.getDeviceCode(), request.getDataTimestamp(), request.getMessageId());
+                    if (!sameTimestampMessages.isEmpty()) {
+                        log.warn("[Webhook-Handler-DeviceState] ⚠️ 发现相同dataTimestamp的消息（可能是并发问题的根源）: deviceCode={}, dataTimestamp={}, sameTimestampCount={}, messageIds={}, statuses={}, currentMessageId={}", 
+                            request.getDeviceCode(), request.getDataTimestamp(), sameTimestampMessages.size(),
+                            sameTimestampMessages.stream().map(WebhookInboxDO::getMessageId).collect(java.util.stream.Collectors.toList()),
+                            sameTimestampMessages.stream().map(WebhookInboxDO::getStatus).collect(java.util.stream.Collectors.toList()),
+                            request.getMessageId());
+                    }
+                }
+            } catch (Exception e) {
+                log.debug("[Webhook-Handler-DeviceState] 查询正在处理的消息失败（不影响主流程）: {}", e.getMessage());
+            }
+            
+            throw new ServiceException(ErrorCodeConstants.DEFAULT_ERROR.getCode(), "设备状态正在处理中，请稍后重试");
+        }
     }
 }
 

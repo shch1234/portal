@@ -185,7 +185,7 @@ public class DeviceMetricsJob extends BaseScheduledJob {
                                     BigDecimal uptimeRate, BigDecimal performanceRate,
                                     BigDecimal availabilityRate, BigDecimal faultRate,
                                     BigDecimal oee, long updatedAtSec) {
-        String key = String.format(RedisConstant.RT_METRIC, defaultBlank(factoryId), defaultBlank(deviceId));
+        String key = String.format(RedisConstant.RT_METRIC, "none", defaultBlank(factoryId), defaultBlank(deviceId));
         Map<String, String> payload = new HashMap<>();
         payload.put("metric.uptimeRate", uptimeRate.toPlainString());
         payload.put("metric.performanceRate", performanceRate.toPlainString());
