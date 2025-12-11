@@ -3,20 +3,20 @@ package com.weili.iot_portal.dal.dataobject.ingestion;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
-import com.weili.basic.framework.mybatis.domain.BaseDO;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
 import java.io.Serial;
+import java.io.Serializable;
 
 /**
  * Webhook 监控记录（对应 webhook_monitor_record 表）
  * 记录 webhook 事件匹配、处理成功/失败等指标到数据库，便于持久化观测。
  */
 @Data
-@EqualsAndHashCode(callSuper = true)
+@EqualsAndHashCode
 @TableName("webhook_monitor_record")
-public class WebhookMonitorRecordDO extends BaseDO {
+public class WebhookMonitorRecordDO implements Serializable {
 
     @Serial
     private static final long serialVersionUID = 4812234234234234234L;

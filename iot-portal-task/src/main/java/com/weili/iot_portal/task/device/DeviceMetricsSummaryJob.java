@@ -69,20 +69,18 @@ public class DeviceMetricsSummaryJob extends BaseScheduledJob {
         }
 
         int success = 0, skip = 0, error = 0;
-        Map<String, List<DeviceInfoDO>> grouped = devices.stream()
+        List<DeviceInfoDO> filteredDevices = devices.stream()
                 .filter(d -> StringUtils.isNotBlank(d.getOrgFactoryId()))
-                .collect(Collectors.groupingBy(DeviceInfoDO::getTenantUuid));
+                .collect(Collectors.toList());
 
-        for (Map.Entry<String, List<DeviceInfoDO>> tenantEntry : grouped.entrySet()) {
-            for (DeviceInfoDO device : tenantEntry.getValue()) {
-                try {
-                    boolean processed = processDevice(device, statPoint);
-                    if (processed) success++;
-                    else skip++;
-                } catch (Exception e) {
-                    error++;
-                    log.error("指标汇总失败 deviceId={}", device.getId(), e);
-                }
+        for (DeviceInfoDO device : filteredDevices) {
+            try {
+                boolean processed = processDevice(device, statPoint);
+                if (processed) success++;
+                else skip++;
+            } catch (Exception e) {
+                error++;
+                log.error("指标汇总失败 deviceId={}", device.getId(), e);
             }
         }
 

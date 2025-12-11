@@ -3,14 +3,17 @@ package com.weili.iot_portal.service.ingestion;
 import com.weili.iot_portal.common.enums.WebHookCategoryType;
 import com.weili.iot_portal.common.exception.IotPortalErrorCode;
 import com.weili.iot_portal.common.exception.IotPortalException;
+import com.weili.iot_portal.common.exception.IotPortalErrorCode;
+import com.weili.iot_portal.common.enums.WebHookCategoryType;
+import com.weili.iot_portal.common.enums.InboxStatusEnum;
 import com.weili.iot_portal.dal.dataobject.device.DeviceInfoDO;
 import com.weili.iot_portal.domain.ingestion.WebhookRequest;
 import com.weili.iot_portal.service.ingestion.support.DeviceMatchingService;
 import com.weili.iot_portal.service.ingestion.support.RealtimeWebhookCacheService;
 import com.weili.iot_portal.service.ingestion.support.WebhookIdempotentService;
 import com.weili.iot_portal.service.ingestion.support.WebhookInboxService;
-import com.weili.iot_portal.service.ingestion.support.WebhookSecurityService;
-import com.weili.iot_portal.service.ingestion.support.WebhookTimestampUtils;
+import com.weili.iot_portal.service.ingestion.support.WebhookProcessService;
+import com.weili.iot_portal.service.ingestion.WebhookSecurityService;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -39,8 +42,8 @@ public class WebhookReceiveService {
     @Autowired
     private RealtimeWebhookCacheService realtimeWebhookCacheService;
     
-    @Autowired(required = false)
-    private WebhookProcessWorker webhookProcessWorker;
+    @Autowired
+    private WebhookProcessService webhookProcessService;
     
     @Value("${webhook.inbox.async-process-enabled:true}")
     private boolean asyncProcessEnabled;
@@ -98,8 +101,6 @@ public class WebhookReceiveService {
         }
         request.setWebhookCategory(category);
         
-        // 统一转换时间戳：ThingsBoard 发送的是毫秒，统一转换为秒
-        WebhookTimestampUtils.normalizeTimestamp(request);
         // 优先使用请求体中的eventType（更准确），如果为空则使用URL路径中的eventType
         if (StringUtils.isBlank(request.getEventType())) {
             request.setEventType(eventType);
@@ -120,14 +121,13 @@ public class WebhookReceiveService {
             log.debug("[Webhook-处理] [步骤5] 业务数据已保存到收件箱");
             
             // 立即异步处理（实时处理）
-            if (asyncProcessEnabled && webhookProcessWorker != null) {
+            if (asyncProcessEnabled) {
                 processMessageAsync(request.getMessageId());
             }
         } else if (WebHookCategoryType.REALTIME.name().equalsIgnoreCase(category)) {
             realtimeWebhookCacheService.cache(eventType, device.getDeviceCode(), request);
             log.debug("[Webhook-处理] [步骤5] 实时数据已缓存");
         } else {
-            log.error("[Webhook-处理] [步骤5] 不支持的category: {}", category);
             throw new IotPortalException(IotPortalErrorCode.WEBHOOK_CATEGORY_NOT_SUPPORTED);
         }
         
@@ -149,7 +149,7 @@ public class WebhookReceiveService {
             com.weili.iot_portal.dal.dataobject.ingestion.WebhookInboxDO inbox = 
                 webhookInboxService.findByMessageId(messageId);
             
-            if (inbox == null || !"PENDING".equals(inbox.getStatus())) {
+            if (inbox == null || !InboxStatusEnum.PENDING.name().equals(inbox.getStatus())) {
                 log.debug("[Webhook-处理] 消息不存在或已被处理: messageId={}, status={}", 
                     messageId, inbox != null ? inbox.getStatus() : "null");
                 return;
@@ -169,16 +169,14 @@ public class WebhookReceiveService {
             // 重新查询最新状态的消息对象
             com.weili.iot_portal.dal.dataobject.ingestion.WebhookInboxDO processingInbox = 
                 webhookInboxService.findByMessageId(messageId);
-            if (processingInbox == null || !"PROCESSING".equals(processingInbox.getStatus())) {
+            if (processingInbox == null || !InboxStatusEnum.PROCESSING.name().equals(processingInbox.getStatus())) {
                 log.debug("[Webhook-处理] 消息状态异常，跳过处理: messageId={}, status={}", 
                     messageId, processingInbox != null ? processingInbox.getStatus() : "null");
                 return;
             }
             
-            // 调用 Worker 处理单条消息
-            if (webhookProcessWorker != null) {
-                webhookProcessWorker.processSingle(processingInbox);
-            }
+            // 调用处理服务处理单条消息
+            webhookProcessService.processSingle(processingInbox);
             
         } catch (Exception e) {
             log.error("[Webhook-处理] 异步处理消息失败: messageId={}", messageId, e);

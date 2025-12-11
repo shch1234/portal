@@ -7,8 +7,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Component;
 
-import java.time.LocalDateTime;
-
 /**
  * Webhook 监控与告警埋点（可选，依赖 Micrometer）
  */
@@ -56,8 +54,6 @@ public class WebhookMonitorService {
         record.setElapsedMs(elapsedMs);
         record.setErrorMessage(error);
         record.setWillRetry(willRetry);
-        record.setCreateTime(LocalDateTime.now());
-        record.setUpdateTime(LocalDateTime.now());
         monitorRecordRepository.insert(record);
     }
 }

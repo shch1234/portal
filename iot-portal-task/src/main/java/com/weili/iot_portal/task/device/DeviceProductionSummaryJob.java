@@ -65,26 +65,23 @@ public class DeviceProductionSummaryJob extends BaseScheduledJob {
         }
 
         int success = 0, skip = 0, error = 0;
-        Map<String, Map<String, List<DeviceInfoDO>>> grouped = allDevices.stream()
+        Map<String, List<DeviceInfoDO>> grouped = allDevices.stream()
                 .filter(d -> StringUtils.isNotBlank(d.getOrgFactoryId()))
-                .collect(Collectors.groupingBy(DeviceInfoDO::getTenantUuid,
-                        Collectors.groupingBy(DeviceInfoDO::getOrgFactoryId)));
+                .collect(Collectors.groupingBy(DeviceInfoDO::getOrgFactoryId));
 
-        for (Map.Entry<String, Map<String, List<DeviceInfoDO>>> tenantEntry : grouped.entrySet()) {
-            for (Map.Entry<String, List<DeviceInfoDO>> factoryEntry : tenantEntry.getValue().entrySet()) {
-                List<DeviceInfoDO> devices = factoryEntry.getValue();
-                for (DeviceInfoDO device : devices) {
-                    try {
-                        boolean processed = processDevice(device, statisticsTimeMs);
-                        if (processed) {
-                            success++;
-                        } else {
-                            skip++;
-                        }
-                    } catch (Exception e) {
-                        error++;
-                        log.error("产量汇总失败 deviceId={}", device.getId(), e);
+        for (Map.Entry<String, List<DeviceInfoDO>> factoryEntry : grouped.entrySet()) {
+            List<DeviceInfoDO> devices = factoryEntry.getValue();
+            for (DeviceInfoDO device : devices) {
+                try {
+                    boolean processed = processDevice(device, statisticsTimeMs);
+                    if (processed) {
+                        success++;
+                    } else {
+                        skip++;
                     }
+                } catch (Exception e) {
+                    error++;
+                    log.error("产量汇总失败 deviceId={}", device.getId(), e);
                 }
             }
         }

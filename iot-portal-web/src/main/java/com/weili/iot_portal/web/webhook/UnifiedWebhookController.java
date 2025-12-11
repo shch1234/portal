@@ -52,8 +52,7 @@ public class UnifiedWebhookController {
                                           @RequestHeader(value = "X-Webhook-Signature", required = false) String signature,
                                           @RequestHeader(value = "X-Webhook-Timestamp", required = false) String timestamp,
                                           @RequestHeader(value = "X-Webhook-Nonce", required = false) String nonce,
-                                          @RequestHeader(value = "X-Webhook-Secret", required = false) String headerSecret,
-                                          HttpServletRequest request) {
+                                          @RequestHeader(value = "X-Webhook-Secret", required = false) String headerSecret) {
         long startTime = System.currentTimeMillis();
         try {
             log.debug("[Webhook-接收] ====== 开始接收Webhook请求 ======");

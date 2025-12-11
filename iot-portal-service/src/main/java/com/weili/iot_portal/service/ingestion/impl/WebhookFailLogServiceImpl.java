@@ -90,7 +90,6 @@ public class WebhookFailLogServiceImpl implements WebhookFailLogService {
             }
             
             fail.setRecovered(true);
-            fail.setUpdateTime(LocalDateTime.now());
             failLogRepository.update(fail);
             
             log.debug("标记失败日志为已恢复成功: failLogId={}, messageId={}", failLogId, fail.getMessageId());

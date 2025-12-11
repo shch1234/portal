@@ -50,8 +50,7 @@ public class WebhookInboxService {
             request.getMessageId(), request.getEventType(), request.getDeviceCode(), request.getDeviceId());
         
         if (request == null || StringUtils.isBlank(request.getMessageId())) {
-            log.error("[Webhook-Inbox] 缺少messageId: messageId={}", request != null ? request.getMessageId() : "null");
-            throw new ServiceException(400, "缺少 messageId");
+            throw new IotPortalException(IotPortalErrorCode.WEBHOOK_MESSAGE_ID_MISSING);
         }
         
         Map<String, Object> payload = new HashMap<>();
@@ -94,22 +93,14 @@ public class WebhookInboxService {
      * @return 更新的记录数（0表示状态不符合条件，已被其他线程处理）
      */
     public int markProcessingWithLock(String messageId) {
-        return inboxMapper.update(null,
-            new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<WebhookInboxDO>()
-                .eq(WebhookInboxDO::getMessageId, messageId)
-                .eq(WebhookInboxDO::getStatus, "PENDING")  // 乐观锁：只有 PENDING 状态才能更新
-                .set(WebhookInboxDO::getStatus, "PROCESSING")
-        );
+        return inboxRepository.markProcessingWithLock(messageId);
     }
 
     /**
      * 根据 messageId 查询消息
      */
     public WebhookInboxDO findByMessageId(String messageId) {
-        return inboxMapper.selectOne(
-            new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<WebhookInboxDO>()
-                .eq(WebhookInboxDO::getMessageId, messageId)
-        );
+        return inboxRepository.findByMessageId(messageId);
     }
 
     /**
@@ -133,25 +124,14 @@ public class WebhookInboxService {
         
         // 1. 优先查询新消息（PENDING状态），按接收时间升序
         int pendingLimit = (int) (batchSize * (1 - failedMessageRatio));
-        List<WebhookInboxDO> pendingMessages = inboxMapper.selectList(
-                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<WebhookInboxDO>()
-                        .eq(WebhookInboxDO::getStatus, "PENDING")
-                        .orderByAsc(WebhookInboxDO::getReceivedTime)
-                        .last("limit " + pendingLimit)
-        );
+        List<WebhookInboxDO> pendingMessages = inboxRepository.fetchPendingMessages(pendingLimit);
         result.addAll(pendingMessages);
         log.debug("[Webhook-Inbox] 查询到新消息数: {}", pendingMessages.size());
         
         // 2. 查询失败消息（FAILED状态），按重试时间升序，限制数量
         int failedLimit = batchSize - result.size();
         if (failedLimit > 0) {
-            List<WebhookInboxDO> failedMessages = inboxMapper.selectList(
-                    new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<WebhookInboxDO>()
-                            .eq(WebhookInboxDO::getStatus, "FAILED")
-                            .le(WebhookInboxDO::getNextRetryTime, now)  // 只查询到达重试时间的消息
-                            .orderByAsc(WebhookInboxDO::getNextRetryTime)  // 按重试时间升序，优先处理重试时间早的
-                            .last("limit " + failedLimit)
-            );
+            List<WebhookInboxDO> failedMessages = inboxRepository.fetchFailedMessages(failedLimit, now);
             result.addAll(failedMessages);
             log.debug("[Webhook-Inbox] 查询到失败重试消息数: {}", failedMessages.size());
         }
@@ -172,19 +152,7 @@ public class WebhookInboxService {
         if (StringUtils.isBlank(deviceCode)) {
             return java.util.Collections.emptyList();
         }
-        
-        com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<WebhookInboxDO> wrapper = 
-            new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<WebhookInboxDO>()
-                .eq(WebhookInboxDO::getDeviceCode, deviceCode)
-                .eq(WebhookInboxDO::getStatus, "PROCESSING")
-                .orderByAsc(WebhookInboxDO::getReceivedTime);
-        
-        // 排除当前消息本身
-        if (StringUtils.isNotBlank(excludeMessageId)) {
-            wrapper.ne(WebhookInboxDO::getMessageId, excludeMessageId);
-        }
-        
-        return inboxMapper.selectList(wrapper);
+        return inboxRepository.findProcessingByDevice(deviceCode, excludeMessageId);
     }
     
     /**
@@ -202,13 +170,7 @@ public class WebhookInboxService {
         
         // 从 payload 中查询相同 dataTimestamp 的消息
         // 注意：这里需要从 payload 的 JSON 中提取 dataTimestamp，所以需要查询所有 PENDING 和 PROCESSING 状态的消息
-        List<WebhookInboxDO> allMessages = inboxMapper.selectList(
-            new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<WebhookInboxDO>()
-                .eq(WebhookInboxDO::getDeviceCode, deviceCode)
-                .in(WebhookInboxDO::getStatus, java.util.Arrays.asList("PENDING", "PROCESSING"))
-                .ne(StringUtils.isNotBlank(excludeMessageId), WebhookInboxDO::getMessageId, excludeMessageId)
-                .orderByAsc(WebhookInboxDO::getReceivedTime)
-        );
+        List<WebhookInboxDO> allMessages = inboxRepository.findPendingOrProcessingByDevice(deviceCode, excludeMessageId);
         
         // 从 payload 中提取 dataTimestamp 并过滤
         List<WebhookInboxDO> result = new java.util.ArrayList<>();
@@ -247,16 +209,11 @@ public class WebhookInboxService {
         
         // 使用乐观锁：只有 PENDING 或 FAILED 状态才能更新为 PROCESSING
         // 这样可以避免重复处理已成功（SUCCESS）或正在处理（PROCESSING）的消息
-        int updated = inboxMapper.update(null,
-            new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<WebhookInboxDO>()
-                .eq(WebhookInboxDO::getMessageId, inbox.getMessageId())
-                .in(WebhookInboxDO::getStatus, "PENDING", "FAILED")  // 乐观锁：只有待处理或失败状态才能更新
-                .set(WebhookInboxDO::getStatus, "PROCESSING")
-        );
+        int updated = inboxRepository.markProcessing(inbox.getMessageId());
         
         if (updated > 0) {
             log.debug("[Webhook-Inbox] 已更新为处理中状态: messageId={}", inbox.getMessageId());
-            inbox.setStatus("PROCESSING");  // 更新本地对象状态
+            inbox.setStatus(InboxStatusEnum.PROCESSING.name());  // 更新本地对象状态
             return true;
         } else {
             log.debug("[Webhook-Inbox] 状态更新失败，消息可能已被处理或正在处理: messageId={}, 当前状态={}", 
@@ -277,19 +234,14 @@ public class WebhookInboxService {
             inbox.getMessageId(), inbox.getEventType(), inbox.getProcessCount());
         
         // 使用乐观锁：只有 PROCESSING 状态才能更新为 SUCCESS
-        int updated = inboxMapper.update(null,
-            new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<WebhookInboxDO>()
-                .eq(WebhookInboxDO::getMessageId, inbox.getMessageId())
-                .eq(WebhookInboxDO::getStatus, "PROCESSING")  // 乐观锁：只有处理中状态才能更新为成功
-                .set(WebhookInboxDO::getStatus, "SUCCESS")
-                .set(WebhookInboxDO::getProcessedTime, LocalDateTime.now())
-        );
+        LocalDateTime processedTime = LocalDateTime.now();
+        int updated = inboxRepository.markSuccess(inbox.getMessageId(), processedTime);
         
         if (updated > 0) {
             log.debug("[Webhook-Inbox] 已更新为成功状态: messageId={}, processedTime={}", 
-                inbox.getMessageId(), LocalDateTime.now());
-            inbox.setStatus("SUCCESS");
-            inbox.setProcessedTime(LocalDateTime.now());
+                inbox.getMessageId(), processedTime);
+            inbox.setStatus(InboxStatusEnum.SUCCESS.name());
+            inbox.setProcessedTime(processedTime);
             return true;
         } else {
             log.warn("[Webhook-Inbox] 状态更新失败，消息可能已被其他线程处理: messageId={}, 当前状态={}", 
@@ -315,21 +267,13 @@ public class WebhookInboxService {
             inbox.getMessageId(), inbox.getEventType(), currentRetry, newRetryCount, nextRetryTime, errorMessage);
         
         // 使用乐观锁：只有 PROCESSING 状态才能更新为 FAILED
-        int updated = inboxMapper.update(null,
-            new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<WebhookInboxDO>()
-                .eq(WebhookInboxDO::getMessageId, inbox.getMessageId())
-                .eq(WebhookInboxDO::getStatus, "PROCESSING")  // 乐观锁：只有处理中状态才能更新为失败
-                .set(WebhookInboxDO::getProcessCount, newRetryCount)
-                .set(WebhookInboxDO::getStatus, "FAILED")
-                .set(WebhookInboxDO::getLastError, errorMessage)
-                .set(WebhookInboxDO::getNextRetryTime, nextRetryTime)
-        );
+        int updated = inboxRepository.markFailed(inbox.getMessageId(), newRetryCount, errorMessage, nextRetryTime);
         
         if (updated > 0) {
             log.debug("[Webhook-Inbox] 已更新为失败状态: messageId={}, processCount={}, nextRetryTime={}", 
                 inbox.getMessageId(), newRetryCount, nextRetryTime);
             inbox.setProcessCount(newRetryCount);
-            inbox.setStatus("FAILED");
+            inbox.setStatus(InboxStatusEnum.FAILED.name());
             inbox.setLastError(errorMessage);
             inbox.setNextRetryTime(nextRetryTime);
             return true;
@@ -357,21 +301,13 @@ public class WebhookInboxService {
             inbox.getMessageId(), inbox.getEventType(), errorMessage);
         
         // 使用乐观锁：只有 PROCESSING 状态才能更新为 FAILED
-        int updated = inboxMapper.update(null,
-            new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<WebhookInboxDO>()
-                .eq(WebhookInboxDO::getMessageId, inbox.getMessageId())
-                .eq(WebhookInboxDO::getStatus, "PROCESSING")  // 乐观锁：只有处理中状态才能更新为失败
-                .set(WebhookInboxDO::getProcessCount, maxRetryCount)
-                .set(WebhookInboxDO::getStatus, "FAILED")
-                .set(WebhookInboxDO::getLastError, errorMessage)
-                .set(WebhookInboxDO::getNextRetryTime, null)  // 不可重试，设置为 null
-        );
+        int updated = inboxRepository.markFailedNoRetry(inbox.getMessageId(), maxRetryCount, errorMessage);
         
         if (updated > 0) {
             log.debug("[Webhook-Inbox] 已更新为失败状态（不可重试）: messageId={}, processCount={}", 
                 inbox.getMessageId(), maxRetryCount);
             inbox.setProcessCount(maxRetryCount);
-            inbox.setStatus("FAILED");
+            inbox.setStatus(InboxStatusEnum.FAILED.name());
             inbox.setLastError(errorMessage);
             inbox.setNextRetryTime(null);
             return true;
@@ -436,14 +372,7 @@ public class WebhookInboxService {
         // 批量删除，每次最多删除 batchSize 条，避免一次性删除过多数据
         do {
             // 查询要删除的消息ID（限制数量）
-            List<WebhookInboxDO> toDelete = inboxMapper.selectList(
-                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<WebhookInboxDO>()
-                    .select(WebhookInboxDO::getId)  // 只查询ID，减少内存占用
-                    .eq(WebhookInboxDO::getStatus, "SUCCESS")
-                    .lt(WebhookInboxDO::getProcessedTime, cutoffTime)
-                    .orderByAsc(WebhookInboxDO::getProcessedTime)  // 按处理时间升序，优先删除最早的消息
-                    .last("limit " + batchSize)
-            );
+            List<WebhookInboxDO> toDelete = inboxRepository.findSuccessMessagesForCleanup(batchSize, cutoffTime);
             
             if (toDelete.isEmpty()) {
                 break;
@@ -454,7 +383,7 @@ public class WebhookInboxService {
                 .map(WebhookInboxDO::getId)
                 .collect(Collectors.toList());
             
-            batchDeleted = inboxMapper.deleteBatchIds(ids);
+            batchDeleted = inboxRepository.deleteBatchByIds(ids);
             totalDeleted += batchDeleted;
             
             log.debug("[Webhook-Inbox] 批量删除: 本次删除{}条，累计删除{}条", batchDeleted, totalDeleted);
@@ -477,22 +406,10 @@ public class WebhookInboxService {
      */
     public Map<String, Long> getStatistics() {
         Map<String, Long> stats = new HashMap<>();
-        stats.put("PENDING", inboxMapper.selectCount(
-            new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<WebhookInboxDO>()
-                .eq(WebhookInboxDO::getStatus, "PENDING")
-        ));
-        stats.put("PROCESSING", inboxMapper.selectCount(
-            new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<WebhookInboxDO>()
-                .eq(WebhookInboxDO::getStatus, "PROCESSING")
-        ));
-        stats.put("SUCCESS", inboxMapper.selectCount(
-            new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<WebhookInboxDO>()
-                .eq(WebhookInboxDO::getStatus, "SUCCESS")
-        ));
-        stats.put("FAILED", inboxMapper.selectCount(
-            new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<WebhookInboxDO>()
-                .eq(WebhookInboxDO::getStatus, "FAILED")
-        ));
+        stats.put(InboxStatusEnum.PENDING.name(), inboxRepository.countByStatus(InboxStatusEnum.PENDING.name()));
+        stats.put(InboxStatusEnum.PROCESSING.name(), inboxRepository.countByStatus(InboxStatusEnum.PROCESSING.name()));
+        stats.put(InboxStatusEnum.SUCCESS.name(), inboxRepository.countByStatus(InboxStatusEnum.SUCCESS.name()));
+        stats.put(InboxStatusEnum.FAILED.name(), inboxRepository.countByStatus(InboxStatusEnum.FAILED.name()));
         return stats;
     }
 }

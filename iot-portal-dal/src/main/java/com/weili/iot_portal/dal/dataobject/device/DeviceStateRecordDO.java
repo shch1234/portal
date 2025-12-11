@@ -44,19 +44,20 @@ public class DeviceStateRecordDO implements Serializable {
     private String stateCode;
 
     /**
-     * 状态开始时间戳（秒，Unix时间戳，对应 start_ts 列）
+     * 状态开始时间戳（毫秒，Unix时间戳，对应 start_ts 列）
      */
     private Long startTs;
 
     /**
-     * 状态结束时间戳（秒，Unix时间戳，NULL表示进行中，对应 end_ts 列）
+     * 状态结束时间戳（毫秒，Unix时间戳，NULL表示进行中，对应 end_ts 列）
      */
     private Long endTs;
 
     /**
-     * 持续时长（秒，对应 duration_s 列）
+     * 持续时长（毫秒，对应 duration_s 列）
+     * 注意：时间戳和持续时长都以毫秒为单位存储
      */
-    private Integer durationS;
+    private Long durationS;
 
     /**
      * 所属班次日期（对应 shift_date 列）
