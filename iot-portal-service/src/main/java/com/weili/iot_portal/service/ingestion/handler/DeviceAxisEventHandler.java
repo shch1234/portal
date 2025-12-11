@@ -7,6 +7,7 @@ import com.weili.iot_portal.dal.dataobject.ingestion.WebhookInboxDO;
 import com.weili.iot_portal.domain.ingestion.WebhookRequest;
 import com.weili.iot_portal.service.cache.RealTimeCacheService;
 import com.weili.iot_portal.service.cache.DeviceIdentityCacheService;
+import com.weili.iot_portal.service.ingestion.handler.fields.DeviceAxisEventFields;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -32,7 +33,6 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class DeviceAxisEventHandler implements WebhookEventHandler {
 
-    private static final String EVENT_TYPE = "DEVICE_AXIS";
 
     private final DeviceIdentityCacheService deviceIdentityCacheService;
     private final RealTimeCacheService realTimeCacheService;
@@ -54,7 +54,7 @@ public class DeviceAxisEventHandler implements WebhookEventHandler {
 
     @Override
     public boolean supports(String eventType) {
-        return EVENT_TYPE.equals(eventType);
+        return DeviceAxisEventFields.EVENT_TYPE.equals(eventType);
     }
 
     @Override
@@ -73,7 +73,7 @@ public class DeviceAxisEventHandler implements WebhookEventHandler {
         // 解析设备标识（按 deviceCode / deviceId 解析为 portal 的 deviceInfoId / factoryId）
         DeviceIdentityCacheService.DeviceIdentity identity = deviceIdentityCacheService
                 .resolveByDeviceCode(request.getDeviceCode(),
-                        request.getDeviceId(), "DeviceAxisEvent");
+                        request.getDeviceId(), DeviceAxisEventFields.EVENT_SOURCE);
         String deviceInfoId = identity.getDeviceId();
         String orgFactoryId = identity.getFactoryId();
 
@@ -92,18 +92,18 @@ public class DeviceAxisEventHandler implements WebhookEventHandler {
         } else {
             Map<String, String> payload = new HashMap<>();
             axisFields.forEach((k, v) -> payload.put(k, String.valueOf(v)));
-            payload.put("updatedAt", String.valueOf(eventTimestamp));
-            payload.put("source", "TB");
+            payload.put(DeviceAxisEventFields.UPDATED_AT, String.valueOf(eventTimestamp));
+            payload.put(DeviceAxisEventFields.SOURCE, DeviceAxisEventFields.SOURCE_TB);
             if (StringUtils.isNotBlank(request.getMessageId())) {
-                payload.put("traceId", request.getMessageId());
+                payload.put(DeviceAxisEventFields.TRACE_ID, request.getMessageId());
             }
             // 倍率值
-            Object ratio = eventData.get("ratio");
+            Object ratio = eventData.get(DeviceAxisEventFields.RATIO);
             if (ratio == null) {
-                ratio = eventData.get("override");
+                ratio = eventData.get(DeviceAxisEventFields.OVERRIDE);
             }
             if (ratio != null) {
-                payload.put("ratio", String.valueOf(ratio));
+                payload.put(DeviceAxisEventFields.RATIO, String.valueOf(ratio));
             }
             String axisKey = String.format(RedisConstant.RT_AXIS,
                     defaultBlank(orgFactoryId), defaultBlank(deviceInfoId));
@@ -111,9 +111,9 @@ public class DeviceAxisEventHandler implements WebhookEventHandler {
         }
 
         // 写入曲线：负载/转速/进给（如果上报了相应字段）
-        appendCurveIfPresent("load", eventTimestamp, request, orgFactoryId, deviceInfoId, eventData, axisCurveMaxLenLoad);
-        appendCurveIfPresent("rpm", eventTimestamp, request, orgFactoryId, deviceInfoId, eventData, axisCurveMaxLenRpm);
-        appendCurveIfPresent("feed", eventTimestamp, request, orgFactoryId, deviceInfoId, eventData, axisCurveMaxLenFeed);
+        appendCurveIfPresent(DeviceAxisEventFields.METRIC_LOAD, eventTimestamp, request, orgFactoryId, deviceInfoId, eventData, axisCurveMaxLenLoad);
+        appendCurveIfPresent(DeviceAxisEventFields.METRIC_RPM, eventTimestamp, request, orgFactoryId, deviceInfoId, eventData, axisCurveMaxLenRpm);
+        appendCurveIfPresent(DeviceAxisEventFields.METRIC_FEED, eventTimestamp, request, orgFactoryId, deviceInfoId, eventData, axisCurveMaxLenFeed);
     }
 
     /**
@@ -122,7 +122,7 @@ public class DeviceAxisEventHandler implements WebhookEventHandler {
     private Map<String, Object> extractAxisFields(Map<String, Object> eventData) {
         Map<String, Object> axisMap = new HashMap<>();
         eventData.forEach((k, v) -> {
-            if (k != null && k.startsWith("axis.") && v != null) {
+            if (DeviceAxisEventFields.isAxisField(k) && v != null) {
                 axisMap.put(k, v);
             }
         });
@@ -140,13 +140,13 @@ public class DeviceAxisEventHandler implements WebhookEventHandler {
         }
         long ts = eventTimestamp != null ? eventTimestamp : System.currentTimeMillis();
         String pointJson = String.format("{\"ts\":%d,\"value\":%s}", ts, value);
-        String key = String.format("rt:axis:curve:%s:%s:%s",
+        String key = String.format(DeviceAxisEventFields.CURVE_KEY_FORMAT,
                 defaultBlank(metric), defaultBlank(orgFactoryId), defaultBlank(deviceInfoId));
         realTimeCacheService.lpushTrimExpire(key, pointJson, maxLen, axisCurveTtlMillis);
     }
 
     private String defaultBlank(String value) {
-        return StringUtils.defaultIfBlank(value, "none");
+        return StringUtils.defaultIfBlank(value, DeviceAxisEventFields.DEFAULT_BLANK_PLACEHOLDER);
     }
 }
 

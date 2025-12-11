@@ -164,6 +164,56 @@ public final class DeviceToolEventFields {
      */
     public static final String TOOL_TYPE = "toolType";
 
+    // ==================== 业务常量值 ====================
+    /**
+     * 默认空值占位符
+     * 当工厂ID或设备ID为空时，使用此值作为 Redis Key 的占位符
+     */
+    public static final String DEFAULT_BLANK_PLACEHOLDER = "none";
+
+    /**
+     * 初始版本号
+     * 新创建的刀补补偿记录的初始版本号
+     */
+    public static final int INITIAL_VERSION = 1;
+
+    /**
+     * 活跃状态：激活
+     * 表示刀补补偿记录处于活跃状态
+     */
+    public static final int ACTIVE_STATUS_ENABLED = 1;
+
+    /**
+     * 活跃状态：禁用
+     * 表示刀补补偿记录已关闭（被新版本替代）
+     */
+    public static final int ACTIVE_STATUS_DISABLED = 0;
+
+    /**
+     * 时间戳转换：毫秒转秒的除数
+     * 用于将毫秒时间戳转换为秒时间戳
+     */
+    public static final long MILLIS_TO_SECONDS = 1000L;
+
+    // ==================== 刀具变更事件相关 ====================
+    /**
+     * 分布式锁键前缀：刀具变更
+     * 用于防止同一设备的并发换刀操作
+     */
+    public static final String LOCK_KEY_PREFIX_TOOL_CHANGE = "device_tool_lock:";
+
+    /**
+     * 分布式锁超时时间（秒）：刀具变更
+     * 刀具变更操作的锁超时时间，防止死锁
+     */
+    public static final long LOCK_TIMEOUT_SECONDS_TOOL_CHANGE = 5L;
+
+    /**
+     * 分布式锁值
+     * Redis 锁的占位值，表示锁已被占用
+     */
+    public static final String LOCK_VALUE = "1";
+
     // ==================== 辅助方法 ====================
     /**
      * 判断字段名是否为刀具编号的别名
@@ -230,35 +280,5 @@ public final class DeviceToolEventFields {
                 || key.startsWith(HOLDER_PREFIX.toLowerCase());
     }
 
-    // ==================== 业务常量值 ====================
-    /**
-     * 默认空值占位符
-     * 当工厂ID或设备ID为空时，使用此值作为 Redis Key 的占位符
-     */
-    public static final String DEFAULT_BLANK_PLACEHOLDER = "none";
-
-    /**
-     * 初始版本号
-     * 新创建的刀补补偿记录的初始版本号
-     */
-    public static final int INITIAL_VERSION = 1;
-
-    /**
-     * 活跃状态：激活
-     * 表示刀补补偿记录处于活跃状态
-     */
-    public static final int ACTIVE_STATUS_ENABLED = 1;
-
-    /**
-     * 活跃状态：禁用
-     * 表示刀补补偿记录已关闭（被新版本替代）
-     */
-    public static final int ACTIVE_STATUS_DISABLED = 0;
-
-    /**
-     * 时间戳转换：毫秒转秒的除数
-     * 用于将毫秒时间戳转换为秒时间戳
-     */
-    public static final long MILLIS_TO_SECONDS = 1000L;
 }
 

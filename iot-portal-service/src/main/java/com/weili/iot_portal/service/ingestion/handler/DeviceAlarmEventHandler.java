@@ -7,6 +7,7 @@ import com.weili.iot_portal.dal.dataobject.ingestion.WebhookInboxDO;
 import com.weili.iot_portal.dal.repository.device.DeviceAlarmHistoryRepository;
 import com.weili.iot_portal.domain.ingestion.WebhookRequest;
 import com.weili.iot_portal.service.cache.DeviceIdentityCacheService;
+import com.weili.iot_portal.service.ingestion.handler.fields.DeviceAlarmEventFields;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -26,14 +27,13 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class DeviceAlarmEventHandler implements WebhookEventHandler {
 
-    private static final String EVENT_TYPE = "DEVICE_ALARM";
 
     private final DeviceIdentityCacheService deviceIdentityCacheService;
     private final DeviceAlarmHistoryRepository deviceAlarmHistoryRepository;
 
     @Override
     public boolean supports(String eventType) {
-        return EVENT_TYPE.equals(eventType);
+        return DeviceAlarmEventFields.EVENT_TYPE.equals(eventType);
     }
 
     @Override
@@ -54,12 +54,13 @@ public class DeviceAlarmEventHandler implements WebhookEventHandler {
         // 解析设备身份
         DeviceIdentityCacheService.DeviceIdentity identity = deviceIdentityCacheService
                 .resolveByDeviceCode(request.getDeviceCode(),
-                        request.getDeviceId(), "DeviceAlarmEvent");
+                        request.getDeviceId(), DeviceAlarmEventFields.EVENT_SOURCE);
         String deviceInfoId = identity.getDeviceId();
         String orgFactoryId = identity.getFactoryId();
 
         long eventTs = request.getDataTimestamp() != null ? request.getDataTimestamp()
-                : (request.getTimestamp() != null ? request.getTimestamp() : System.currentTimeMillis() / 1000);
+                : (request.getTimestamp() != null ? request.getTimestamp()
+                : System.currentTimeMillis() / DeviceAlarmEventFields.MILLIS_TO_SECONDS);
 
         // 当前活跃报警
         List<DeviceAlarmHistoryDO> activeList = deviceAlarmHistoryRepository.findActiveByDevice(orgFactoryId, deviceInfoId);
@@ -72,14 +73,14 @@ public class DeviceAlarmEventHandler implements WebhookEventHandler {
         // 新增或更新现有（相同 code 视为同一条报警）
         // 如果alarms为空，incomingCodes也为空，后续会关闭所有活跃报警
         for (Map<String, Object> alarm : alarms) {
-            String code = toStr(alarm.get("alarmCode"));
+            String code = toStr(alarm.get(DeviceAlarmEventFields.ALARM_CODE));
             if (StringUtils.isBlank(code)) {
                 continue;
             }
             incomingCodes.add(code);
             DeviceAlarmHistoryDO existing = activeByCode.get(code);
-            String text = toStr(alarm.get("alarmText"));
-            String level = toStr(alarm.get("alarmLevel"));
+            String text = toStr(alarm.get(DeviceAlarmEventFields.ALARM_TEXT));
+            String level = toStr(alarm.get(DeviceAlarmEventFields.ALARM_LEVEL));
 
             if (existing == null) {
                 // 新报警
@@ -92,7 +93,7 @@ public class DeviceAlarmEventHandler implements WebhookEventHandler {
                 record.setStartTs(eventTs);
                 record.setEndTs(null);
                 record.setDurationS(null);
-                record.setIsActive(1);
+                record.setIsActive(DeviceAlarmEventFields.ACTIVE_STATUS_ENABLED);
                 deviceAlarmHistoryRepository.insert(record);
                 continue;
             }
@@ -124,14 +125,14 @@ public class DeviceAlarmEventHandler implements WebhookEventHandler {
                 if (existing.getStartTs() != null) {
                     existing.setDurationS((int) (eventTs - existing.getStartTs()));
                 }
-                existing.setIsActive(0);
+                existing.setIsActive(DeviceAlarmEventFields.ACTIVE_STATUS_DISABLED);
                 deviceAlarmHistoryRepository.updateById(existing);
             }
         }
     }
 
     private List<Map<String, Object>> extractAlarms(Map<String, Object> eventData) {
-        Object raw = eventData.get("alarms");
+        Object raw = eventData.get(DeviceAlarmEventFields.ALARMS);
         if (raw instanceof List<?>) {
             List<?> list = (List<?>) raw;
             List<Map<String, Object>> result = new ArrayList<>();

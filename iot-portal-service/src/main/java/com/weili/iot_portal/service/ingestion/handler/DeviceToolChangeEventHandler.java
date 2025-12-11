@@ -40,17 +40,6 @@ import java.util.Map;
 @Component
 @RequiredArgsConstructor
 public class DeviceToolChangeEventHandler implements WebhookEventHandler {
-    /**
-     * 分布式锁键前缀：刀具变更锁
-     * 用于防止同一设备的并发换刀操作
-     */
-    public static final String LOCK_KEY_PREFIX_TOOL_CHANGE = "device_tool_lock:";
-
-    /**
-     * 分布式锁超时时间（秒）
-     * 刀具变更操作的锁超时时间，防止死锁
-     */
-    public static final long LOCK_TIMEOUT_SECONDS_TOOL_CHANGE = 5L;
 
     private final DeviceToolRecordRepository deviceToolRecordRepository;
     private final DeviceIdentityCacheService deviceIdentityCacheService;
@@ -94,10 +83,10 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
         String deviceInfoId = identity.getDeviceId();
 
         // 分布式锁，避免并发换刀
-        String lockKey = LOCK_KEY_PREFIX_TOOL_CHANGE + deviceInfoId;
+        String lockKey = DeviceToolEventFields.LOCK_KEY_PREFIX_TOOL_CHANGE + deviceInfoId;
         Boolean lockAcquired = redisTemplate.opsForValue()
-                .setIfAbsent(lockKey, "1",
-                        Duration.ofSeconds(LOCK_TIMEOUT_SECONDS_TOOL_CHANGE));
+                .setIfAbsent(lockKey, DeviceToolEventFields.LOCK_VALUE,
+                        Duration.ofSeconds(DeviceToolEventFields.LOCK_TIMEOUT_SECONDS_TOOL_CHANGE));
         if (!Boolean.TRUE.equals(lockAcquired)) {
             log.warn("获取刀具锁失败，可能正在并发处理: deviceInfoId={}", deviceInfoId);
             throw new IotPortalException(IotPortalErrorCode.EVENT_TOOL_CHANGE_PROCESSING);

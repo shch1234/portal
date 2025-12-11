@@ -9,6 +9,7 @@ import com.weili.iot_portal.domain.ingestion.WebhookRequest;
 import com.weili.iot_portal.service.shift.IShiftConfigService;
 import com.weili.iot_portal.service.shift.model.ShiftTimeRange;
 import com.weili.iot_portal.service.cache.DeviceIdentityCacheService;
+import com.weili.iot_portal.service.ingestion.handler.fields.DeviceProductionEventFields;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -31,7 +32,6 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class DeviceProductionEventHandler implements WebhookEventHandler {
 
-    private static final String EVENT_TYPE = "DEVICE_PRODUCTION";
 
     private final DeviceIdentityCacheService deviceIdentityCacheService;
     private final DeviceProductionRecordRepository deviceProductionRecordRepository;
@@ -39,7 +39,7 @@ public class DeviceProductionEventHandler implements WebhookEventHandler {
 
     @Override
     public boolean supports(String eventType) {
-        return EVENT_TYPE.equals(eventType);
+        return DeviceProductionEventFields.EVENT_TYPE.equals(eventType);
     }
 
     @Override
@@ -54,8 +54,8 @@ public class DeviceProductionEventHandler implements WebhookEventHandler {
         if (eventData == null) {
             throw new IotPortalException(IotPortalErrorCode.EVENT_DATA_EMPTY);
         }
-        String status = toStr(eventData.get("status"));
-        if (!("start".equalsIgnoreCase(status) || "end".equalsIgnoreCase(status))) {
+        String status = toStr(eventData.get(DeviceProductionEventFields.STATUS));
+        if (!DeviceProductionEventFields.isValidStatus(status)) {
             throw new IotPortalException(IotPortalErrorCode.EVENT_PRODUCTION_STATUS_INVALID);
         }
 
@@ -68,13 +68,13 @@ public class DeviceProductionEventHandler implements WebhookEventHandler {
 
         DeviceIdentityCacheService.DeviceIdentity identity = deviceIdentityCacheService
                 .resolveByDeviceCode(request.getDeviceCode(),
-                        request.getDeviceId(), "DeviceProductionEvent");
+                        request.getDeviceId(), DeviceProductionEventFields.EVENT_SOURCE);
         String deviceInfoId = identity.getDeviceId();
         String orgFactoryId = identity.getFactoryId();
 
         ShiftInfo shift = resolveShift(orgFactoryId, deviceInfoId, ts);
 
-        if ("start".equalsIgnoreCase(status)) {
+        if (DeviceProductionEventFields.STATUS_START.equalsIgnoreCase(status)) {
             handleStart(eventData, deviceInfoId, orgFactoryId, ts, shift);
         } else {
             handleEnd(eventData, deviceInfoId, orgFactoryId, ts, shift);
@@ -89,10 +89,10 @@ public class DeviceProductionEventHandler implements WebhookEventHandler {
         record.setOrgFactoryId(orgFactoryId);
         record.setStartTs(ts);
         record.setEndTs(null);
-        record.setProgramName(toStr(eventData.get("programName")));
+        record.setProgramName(toStr(eventData.get(DeviceProductionEventFields.PROGRAM_NAME)));
         record.setShiftDate(shift.shiftDate());
         record.setShiftCode(shift.shiftCode());
-        record.setCountSource(toStr(eventData.get("countSource")));
+        record.setCountSource(toStr(eventData.get(DeviceProductionEventFields.COUNT_SOURCE)));
         deviceProductionRecordRepository.insert(record);
     }
 
@@ -108,10 +108,10 @@ public class DeviceProductionEventHandler implements WebhookEventHandler {
             record.setStartTs(ts);
             record.setEndTs(ts);
             record.setDurationS(0);
-            record.setProgramName(toStr(eventData.get("programName")));
+            record.setProgramName(toStr(eventData.get(DeviceProductionEventFields.PROGRAM_NAME)));
             record.setShiftDate(shift.shiftDate());
             record.setShiftCode(shift.shiftCode());
-            record.setCountSource(toStr(eventData.get("countSource")));
+            record.setCountSource(toStr(eventData.get(DeviceProductionEventFields.COUNT_SOURCE)));
             deviceProductionRecordRepository.insert(record);
             return;
         }
@@ -131,7 +131,7 @@ public class DeviceProductionEventHandler implements WebhookEventHandler {
     }
 
     private ShiftInfo resolveShift(String factoryId, String deviceId, Long tsSeconds) {
-        long tsMs = tsSeconds * 1000L;
+        long tsMs = tsSeconds * DeviceProductionEventFields.SECONDS_TO_MILLIS;
         ShiftTimeRange range = deviceShiftConfigService.calculateShiftRange(factoryId, deviceId, tsMs);
         LocalDate shiftDate = Instant.ofEpochMilli(range.getStartTs())
                 .atZone(ZoneOffset.systemDefault())

@@ -11,6 +11,7 @@ import com.weili.iot_portal.domain.ingestion.WebhookRequest;
 import com.weili.iot_portal.service.cache.DeviceIdentityCacheService;
 import com.weili.iot_portal.service.cache.RealTimeCacheService;
 import com.weili.iot_portal.service.ingestion.WebhookFailLogService;
+import com.weili.iot_portal.service.ingestion.handler.fields.DeviceStateEventFields;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -39,11 +40,6 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class DeviceStateEventHandler implements WebhookEventHandler {
 
-    private static final String EVENT_TYPE = "DEVICE_STATE";
-    private static final String EVENT_TYPE_HEARTBEAT = "DEVICE_STATE_HEARTBEAT";
-    private static final String LOCK_KEY_PREFIX = "device_state_lock:";
-    private static final long LOCK_TIMEOUT_SECONDS = 5;
-    private static final String UNKNOWN_STATE = "UNKNOWN";
 
     private final DeviceStateRecordRepository stateTimelineRepository;
     private final DeviceIdentityCacheService deviceIdentityCacheService;
@@ -59,7 +55,8 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
 
     @Override
     public boolean supports(String eventType) {
-        return EVENT_TYPE.equals(eventType) || EVENT_TYPE_HEARTBEAT.equals(eventType);
+        return DeviceStateEventFields.EVENT_TYPE.equals(eventType)
+                || DeviceStateEventFields.EVENT_TYPE_HEARTBEAT.equals(eventType);
     }
 
     @Override
@@ -70,7 +67,7 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void handle(WebhookInboxDO inbox, WebhookRequest request) throws Exception {
-        if (EVENT_TYPE_HEARTBEAT.equals(request.getEventType())) {
+        if (DeviceStateEventFields.EVENT_TYPE_HEARTBEAT.equals(request.getEventType())) {
             handleHeartbeat(request);
             return;
         }
@@ -80,8 +77,8 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
             throw new IotPortalException(IotPortalErrorCode.EVENT_DATA_EMPTY);
         }
 
-        String previousState = getStringValue(eventData, "previousState");
-        String currentState = getStringValue(eventData, "currentState");
+        String previousState = getStringValue(eventData, DeviceStateEventFields.PREVIOUS_STATE);
+        String currentState = getStringValue(eventData, DeviceStateEventFields.CURRENT_STATE);
         if (StringUtils.isBlank(currentState)) {
             throw new IotPortalException(IotPortalErrorCode.EVENT_CURRENT_STATE_EMPTY);
         }
@@ -97,14 +94,15 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
         // 2. 解析设备信息
         DeviceIdentityCacheService.DeviceIdentity identity = deviceIdentityCacheService
                 .resolveByDeviceCode(request.getDeviceCode(),
-                        request.getDeviceId(), "DeviceStateEvent");
+                        request.getDeviceId(), DeviceStateEventFields.EVENT_SOURCE);
         String deviceInfoId = identity.getDeviceId();
         String orgFactoryId = identity.getFactoryId();
 
         // 3. 使用分布式锁保证同一设备的状态更新串行化
-        String lockKey = LOCK_KEY_PREFIX + deviceInfoId;
+        String lockKey = DeviceStateEventFields.LOCK_KEY_PREFIX + deviceInfoId;
         Boolean lockAcquired = redisTemplate.opsForValue()
-                .setIfAbsent(lockKey, "1", Duration.ofSeconds(LOCK_TIMEOUT_SECONDS));
+                .setIfAbsent(lockKey, DeviceStateEventFields.LOCK_VALUE,
+                        Duration.ofSeconds(DeviceStateEventFields.LOCK_TIMEOUT_SECONDS));
 
         if (!Boolean.TRUE.equals(lockAcquired)) {
             log.warn("获取设备状态锁失败，可能正在并发处理: deviceInfoId={}", deviceInfoId);
@@ -146,11 +144,11 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
             // 写入实时状态缓存（覆盖写，供前端轮询）
             Map<String, String> payload = new HashMap<>();
             long ts = eventTimestamp;
-            payload.put("state", currentState);
-            payload.put("updatedAt", String.valueOf(ts));
-            payload.put("source", "TB");
+            payload.put(DeviceStateEventFields.STATE, currentState);
+            payload.put(DeviceStateEventFields.UPDATED_AT, String.valueOf(ts));
+            payload.put(DeviceStateEventFields.SOURCE, DeviceStateEventFields.SOURCE_TB);
             if (StringUtils.isNotBlank(request.getMessageId())) {
-                payload.put("traceId", request.getMessageId());
+                payload.put(DeviceStateEventFields.TRACE_ID, request.getMessageId());
             }
             String stateKey = formatStateKey(orgFactoryId, deviceInfoId);
             realTimeCacheService.hsetWithTtl(stateKey, payload, stateTtlMillis);
@@ -177,7 +175,7 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
      */
     private void refreshHeartbeat(String factoryId, String deviceId, String traceId) {
         String hbKey = formatStateHeartbeatKey(factoryId, deviceId);
-        String value = StringUtils.defaultIfBlank(traceId, "1");
+        String value = StringUtils.defaultIfBlank(traceId, DeviceStateEventFields.DEFAULT_HEARTBEAT_VALUE);
         realTimeCacheService.setWithTtlSeconds(hbKey, value, stateHeartbeatTtlSeconds);
     }
 
@@ -254,11 +252,11 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
                     deviceInfoId, latestEndTs, eventTimestamp);
 
             Map<String, Object> gapProperties = new HashMap<>();
-            gapProperties.put("gap_reason", "状态不匹配导致间隙");
-            gapProperties.put("expected_previous", previousState);
-            gapProperties.put("actual_db_state", latestState.getStateCode());
+            gapProperties.put(DeviceStateEventFields.GAP_REASON, "状态不匹配导致间隙");
+            gapProperties.put(DeviceStateEventFields.EXPECTED_PREVIOUS, previousState);
+            gapProperties.put(DeviceStateEventFields.ACTUAL_DB_STATE, latestState.getStateCode());
 
-            DeviceStateRecordDO unknownRecord = createStateRecord(deviceInfoId, orgFactoryId, UNKNOWN_STATE,
+            DeviceStateRecordDO unknownRecord = createStateRecord(deviceInfoId, orgFactoryId, DeviceStateEventFields.UNKNOWN_STATE,
                     latestEndTs, eventTimestamp, false, gapProperties);
             stateTimelineRepository.insert(unknownRecord);
         }
@@ -271,7 +269,7 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
         // 记录异常日志（可以自动修复，不需要人工处理）
         String errorMessage = String.format("状态不匹配（已结束）: DB状态=%s, 事件previousState=%s, 间隙=%d秒",
                 latestState.getStateCode(), previousState, eventTimestamp - latestEndTs);
-        webhookFailLogService.saveFailLog(request, "STATE_MISMATCH", errorMessage, false);
+        webhookFailLogService.saveFailLog(request, DeviceStateEventFields.ERROR_TYPE_STATE_MISMATCH, errorMessage, false);
     }
 
     /**
@@ -290,12 +288,12 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
         // 将数据库中的进行中状态标记为 UNKNOWN
 
         Map<String, Object> mismatchProperties = new HashMap<>();
-        mismatchProperties.put("mismatch_reason", "previousState不匹配");
-        mismatchProperties.put("expected", latestState.getStateCode());
-        mismatchProperties.put("actual_db", latestState.getStateCode());
-        mismatchProperties.put("event_previous", previousState);
+        mismatchProperties.put(DeviceStateEventFields.MISMATCH_REASON, "previousState不匹配");
+        mismatchProperties.put(DeviceStateEventFields.EXPECTED, latestState.getStateCode());
+        mismatchProperties.put(DeviceStateEventFields.ACTUAL_DB, latestState.getStateCode());
+        mismatchProperties.put(DeviceStateEventFields.EVENT_PREVIOUS, previousState);
 
-        latestState.setStateCode(UNKNOWN_STATE);
+        latestState.setStateCode(DeviceStateEventFields.UNKNOWN_STATE);
         latestState.setEndTs(eventTimestamp);
         if (latestState.getStartTs() != null) {
             latestState.setDurationS((int) (eventTimestamp - latestState.getStartTs()));
@@ -307,8 +305,8 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
         // 如果 previousState 不为 NULL，插入 previousState 状态记录（用于修复时间线）
         if (StringUtils.isNotBlank(previousState)) {
             Map<String, Object> recoveryProperties = new HashMap<>();
-            recoveryProperties.put("recovery", true);
-            recoveryProperties.put("recovered_from", "UNKNOWN");
+            recoveryProperties.put(DeviceStateEventFields.RECOVERY, true);
+            recoveryProperties.put(DeviceStateEventFields.RECOVERED_FROM, DeviceStateEventFields.UNKNOWN_STATE);
 
             DeviceStateRecordDO previousRecord = createStateRecord(deviceInfoId, orgFactoryId, previousState,
                     eventTimestamp, eventTimestamp, false, recoveryProperties);
@@ -323,7 +321,7 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
         // 记录异常日志（需要人工审核）
         String errorMessage = String.format("状态不匹配（进行中）: DB状态=%s, 事件previousState=%s, 已标记为UNKNOWN",
                 latestState.getStateCode(), previousState);
-        webhookFailLogService.saveFailLog(request, "STATE_MISMATCH", errorMessage, true);
+        webhookFailLogService.saveFailLog(request, DeviceStateEventFields.ERROR_TYPE_STATE_MISMATCH, errorMessage, true);
     }
 
     /**
@@ -337,13 +335,13 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
                 latestState.getStartTs() - eventTimestamp);
 
         // 使用数据库当前时间作为 start_ts（避免时间倒流）
-        long currentTimeSeconds = System.currentTimeMillis() / 1000;
+        long currentTimeSeconds = System.currentTimeMillis() / DeviceStateEventFields.MILLIS_TO_SECONDS;
 
         Map<String, Object> anomalyProperties = new HashMap<>();
-        anomalyProperties.put("timestamp_anomaly", true);
-        anomalyProperties.put("event_timestamp", eventTimestamp);
-        anomalyProperties.put("db_timestamp", currentTimeSeconds);
-        anomalyProperties.put("db_start_ts", latestState.getStartTs());
+        anomalyProperties.put(DeviceStateEventFields.TIMESTAMP_ANOMALY, true);
+        anomalyProperties.put(DeviceStateEventFields.EVENT_TIMESTAMP, eventTimestamp);
+        anomalyProperties.put(DeviceStateEventFields.DB_TIMESTAMP, currentTimeSeconds);
+        anomalyProperties.put(DeviceStateEventFields.DB_START_TS, latestState.getStartTs());
 
         DeviceStateRecordDO newRecord = createStateRecord(deviceInfoId, orgFactoryId, currentState,
                 currentTimeSeconds, null, false, anomalyProperties);
@@ -352,7 +350,7 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
         // 记录异常日志（需要人工审核）
         String errorMessage = String.format("时间戳异常: 事件时间=%d, DB状态开始时间=%d, 差距=%d秒",
                 eventTimestamp, latestState.getStartTs(), latestState.getStartTs() - eventTimestamp);
-        webhookFailLogService.saveFailLog(request, "TIMESTAMP_ANOMALY", errorMessage, true);
+        webhookFailLogService.saveFailLog(request, DeviceStateEventFields.ERROR_TYPE_TIMESTAMP_ANOMALY, errorMessage, true);
     }
 
     /**
@@ -406,7 +404,7 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
     }
 
     private String defaultBlank(String value) {
-        return StringUtils.defaultIfBlank(value, "none");
+        return StringUtils.defaultIfBlank(value, DeviceStateEventFields.DEFAULT_BLANK_PLACEHOLDER);
     }
 
     private String formatStateKey(String factoryId, String deviceId) {
@@ -425,7 +423,7 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
         if (eventData == null) {
             throw new IotPortalException(IotPortalErrorCode.EVENT_DATA_EMPTY);
         }
-        String currentState = getStringValue(eventData, "currentState");
+        String currentState = getStringValue(eventData, DeviceStateEventFields.CURRENT_STATE);
         if (StringUtils.isBlank(currentState)) {
             throw new IotPortalException(IotPortalErrorCode.EVENT_CURRENT_STATE_EMPTY);
         }
@@ -433,22 +431,23 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
         // 解析设备身份
         DeviceIdentityCacheService.DeviceIdentity identity = deviceIdentityCacheService
                 .resolveByDeviceCode(request.getDeviceCode(),
-                        request.getDeviceId(), "DeviceStateHeartbeat");
+                        request.getDeviceId(), DeviceStateEventFields.EVENT_SOURCE_HEARTBEAT);
         String deviceInfoId = identity.getDeviceId();
         String orgFactoryId = identity.getFactoryId();
 
         // 事件时间戳
         long ts = request.getDataTimestamp() != null
                 ? request.getDataTimestamp()
-                : (request.getTimestamp() != null ? request.getTimestamp() : System.currentTimeMillis() / 1000);
+                : (request.getTimestamp() != null ? request.getTimestamp()
+                : System.currentTimeMillis() / DeviceStateEventFields.MILLIS_TO_SECONDS);
 
         // 覆盖写实时状态 + 续租 TTL
         Map<String, String> payload = new HashMap<>();
-        payload.put("state", currentState);
-        payload.put("updatedAt", String.valueOf(ts));
-        payload.put("source", "TB");
+        payload.put(DeviceStateEventFields.STATE, currentState);
+        payload.put(DeviceStateEventFields.UPDATED_AT, String.valueOf(ts));
+        payload.put(DeviceStateEventFields.SOURCE, DeviceStateEventFields.SOURCE_TB);
         if (StringUtils.isNotBlank(request.getMessageId())) {
-            payload.put("traceId", request.getMessageId());
+            payload.put(DeviceStateEventFields.TRACE_ID, request.getMessageId());
         }
         String stateKey = formatStateKey(orgFactoryId, deviceInfoId);
         realTimeCacheService.hsetWithTtl(stateKey, payload, stateTtlMillis);
