@@ -19,7 +19,7 @@ public interface DeviceMetricSummaryRepository {
     /**
      * 按设备和班次查询单条记录
      */
-    DeviceMetricSummaryDO findByShift(String deviceId, LocalDate shiftDate, String shiftCode);
+    DeviceMetricSummaryDO findByShift(String deviceId, LocalDate shiftDate, Integer shiftCode);
 
     void insert(DeviceMetricSummaryDO entity);
 

@@ -115,7 +115,7 @@ public class DeviceProductionSummaryJob extends BaseScheduledJob {
         return true;
     }
 
-    private void upsertSummary(String deviceId, LocalDate shiftDate, String shiftCode,
+    private void upsertSummary(String deviceId, LocalDate shiftDate, Integer shiftCode,
                                long shiftStartSec, long shiftEndSec, long partCount, long calculatedTimeSec) {
         DeviceProductionSummaryDO existing = deviceProductionSummaryRepository.findByShift(deviceId, shiftDate, shiftCode);
         if (existing == null) {

@@ -119,7 +119,7 @@ public class DeviceProductionEventHandler implements WebhookEventHandler {
         if (ongoing.getStartTs() != null) {
             ongoing.setDurationS((int) (ts - ongoing.getStartTs()));
         }
-        if (StringUtils.isBlank(ongoing.getShiftCode())) {
+        if (ongoing.getShiftCode() == null) {
             ongoing.setShiftCode(shift.shiftCode());
         }
         if (ongoing.getShiftDate() == null) {
@@ -138,7 +138,7 @@ public class DeviceProductionEventHandler implements WebhookEventHandler {
         return v == null ? null : v.toString();
     }
 
-    private record ShiftInfo(LocalDate shiftDate, String shiftCode) {}
+    private record ShiftInfo(LocalDate shiftDate, Integer shiftCode) {}
 }
 
 

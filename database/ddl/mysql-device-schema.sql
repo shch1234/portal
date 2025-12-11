@@ -275,7 +275,7 @@ CREATE TABLE IF NOT EXISTS device_state_record (
     end_ts          BIGINT DEFAULT NULL COMMENT '状态结束时间戳（秒，Unix时间戳，NULL表示进行中）',
     duration_s      INT COMMENT '持续时长（秒）',
     shift_date      DATE COMMENT '所属班次日期',
-    shift_code      VARCHAR(50) COMMENT '班次编码：SHIFT_1-一班 SHIFT_2-二班 SHIFT_3-三班',
+    shift_code      TINYINT UNSIGNED COMMENT '班次编码：1-一班 2-二班 3-三班',
     properties      JSON COMMENT '扩展属性（JSON）：故障代码、工件号等',
     is_complete     TINYINT(1) DEFAULT 1 COMMENT '是否完整片段：1-完整 0-跨班切分或数据缺失'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
@@ -295,7 +295,7 @@ CREATE TABLE IF NOT EXISTS device_state_summary (
     device_info_id      BIGINT NOT NULL COMMENT '设备ID（关联 device_info.id，可通过 device_info.tb_device_id 查询 ThingsBoard 获取租户信息）',
     org_factory_id      BIGINT COMMENT '所属厂区ID（关联 device_org_relation.id，冗余字段，优化查询性能）',
     summary_date        DATE NOT NULL COMMENT '汇总日期',
-    shift_code          VARCHAR(50) NOT NULL COMMENT '班次编码：SHIFT_1-一班 SHIFT_2-二班 SHIFT_3-三班',
+    shift_code          TINYINT UNSIGNED NOT NULL COMMENT '班次编码：1-一班 2-二班 3-三班',
     shift_start_ts      BIGINT NOT NULL COMMENT '班次开始时间戳（秒，Unix时间戳）',
     shift_end_ts        BIGINT NOT NULL COMMENT '班次结束时间戳（秒，Unix时间戳）',
     state_statistics    JSON NOT NULL COMMENT '状态统计详情（JSON）：每个状态的时长、占比、片段数等',
@@ -340,7 +340,7 @@ CREATE TABLE IF NOT EXISTS device_tool_record (
     program_name    VARCHAR(255) COMMENT '关联程序名',
     compensation_snapshot JSON COMMENT '使用时的刀具补偿值快照（JSON）',
     shift_date      DATE COMMENT '所属班次日期',
-    shift_code      VARCHAR(50) COMMENT '班次编码'
+    shift_code      TINYINT UNSIGNED COMMENT '班次编码：1-一班 2-二班 3-三班'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   COMMENT='刀具使用记录表';
 
@@ -385,9 +385,9 @@ CREATE TABLE IF NOT EXISTS device_alarm_history (
     duration_s      INT COMMENT '持续时长（秒）',
     is_active       TINYINT(1) DEFAULT 1 COMMENT '是否报警中：1-报警中 0-已解除',
     start_shift_date DATE COMMENT '报警开始班次日期',
-    start_shift_code VARCHAR(50) COMMENT '报警开始班次编码',
+    start_shift_code TINYINT UNSIGNED COMMENT '报警开始班次编码：1-一班 2-二班 3-三班',
     end_shift_date   DATE COMMENT '报警结束班次日期（NULL表示报警中）',
-    end_shift_code   VARCHAR(50) COMMENT '报警结束班次编码（NULL表示报警中）',
+    end_shift_code   TINYINT UNSIGNED COMMENT '报警结束班次编码：1-一班 2-二班 3-三班（NULL表示报警中）',
     properties      JSON COMMENT '扩展属性（JSON）'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   COMMENT='设备报警历史记录表';
@@ -413,7 +413,7 @@ CREATE TABLE IF NOT EXISTS device_production_record (
     batch_no        VARCHAR(100) COMMENT '批次号（可选，对接MES后可追溯批次）',
     program_name    VARCHAR(255) COMMENT '加工程序名（可选）',
     shift_date      DATE NOT NULL COMMENT '归属班次日期（根据完成时间自动判定）',
-    shift_code      VARCHAR(50) NOT NULL COMMENT '归属班次编码（根据完成时间自动判定）',
+    shift_code      TINYINT UNSIGNED NOT NULL COMMENT '归属班次编码：1-一班 2-二班 3-三班（根据完成时间自动判定）',
     quality_status  VARCHAR(50) COMMENT '质量状态：QUALIFIED-合格 DEFECT-不合格 UNKNOWN-未知',
     count_source    VARCHAR(50) COMMENT '计数来源：DOOR_SIGNAL-关门信号 CYCLE_SIGNAL-循环信号 MANUAL-手动',
     properties      JSON COMMENT '扩展属性（JSON）'
@@ -433,7 +433,7 @@ CREATE TABLE IF NOT EXISTS device_production_summary (
     device_info_id  BIGINT NOT NULL COMMENT '设备ID（关联 device_info.id，可通过 device_info.tb_device_id 查询 ThingsBoard 获取租户信息）',
     org_factory_id  BIGINT COMMENT '所属厂区ID（关联 device_org_relation.id，冗余字段，优化查询性能）',
     shift_date      DATE NOT NULL COMMENT '班次日期',
-    shift_code      VARCHAR(50) NOT NULL COMMENT '班次编码：SHIFT_1-一班 SHIFT_2-二班 SHIFT_3-三班',
+    shift_code      TINYINT UNSIGNED NOT NULL COMMENT '班次编码：1-一班 2-二班 3-三班',
     shift_start_ts  BIGINT NOT NULL COMMENT '班次开始时间戳（秒，Unix时间戳）',
     shift_end_ts    BIGINT NOT NULL COMMENT '班次结束时间戳（秒，Unix时间戳）',
     part_count      INT DEFAULT 0 COMMENT '加工数量',
@@ -514,7 +514,7 @@ CREATE TABLE IF NOT EXISTS device_metrics_summary (
     device_info_id      BIGINT NOT NULL COMMENT '设备ID（关联 device_info.id，可通过 device_info.tb_device_id 查询 ThingsBoard 获取租户信息）',
     org_factory_id      BIGINT COMMENT '所属厂区ID（关联 device_org_relation.id，冗余字段，优化查询性能）',
     shift_date          DATE NOT NULL COMMENT '班次日期',
-    shift_code          VARCHAR(50) NOT NULL COMMENT '班次编码：SHIFT_1-一班 SHIFT_2-二班 SHIFT_3-三班',
+    shift_code          TINYINT UNSIGNED NOT NULL COMMENT '班次编码：1-一班 2-二班 3-三班',
     shift_start_ts      BIGINT NOT NULL COMMENT '班次开始时间戳（秒，Unix时间戳）',
     shift_end_ts        BIGINT NOT NULL COMMENT '班次结束时间戳（秒，Unix时间戳）',
     
@@ -569,21 +569,21 @@ CREATE TABLE IF NOT EXISTS device_shift_config (
     shift_mode      INT NOT NULL DEFAULT 2 COMMENT '班次数量：2-2班制 3-3班制',
     
     -- 班次1（必填）
-    shift_1_code        VARCHAR(50) NOT NULL COMMENT '班次1编码：SHIFT_1',
+    shift_1_code        TINYINT UNSIGNED NOT NULL COMMENT '班次1编码：1',
     shift_1_name        VARCHAR(100) NOT NULL COMMENT '班次1名称：一班/早班',
     shift_1_start_time  TIME NOT NULL COMMENT '班次1开始时间：08:00:00',
     shift_1_end_time    TIME NOT NULL COMMENT '班次1结束时间：16:00:00',
     shift_1_duration_s  INT COMMENT '班次1时长（秒）',
     
     -- 班次2（必填）
-    shift_2_code        VARCHAR(50) NOT NULL COMMENT '班次2编码：SHIFT_2',
+    shift_2_code        TINYINT UNSIGNED NOT NULL COMMENT '班次2编码：2',
     shift_2_name        VARCHAR(100) NOT NULL COMMENT '班次2名称：二班/中班',
     shift_2_start_time  TIME NOT NULL COMMENT '班次2开始时间：16:00:00',
     shift_2_end_time    TIME NOT NULL COMMENT '班次2结束时间：00:00:00',
     shift_2_duration_s  INT COMMENT '班次2时长（秒）',
     
     -- 班次3（可选，仅3班制时使用）
-    shift_3_code        VARCHAR(50) COMMENT '班次3编码：SHIFT_3（仅3班制时使用）',
+    shift_3_code        TINYINT UNSIGNED COMMENT '班次3编码：3（仅3班制时使用）',
     shift_3_name        VARCHAR(100) COMMENT '班次3名称：三班/晚班（仅3班制时使用）',
     shift_3_start_time  TIME COMMENT '班次3开始时间（仅3班制时使用）',
     shift_3_end_time    TIME COMMENT '班次3结束时间（仅3班制时使用）',
@@ -611,7 +611,7 @@ CREATE TABLE IF NOT EXISTS factory_metric_summary (
     id                  BIGINT NOT NULL PRIMARY KEY COMMENT '主键ID（雪花算法）',
     org_factory_id      BIGINT NOT NULL COMMENT '工厂ID（关联 device_org_relation.id，unit_type=FACTORY，工厂是全局共享的，不按租户隔离）',
     shift_date          DATE NOT NULL COMMENT '班次日期',
-    shift_code          VARCHAR(50) NOT NULL COMMENT '班次编码：SHIFT_1-一班 SHIFT_2-二班 SHIFT_3-三班',
+    shift_code          TINYINT UNSIGNED NOT NULL COMMENT '班次编码：1-一班 2-二班 3-三班',
     shift_start_ts      BIGINT NOT NULL COMMENT '班次开始时间戳（秒，Unix时间戳）',
     shift_end_ts        BIGINT NOT NULL COMMENT '班次结束时间戳（秒，Unix时间戳）',
     

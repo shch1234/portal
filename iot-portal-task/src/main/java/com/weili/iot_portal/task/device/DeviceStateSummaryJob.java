@@ -324,7 +324,7 @@ public class DeviceStateSummaryJob extends BaseScheduledJob {
         List<DeviceShiftConfigDO.ShiftDefinition> shifts = new ArrayList<>();
 
         // 班次1
-        if (StringUtils.isNotBlank(config.getShift1Code())) {
+        if (config.getShift1Code() != null) {
             DeviceShiftConfigDO.ShiftDefinition shift1 = new DeviceShiftConfigDO.ShiftDefinition();
             shift1.setCode(config.getShift1Code());
             shift1.setName(config.getShift1Name());
@@ -337,7 +337,7 @@ public class DeviceStateSummaryJob extends BaseScheduledJob {
         }
 
         // 班次2
-        if (StringUtils.isNotBlank(config.getShift2Code())) {
+        if (config.getShift2Code() != null) {
             DeviceShiftConfigDO.ShiftDefinition shift2 = new DeviceShiftConfigDO.ShiftDefinition();
             shift2.setCode(config.getShift2Code());
             shift2.setName(config.getShift2Name());
@@ -351,7 +351,7 @@ public class DeviceStateSummaryJob extends BaseScheduledJob {
 
         // 班次3（3班制）
         if (config.getShiftMode() != null && config.getShiftMode() == 3
-                && StringUtils.isNotBlank(config.getShift3Code())) {
+                && config.getShift3Code() != null) {
             DeviceShiftConfigDO.ShiftDefinition shift3 = new DeviceShiftConfigDO.ShiftDefinition();
             shift3.setCode(config.getShift3Code());
             shift3.setName(config.getShift3Name());
@@ -393,7 +393,7 @@ public class DeviceStateSummaryJob extends BaseScheduledJob {
      * 查找已存在的汇总记录
      */
     private DeviceStateSummaryDO findExistingSummary(String deviceId,
-                                                     LocalDate shiftDate, String shiftCode) {
+                                                     LocalDate shiftDate, Integer shiftCode) {
         return stateSummaryRepository.findByShift(deviceId, shiftDate, shiftCode);
     }
 

@@ -628,14 +628,14 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
      */
     private void fillShiftInfoIfMissing(DeviceStateRecordDO record, String factoryId) {
         if (record.getStartTs() != null
-                && (record.getShiftDate() == null || StringUtils.isBlank(record.getShiftCode()))) {
+                && (record.getShiftDate() == null || record.getShiftCode() == null)) {
             try {
                 ShiftDateAndCode shiftInfo = shiftCalculationService.getShiftDateAndCode(
                         factoryId, record.getDeviceInfoId(), record.getStartTs());
                 if (record.getShiftDate() == null) {
                     record.setShiftDate(shiftInfo.shiftDate());
                 }
-                if (StringUtils.isBlank(record.getShiftCode())) {
+                if (record.getShiftCode() == null) {
                     record.setShiftCode(shiftInfo.shiftCode());
                 }
             } catch (Exception e) {

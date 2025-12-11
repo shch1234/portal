@@ -49,10 +49,10 @@ public class DeviceShiftConfigDO extends BaseDO {
     private List<ShiftDefinition> shifts;
 
     /**
-     * 班次1编码：SHIFT_1（对应 shift_1_code 列）
+     * 班次1编码：1（对应 shift_1_code 列，TINYINT UNSIGNED）
      */
     @TableField("shift_1_code")
-    private String shift1Code;
+    private Integer shift1Code;
 
     /**
      * 班次1名称：一班/早班（对应 shift_1_name 列）
@@ -79,10 +79,10 @@ public class DeviceShiftConfigDO extends BaseDO {
     private Integer shift1DurationS;
 
     /**
-     * 班次2编码：SHIFT_2（对应 shift_2_code 列）
+     * 班次2编码：2（对应 shift_2_code 列，TINYINT UNSIGNED）
      */
     @TableField("shift_2_code")
-    private String shift2Code;
+    private Integer shift2Code;
 
     /**
      * 班次2名称：二班/中班（对应 shift_2_name 列）
@@ -109,10 +109,10 @@ public class DeviceShiftConfigDO extends BaseDO {
     private Integer shift2DurationS;
 
     /**
-     * 班次3编码：SHIFT_3（仅3班制时使用，对应 shift_3_code 列）
+     * 班次3编码：3（仅3班制时使用，对应 shift_3_code 列，TINYINT UNSIGNED）
      */
     @TableField("shift_3_code")
-    private String shift3Code;
+    private Integer shift3Code;
 
     /**
      * 班次3名称：三班/晚班（仅3班制时使用，对应 shift_3_name 列）
@@ -159,9 +159,9 @@ public class DeviceShiftConfigDO extends BaseDO {
     @Data
     public static class ShiftDefinition {
         /**
-         * 班次编码：SHIFT_1、SHIFT_2、SHIFT_3
+         * 班次编码：1、2、3（TINYINT UNSIGNED）
          */
-        private String code;
+        private Integer code;
 
         /**
          * 班次名称：早班、中班、晚班

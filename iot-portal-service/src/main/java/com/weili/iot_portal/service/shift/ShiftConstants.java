@@ -17,19 +17,19 @@ public class ShiftConstants {
 
     // ==================== 班次编码 ====================
     /**
-     * 班次1编码
+     * 班次1编码（数字编码）
      */
-    public static final String SHIFT_CODE_1 = "SHIFT_1";
+    public static final Integer SHIFT_CODE_1 = 1;
 
     /**
-     * 班次2编码
+     * 班次2编码（数字编码）
      */
-    public static final String SHIFT_CODE_2 = "SHIFT_2";
+    public static final Integer SHIFT_CODE_2 = 2;
 
     /**
-     * 班次3编码
+     * 班次3编码（数字编码）
      */
-    public static final String SHIFT_CODE_3 = "SHIFT_3";
+    public static final Integer SHIFT_CODE_3 = 3;
 
     // ==================== 默认班次名称 ====================
     /**

@@ -20,7 +20,7 @@ public interface DeviceStateSummaryRepository {
     /**
      * 根据设备与班次唯一键查询
      */
-    DeviceStateSummaryDO findByShift(String deviceId, LocalDate shiftDate, String shiftCode);
+    DeviceStateSummaryDO findByShift(String deviceId, LocalDate shiftDate, Integer shiftCode);
 
     /**
      * 新增汇总

@@ -16,7 +16,7 @@ public interface DeviceProductionSummaryRepository {
 
     PageResult<DeviceProductionSummaryDO> selectPage(ProductionCounterPageQuery query);
 
-    DeviceProductionSummaryDO findByShift(String deviceId, LocalDate shiftDate, String shiftCode);
+    DeviceProductionSummaryDO findByShift(String deviceId, LocalDate shiftDate, Integer shiftCode);
 
     void insert(DeviceProductionSummaryDO entity);
 

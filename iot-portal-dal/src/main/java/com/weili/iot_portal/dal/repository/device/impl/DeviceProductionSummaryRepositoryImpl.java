@@ -76,7 +76,7 @@ public class DeviceProductionSummaryRepositoryImpl implements DeviceProductionSu
     }
 
     @Override
-    public DeviceProductionSummaryDO findByShift(String deviceId, LocalDate shiftDate, String shiftCode) {
+    public DeviceProductionSummaryDO findByShift(String deviceId, LocalDate shiftDate, Integer shiftCode) {
         LambdaQueryWrapper<DeviceProductionSummaryDO> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(DeviceProductionSummaryDO::getDeviceInfoId, deviceId)
                 .eq(DeviceProductionSummaryDO::getShiftDate, shiftDate)
