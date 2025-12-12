@@ -15,7 +15,7 @@ import org.springframework.stereotype.Component;
  */
 @Slf4j
 @Order(WebhookHandlerOrder.FALLBACK) // 最低优先级
-@Component
+@Component("loggingFallbackWebhookHandler")
 public class LoggingFallbackWebhookHandler implements WebhookEventHandler {
     @Override
     public boolean supports(String eventType) {

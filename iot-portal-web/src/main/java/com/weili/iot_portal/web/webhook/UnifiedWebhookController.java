@@ -5,6 +5,7 @@ import com.weili.basic.common.util.JsonUtils;
 import com.weili.iot_portal.domain.ingestion.WebhookRequest;
 import com.weili.iot_portal.service.ingestion.WebhookReceiveService;
 import com.weili.iot_portal.service.ingestion.WebhookSecurityService;
+import jakarta.annotation.security.PermitAll;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,6 +25,7 @@ public class UnifiedWebhookController {
     /**
      * URL 验证：返回 echostr
      */
+    @PermitAll
     @GetMapping("/webhook/{category}/{eventType}")
     public ResponseEntity<String> validateUrl(@PathVariable String category,
                                               @PathVariable String eventType,
