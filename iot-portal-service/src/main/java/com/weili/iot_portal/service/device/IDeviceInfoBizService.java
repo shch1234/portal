@@ -69,29 +69,6 @@ public interface IDeviceInfoBizService {
     PageResult<DeviceInfoDO> getDeviceInfoPage(DeviceInfoBasePageReqVO pageReqVO);
 
     /**
-     * 获取所有设备信息列表
-     *
-     * @return 设备信息列表
-     */
-    List<DeviceInfoDO> getDeviceInfoList();
-
-    /**
-     * 更新设备位置信息
-     *
-     * @param deviceInfoId 设备信息ID
-     * @param locationInfo 位置信息
-     */
-    void updateDeviceLocation(String deviceInfoId, DeviceInfoSaveReqVO.DeviceLocationInfo locationInfo);
-
-    /**
-     * 更新设备网络配置
-     *
-     * @param deviceInfoId 设备信息ID
-     * @param networkInfo 网络配置信息
-     */
-    void updateDeviceNetworkConfig(String deviceInfoId, DeviceInfoSaveReqVO.DeviceNetworkInfo networkInfo);
-
-    /**
      * 获取设备信息选项数据（用于新增/编辑页面）
      * 包含设备类型、组织关系、设备型号等下拉选项
      *

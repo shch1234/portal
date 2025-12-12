@@ -106,6 +106,7 @@ public class DeviceInfoBizService implements IDeviceInfoBizService {
 
         // 更新设备基本信息
         DeviceInfoDO deviceInfo = BeanUtils.toBean(updateReqVO, DeviceInfoDO.class);
+        deviceInfo.setId(existingDevice.getId());
         deviceInfoRepository.update(deviceInfo);
 
         // 更新设备位置信息（如果提供）
@@ -168,11 +169,6 @@ public class DeviceInfoBizService implements IDeviceInfoBizService {
     @Override
     public PageResult<DeviceInfoDO> getDeviceInfoPage(DeviceInfoBasePageReqVO pageReqVO) {
         return deviceInfoRepository.selectPage(BeanUtils.toBean(pageReqVO, DeviceBaseInfoPageQuery.class));
-    }
-
-    @Override
-    public List<DeviceInfoDO> getDeviceInfoList() {
-        return deviceInfoRepository.findAllActive();
     }
 
     /**
@@ -354,26 +350,6 @@ public class DeviceInfoBizService implements IDeviceInfoBizService {
         } else {
             deviceNetworkConfigRepository.insert(deviceNetworkConfig);
         }
-    }
-
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    public void updateDeviceLocation(String deviceInfoId, DeviceInfoSaveReqVO.DeviceLocationInfo locationInfo) {
-        validateDeviceInfoExists(deviceInfoId);
-        DeviceInfoSaveReqVO reqVO = new DeviceInfoSaveReqVO();
-        reqVO.setId(deviceInfoId);
-        reqVO.setLocation(locationInfo);
-        updateDeviceLocation(deviceInfoId, reqVO);
-    }
-
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    public void updateDeviceNetworkConfig(String deviceInfoId, DeviceInfoSaveReqVO.DeviceNetworkInfo networkInfo) {
-        validateDeviceInfoExists(deviceInfoId);
-        DeviceInfoSaveReqVO reqVO = new DeviceInfoSaveReqVO();
-        reqVO.setId(deviceInfoId);
-        reqVO.setNetwork(networkInfo);
-        updateDeviceNetworkConfig(deviceInfoId, reqVO);
     }
 
     @Override

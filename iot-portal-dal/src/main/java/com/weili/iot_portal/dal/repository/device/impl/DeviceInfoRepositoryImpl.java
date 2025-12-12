@@ -103,9 +103,6 @@ public class DeviceInfoRepositoryImpl implements DeviceInfoRepository {
         if (query.getDeviceTypeCodes() != null && !query.getDeviceTypeCodes().isEmpty()) {
             wrapper.in(DeviceInfoDO::getDeviceTypeCode, query.getDeviceTypeCodes());
         }
-        if (query.getDeviceSubTypeNames() != null && !query.getDeviceSubTypeNames().isEmpty()) {
-            wrapper.in(DeviceInfoDO::getDeviceSubTypeName, query.getDeviceSubTypeNames());
-        }
         if (query.getDeviceModelIds() != null && !query.getDeviceModelIds().isEmpty()) {
             wrapper.in(DeviceInfoDO::getDeviceModelId, query.getDeviceModelIds());
         }

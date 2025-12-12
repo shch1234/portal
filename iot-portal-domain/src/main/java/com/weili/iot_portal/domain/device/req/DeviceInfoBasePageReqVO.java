@@ -22,8 +22,8 @@ public class DeviceInfoBasePageReqVO extends PageParam {
     @Size(max = 255, message = "设备名称长度不能超过255个字符")
     private String deviceName;
 
-    @Schema(description = "设备类型编码", example = "CNC_5AXIS")
-    @Size(max = 100, message = "设备类型编码长度不能超过100个字符")
+    @Schema(description = "设备类型 ", example = "CNC_5AXIS")
+    @Size(max = 200, message = "设备类型长度不能超过100个字符")
     private String deviceTypeCode;
 
     @Schema(description = "设备型号ID", example = "123456789")

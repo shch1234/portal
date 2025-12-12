@@ -53,26 +53,6 @@ public class DeviceInfoDO extends BaseDO {
     private String deviceModelId;
 
     /**
-     * 设备类型名称（冗余字段，优化查询，对应 device_type_name 列）
-     */
-    private String deviceTypeName;
-
-    /**
-     * 设备子类型名称（冗余字段，优化查询，对应 device_sub_type_name 列）
-     */
-    private String deviceSubTypeName;
-
-    /**
-     * 型号名称（冗余字段，优化查询，对应 model_name 列）
-     */
-    private String modelName;
-
-    /**
-     * 制造商（冗余字段，优化查询，对应 manufacturer 列）
-     */
-    private String manufacturer;
-
-    /**
      * 所属厂区ID（关联 device_org_relation.id，对应 org_factory_id 列）
      */
     private String orgFactoryId;
@@ -88,22 +68,7 @@ public class DeviceInfoDO extends BaseDO {
     private String orgProductionLineId;
 
     /**
-     * 厂区名称（冗余字段，优化查询，对应 factory_name 列）
-     */
-    private String factoryName;
-
-    /**
-     * 车间名称（冗余字段，优化查询，对应 workshop_name 列）
-     */
-    private String workshopName;
-
-    /**
-     * 产线名称（冗余字段，优化查询，对应 production_line_name 列）
-     */
-    private String productionLineName;
-
-    /**
-     * 设备状态：ACTIVE-在用 INACTIVE-停用 MAINTENANCE-维护中 RETIRED-报废（对应 device_status 列）
+     * 设备状态：ACTIVE-在用 INACTIVE-停用 MAINTENANCE-维护中 RETIRED-报废
      */
     private String deviceStatus;
 

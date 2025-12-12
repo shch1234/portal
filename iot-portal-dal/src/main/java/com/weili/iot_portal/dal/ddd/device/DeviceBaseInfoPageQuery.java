@@ -1,6 +1,8 @@
 package com.weili.iot_portal.dal.ddd.device;
 
+import com.weili.basic.common.model.PageParam;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 
 import java.util.List;
 
@@ -8,7 +10,8 @@ import java.util.List;
  * 设备信息分页查询条件（对应 device_info 表）
  */
 @Data
-public class DeviceBaseInfoPageQuery {
+@EqualsAndHashCode(callSuper = true)
+public class DeviceBaseInfoPageQuery extends PageParam {
 
     /**
      * 设备编号模糊查询（对应 device_code）
@@ -24,11 +27,6 @@ public class DeviceBaseInfoPageQuery {
      * 设备类型编码列表（对应 device_type_code）
      */
     private List<String> deviceTypeCodes;
-
-    /**
-     * 设备子类型名称列表（对应 device_sub_type_name，冗余字段）
-     */
-    private List<String> deviceSubTypeNames;
 
     /**
      * 设备型号ID列表（对应 device_model_id）
@@ -65,10 +63,6 @@ public class DeviceBaseInfoPageQuery {
      * 注意：此字段在 Repository 层不处理，由 Service 层处理
      */
     private Boolean hasAlarm;
-
-    private Integer pageNo;
-
-    private Integer pageSize;
 
     private String sortBy;
 

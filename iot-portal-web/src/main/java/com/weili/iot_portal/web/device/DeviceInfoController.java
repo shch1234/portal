@@ -18,7 +18,6 @@ import jakarta.validation.Valid;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
 
 /**
  * 设备信息管理 Controller
@@ -31,6 +30,14 @@ public class DeviceInfoController {
 
     @Resource
     private IDeviceInfoBizService deviceInfoBizService;
+
+    @GetMapping("/page")
+    @Operation(summary = "分页查询设备信息")
+    public CommonResult<PageResult<DeviceInfoRespVO>> getDeviceInfoPage(@Valid DeviceInfoBasePageReqVO pageReqVO) {
+        PageResult<DeviceInfoDO> pageResult = deviceInfoBizService.getDeviceInfoPage(pageReqVO);
+        return CommonResult.success(BeanUtils.toBean(pageResult, DeviceInfoRespVO.class));
+    }
+
 
     @PostMapping("/create")
     @Operation(summary = "创建设备信息")
@@ -73,19 +80,6 @@ public class DeviceInfoController {
         return CommonResult.success(BeanUtils.toBean(deviceInfo, DeviceInfoRespVO.class));
     }
 
-    @GetMapping("/page")
-    @Operation(summary = "分页查询设备信息")
-    public CommonResult<PageResult<DeviceInfoRespVO>> getDeviceInfoPage(@Valid DeviceInfoBasePageReqVO pageReqVO) {
-        PageResult<DeviceInfoDO> pageResult = deviceInfoBizService.getDeviceInfoPage(pageReqVO);
-        return CommonResult.success(BeanUtils.toBean(pageResult, DeviceInfoRespVO.class));
-    }
-
-    @GetMapping("/list")
-    @Operation(summary = "获取所有设备信息列表")
-    public CommonResult<List<DeviceInfoRespVO>> getDeviceInfoList() {
-        List<DeviceInfoDO> list = deviceInfoBizService.getDeviceInfoList();
-        return CommonResult.success(BeanUtils.toBean(list, DeviceInfoRespVO.class));
-    }
 
     @GetMapping("/options")
     @Operation(summary = "获取设备信息选项数据（用于新增/编辑页面）", 
