@@ -65,20 +65,17 @@ public class LoginUserBizService implements ILoginUserBizService {
         loginUserRepository.create(loginUserDO);
         //默认系统管理员
         RoleDO roleDO = userRoleBizService.getRole(RoleCodeEnum.systemAdmin.name());
-        userRoleBizService.batchAddUserRole(loginUserDO.getId(), Collections.singletonList(roleDO.getId()));
-        return loginUserDO.getId();
+        userRoleBizService.batchAddUserRole(loginUser.getUserId(), Collections.singletonList(roleDO.getId()));
+        return loginUser.getUserId();
     }
 
 
     @Override
     @Transactional
     public void update(LoginUserSaveReqVO reqVO) {
-        LoginUserDO oldRow = loginUserRepository.getById(reqVO.getUserId());
-        if (oldRow == null) {
-            throw new BaseException(BizErrorCodeEnum.PERMISSION_ERROR);
-        }
-        userRoleBizService.deleteByUserId(oldRow.getId());
-        userRoleBizService.batchAddUserRole(oldRow.getId(), reqVO.getRoleList());
+        Long userid = SecurityContextUtils.getUserid();
+        userRoleBizService.deleteByUserId(userid);
+        userRoleBizService.batchAddUserRole(userid, reqVO.getRoleList());
     }
 
     @Override

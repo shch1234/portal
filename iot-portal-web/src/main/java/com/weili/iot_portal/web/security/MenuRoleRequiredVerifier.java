@@ -35,14 +35,7 @@ public class MenuRoleRequiredVerifier implements IPermRequiredVerifier {
         }
         Long userId = SecurityContextUtils.getUserid();
         if (userId == null) {
-            //兼容一下
-            LoginUserRespVO userRespVO = loginUserBizService.getByEmpId(SecurityContextUtils.getEmpId());
-            if (userRespVO != null) {
-                userId = userRespVO.getId();
-            }
-            if (userId == null) {
-                throw new BaseException(BizErrorCodeEnum.PERMISSION_ERROR.getCode(), "用户UserId是空");
-            }
+            throw new BaseException(BizErrorCodeEnum.PERMISSION_ERROR.getCode(), "用户UserId是空");
         }
         String permission = permRequired.permission();
         boolean hasPermission;
