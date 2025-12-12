@@ -13,6 +13,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @Slf4j
+@PermitAll
 @RestController
 public class UnifiedWebhookController {
 
@@ -25,7 +26,6 @@ public class UnifiedWebhookController {
     /**
      * URL 验证：返回 echostr
      */
-    @PermitAll
     @GetMapping("/webhook/{category}/{eventType}")
     public ResponseEntity<String> validateUrl(@PathVariable String category,
                                               @PathVariable String eventType,

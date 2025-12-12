@@ -40,6 +40,11 @@ public class DeviceLockService {
      */
     private static final String LOCK_KEY_PREFIX_TOOL_CHANGE = "device_tool_lock:";
 
+    /**
+     * 设备加工状态锁键前缀
+     */
+    private static final String LOCK_KEY_PREFIX_PRODUCTION = "device_production_lock:";
+
     // ==================== 状态锁相关 ====================
     /**
      * 尝试获取设备状态锁
@@ -156,6 +161,37 @@ public class DeviceLockService {
         return executeWithToolChangeLock(deviceId, DEFAULT_LOCK_TIMEOUT_SECONDS, task);
     }
 
+    // ==================== 加工状态锁相关 ====================
+    /**
+     * 尝试获取设备加工状态锁
+     *
+     * @param deviceId 设备ID
+     * @param timeoutSeconds 锁超时时间（秒）
+     * @return true 如果成功获取锁
+     */
+    public boolean tryLockProduction(String deviceId, long timeoutSeconds) {
+        return tryLock(buildProductionLockKey(deviceId), timeoutSeconds);
+    }
+
+    /**
+     * 尝试获取设备加工状态锁（使用默认超时时间）
+     *
+     * @param deviceId 设备ID
+     * @return true 如果成功获取锁
+     */
+    public boolean tryLockProduction(String deviceId) {
+        return tryLockProduction(deviceId, DEFAULT_LOCK_TIMEOUT_SECONDS);
+    }
+
+    /**
+     * 释放设备加工状态锁
+     *
+     * @param deviceId 设备ID
+     */
+    public void unlockProduction(String deviceId) {
+        unlock(buildProductionLockKey(deviceId));
+    }
+
     // ==================== 通用锁操作方法 ====================
     /**
      * 尝试获取锁
@@ -252,6 +288,19 @@ public class DeviceLockService {
             throw new IllegalArgumentException("DeviceId cannot be blank for lock key");
         }
         return LOCK_KEY_PREFIX_TOOL_CHANGE + deviceId;
+    }
+
+    /**
+     * 构建设备加工状态锁键
+     *
+     * @param deviceId 设备ID
+     * @return 锁键
+     */
+    private String buildProductionLockKey(String deviceId) {
+        if (StringUtils.isBlank(deviceId)) {
+            throw new IllegalArgumentException("DeviceId cannot be blank for lock key");
+        }
+        return LOCK_KEY_PREFIX_PRODUCTION + deviceId;
     }
 
 }
