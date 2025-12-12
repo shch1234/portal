@@ -93,11 +93,6 @@ public class DeviceOrgRelationBizService implements IDeviceOrgRelationBizService
     }
 
     @Override
-    public List<DeviceOrgRelationDO> getDeviceOrgRelationByParentId(String parentId) {
-        return deviceOrgRelationRepository.findByParentId(parentId);
-    }
-
-    @Override
     public PageResult<DeviceOrgRelationDO> getDeviceOrgRelationPage(DeviceOrgRelationPageReqVO pageReqVO) {
         return deviceOrgRelationRepository.selectPage(BeanUtils.toBean(pageReqVO, DeviceOrgRelationPageQuery.class));
     }

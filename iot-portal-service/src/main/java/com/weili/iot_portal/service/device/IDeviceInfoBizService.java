@@ -4,6 +4,7 @@ import com.weili.basic.common.model.PageResult;
 import com.weili.iot_portal.dal.dataobject.device.DeviceInfoDO;
 import com.weili.iot_portal.domain.device.req.DeviceInfoBasePageReqVO;
 import com.weili.iot_portal.domain.device.req.DeviceInfoSaveReqVO;
+import com.weili.iot_portal.domain.device.resp.DeviceInfoOptionsRespVO;
 import com.weili.iot_portal.domain.device.resp.DeviceInfoRespVO;
 
 import java.util.List;
@@ -89,5 +90,13 @@ public interface IDeviceInfoBizService {
      * @param networkInfo 网络配置信息
      */
     void updateDeviceNetworkConfig(String deviceInfoId, DeviceInfoSaveReqVO.DeviceNetworkInfo networkInfo);
+
+    /**
+     * 获取设备信息选项数据（用于新增/编辑页面）
+     * 包含设备类型、组织关系、设备型号等下拉选项
+     *
+     * @return 设备信息选项数据
+     */
+    DeviceInfoOptionsRespVO getDeviceInfoOptions();
 }
 

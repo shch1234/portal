@@ -5,8 +5,6 @@ import com.weili.iot_portal.dal.dataobject.device.DeviceOrgRelationDO;
 import com.weili.iot_portal.domain.device.req.DeviceOrgRelationPageReqVO;
 import com.weili.iot_portal.domain.device.req.DeviceOrgRelationSaveReqVO;
 
-import java.util.List;
-
 /**
  * 设备组织单元业务服务接口
  */
@@ -41,14 +39,6 @@ public interface IDeviceOrgRelationBizService {
      * @return 设备组织单元
      */
     DeviceOrgRelationDO getDeviceOrgRelation(String id);
-
-    /**
-     * 根据父级ID获取子组织单元列表
-     *
-     * @param parentId 父级组织ID
-     * @return 子组织单元列表
-     */
-    List<DeviceOrgRelationDO> getDeviceOrgRelationByParentId(String parentId);
 
     /**
      * 分页查询设备组织单元

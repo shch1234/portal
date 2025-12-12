@@ -4,14 +4,11 @@ import com.weili.basic.common.model.CommonResult;
 import com.weili.basic.common.model.PageResult;
 import com.weili.basic.common.util.BeanUtils;
 import com.weili.iot_portal.dal.dataobject.device.DeviceInfoDO;
-import com.weili.iot_portal.dal.dataobject.device.DeviceLocationDO;
-import com.weili.iot_portal.dal.dataobject.device.DeviceNetworkConfigDO;
 import com.weili.iot_portal.domain.device.req.DeviceInfoBasePageReqVO;
 import com.weili.iot_portal.domain.device.req.DeviceInfoSaveReqVO;
+import com.weili.iot_portal.domain.device.resp.DeviceInfoOptionsRespVO;
 import com.weili.iot_portal.domain.device.resp.DeviceInfoRespVO;
 import com.weili.iot_portal.service.device.IDeviceInfoBizService;
-import com.weili.iot_portal.service.device.IDeviceLocationBizService;
-import com.weili.iot_portal.service.device.IDeviceNetworkConfigBizService;
 import com.weili.iot_portal.web.annotation.PermRequired;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -34,12 +31,6 @@ public class DeviceInfoController {
 
     @Resource
     private IDeviceInfoBizService deviceInfoBizService;
-
-    @Resource
-    private IDeviceLocationBizService deviceLocationBizService;
-
-    @Resource
-    private IDeviceNetworkConfigBizService deviceNetworkConfigBizService;
 
     @PostMapping("/create")
     @Operation(summary = "创建设备信息")
@@ -96,48 +87,12 @@ public class DeviceInfoController {
         return CommonResult.success(BeanUtils.toBean(list, DeviceInfoRespVO.class));
     }
 
-    // ========== 设备位置管理子接口 ==========
-
-    @PutMapping("/{deviceInfoId}/location")
-    @Operation(summary = "更新设备位置信息")
-    @Parameter(name = "deviceInfoId", description = "设备信息ID", required = true, example = "123456789")
-    @PermRequired(permission = "device-mgmt:device-info:update")
-    public CommonResult<Boolean> updateDeviceLocation(
-            @PathVariable("deviceInfoId") String deviceInfoId,
-            @Valid @RequestBody DeviceInfoSaveReqVO.DeviceLocationInfo locationInfo) {
-        deviceInfoBizService.updateDeviceLocation(deviceInfoId, locationInfo);
-        return CommonResult.success(true);
-    }
-
-    @GetMapping("/{deviceInfoId}/location")
-    @Operation(summary = "获取设备位置信息")
-    @Parameter(name = "deviceInfoId", description = "设备信息ID", required = true, example = "123456789")
-    public CommonResult<DeviceInfoRespVO.DeviceLocationInfo> getDeviceLocation(@PathVariable("deviceInfoId") String deviceInfoId) {
-        DeviceLocationDO deviceLocation = deviceLocationBizService.getDeviceLocationByDeviceId(deviceInfoId);
-        DeviceInfoRespVO.DeviceLocationInfo locationInfo = BeanUtils.toBean(deviceLocation, DeviceInfoRespVO.DeviceLocationInfo.class);
-        return CommonResult.success(locationInfo);
-    }
-
-    // ========== 设备网络配置管理子接口 ==========
-
-    @PutMapping("/{deviceInfoId}/network")
-    @Operation(summary = "更新设备网络配置")
-    @Parameter(name = "deviceInfoId", description = "设备信息ID", required = true, example = "123456789")
-    @PermRequired(permission = "device-mgmt:device-info:update")
-    public CommonResult<Boolean> updateDeviceNetworkConfig(
-            @PathVariable("deviceInfoId") String deviceInfoId,
-            @Valid @RequestBody DeviceInfoSaveReqVO.DeviceNetworkInfo networkInfo) {
-        deviceInfoBizService.updateDeviceNetworkConfig(deviceInfoId, networkInfo);
-        return CommonResult.success(true);
-    }
-
-    @GetMapping("/{deviceInfoId}/network")
-    @Operation(summary = "获取设备网络配置")
-    @Parameter(name = "deviceInfoId", description = "设备信息ID", required = true, example = "123456789")
-    public CommonResult<DeviceInfoRespVO.DeviceNetworkInfo> getDeviceNetworkConfig(@PathVariable("deviceInfoId") String deviceInfoId) {
-        DeviceNetworkConfigDO deviceNetworkConfig = deviceNetworkConfigBizService.getDeviceNetworkConfigByDeviceId(deviceInfoId);
-        DeviceInfoRespVO.DeviceNetworkInfo networkInfo = BeanUtils.toBean(deviceNetworkConfig, DeviceInfoRespVO.DeviceNetworkInfo.class);
-        return CommonResult.success(networkInfo);
+    @GetMapping("/options")
+    @Operation(summary = "获取设备信息选项数据（用于新增/编辑页面）", 
+               description = "一次性返回设备类型、组织关系（厂区/车间/产线）、设备型号等下拉选项数据，减少前端接口调用")
+    public CommonResult<DeviceInfoOptionsRespVO> getDeviceInfoOptions() {
+        DeviceInfoOptionsRespVO options = deviceInfoBizService.getDeviceInfoOptions();
+        return CommonResult.success(options);
     }
 }
 

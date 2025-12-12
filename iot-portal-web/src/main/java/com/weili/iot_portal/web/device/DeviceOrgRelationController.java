@@ -17,8 +17,6 @@ import jakarta.validation.Valid;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
-
 /**
  * 设备组织单元管理 Controller
  */
@@ -62,14 +60,6 @@ public class DeviceOrgRelationController {
     public CommonResult<DeviceOrgRelationRespVO> getDeviceOrgRelation(@RequestParam("id") String id) {
         DeviceOrgRelationDO deviceOrgRelation = deviceOrgRelationBizService.getDeviceOrgRelation(id);
         return CommonResult.success(BeanUtils.toBean(deviceOrgRelation, DeviceOrgRelationRespVO.class));
-    }
-
-    @GetMapping("/get-by-parent")
-    @Operation(summary = "根据父级ID获取子组织单元列表")
-    @Parameter(name = "parentId", description = "父级组织ID", required = true, example = "123456789")
-    public CommonResult<List<DeviceOrgRelationRespVO>> getDeviceOrgRelationByParentId(@RequestParam("parentId") String parentId) {
-        List<DeviceOrgRelationDO> list = deviceOrgRelationBizService.getDeviceOrgRelationByParentId(parentId);
-        return CommonResult.success(BeanUtils.toBean(list, DeviceOrgRelationRespVO.class));
     }
 
     @GetMapping("/page")

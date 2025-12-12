@@ -79,11 +79,6 @@ public class DeviceTypeRelationBizService implements IDeviceTypeRelationBizServi
     }
 
     @Override
-    public List<DeviceTypeRelationDO> getDeviceTypeRelationByParentId(String parentTypeId) {
-        return deviceTypeRelationRepository.findByParentTypeId(parentTypeId);
-    }
-
-    @Override
     public PageResult<DeviceTypeRelationDO> getDeviceTypeRelationPage(DeviceTypeRelationPageReqVO pageReqVO) {
         return deviceTypeRelationRepository.selectPage(BeanUtils.toBean(pageReqVO, DeviceTypePageQuery.class));
     }

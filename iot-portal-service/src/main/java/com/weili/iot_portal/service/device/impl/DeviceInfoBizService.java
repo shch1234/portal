@@ -2,22 +2,34 @@ package com.weili.iot_portal.service.device.impl;
 
 import cn.hutool.core.util.StrUtil;
 import com.weili.basic.common.model.PageResult;
+import com.weili.iot_portal.dal.dataobject.device.DeviceModelDO;
+import com.weili.iot_portal.dal.dataobject.device.DeviceOrgRelationDO;
+import com.weili.iot_portal.dal.dataobject.device.DeviceTypeRelationDO;
 import com.weili.basic.common.util.BeanUtils;
 import com.weili.iot_portal.common.exception.IotPortalErrorCode;
 import com.weili.iot_portal.common.exception.IotPortalException;
 import com.weili.iot_portal.dal.dataobject.device.DeviceInfoDO;
 import com.weili.iot_portal.dal.dataobject.device.DeviceLocationDO;
-import com.weili.iot_portal.dal.dataobject.device.DeviceModelDO;
 import com.weili.iot_portal.dal.dataobject.device.DeviceNetworkConfigDO;
+import com.weili.iot_portal.domain.device.req.DeviceInfoBasePageReqVO;
+import com.weili.iot_portal.domain.device.req.DeviceInfoSaveReqVO;
+import com.weili.iot_portal.domain.device.req.DeviceModelPageReqVO;
+import com.weili.iot_portal.domain.device.req.DeviceOrgRelationPageReqVO;
+import com.weili.iot_portal.domain.device.req.DeviceTypeRelationPageReqVO;
+import com.weili.iot_portal.domain.device.resp.DeviceInfoOptionsRespVO;
 import com.weili.iot_portal.domain.device.resp.DeviceInfoRespVO;
+import com.weili.iot_portal.domain.device.resp.DeviceModelRespVO;
+import com.weili.iot_portal.domain.device.resp.DeviceOrgRelationRespVO;
+import com.weili.iot_portal.domain.device.resp.DeviceTypeRelationRespVO;
 import com.weili.iot_portal.dal.ddd.device.DeviceBaseInfoPageQuery;
 import com.weili.iot_portal.dal.repository.device.DeviceInfoRepository;
 import com.weili.iot_portal.dal.repository.device.DeviceLocationRepository;
 import com.weili.iot_portal.dal.repository.device.DeviceModelRepository;
 import com.weili.iot_portal.dal.repository.device.DeviceNetworkConfigRepository;
-import com.weili.iot_portal.domain.device.req.DeviceInfoBasePageReqVO;
-import com.weili.iot_portal.domain.device.req.DeviceInfoSaveReqVO;
 import com.weili.iot_portal.service.device.IDeviceInfoBizService;
+import com.weili.iot_portal.service.device.IDeviceModelBizService;
+import com.weili.iot_portal.service.device.IDeviceOrgRelationBizService;
+import com.weili.iot_portal.service.device.IDeviceTypeRelationBizService;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -42,6 +54,15 @@ public class DeviceInfoBizService implements IDeviceInfoBizService {
 
     @Resource
     private DeviceNetworkConfigRepository deviceNetworkConfigRepository;
+
+    @Resource
+    private IDeviceTypeRelationBizService deviceTypeRelationBizService;
+
+    @Resource
+    private IDeviceOrgRelationBizService deviceOrgRelationBizService;
+
+    @Resource
+    private IDeviceModelBizService deviceModelBizService;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -353,6 +374,61 @@ public class DeviceInfoBizService implements IDeviceInfoBizService {
         reqVO.setId(deviceInfoId);
         reqVO.setNetwork(networkInfo);
         updateDeviceNetworkConfig(deviceInfoId, reqVO);
+    }
+
+    @Override
+    public DeviceInfoOptionsRespVO getDeviceInfoOptions() {
+        DeviceInfoOptionsRespVO options = new DeviceInfoOptionsRespVO();
+
+        // 获取设备类型列表（仅启用状态）
+        DeviceTypeRelationPageReqVO typePageReq = new DeviceTypeRelationPageReqVO();
+        typePageReq.setIsActive(true);
+        typePageReq.setPageNo(1);
+        typePageReq.setPageSize(10000); // 设置一个很大的值以获取所有数据
+        PageResult<DeviceTypeRelationDO> typePageResult = deviceTypeRelationBizService.getDeviceTypeRelationPage(typePageReq);
+        List<DeviceTypeRelationRespVO> deviceTypes = BeanUtils.toBean(typePageResult.getList(), DeviceTypeRelationRespVO.class);
+        options.setDeviceTypes(deviceTypes);
+
+        // 获取厂区列表（仅启用状态，层级1）
+        DeviceOrgRelationPageReqVO factoryPageReq = new DeviceOrgRelationPageReqVO();
+        factoryPageReq.setIsActive(true);
+        factoryPageReq.setLevelNo(1);
+        factoryPageReq.setPageNo(1);
+        factoryPageReq.setPageSize(10000);
+        PageResult<DeviceOrgRelationDO> factoryPageResult = deviceOrgRelationBizService.getDeviceOrgRelationPage(factoryPageReq);
+        List<DeviceOrgRelationRespVO> factories = BeanUtils.toBean(factoryPageResult.getList(), DeviceOrgRelationRespVO.class);
+        options.setFactories(factories);
+
+        // 获取车间列表（仅启用状态，层级2）
+        DeviceOrgRelationPageReqVO workshopPageReq = new DeviceOrgRelationPageReqVO();
+        workshopPageReq.setIsActive(true);
+        workshopPageReq.setLevelNo(2);
+        workshopPageReq.setPageNo(1);
+        workshopPageReq.setPageSize(10000);
+        PageResult<DeviceOrgRelationDO> workshopPageResult = deviceOrgRelationBizService.getDeviceOrgRelationPage(workshopPageReq);
+        List<DeviceOrgRelationRespVO> workshops = BeanUtils.toBean(workshopPageResult.getList(), DeviceOrgRelationRespVO.class);
+        options.setWorkshops(workshops);
+
+        // 获取产线列表（仅启用状态，层级3）
+        DeviceOrgRelationPageReqVO productionLinePageReq = new DeviceOrgRelationPageReqVO();
+        productionLinePageReq.setIsActive(true);
+        productionLinePageReq.setLevelNo(3);
+        productionLinePageReq.setPageNo(1);
+        productionLinePageReq.setPageSize(10000);
+        PageResult<DeviceOrgRelationDO> productionLinePageResult = deviceOrgRelationBizService.getDeviceOrgRelationPage(productionLinePageReq);
+        List<DeviceOrgRelationRespVO> productionLines = BeanUtils.toBean(productionLinePageResult.getList(), DeviceOrgRelationRespVO.class);
+        options.setProductionLines(productionLines);
+
+        // 获取设备型号列表（仅启用状态）
+        DeviceModelPageReqVO modelPageReq = new DeviceModelPageReqVO();
+        modelPageReq.setIsActive(true);
+        modelPageReq.setPageNo(1);
+        modelPageReq.setPageSize(10000);
+        PageResult<DeviceModelDO> modelPageResult = deviceModelBizService.getDeviceModelPage(modelPageReq);
+        List<DeviceModelRespVO> deviceModels = BeanUtils.toBean(modelPageResult.getList(), DeviceModelRespVO.class);
+        options.setDeviceModels(deviceModels);
+
+        return options;
     }
 }
 

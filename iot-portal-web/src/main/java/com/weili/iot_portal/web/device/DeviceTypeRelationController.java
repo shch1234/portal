@@ -17,7 +17,6 @@ import jakarta.validation.Valid;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
 
 /**
  * 设备类型管理 Controller
@@ -62,14 +61,6 @@ public class DeviceTypeRelationController {
     public CommonResult<DeviceTypeRelationRespVO> getDeviceTypeRelation(@RequestParam("id") String id) {
         DeviceTypeRelationDO deviceTypeRelation = deviceTypeRelationBizService.getDeviceTypeRelation(id);
         return CommonResult.success(BeanUtils.toBean(deviceTypeRelation, DeviceTypeRelationRespVO.class));
-    }
-
-    @GetMapping("/get-by-parent")
-    @Operation(summary = "根据父级ID获取子类型列表")
-    @Parameter(name = "parentTypeId", description = "父类型ID", required = true, example = "123456789")
-    public CommonResult<List<DeviceTypeRelationRespVO>> getDeviceTypeRelationByParentId(@RequestParam("parentTypeId") String parentTypeId) {
-        List<DeviceTypeRelationDO> list = deviceTypeRelationBizService.getDeviceTypeRelationByParentId(parentTypeId);
-        return CommonResult.success(BeanUtils.toBean(list, DeviceTypeRelationRespVO.class));
     }
 
     @GetMapping("/page")
