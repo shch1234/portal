@@ -10,6 +10,9 @@ import com.weili.iot_portal.service.cache.DeviceIdentityCacheService;
 import com.weili.iot_portal.service.cache.DeviceToolCacheService;
 import com.weili.iot_portal.service.ingestion.WebhookEventHandler;
 import com.weili.iot_portal.service.ingestion.handler.fields.DeviceToolEventFields;
+import com.weili.iot_portal.service.ingestion.handler.support.WebhookHandlerUtils;
+
+import static com.weili.iot_portal.service.ingestion.handler.support.WebhookHandlerUtils.DeviceIdentity;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -41,7 +44,7 @@ import java.util.Objects;
 @RequiredArgsConstructor
 public class DeviceToolEventHandler implements WebhookEventHandler {
 
-    private final DeviceIdentityCacheService deviceIdentityCacheService;
+    private final WebhookHandlerUtils webhookHandlerUtils;
     private final DeviceToolCacheService deviceToolCacheService;
     private final DeviceToolCompensationRepository deviceToolCompensationRepository;
 
@@ -63,11 +66,10 @@ public class DeviceToolEventHandler implements WebhookEventHandler {
             throw new IotPortalException(IotPortalErrorCode.EVENT_DATA_EMPTY);
         }
 
-        DeviceIdentityCacheService.DeviceIdentity identity = deviceIdentityCacheService
-                .resolveByDeviceCode(request.getDeviceCode(),
-                        request.getDeviceId(), DeviceToolEventFields.EVENT_SOURCE);
-        String deviceInfoId = identity.getDeviceId();
-        String orgFactoryId = identity.getFactoryId();
+        DeviceIdentity identity = 
+                webhookHandlerUtils.resolveDeviceIdentity(request);
+        String deviceInfoId = identity.deviceInfoId();
+        String orgFactoryId = identity.orgFactoryId();
 
         Long eventTimestamp = request.getDataTimestamp() != null
                 ? request.getDataTimestamp()

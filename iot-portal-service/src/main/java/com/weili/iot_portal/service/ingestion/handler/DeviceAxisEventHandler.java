@@ -8,6 +8,9 @@ import com.weili.iot_portal.service.cache.DeviceAxisCacheService;
 import com.weili.iot_portal.service.cache.DeviceIdentityCacheService;
 import com.weili.iot_portal.service.ingestion.WebhookEventHandler;
 import com.weili.iot_portal.service.ingestion.handler.fields.DeviceAxisEventFields;
+import com.weili.iot_portal.service.ingestion.handler.support.WebhookHandlerUtils;
+
+import static com.weili.iot_portal.service.ingestion.handler.support.WebhookHandlerUtils.DeviceIdentity;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -33,7 +36,7 @@ import java.util.Map;
 public class DeviceAxisEventHandler implements WebhookEventHandler {
 
 
-    private final DeviceIdentityCacheService deviceIdentityCacheService;
+    private final WebhookHandlerUtils webhookHandlerUtils;
     private final DeviceAxisCacheService deviceAxisCacheService;
 
     @Value("${rt.axis.curve.maxlen.load:2000}")
@@ -64,11 +67,10 @@ public class DeviceAxisEventHandler implements WebhookEventHandler {
         }
 
         // 解析设备标识（按 deviceCode / deviceId 解析为 portal 的 deviceInfoId / factoryId）
-        DeviceIdentityCacheService.DeviceIdentity identity = deviceIdentityCacheService
-                .resolveByDeviceCode(request.getDeviceCode(),
-                        request.getDeviceId(), DeviceAxisEventFields.EVENT_SOURCE);
-        String deviceInfoId = identity.getDeviceId();
-        String orgFactoryId = identity.getFactoryId();
+        DeviceIdentity identity = 
+                webhookHandlerUtils.resolveDeviceIdentity(request);
+        String deviceInfoId = identity.deviceInfoId();
+        String orgFactoryId = identity.orgFactoryId();
 
         // 解析时间戳
         Long eventTimestamp = request.getDataTimestamp() != null

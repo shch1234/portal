@@ -17,6 +17,9 @@ import com.weili.iot_portal.common.enums.DeviceStateEnum;
 import com.weili.iot_portal.common.utils.DeviceStateUtils;
 import com.weili.iot_portal.common.utils.WebhookDataUtils;
 import com.weili.iot_portal.common.utils.WebhookTimestampUtils;
+import com.weili.iot_portal.service.ingestion.handler.support.WebhookHandlerUtils;
+
+import static com.weili.iot_portal.service.ingestion.handler.support.WebhookHandlerUtils.DeviceIdentity;
 import com.weili.iot_portal.service.ingestion.handler.fields.DeviceStateEventFields;
 import com.weili.iot_portal.service.shift.IShiftCalculationService;
 import com.weili.iot_portal.service.shift.model.ShiftDateAndCode;
@@ -52,12 +55,12 @@ import java.util.Optional;
 public class DeviceStateEventHandler implements WebhookEventHandler {
 
     private final DeviceStateRecordRepository stateTimelineRepository;
-    private final DeviceIdentityCacheService deviceIdentityCacheService;
     private final WebhookFailLogService webhookFailLogService;
     private final WebhookInboxService inboxService;
     private final DeviceLockService deviceLockService;
     private final DeviceStateCacheService deviceStateCacheService;
     private final IShiftCalculationService shiftCalculationService;
+    private final WebhookHandlerUtils webhookHandlerUtils;
 
     @Override
     public boolean supports(String eventType) {
@@ -88,7 +91,7 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
         EventData eventData = parseEventData(request);
         
         // 2. 解析设备信息
-        DeviceIdentity identity = resolveDeviceIdentity(request);
+        DeviceIdentity identity = webhookHandlerUtils.resolveDeviceIdentity(request);
         
         // 3. 使用分布式锁处理状态更新
         processStateTransitionWithLock(eventData, identity, request);
@@ -158,15 +161,6 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
                 eventTimestamp, currentStateResult, previousStateResult);
     }
 
-    /**
-     * 解析设备身份信息
-     */
-    private DeviceIdentity resolveDeviceIdentity(WebhookRequest request) {
-        DeviceIdentityCacheService.DeviceIdentity identity = deviceIdentityCacheService
-                .resolveByDeviceCode(request.getDeviceCode(),
-                        request.getDeviceId(), DeviceStateEventFields.EVENT_SOURCE);
-        return new DeviceIdentity(identity.getDeviceId(), identity.getFactoryId());
-    }
 
     /**
      * 记录时间戳提取结果（用于调试）
@@ -712,11 +706,10 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
             throw new IotPortalException(IotPortalErrorCode.EVENT_CURRENT_STATE_EMPTY);
         }
         
-        DeviceIdentityCacheService.DeviceIdentity identity = deviceIdentityCacheService
-                .resolveByDeviceCode(request.getDeviceCode(),
-                        request.getDeviceId(), DeviceStateEventFields.EVENT_SOURCE_HEARTBEAT);
-        String deviceInfoId = identity.getDeviceId();
-        String orgFactoryId = identity.getFactoryId();
+        DeviceIdentity identity = 
+                webhookHandlerUtils.resolveDeviceIdentity(request);
+        String deviceInfoId = identity.deviceInfoId();
+        String orgFactoryId = identity.orgFactoryId();
 
         long ts = request.getDataTimestamp() != null
                 ? request.getDataTimestamp()
@@ -751,10 +744,6 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
             DeviceStateUtils.StateValidationResult previousStateResult
     ) {}
 
-    /**
-     * 设备身份信息
-     */
-    private record DeviceIdentity(String deviceInfoId, String orgFactoryId) {}
 
     /**
      * 状态转换结果

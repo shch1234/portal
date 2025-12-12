@@ -4,10 +4,12 @@ import com.weili.iot_portal.common.exception.IotPortalErrorCode;
 import com.weili.iot_portal.common.exception.IotPortalException;
 import com.weili.iot_portal.dal.dataobject.ingestion.WebhookInboxDO;
 import com.weili.iot_portal.domain.ingestion.WebhookRequest;
-import com.weili.iot_portal.service.cache.DeviceIdentityCacheService;
 import com.weili.iot_portal.service.cache.DeviceProgramCacheService;
 import com.weili.iot_portal.service.ingestion.WebhookEventHandler;
 import com.weili.iot_portal.service.ingestion.handler.fields.DeviceProgramEventFields;
+import com.weili.iot_portal.service.ingestion.handler.support.WebhookHandlerUtils;
+
+import static com.weili.iot_portal.service.ingestion.handler.support.WebhookHandlerUtils.DeviceIdentity;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -27,8 +29,8 @@ import java.util.Map;
 public class DeviceProgramEventHandler implements WebhookEventHandler {
 
 
-    private final DeviceIdentityCacheService deviceIdentityCacheService;
     private final DeviceProgramCacheService deviceProgramCacheService;
+    private final WebhookHandlerUtils webhookHandlerUtils;
 
     @Override
     public boolean supports(String eventType) {
@@ -48,11 +50,10 @@ public class DeviceProgramEventHandler implements WebhookEventHandler {
             throw new IotPortalException(IotPortalErrorCode.EVENT_DATA_EMPTY);
         }
 
-        DeviceIdentityCacheService.DeviceIdentity identity = deviceIdentityCacheService
-                .resolveByDeviceCode(request.getDeviceCode(),
-                        request.getDeviceId(), DeviceProgramEventFields.EVENT_SOURCE);
-        String deviceInfoId = identity.getDeviceId();
-        String orgFactoryId = identity.getFactoryId();
+        DeviceIdentity identity = 
+                webhookHandlerUtils.resolveDeviceIdentity(request);
+        String deviceInfoId = identity.deviceInfoId();
+        String orgFactoryId = identity.orgFactoryId();
 
         Long eventTimestamp = request.getDataTimestamp() != null
                 ? request.getDataTimestamp()

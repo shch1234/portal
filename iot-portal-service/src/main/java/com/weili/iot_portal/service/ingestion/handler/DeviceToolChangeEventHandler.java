@@ -11,6 +11,9 @@ import com.weili.iot_portal.service.cache.DeviceIdentityCacheService;
 import com.weili.iot_portal.service.cache.DeviceLockService;
 import com.weili.iot_portal.service.ingestion.WebhookEventHandler;
 import com.weili.iot_portal.service.ingestion.handler.fields.DeviceToolEventFields;
+import com.weili.iot_portal.service.ingestion.handler.support.WebhookHandlerUtils;
+
+import static com.weili.iot_portal.service.ingestion.handler.support.WebhookHandlerUtils.DeviceIdentity;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -42,8 +45,8 @@ import java.util.Map;
 public class DeviceToolChangeEventHandler implements WebhookEventHandler {
 
     private final DeviceToolRecordRepository deviceToolRecordRepository;
-    private final DeviceIdentityCacheService deviceIdentityCacheService;
     private final DeviceLockService deviceLockService;
+    private final WebhookHandlerUtils webhookHandlerUtils;
 
     @Override
     public boolean supports(String eventType) {
@@ -76,10 +79,9 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
         long eventTsSeconds = eventTimestampMs / DeviceToolEventFields.MILLIS_TO_SECONDS;
 
         // 解析设备
-        DeviceIdentityCacheService.DeviceIdentity identity = deviceIdentityCacheService
-                .resolveByDeviceCode(request.getDeviceCode(),
-                        request.getDeviceId(), DeviceToolEventFields.EVENT_SOURCE_CHANGE);
-        String deviceInfoId = identity.getDeviceId();
+        DeviceIdentity identity = 
+                webhookHandlerUtils.resolveDeviceIdentity(request);
+        String deviceInfoId = identity.deviceInfoId();
 
         // 分布式锁，避免并发换刀
         if (!deviceLockService.tryLockToolChange(deviceInfoId, DeviceToolEventFields.LOCK_TIMEOUT_SECONDS_TOOL_CHANGE)) {

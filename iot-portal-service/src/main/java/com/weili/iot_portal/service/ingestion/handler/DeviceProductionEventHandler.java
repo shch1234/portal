@@ -9,6 +9,9 @@ import com.weili.iot_portal.domain.ingestion.WebhookRequest;
 import com.weili.iot_portal.service.cache.DeviceIdentityCacheService;
 import com.weili.iot_portal.service.ingestion.WebhookEventHandler;
 import com.weili.iot_portal.service.ingestion.handler.fields.DeviceProductionEventFields;
+import com.weili.iot_portal.service.ingestion.handler.support.WebhookHandlerUtils;
+
+import static com.weili.iot_portal.service.ingestion.handler.support.WebhookHandlerUtils.DeviceIdentity;
 import com.weili.iot_portal.service.shift.IShiftCalculationService;
 import com.weili.iot_portal.service.shift.model.ShiftDateAndCode;
 import lombok.RequiredArgsConstructor;
@@ -31,7 +34,7 @@ import java.util.Optional;
 public class DeviceProductionEventHandler implements WebhookEventHandler {
 
 
-    private final DeviceIdentityCacheService deviceIdentityCacheService;
+    private final WebhookHandlerUtils webhookHandlerUtils;
     private final DeviceProductionRecordRepository deviceProductionRecordRepository;
     private final IShiftCalculationService shiftCalculationService;
 
@@ -64,11 +67,10 @@ public class DeviceProductionEventHandler implements WebhookEventHandler {
             throw new IotPortalException(IotPortalErrorCode.EVENT_PRODUCTION_TIMESTAMP_EMPTY);
         }
 
-        DeviceIdentityCacheService.DeviceIdentity identity = deviceIdentityCacheService
-                .resolveByDeviceCode(request.getDeviceCode(),
-                        request.getDeviceId(), DeviceProductionEventFields.EVENT_SOURCE);
-        String deviceInfoId = identity.getDeviceId();
-        String orgFactoryId = identity.getFactoryId();
+        DeviceIdentity identity = 
+                webhookHandlerUtils.resolveDeviceIdentity(request);
+        String deviceInfoId = identity.deviceInfoId();
+        String orgFactoryId = identity.orgFactoryId();
 
         ShiftInfo shift = resolveShift(orgFactoryId, deviceInfoId, ts);
 

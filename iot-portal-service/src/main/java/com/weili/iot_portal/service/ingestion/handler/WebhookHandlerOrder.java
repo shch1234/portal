@@ -59,6 +59,13 @@ public final class WebhookHandlerOrder {
     public static final int DEVICE_PRODUCTION = 25;
 
     /**
+     * 设备加工状态事件处理器顺序
+     * 在生产事件之后处理
+     * 对应：{@link com.weili.iot_portal.service.ingestion.handler.DeviceWorkingStateEventHandler}
+     */
+    public static final int DEVICE_WORKING_STATE = 26;
+
+    /**
      * 刀具事件处理器顺序
      * 在状态、轴之后处理，刀具信息依赖基础状态
      * 对应：{@link com.weili.iot_portal.service.ingestion.handler.DeviceToolEventHandler}
