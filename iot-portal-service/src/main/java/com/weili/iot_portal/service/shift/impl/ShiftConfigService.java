@@ -1,6 +1,5 @@
 package com.weili.iot_portal.service.shift.impl;
 
-import com.weili.iot_portal.common.exception.IotPortalException;
 import com.weili.iot_portal.dal.dataobject.device.DeviceShiftConfigDO;
 import com.weili.iot_portal.dal.repository.device.DeviceShiftConfigRepository;
 import com.weili.iot_portal.service.shift.DeviceFactoryValidator;
