@@ -5,7 +5,7 @@ import com.weili.iot_portal.common.enums.InboxStatusEnum;
 import com.weili.iot_portal.dal.dataobject.ingestion.WebhookInboxDO;
 import com.weili.iot_portal.domain.ingestion.WebhookRequest;
 import com.weili.iot_portal.service.ingestion.WebhookFailLogService;
-import com.weili.iot_portal.service.ingestion.handler.WebhookEventHandler;
+import com.weili.iot_portal.service.ingestion.WebhookEventHandler;
 import com.weili.iot_portal.service.ingestion.handler.registry.WebhookHandlerRegistry;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;

@@ -1,10 +1,10 @@
-package com.weili.iot_portal.service.ingestion.handler.impl;
+package com.weili.iot_portal.service.ingestion.impl;
 
 import com.weili.iot_portal.common.exception.IotPortalErrorCode;
 import com.weili.iot_portal.common.exception.IotPortalException;
 import com.weili.iot_portal.dal.dataobject.ingestion.WebhookInboxDO;
 import com.weili.iot_portal.domain.ingestion.WebhookRequest;
-import com.weili.iot_portal.service.ingestion.handler.WebhookEventHandler;
+import com.weili.iot_portal.service.ingestion.WebhookEventHandler;
 import com.weili.iot_portal.service.ingestion.handler.WebhookHandlerOrder;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.annotation.Order;

@@ -8,6 +8,7 @@ import com.weili.iot_portal.dal.repository.device.DeviceToolCompensationReposito
 import com.weili.iot_portal.domain.ingestion.WebhookRequest;
 import com.weili.iot_portal.service.cache.DeviceIdentityCacheService;
 import com.weili.iot_portal.service.cache.DeviceToolCacheService;
+import com.weili.iot_portal.service.ingestion.WebhookEventHandler;
 import com.weili.iot_portal.service.ingestion.handler.fields.DeviceToolEventFields;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

@@ -28,17 +28,11 @@ public class DeviceTypeRelationDO extends BaseSimpleDO {
 
     private String typeCode;
 
-    /** 类型字典值，对应 type_dict_value */
-    private String typeDictValue;
-
     /** 父类型ID，对应 parent_type_id */
     private String parentTypeId;
 
     /** 父类型编码，对应 parent_type_code */
     private String parentTypeCode;
-
-    /** 父类型字典值，对应 parent_dict_value */
-    private String parentDictValue;
 
     /** 层级，对应 level_no */
     private Integer levelNo;

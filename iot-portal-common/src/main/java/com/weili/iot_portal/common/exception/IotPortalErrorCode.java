@@ -41,6 +41,23 @@ public enum IotPortalErrorCode implements IEnumBase {
     FACTORY_ID_EMPTY("工厂ID不能为空"),
     SHIFT_CONFIG_EMPTY("班次配置为空"),
 
+    // 设备基础数据相关错误
+    DEVICE_INFO_NOT_FOUND("设备信息不存在"),
+    DEVICE_CODE_DUPLICATE("设备编号已存在"),
+    DEVICE_TB_DEVICE_ID_DUPLICATE("ThingsBoard设备ID已存在"),
+    DEVICE_MODEL_NOT_FOUND("设备型号不存在"),
+    DEVICE_MODEL_CODE_DUPLICATE("设备型号编码已存在"),
+    DEVICE_TYPE_NOT_FOUND("设备类型不存在"),
+    DEVICE_TYPE_CODE_DUPLICATE("设备类型编码已存在"),
+    DEVICE_TYPE_HAS_CHILDREN("设备类型存在子类型，无法删除"),
+    DEVICE_ORG_NOT_FOUND("组织单元不存在"),
+    DEVICE_ORG_CODE_DUPLICATE("组织单元编码已存在"),
+    DEVICE_ORG_HAS_CHILDREN("组织单元存在子单元，无法删除"),
+    DEVICE_ORG_HAS_DEVICES("组织单元下存在设备，无法删除"),
+    DEVICE_LOCATION_NOT_FOUND("设备位置信息不存在"),
+    DEVICE_NETWORK_CONFIG_NOT_FOUND("设备网络配置不存在"),
+    DEVICE_NETWORK_CONFIG_DUPLICATE("设备已存在网络配置"),
+
     // 默认错误
     DEFAULT_ERROR("系统错误");
 

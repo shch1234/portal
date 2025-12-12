@@ -1,6 +1,6 @@
 package com.weili.iot_portal.service.ingestion.handler.registry;
 
-import com.weili.iot_portal.service.ingestion.handler.WebhookEventHandler;
+import com.weili.iot_portal.service.ingestion.WebhookEventHandler;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.BeansException;

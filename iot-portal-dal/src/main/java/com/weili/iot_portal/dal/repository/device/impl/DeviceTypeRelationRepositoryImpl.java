@@ -57,9 +57,6 @@ public class DeviceTypeRelationRepositoryImpl implements DeviceTypeRelationRepos
         if (StringUtils.isNotBlank(query.getTypeCodeLike())) {
             wrapper.like(DeviceTypeRelationDO::getTypeCode, query.getTypeCodeLike());
         }
-        if (StringUtils.isNotBlank(query.getTypeDictValueLike())) {
-            wrapper.like(DeviceTypeRelationDO::getTypeDictValue, query.getTypeDictValueLike());
-        }
         if (StringUtils.isNotBlank(query.getParentTypeId())) {
             wrapper.eq(DeviceTypeRelationDO::getParentTypeId, query.getParentTypeId());
         }
@@ -112,7 +109,6 @@ public class DeviceTypeRelationRepositoryImpl implements DeviceTypeRelationRepos
     private SFunction<DeviceTypeRelationDO, ?> getOrderByColumn(String sortBy) {
         return switch (sortBy) {
             case "typeCode" -> DeviceTypeRelationDO::getTypeCode;
-            case "typeDictValue" -> DeviceTypeRelationDO::getTypeDictValue;
             case "levelNo" -> DeviceTypeRelationDO::getLevelNo;
             case "createdTime" -> DeviceTypeRelationDO::getCreateTime;
             case "updatedTime" -> DeviceTypeRelationDO::getUpdateTime;

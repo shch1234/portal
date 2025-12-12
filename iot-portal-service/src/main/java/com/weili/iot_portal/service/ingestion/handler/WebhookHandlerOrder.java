@@ -1,5 +1,8 @@
 package com.weili.iot_portal.service.ingestion.handler;
 
+import com.weili.iot_portal.service.ingestion.WebhookEventHandler;
+import com.weili.iot_portal.service.ingestion.impl.LoggingFallbackWebhookHandler;
+
 /**
  * Webhook 事件处理器执行顺序常量
  * <p>
@@ -79,8 +82,10 @@ public final class WebhookHandlerOrder {
     /**
      * 兜底处理器顺序
      * 最低优先级，当没有其他处理器匹配时执行
-     * 对应：{@link com.weili.iot_portal.service.ingestion.handler.impl.LoggingFallbackWebhookHandler}
+     * 对应：{@link LoggingFallbackWebhookHandler}
      */
     public static final int FALLBACK = 9999;
 }
+
+
 

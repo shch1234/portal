@@ -13,8 +13,6 @@ public class DeviceTypePageQuery {
 
     private String typeCodeLike;
 
-    private String typeDictValueLike;
-
     private String parentTypeId;
 
     private Integer levelNo;

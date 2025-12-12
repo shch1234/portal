@@ -1,4 +1,4 @@
-package com.weili.iot_portal.service.ingestion.handler;
+package com.weili.iot_portal.service.ingestion;
 
 import com.weili.iot_portal.dal.dataobject.ingestion.WebhookInboxDO;
 import com.weili.iot_portal.domain.ingestion.WebhookRequest;

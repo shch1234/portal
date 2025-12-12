@@ -25,5 +25,7 @@ public interface DeviceOrgRelationRepository {
     void insert(DeviceOrgRelationDO entity);
 
     void update(DeviceOrgRelationDO entity);
+
+    boolean deleteById(String id);
 }
 
