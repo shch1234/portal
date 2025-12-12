@@ -14,9 +14,9 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class ShiftInfo {
     /**
-     * 班次编码：SHIFT_1、SHIFT_2、SHIFT_3
+     * 班次编码：1、2、3（TINYINT UNSIGNED）
      */
-    private String code;
+    private Integer code;
 
     /**
      * 班次名称：早班、中班、晚班

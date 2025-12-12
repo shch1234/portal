@@ -49,7 +49,7 @@ public class DeviceMetricSummaryRepositoryImpl implements DeviceMetricSummaryRep
     }
 
     @Override
-    public DeviceMetricSummaryDO findByShift(String deviceId, LocalDate shiftDate, String shiftCode) {
+    public DeviceMetricSummaryDO findByShift(String deviceId, LocalDate shiftDate, Integer shiftCode) {
         LambdaQueryWrapper<DeviceMetricSummaryDO> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(DeviceMetricSummaryDO::getDeviceInfoId, deviceId)
                 .eq(DeviceMetricSummaryDO::getShiftDate, shiftDate)

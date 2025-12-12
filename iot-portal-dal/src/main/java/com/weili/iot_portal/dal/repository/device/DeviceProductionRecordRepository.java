@@ -13,7 +13,7 @@ public interface DeviceProductionRecordRepository {
 
     void updateById(DeviceProductionRecordDO record);
 
-    List<DeviceProductionRecordDO> findByShift(String deviceId, String shiftCode, java.time.LocalDate shiftDate);
+    List<DeviceProductionRecordDO> findByShift(String deviceId, Integer shiftCode, java.time.LocalDate shiftDate);
 
     /**
      * 统计在时间范围内已完成（end_ts 落入区间）的记录数量

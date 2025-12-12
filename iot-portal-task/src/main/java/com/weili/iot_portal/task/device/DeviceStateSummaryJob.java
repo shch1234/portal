@@ -6,12 +6,14 @@ import com.weili.basic.redis.client.RedisClient;
 import com.weili.iot_portal.dal.dataobject.device.DeviceInfoDO;
 import com.weili.iot_portal.dal.dataobject.device.DeviceShiftConfigDO;
 import com.weili.iot_portal.dal.dataobject.device.DeviceStateRecordDO;
+import com.weili.iot_portal.common.enums.DeviceStateEnum;
+import com.weili.iot_portal.common.utils.DeviceStateUtils;
 import com.weili.iot_portal.dal.dataobject.device.DeviceStateSummaryDO;
 import com.weili.iot_portal.dal.repository.device.DeviceInfoRepository;
 import com.weili.iot_portal.dal.repository.device.DeviceShiftConfigRepository;
 import com.weili.iot_portal.dal.repository.device.DeviceStateRecordRepository;
 import com.weili.iot_portal.dal.repository.device.DeviceStateSummaryRepository;
-import com.weili.iot_portal.service.shift.IShiftConfigService;
+import com.weili.iot_portal.service.shift.IShiftCalculationService;
 import com.weili.iot_portal.service.shift.model.ShiftTimeRange;
 import com.weili.iot_portal.task.framework.BaseScheduledJob;
 import com.weili.iot_portal.task.framework.JobExecutionResult;
@@ -69,7 +71,7 @@ public class DeviceStateSummaryJob extends BaseScheduledJob {
 
     private final DeviceInfoRepository deviceInfoRepository;
     private final DeviceShiftConfigRepository deviceShiftConfigRepository;
-    private final IShiftConfigService shiftConfigurationService;
+    private final IShiftCalculationService shiftCalculationService;
     private final DeviceStateRecordRepository stateTimelineRepository;
     private final DeviceStateSummaryRepository stateSummaryRepository;
     private final RedisClient redisClient;
@@ -243,7 +245,7 @@ public class DeviceStateSummaryJob extends BaseScheduledJob {
                                                        DeviceShiftConfigDO config, long statisticsTimeSeconds) {
         try {
             // 获取当前时间点的班次
-            ShiftTimeRange currentShift = shiftConfigurationService.calculateShiftRange(
+            ShiftTimeRange currentShift = shiftCalculationService.calculateShiftRange(
                     factoryId, deviceId, statisticsTimeSeconds * 1000L);
 
             // 计算前一个班次
@@ -322,7 +324,7 @@ public class DeviceStateSummaryJob extends BaseScheduledJob {
         List<DeviceShiftConfigDO.ShiftDefinition> shifts = new ArrayList<>();
 
         // 班次1
-        if (StringUtils.isNotBlank(config.getShift1Code())) {
+        if (config.getShift1Code() != null) {
             DeviceShiftConfigDO.ShiftDefinition shift1 = new DeviceShiftConfigDO.ShiftDefinition();
             shift1.setCode(config.getShift1Code());
             shift1.setName(config.getShift1Name());
@@ -335,7 +337,7 @@ public class DeviceStateSummaryJob extends BaseScheduledJob {
         }
 
         // 班次2
-        if (StringUtils.isNotBlank(config.getShift2Code())) {
+        if (config.getShift2Code() != null) {
             DeviceShiftConfigDO.ShiftDefinition shift2 = new DeviceShiftConfigDO.ShiftDefinition();
             shift2.setCode(config.getShift2Code());
             shift2.setName(config.getShift2Name());
@@ -349,7 +351,7 @@ public class DeviceStateSummaryJob extends BaseScheduledJob {
 
         // 班次3（3班制）
         if (config.getShiftMode() != null && config.getShiftMode() == 3
-                && StringUtils.isNotBlank(config.getShift3Code())) {
+                && config.getShift3Code() != null) {
             DeviceShiftConfigDO.ShiftDefinition shift3 = new DeviceShiftConfigDO.ShiftDefinition();
             shift3.setCode(config.getShift3Code());
             shift3.setName(config.getShift3Name());
@@ -391,7 +393,7 @@ public class DeviceStateSummaryJob extends BaseScheduledJob {
      * 查找已存在的汇总记录
      */
     private DeviceStateSummaryDO findExistingSummary(String deviceId,
-                                                     LocalDate shiftDate, String shiftCode) {
+                                                     LocalDate shiftDate, Integer shiftCode) {
         return stateSummaryRepository.findByShift(deviceId, shiftDate, shiftCode);
     }
 
@@ -405,16 +407,20 @@ public class DeviceStateSummaryJob extends BaseScheduledJob {
         long shiftDurationSeconds = shiftEndTs - shiftStartTs;
 
         // 初始化所有状态
-        for (String state : Arrays.asList("WORKING", "STANDBY", "FAULT", "SHUTDOWN", "UNKNOWN")) {
+        for (String state : DeviceStateUtils.getAllStateNames()) {
             statsMap.put(state, new StateStatistics(state, 0, 0));
         }
 
         // 统计状态记录
         for (DeviceStateRecordDO record : stateRecords) {
-            String stateCode = record.getStateCode();
+            Integer stateCode = record.getStateCode();
             if (stateCode == null) {
                 continue;
             }
+
+            // 将数字编码转换为状态名称
+            DeviceStateEnum stateEnum = DeviceStateEnum.fromCode(stateCode);
+            String stateName = stateEnum.name();
 
             // 计算该记录在班次内的有效时长
             long recordStartTs = record.getStartTs() != null ? record.getStartTs() : shiftStartTs;
@@ -425,7 +431,7 @@ public class DeviceStateSummaryJob extends BaseScheduledJob {
             long effectiveEnd = Math.min(recordEndTs, shiftEndTs);
             long duration = Math.max(0, effectiveEnd - effectiveStart);
 
-            StateStatistics stats = statsMap.computeIfAbsent(stateCode,
+            StateStatistics stats = statsMap.computeIfAbsent(stateName,
                     k -> new StateStatistics(k, 0, 0));
             stats.durationSeconds += duration;
             stats.fragmentCount++;
@@ -484,10 +490,14 @@ public class DeviceStateSummaryJob extends BaseScheduledJob {
         summary.setCalculationSource(CALCULATION_SOURCE_SCHEDULED);
 
         // 设置状态统计
-        StateStatistics working = stateStats.getOrDefault("WORKING", new StateStatistics("WORKING", 0, 0));
-        StateStatistics standby = stateStats.getOrDefault("STANDBY", new StateStatistics("STANDBY", 0, 0));
-        StateStatistics fault = stateStats.getOrDefault("FAULT", new StateStatistics("FAULT", 0, 0));
-        StateStatistics shutdown = stateStats.getOrDefault("SHUTDOWN", new StateStatistics("SHUTDOWN", 0, 0));
+        StateStatistics working = stateStats.getOrDefault(DeviceStateEnum.WORKING.name(), 
+                new StateStatistics(DeviceStateEnum.WORKING.name(), 0, 0));
+        StateStatistics standby = stateStats.getOrDefault(DeviceStateEnum.STANDBY.name(), 
+                new StateStatistics(DeviceStateEnum.STANDBY.name(), 0, 0));
+        StateStatistics fault = stateStats.getOrDefault(DeviceStateEnum.FAULT.name(), 
+                new StateStatistics(DeviceStateEnum.FAULT.name(), 0, 0));
+        StateStatistics shutdown = stateStats.getOrDefault(DeviceStateEnum.SHUTDOWN.name(), 
+                new StateStatistics(DeviceStateEnum.SHUTDOWN.name(), 0, 0));
         StateStatistics missing = stateStats.getOrDefault("MISSING", new StateStatistics("MISSING", 0, 0));
 
         summary.setWorkingDurationS((int) working.durationSeconds);

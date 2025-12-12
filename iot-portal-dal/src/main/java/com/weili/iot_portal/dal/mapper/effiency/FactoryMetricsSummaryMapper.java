@@ -23,7 +23,7 @@ public interface FactoryMetricsSummaryMapper {
     FactoryMetricsSummaryDO selectFactoryMetrics(
             @Param("factoryId") String factoryId,
             @Param("shiftDate") String shiftDate,
-            @Param("shiftCode") String shiftCode);
+            @Param("shiftCode") Integer shiftCode);
 
     /**
      * 查询工厂级效率指标历史趋势（过去N天）

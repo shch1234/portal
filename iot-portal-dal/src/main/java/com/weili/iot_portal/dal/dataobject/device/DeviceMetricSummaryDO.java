@@ -41,10 +41,10 @@ public class DeviceMetricSummaryDO extends BaseSimpleDO {
     private LocalDate shiftDate;
 
     /**
-     * 班次编码（对应 shift_code 列）
-     * 如：SHIFT_1-一班 SHIFT_2-二班 SHIFT_3-三班
+     * 班次编码（对应 shift_code 列，TINYINT UNSIGNED）
+     * 编码映射：1-一班 2-二班 3-三班
      */
-    private String shiftCode;
+    private Integer shiftCode;
 
     /**
      * 班次开始时间戳（秒，Unix时间戳，对应 shift_start_ts 列）

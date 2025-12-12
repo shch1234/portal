@@ -8,7 +8,7 @@ import com.weili.iot_portal.dal.repository.device.DeviceInfoRepository;
 import com.weili.iot_portal.dal.repository.device.DeviceShiftConfigRepository;
 import com.weili.iot_portal.dal.repository.device.DeviceStateRecordRepository;
 import com.weili.iot_portal.dal.repository.device.DeviceStateSummaryRepository;
-import com.weili.iot_portal.service.shift.IShiftConfigService;
+import com.weili.iot_portal.service.shift.IShiftCalculationService;
 import com.weili.iot_portal.service.shift.model.ShiftTimeRange;
 import com.weili.iot_portal.task.framework.BaseCompensationJob;
 import com.weili.iot_portal.task.framework.ItemProcessResult;
@@ -52,7 +52,7 @@ public class DeviceStateSummaryCompensationJob extends BaseCompensationJob<Devic
     private final DeviceStateSummaryRepository stateSummaryRepository;
     private final DeviceInfoRepository deviceInfoRepository;
     private final DeviceShiftConfigRepository deviceShiftConfigRepository;
-    private final IShiftConfigService shiftConfigurationService;
+    private final IShiftCalculationService shiftCalculationService;
     private final DeviceStateRecordRepository stateTimelineRepository;
     private final DeviceStateSummaryJob summaryJob;
 
@@ -134,7 +134,7 @@ public class DeviceStateSummaryCompensationJob extends BaseCompensationJob<Devic
         }
 
         // 计算班次时间范围
-        ShiftTimeRange shiftRange = shiftConfigurationService.calculateShiftRange(
+        ShiftTimeRange shiftRange = shiftCalculationService.calculateShiftRange(
                 device.getOrgFactoryId(),
                 summary.getDeviceInfoId(),
                 shiftStartTs);

@@ -49,7 +49,7 @@ public class DeviceProductionRecordRepositoryImpl implements DeviceProductionRec
     }
 
     @Override
-    public List<DeviceProductionRecordDO> findByShift(String deviceId, String shiftCode, LocalDate shiftDate) {
+    public List<DeviceProductionRecordDO> findByShift(String deviceId, Integer shiftCode, LocalDate shiftDate) {
         LambdaQueryWrapper<DeviceProductionRecordDO> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(DeviceProductionRecordDO::getDeviceInfoId, deviceId)
                 .eq(DeviceProductionRecordDO::getShiftCode, shiftCode)

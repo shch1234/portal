@@ -50,7 +50,7 @@ public class DeviceStateSummaryRepositoryImpl implements DeviceStateSummaryRepos
     }
 
     @Override
-    public DeviceStateSummaryDO findByShift(String deviceId, LocalDate shiftDate, String shiftCode) {
+    public DeviceStateSummaryDO findByShift(String deviceId, LocalDate shiftDate, Integer shiftCode) {
         LambdaQueryWrapper<DeviceStateSummaryDO> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(DeviceStateSummaryDO::getDeviceInfoId, deviceId)
                 .eq(DeviceStateSummaryDO::getSummaryDate, shiftDate)

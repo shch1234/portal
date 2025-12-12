@@ -18,7 +18,7 @@ public interface FactoryMetricsRepository {
      * @param shiftCode 班次编码
      * @return 工厂级效率指标
      */
-    Optional<FactoryMetricsSummaryDO> findByShift(String factoryId, String shiftDate, String shiftCode);
+    Optional<FactoryMetricsSummaryDO> findByShift(String factoryId, String shiftDate, Integer shiftCode);
 
     /**
      * 查询工厂级效率指标历史趋势（过去N天）

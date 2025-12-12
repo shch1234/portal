@@ -9,7 +9,7 @@ import com.weili.iot_portal.dal.repository.device.DeviceInfoRepository;
 import com.weili.iot_portal.dal.repository.device.DeviceParamConfigRepository;
 import com.weili.iot_portal.dal.repository.device.DeviceProductionRecordRepository;
 import com.weili.iot_portal.dal.repository.device.DeviceStateRecordRepository;
-import com.weili.iot_portal.service.shift.IShiftConfigService;
+import com.weili.iot_portal.service.shift.IShiftCalculationService;
 import com.weili.iot_portal.service.shift.model.ShiftTimeRange;
 import com.weili.iot_portal.task.framework.BaseScheduledJob;
 import com.weili.iot_portal.task.framework.JobExecutionResult;
@@ -42,7 +42,7 @@ public class DeviceMetricsJob extends BaseScheduledJob {
     private final DeviceStateRecordRepository deviceStateRecordRepository;
     private final DeviceParamConfigRepository deviceParamConfigRepository;
     private final DeviceProductionRecordRepository deviceProductionRecordRepository;
-    private final IShiftConfigService deviceShiftConfigService;
+    private final IShiftCalculationService shiftCalculationService;
     private final StringRedisTemplate stringRedisTemplate;
 
     private static final String PARAM_PLANNED_DOWNTIME = "PLANNED_DOWNTIME";
@@ -88,7 +88,7 @@ public class DeviceMetricsJob extends BaseScheduledJob {
         String deviceId = device.getId();
 
         long nowMs = System.currentTimeMillis();
-        ShiftTimeRange shift = deviceShiftConfigService.calculateShiftRange(factoryId, deviceId, nowMs);
+        ShiftTimeRange shift = shiftCalculationService.calculateShiftRange(factoryId, deviceId, nowMs);
         if (shift == null || shift.getStartTs() == null) {
             return;
         }
@@ -157,10 +157,13 @@ public class DeviceMetricsJob extends BaseScheduledJob {
         List<DeviceStateRecordDO> timelines = deviceStateRecordRepository.selectByRange(deviceId, startSec, endSec);
         Map<String, Long> result = new HashMap<>();
         for (DeviceStateRecordDO t : timelines) {
-            String state = t.getStateCode();
-            if (StringUtils.isBlank(state)) {
+            Integer stateCode = t.getStateCode();
+            if (stateCode == null) {
                 continue;
             }
+            // 将数字编码转换为状态名称
+            DeviceStateEnum stateEnum = DeviceStateEnum.fromCode(stateCode);
+            String state = stateEnum.name();
             long segStart = Math.max(startSec, t.getStartTs());
             long segEnd = Math.min(endSec, t.getEndTs() != null ? t.getEndTs() : nowSec);
             if (segEnd > segStart) {

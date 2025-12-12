@@ -19,7 +19,7 @@ public class FactoryMetricsRepositoryImpl implements FactoryMetricsRepository {
     private final FactoryMetricsSummaryMapper factoryMetricsSummaryMapper;
 
     @Override
-    public Optional<FactoryMetricsSummaryDO> findByShift(String factoryId, String shiftDate, String shiftCode) {
+    public Optional<FactoryMetricsSummaryDO> findByShift(String factoryId, String shiftDate, Integer shiftCode) {
         FactoryMetricsSummaryDO result = factoryMetricsSummaryMapper.selectFactoryMetrics(factoryId, shiftDate, shiftCode);
         return Optional.ofNullable(result);
     }

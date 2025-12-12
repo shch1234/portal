@@ -46,11 +46,19 @@ public class DeviceAlarmHistoryDO implements Serializable {
 
     private LocalDate startShiftDate;
 
-    private String startShiftCode;
+    /**
+     * 报警开始班次编码（对应 start_shift_code 列，TINYINT UNSIGNED）
+     * 编码映射：1-一班 2-二班 3-三班
+     */
+    private Integer startShiftCode;
 
     private LocalDate endShiftDate;
 
-    private String endShiftCode;
+    /**
+     * 报警结束班次编码（对应 end_shift_code 列，TINYINT UNSIGNED）
+     * 编码映射：1-一班 2-二班 3-三班（NULL表示报警中）
+     */
+    private Integer endShiftCode;
 
     private String properties; // JSON 字符串（简化处理）
 }
