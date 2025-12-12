@@ -28,7 +28,7 @@ import java.util.List;
  */
 @Tag(name = "设备信息管理")
 @RestController
-@RequestMapping("/devicebase/device-info")
+@RequestMapping("/device-mgmt/device-info")
 @Validated
 public class DeviceInfoController {
 
@@ -43,7 +43,7 @@ public class DeviceInfoController {
 
     @PostMapping("/create")
     @Operation(summary = "创建设备信息")
-    @PermRequired(permission = "devicebase:device-info:create")
+    @PermRequired(permission = "device-mgmt:device-info:create")
     public CommonResult<String> createDeviceInfo(@Valid @RequestBody DeviceInfoSaveReqVO createReqVO) {
         String deviceInfoId = deviceInfoBizService.createDeviceInfo(createReqVO);
         return CommonResult.success(deviceInfoId);
@@ -51,7 +51,7 @@ public class DeviceInfoController {
 
     @PutMapping("/update")
     @Operation(summary = "更新设备信息")
-    @PermRequired(permission = "devicebase:device-info:update")
+    @PermRequired(permission = "device-mgmt:device-info:update")
     public CommonResult<Boolean> updateDeviceInfo(@Valid @RequestBody DeviceInfoSaveReqVO updateReqVO) {
         deviceInfoBizService.updateDeviceInfo(updateReqVO);
         return CommonResult.success(true);
@@ -60,7 +60,7 @@ public class DeviceInfoController {
     @DeleteMapping("/delete")
     @Operation(summary = "删除设备信息")
     @Parameter(name = "id", description = "设备信息ID", required = true, example = "123456789")
-    @PermRequired(permission = "devicebase:device-info:delete")
+    @PermRequired(permission = "device-mgmt:device-info:delete")
     public CommonResult<Boolean> deleteDeviceInfo(@RequestParam("id") String id) {
         deviceInfoBizService.deleteDeviceInfo(id);
         return CommonResult.success(true);
@@ -101,7 +101,7 @@ public class DeviceInfoController {
     @PutMapping("/{deviceInfoId}/location")
     @Operation(summary = "更新设备位置信息")
     @Parameter(name = "deviceInfoId", description = "设备信息ID", required = true, example = "123456789")
-    @PermRequired(permission = "devicebase:device-info:update")
+    @PermRequired(permission = "device-mgmt:device-info:update")
     public CommonResult<Boolean> updateDeviceLocation(
             @PathVariable("deviceInfoId") String deviceInfoId,
             @Valid @RequestBody DeviceInfoSaveReqVO.DeviceLocationInfo locationInfo) {
@@ -123,7 +123,7 @@ public class DeviceInfoController {
     @PutMapping("/{deviceInfoId}/network")
     @Operation(summary = "更新设备网络配置")
     @Parameter(name = "deviceInfoId", description = "设备信息ID", required = true, example = "123456789")
-    @PermRequired(permission = "devicebase:device-info:update")
+    @PermRequired(permission = "device-mgmt:device-info:update")
     public CommonResult<Boolean> updateDeviceNetworkConfig(
             @PathVariable("deviceInfoId") String deviceInfoId,
             @Valid @RequestBody DeviceInfoSaveReqVO.DeviceNetworkInfo networkInfo) {

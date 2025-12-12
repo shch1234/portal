@@ -24,7 +24,7 @@ import java.util.List;
  */
 @Tag(name = "设备组织单元管理")
 @RestController
-@RequestMapping("/devicebase/org-relation")
+@RequestMapping("/device-mgmt/org-relation")
 @Validated
 public class DeviceOrgRelationController {
 
@@ -33,7 +33,7 @@ public class DeviceOrgRelationController {
 
     @PostMapping("/create")
     @Operation(summary = "创建设备组织单元")
-    @PermRequired(permission = "devicebase:device-org-relation:create")
+    @PermRequired(permission = "device-mgmt:device-org-relation:create")
     public CommonResult<String> createDeviceOrgRelation(@Valid @RequestBody DeviceOrgRelationSaveReqVO createReqVO) {
         String deviceOrgRelationId = deviceOrgRelationBizService.createDeviceOrgRelation(createReqVO);
         return CommonResult.success(deviceOrgRelationId);
@@ -41,7 +41,7 @@ public class DeviceOrgRelationController {
 
     @PutMapping("/update")
     @Operation(summary = "更新设备组织单元")
-    @PermRequired(permission = "devicebase:device-org-relation:update")
+    @PermRequired(permission = "device-mgmt:device-org-relation:update")
     public CommonResult<Boolean> updateDeviceOrgRelation(@Valid @RequestBody DeviceOrgRelationSaveReqVO updateReqVO) {
         deviceOrgRelationBizService.updateDeviceOrgRelation(updateReqVO);
         return CommonResult.success(true);
@@ -50,7 +50,7 @@ public class DeviceOrgRelationController {
     @DeleteMapping("/delete")
     @Operation(summary = "删除设备组织单元")
     @Parameter(name = "id", description = "设备组织单元ID", required = true, example = "123456789")
-    @PermRequired(permission = "devicebase:device-org-relation:delete")
+    @PermRequired(permission = "device-mgmt:device-org-relation:delete")
     public CommonResult<Boolean> deleteDeviceOrgRelation(@RequestParam("id") String id) {
         deviceOrgRelationBizService.deleteDeviceOrgRelation(id);
         return CommonResult.success(true);

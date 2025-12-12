@@ -22,7 +22,7 @@ import org.springframework.web.bind.annotation.*;
  */
 @Tag(name = "设备型号管理")
 @RestController
-@RequestMapping("/devicebase/model")
+@RequestMapping("/device-mgmt/model")
 @Validated
 public class DeviceModelController {
 
@@ -31,7 +31,7 @@ public class DeviceModelController {
 
     @PostMapping("/create")
     @Operation(summary = "创建设备型号")
-    @PermRequired(permission = "devicebase:device-model:create")
+    @PermRequired(permission = "device-mgmt:device-model:create")
     public CommonResult<String> createDeviceModel(@Valid @RequestBody DeviceModelSaveReqVO createReqVO) {
         String deviceModelId = deviceModelBizService.createDeviceModel(createReqVO);
         return CommonResult.success(deviceModelId);
@@ -39,7 +39,7 @@ public class DeviceModelController {
 
     @PutMapping("/update")
     @Operation(summary = "更新设备型号")
-    @PermRequired(permission = "devicebase:device-model:update")
+    @PermRequired(permission = "device-mgmt:device-model:update")
     public CommonResult<Boolean> updateDeviceModel(@Valid @RequestBody DeviceModelSaveReqVO updateReqVO) {
         deviceModelBizService.updateDeviceModel(updateReqVO);
         return CommonResult.success(true);
@@ -48,7 +48,7 @@ public class DeviceModelController {
     @DeleteMapping("/delete")
     @Operation(summary = "删除设备型号")
     @Parameter(name = "id", description = "设备型号ID", required = true, example = "123456789")
-    @PermRequired(permission = "devicebase:device-model:delete")
+    @PermRequired(permission = "device-mgmt:device-model:delete")
     public CommonResult<Boolean> deleteDeviceModel(@RequestParam("id") String id) {
         deviceModelBizService.deleteDeviceModel(id);
         return CommonResult.success(true);

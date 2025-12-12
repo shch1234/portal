@@ -24,7 +24,7 @@ import java.util.List;
  */
 @Tag(name = "设备类型管理")
 @RestController
-@RequestMapping("/devicebase/type-relation")
+@RequestMapping("/device-mgmt/type-relation")
 @Validated
 public class DeviceTypeRelationController {
 
@@ -33,7 +33,7 @@ public class DeviceTypeRelationController {
 
     @PostMapping("/create")
     @Operation(summary = "创建设备类型")
-    @PermRequired(permission = "devicebase:device-type-relation:create")
+    @PermRequired(permission = "device-mgmt:device-type-relation:create")
     public CommonResult<String> createDeviceTypeRelation(@Valid @RequestBody DeviceTypeRelationSaveReqVO createReqVO) {
         String deviceTypeRelationId = deviceTypeRelationBizService.createDeviceTypeRelation(createReqVO);
         return CommonResult.success(deviceTypeRelationId);
@@ -41,7 +41,7 @@ public class DeviceTypeRelationController {
 
     @PutMapping("/update")
     @Operation(summary = "更新设备类型")
-    @PermRequired(permission = "devicebase:device-type-relation:update")
+    @PermRequired(permission = "device-mgmt:device-type-relation:update")
     public CommonResult<Boolean> updateDeviceTypeRelation(@Valid @RequestBody DeviceTypeRelationSaveReqVO updateReqVO) {
         deviceTypeRelationBizService.updateDeviceTypeRelation(updateReqVO);
         return CommonResult.success(true);
@@ -50,7 +50,7 @@ public class DeviceTypeRelationController {
     @DeleteMapping("/delete")
     @Operation(summary = "删除设备类型")
     @Parameter(name = "id", description = "设备类型ID", required = true, example = "123456789")
-    @PermRequired(permission = "devicebase:device-type-relation:delete")
+    @PermRequired(permission = "device-mgmt:device-type-relation:delete")
     public CommonResult<Boolean> deleteDeviceTypeRelation(@RequestParam("id") String id) {
         deviceTypeRelationBizService.deleteDeviceTypeRelation(id);
         return CommonResult.success(true);
