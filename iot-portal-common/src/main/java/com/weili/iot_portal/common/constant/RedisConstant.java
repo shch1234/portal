@@ -29,6 +29,8 @@ public class RedisConstant {
     public static final String RT_STATE_HEARTBEAT = "rt:state:hb:%s:%s";
     /** 实时数据：程序信息（Hash） */
     public static final String RT_PROGRAM = "rt:program:%s:%s";
+    /** 刀补补偿缓存：当前有效的补偿值（Hash，按设备ID分组，field为刀补号，value为JSON） */
+    public static final String COMPENSATION_ACTIVE = "compensation:active:%s";
 
     private RedisConstant() {
     }

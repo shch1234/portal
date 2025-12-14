@@ -43,10 +43,10 @@ public class DeviceToolCompensationDO implements Serializable {
     /** 版本号（覆盖时+1） */
     private Integer version;
 
-    /** 生效开始时间（秒） */
+    /** 生效开始时间（毫秒，Unix时间戳，对应 start_ts 列） */
     private Long startTs;
 
-    /** 生效结束时间（秒，NULL 表示当前有效） */
+    /** 生效结束时间（毫秒，Unix时间戳，NULL 表示当前有效，对应 end_ts 列） */
     private Long endTs;
 
     /** 是否当前有效：1-有效 0-历史 */

@@ -32,6 +32,11 @@ public class DeviceToolRecordDO implements Serializable {
     private String deviceInfoId;
 
     /**
+     * 所属厂区ID（关联 device_org_relation.id，冗余字段，优化查询性能，对应 org_factory_id 列）
+     */
+    private String orgFactoryId;
+
+    /**
      * 刀具编号（刀具唯一标识，用于追踪刀具生命周期，对应 tool_id 列）
      */
     private String toolId;
@@ -53,19 +58,20 @@ public class DeviceToolRecordDO implements Serializable {
     private String toolType;
 
     /**
-     * 开始使用时间戳（秒，Unix时间戳，对应 start_ts 列）
+     * 开始使用时间戳（毫秒，Unix时间戳，对应 start_ts 列）
      */
     private Long startTs;
 
     /**
-     * 结束使用时间戳（秒，Unix时间戳，NULL表示使用中，对应 end_ts 列）
+     * 结束使用时间戳（毫秒，Unix时间戳，NULL表示使用中，对应 end_ts 列）
      */
     private Long endTs;
 
     /**
-     * 使用时长（秒，对应 duration_s 列）
+     * 使用时长（毫秒，对应 duration_s 列）
+     * 注意：虽然数据库列名为 duration_s，但实际存储的是毫秒值
      */
-    private Integer durationS;
+    private Long durationS;
 
     /**
      * 关联工件号（对应 workpiece_no 列）

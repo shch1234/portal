@@ -1,13 +1,14 @@
 package com.weili.iot_portal.web.webhook;
 
+import com.weili.basic.common.exception.BaseException;
 import com.weili.basic.common.exception.ServiceException;
 import com.weili.basic.common.util.JsonUtils;
 import com.weili.iot_portal.domain.ingestion.WebhookRequest;
 import com.weili.iot_portal.service.ingestion.WebhookReceiveService;
 import com.weili.iot_portal.service.ingestion.WebhookSecurityService;
+import com.weili.iot_portal.service.ingestion.support.WebhookRequestValidator;
 import jakarta.annotation.security.PermitAll;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -22,6 +23,9 @@ public class UnifiedWebhookController {
 
     @Autowired
     private WebhookSecurityService webhookSecurityService;
+
+    @Autowired
+    private WebhookRequestValidator webhookRequestValidator;
 
     /**
      * URL 验证：返回 echostr
@@ -64,14 +68,10 @@ public class UnifiedWebhookController {
                 timestamp, nonce, headerSecret != null ? "***" : "null");
             log.debug("[Webhook-接收] 原始请求体大小: {} bytes", rawBody != null ? rawBody.length() : 0);
             
-            if (StringUtils.isAnyBlank(signature, timestamp, nonce)) {
-                log.warn("[Webhook-接收] 缺少签名参数: signature={}, timestamp={}, nonce={}", 
-                    signature != null, timestamp != null, nonce != null);
-                return ResponseEntity.status(400).body("缺少签名参数");
-            }
-            if (StringUtils.isBlank(rawBody) || "invalid".equals(rawBody)) {
-                return ResponseEntity.status(400).body("无效的请求体");
-            }
+            // 校验请求参数和安全
+            webhookRequestValidator.validate(rawBody, signature, timestamp, nonce, headerSecret);
+            
+            // 解析请求体
             WebhookRequest webhookRequest = JsonUtils.parseObject(rawBody, WebhookRequest.class);
             log.debug("[Webhook-接收] 解析后的请求数据: messageId={}, deviceCode={}, deviceId={}, eventType={}, category={}, timestamp={}, dataTimestamp={}", 
                 webhookRequest.getMessageId(), webhookRequest.getDeviceCode(), webhookRequest.getDeviceId(),
@@ -84,13 +84,13 @@ public class UnifiedWebhookController {
                     webhookRequest.getTelemetryData() != null ? webhookRequest.getTelemetryData().toString() : "null");
             }
             
-            webhookReceiveService.handle(category, eventType, rawBody, webhookRequest,
-                    headerSecret, signature, timestamp, nonce);
+            // 调用业务处理
+            webhookReceiveService.handle(category, eventType, rawBody, webhookRequest);
             
             long cost = System.currentTimeMillis() - startTime;
             log.debug("[Webhook-接收] ====== Webhook请求处理完成 ====== 耗时: {}ms", cost);
             return ResponseEntity.ok("success");
-        } catch (ServiceException ex) {
+        } catch (BaseException ex) {
             long cost = System.currentTimeMillis() - startTime;
             log.warn("[Webhook-接收] 业务异常: category={}, eventType={}, error={}, 耗时: {}ms", 
                 category, eventType, ex.getMessage(), cost);

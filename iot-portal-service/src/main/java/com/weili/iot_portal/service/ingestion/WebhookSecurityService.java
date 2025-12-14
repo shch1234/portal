@@ -48,17 +48,30 @@ public class WebhookSecurityService {
 
     /**
      * 校验签名 + 时间戳 + nonce
+     * 注意：调用此方法前，调用方应确保 signature、timestamp、nonce 参数不为空
+     * 
+     * @param signature 签名
+     * @param timestamp 时间戳
+     * @param nonce 随机数
+     * @param messageBody 消息体
      */
     public void validateSignature(String signature, String timestamp, String nonce, String messageBody) {
-        if (StringUtils.isAnyBlank(signatureToken, signature, timestamp, nonce)) {
+        // 检查配置的签名token是否存在
+        if (StringUtils.isBlank(signatureToken)) {
             throw new IotPortalException(IotPortalErrorCode.WEBHOOK_SIGNATURE_PARAMS_MISSING);
         }
+        
+        // 验证时间戳有效性
         if (!verifyTimestamp(timestamp)) {
             throw new IotPortalException(IotPortalErrorCode.WEBHOOK_REQUEST_EXPIRED);
         }
+        
+        // 验证nonce防重放
         if (!verifyNonce(nonce)) {
             throw new IotPortalException(IotPortalErrorCode.WEBHOOK_DUPLICATE_REQUEST);
         }
+        
+        // 验证签名
         if (!verifySignatureInternal(signature, timestamp, nonce, messageBody)) {
             throw new IotPortalException(IotPortalErrorCode.WEBHOOK_SIGNATURE_VALIDATION_FAILED);
         }

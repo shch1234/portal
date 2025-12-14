@@ -103,6 +103,41 @@ public final class DeviceToolEventFields {
      */
     public static final String HOLDER_PREFIX = "holder";
 
+    // ==================== 结构化补偿数据字段 ====================
+    /**
+     * 结构化补偿字段名（单个补偿对象）
+     * 设备可以发送一个包含所有补偿类型的对象
+     * 例如：{"compensation": {"shape": {...}, "wear": {...}}}
+     */
+    public static final String COMPENSATION_FIELD = "compensation";
+
+    /**
+     * 结构化补偿字段名（补偿数组）
+     * 设备可以发送一个补偿数组
+     * 例如：{"compensations": [{"type": "shape", ...}, {"type": "wear", ...}]}
+     */
+    public static final String COMPENSATIONS_FIELD = "compensations";
+
+    /**
+     * 补偿类型：形状补偿
+     */
+    public static final String COMP_TYPE_SHAPE = "shape";
+
+    /**
+     * 补偿类型：磨损补偿
+     */
+    public static final String COMP_TYPE_WEAR = "wear";
+
+    /**
+     * 补偿类型：偏移补偿（零散offset字段归类）
+     */
+    public static final String COMP_TYPE_OFFSET = "offset";
+
+    /**
+     * 补偿类型：补偿值（零散comp字段归类）
+     */
+    public static final String COMP_TYPE_COMP = "comp";
+
     // ==================== 系统元数据字段 ====================
     /**
      * 更新时间字段
@@ -196,6 +231,19 @@ public final class DeviceToolEventFields {
      * 刀具变更操作的锁超时时间，防止死锁
      */
     public static final long LOCK_TIMEOUT_SECONDS_TOOL_CHANGE = 5L;
+
+    // ==================== 错误类型常量 ====================
+    /**
+     * 错误类型：刀具不匹配
+     * 用于记录刀具变更事件中的异常情况
+     */
+    public static final String ERROR_TYPE_TOOL_MISMATCH = "TOOL_MISMATCH";
+
+    /**
+     * 错误类型：时间戳异常
+     * 用于记录时间戳异常的情况
+     */
+    public static final String ERROR_TYPE_TIMESTAMP_ANOMALY = "TIMESTAMP_ANOMALY";
 
     // ==================== 辅助方法 ====================
     /**

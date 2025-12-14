@@ -43,10 +43,21 @@ public class DeviceIdentityCacheService {
         String cacheKey = buildKey(deviceCode);
         String cached = redisClient.get(cacheKey);
         if (StringUtils.isNotBlank(cached)) {
-            return JsonUtils.parseObject(cached, DeviceIdentity.class);
+            DeviceIdentity identity = JsonUtils.parseObject(cached, DeviceIdentity.class);
+            // 验证缓存中的身份信息是否完整
+            if (identity != null && StringUtils.isNotBlank(identity.getDeviceId()) 
+                    && StringUtils.isNotBlank(identity.getFactoryId())) {
+                return identity;
+            }
+            // 缓存数据不完整，清除缓存并重新查询
+            redisClient.delete(cacheKey);
         }
         DeviceInfoDO device = deviceInfoRepository.findByDeviceCode( deviceCode)
                 .orElseGet(() -> handleUnknownDevice(deviceCode, tbDeviceId, source));
+        if (StringUtils.isBlank(device.getId())) {
+            throw new IotPortalException(IotPortalErrorCode.DEVICE_INFO_NOT_FOUND, 
+                    "设备信息ID为空，设备编号: " + deviceCode);
+        }
         if (StringUtils.isBlank(device.getOrgFactoryId())) {
             throw new IotPortalException(IotPortalErrorCode.DEVICE_NOT_ASSOCIATED_FACTORY);
         }

@@ -11,6 +11,9 @@ import com.weili.iot_portal.service.ingestion.support.RealtimeWebhookCacheServic
 import com.weili.iot_portal.service.ingestion.support.WebhookIdempotentService;
 import com.weili.iot_portal.service.ingestion.support.WebhookInboxService;
 import com.weili.iot_portal.service.ingestion.support.WebhookProcessService;
+import com.weili.iot_portal.service.ingestion.handler.registry.WebhookHandlerRegistry;
+import com.weili.iot_portal.service.ingestion.WebhookEventHandler;
+import com.weili.iot_portal.dal.dataobject.ingestion.WebhookInboxDO;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,9 +26,6 @@ import java.util.Optional;
 @Slf4j
 @Service
 public class WebhookReceiveService {
-
-    @Autowired
-    private WebhookSecurityService securityService;
 
     @Autowired
     private WebhookIdempotentService idempotentService;
@@ -42,88 +42,103 @@ public class WebhookReceiveService {
     @Autowired
     private WebhookProcessService webhookProcessService;
     
+    @Autowired
+    private WebhookHandlerRegistry handlerRegistry;
+    
     @Value("${webhook.inbox.async-process-enabled:true}")
     private boolean asyncProcessEnabled;
 
     /**
      * 处理 webhook 消息
+     * 
+     * @param category 分类（BUSINESS/REALTIME）
+     * @param eventType 事件类型
+     * @param rawBody 原始请求体
+     * @param request 解析后的请求对象
      */
     public void handle(String category,
                        String eventType,
                        String rawBody,
-                       WebhookRequest request,
-                       String headerSecret,
-                       String signature,
-                       String timestamp,
-                       String nonce) {
+                       WebhookRequest request) {
         log.debug("[Webhook-处理] ====== 开始处理Webhook消息 ======");
         log.debug("[Webhook-处理] messageId={}, category={}, eventType={}, deviceCode={}", 
             request.getMessageId(), category, eventType, request.getDeviceCode());
         
-        // 1) 校验可选 header 密钥
-        log.debug("[Webhook-处理] [步骤1] 校验Header密钥");
-        securityService.validate(headerSecret);
-        log.debug("[Webhook-处理] [步骤1] Header密钥校验通过");
-        
-        // 2) 验签 + 时间戳 + nonce
-        log.debug("[Webhook-处理] [步骤2] 验签: signature={}, timestamp={}, nonce={}", 
-            signature != null ? signature.substring(0, Math.min(8, signature.length())) + "..." : "null", timestamp, nonce);
-        securityService.validateSignature(signature, timestamp, nonce, rawBody);
-        log.debug("[Webhook-处理] [步骤2] 签名验证通过");
-        
-        // 3) 幂等
-        log.debug("[Webhook-处理] [步骤3] 幂等性检查: messageId={}", request.getMessageId());
+        // 1) 幂等性检查
+        log.debug("[Webhook-处理] [步骤1] 幂等性检查: messageId={}", request.getMessageId());
         if (!idempotentService.tryConsume(request.getMessageId())) {
-            log.info("[Webhook-处理] [步骤3] 消息已处理，跳过: messageId={}", request.getMessageId());
+            log.info("[Webhook-处理] [步骤1] 消息已处理，跳过: messageId={}", request.getMessageId());
             return;
         }
-        log.debug("[Webhook-处理] [步骤3] 幂等性检查通过，消息未处理过");
+        log.debug("[Webhook-处理] [步骤1] 幂等性检查通过，消息未处理过");
         
-        // 4) 设备匹配
-        log.debug("[Webhook-处理] [步骤4] 设备匹配: deviceCode={}", request.getDeviceCode());
+        // 2) 设备匹配
+        log.debug("[Webhook-处理] [步骤2] 设备匹配: deviceCode={}", request.getDeviceCode());
         Optional<DeviceInfoDO> deviceOpt = deviceMatchingService.match(request.getDeviceCode());
         if (deviceOpt.isEmpty()) {
-            log.warn("[Webhook-处理] [步骤4] 设备未匹配，直接ACK: messageId={}, deviceCode={}", 
+            log.warn("[Webhook-处理] [步骤2] 设备未匹配，直接ACK: messageId={}, deviceCode={}", 
                 request.getMessageId(), request.getDeviceCode());
             return;
         }
         DeviceInfoDO device = deviceOpt.get();
-        log.debug("[Webhook-处理] [步骤4] 设备匹配成功: deviceCode={}, deviceId={}, deviceInfoId={}", 
+        log.debug("[Webhook-处理] [步骤2] 设备匹配成功: deviceCode={}, deviceId={}, deviceInfoId={}", 
             device.getDeviceCode(), device.getTbDeviceId(), device.getId());
         
         // 补充设备/租户信息
         if (StringUtils.isBlank(request.getDeviceId())) {
             request.setDeviceId(device.getTbDeviceId());
-            log.debug("[Webhook-处理] [步骤4] 补充deviceId: {}", device.getTbDeviceId());
+            log.debug("[Webhook-处理] [步骤2] 补充deviceId: {}", device.getTbDeviceId());
         }
         request.setWebhookCategory(category);
         
         // 优先使用请求体中的eventType（更准确），如果为空则使用URL路径中的eventType
         if (StringUtils.isBlank(request.getEventType())) {
             request.setEventType(eventType);
-            log.debug("[Webhook-处理] [步骤4] 使用URL路径中的eventType: {}", eventType);
+            log.debug("[Webhook-处理] [步骤2] 使用URL路径中的eventType: {}", eventType);
         } else {
-            log.debug("[Webhook-处理] [步骤4] 使用请求体中的eventType: {}, URL路径中的eventType: {}", 
+            log.debug("[Webhook-处理] [步骤2] 使用请求体中的eventType: {}, URL路径中的eventType: {}", 
                 request.getEventType(), eventType);
         }
-        log.debug("[Webhook-处理] [步骤4] 设置category和eventType: category={}, eventType={}", 
+        log.debug("[Webhook-处理] [步骤2] 设置category和eventType: category={}, eventType={}", 
             category, request.getEventType());
 
-        // 5) 分类处理
-        log.debug("[Webhook-处理] [步骤5] 分类处理: category={}", category);
+        // 3) 分类处理
+        log.debug("[Webhook-处理] [步骤3] 分类处理: category={}", category);
         if (WebHookCategoryType.BUSINESS.name().equalsIgnoreCase(category)) {
-            log.debug("[Webhook-处理] [步骤5] 业务数据，保存到收件箱: messageId={}, eventType={}", 
+            log.debug("[Webhook-处理] [步骤3] 业务数据，保存到收件箱: messageId={}, eventType={}", 
                 request.getMessageId(), eventType);
             webhookInboxService.saveToInbox(request);
-            log.debug("[Webhook-处理] [步骤5] 业务数据已保存到收件箱");
+            log.debug("[Webhook-处理] [步骤3] 业务数据已保存到收件箱");
             
             // 立即异步处理（实时处理）
             if (asyncProcessEnabled) {
                 processMessageAsync(request.getMessageId());
             }
         } else if (WebHookCategoryType.REALTIME.name().equalsIgnoreCase(category)) {
-            realtimeWebhookCacheService.cache(eventType, device.getDeviceCode(), request);
-            log.debug("[Webhook-处理] [步骤5] 实时数据已缓存");
+            // REALTIME 类别的事件处理策略：
+            // 1. 如果该事件类型有对应的 Handler（如 DEVICE_TOOL 需要写数据库），则走 Handler 流程
+            // 2. 如果没有 Handler，则只缓存原始数据（保持轻量级特性）
+            String finalEventType = request.getEventType();
+            java.util.Optional<WebhookEventHandler> handlerOpt = handlerRegistry.resolve(finalEventType);
+            
+            if (handlerOpt.isPresent()) {
+                // 有 Handler，需要走完整流程（可能涉及数据库写入）
+                log.debug("[Webhook-处理] [步骤3] 实时数据（有Handler），保存到收件箱: messageId={}, eventType={}", 
+                    request.getMessageId(), finalEventType);
+                webhookInboxService.saveToInbox(request);
+                log.debug("[Webhook-处理] [步骤3] 实时数据已保存到收件箱");
+                
+                // 立即异步处理（实时处理）
+                if (asyncProcessEnabled) {
+                    processMessageAsync(request.getMessageId());
+                }
+            } else {
+                // 无 Handler，只缓存原始数据（轻量级处理）
+                log.debug("[Webhook-处理] [步骤3] 实时数据（无Handler），仅缓存: messageId={}, eventType={}", 
+                    request.getMessageId(), finalEventType);
+                realtimeWebhookCacheService.cache(finalEventType, device.getDeviceCode(), request);
+                log.debug("[Webhook-处理] [步骤3] 实时数据已缓存");
+            }
         } else {
             throw new IotPortalException(IotPortalErrorCode.WEBHOOK_CATEGORY_NOT_SUPPORTED);
         }

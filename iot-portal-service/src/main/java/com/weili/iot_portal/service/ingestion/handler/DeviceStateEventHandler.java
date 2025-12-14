@@ -617,7 +617,6 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
         return record;
     }
 
-
     /**
      * 如果班次信息缺失，根据开始时间补充
      */
