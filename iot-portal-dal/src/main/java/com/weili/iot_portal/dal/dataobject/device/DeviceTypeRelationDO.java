@@ -41,8 +41,6 @@ public class DeviceTypeRelationDO extends BaseSimpleDO {
 
     private String description;
 
-    private String icon;
-
     @TableField(typeHandler = JacksonTypeHandler.class)
     private Map<String, Object> customFields;
 
