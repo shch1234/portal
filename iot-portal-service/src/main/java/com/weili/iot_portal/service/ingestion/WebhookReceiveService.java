@@ -105,45 +105,151 @@ public class WebhookReceiveService {
         // 3) 分类处理
         log.debug("[Webhook-处理] [步骤3] 分类处理: category={}", category);
         if (WebHookCategoryType.BUSINESS.name().equalsIgnoreCase(category)) {
-            log.debug("[Webhook-处理] [步骤3] 业务数据，保存到收件箱: messageId={}, eventType={}", 
-                request.getMessageId(), eventType);
-            webhookInboxService.saveToInbox(request);
-            log.debug("[Webhook-处理] [步骤3] 业务数据已保存到收件箱");
-            
-            // 立即异步处理（实时处理）
-            if (asyncProcessEnabled) {
-                processMessageAsync(request.getMessageId());
-            }
+            // BUSINESS 类别：业务数据，需要持久化保证
+            handleBusinessCategory(request, eventType);
         } else if (WebHookCategoryType.REALTIME.name().equalsIgnoreCase(category)) {
-            // REALTIME 类别的事件处理策略：
-            // 1. 如果该事件类型有对应的 Handler（如 DEVICE_TOOL 需要写数据库），则走 Handler 流程
-            // 2. 如果没有 Handler，则只缓存原始数据（保持轻量级特性）
-            String finalEventType = request.getEventType();
-            java.util.Optional<WebhookEventHandler> handlerOpt = handlerRegistry.resolve(finalEventType);
-            
-            if (handlerOpt.isPresent()) {
-                // 有 Handler，需要走完整流程（可能涉及数据库写入）
-                log.debug("[Webhook-处理] [步骤3] 实时数据（有Handler），保存到收件箱: messageId={}, eventType={}", 
-                    request.getMessageId(), finalEventType);
-                webhookInboxService.saveToInbox(request);
-                log.debug("[Webhook-处理] [步骤3] 实时数据已保存到收件箱");
-                
-                // 立即异步处理（实时处理）
-                if (asyncProcessEnabled) {
-                    processMessageAsync(request.getMessageId());
-                }
-            } else {
-                // 无 Handler，只缓存原始数据（轻量级处理）
-                log.debug("[Webhook-处理] [步骤3] 实时数据（无Handler），仅缓存: messageId={}, eventType={}", 
-                    request.getMessageId(), finalEventType);
-                realtimeWebhookCacheService.cache(finalEventType, device.getDeviceCode(), request);
-                log.debug("[Webhook-处理] [步骤3] 实时数据已缓存");
-            }
+            // REALTIME 类别：实时数据，根据Handler的策略决定处理方式
+            handleRealtimeCategory(request, eventType, device);
         } else {
             throw new IotPortalException(IotPortalErrorCode.WEBHOOK_CATEGORY_NOT_SUPPORTED);
         }
         
         log.debug("[Webhook-处理] ====== Webhook消息处理完成 ====== messageId={}", request.getMessageId());
+    }
+
+    /**
+     * 处理 BUSINESS 类别的事件
+     * <p>
+     * BUSINESS 类别的事件统一走收件箱流程，支持持久化和重试
+     * </p>
+     *
+     * @param request Webhook请求
+     * @param eventType 事件类型
+     */
+    private void handleBusinessCategory(WebhookRequest request, String eventType) {
+        log.debug("[Webhook-处理] [步骤3] 业务数据，保存到收件箱: messageId={}, eventType={}", 
+            request.getMessageId(), eventType);
+        webhookInboxService.saveToInbox(request);
+        log.debug("[Webhook-处理] [步骤3] 业务数据已保存到收件箱");
+        
+        // 立即异步处理（实时处理）
+        if (asyncProcessEnabled) {
+            processMessageAsync(request.getMessageId());
+        }
+    }
+
+    /**
+     * 处理 REALTIME 类别的事件
+     * <p>
+     * REALTIME 类别的事件根据Handler的处理策略决定处理方式：
+     * - REALTIME_DIRECT: 直接调用Handler，不持久化
+     * - REALTIME_WITH_PERSISTENCE: 直接调用Handler，Handler内部有事务保证
+     * - BUSINESS_PERSISTENT: 特殊情况，走收件箱流程（保持兼容性）
+     * - 无Handler: 仅缓存原始数据
+     * </p>
+     *
+     * @param request Webhook请求
+     * @param eventType 事件类型
+     * @param device 设备信息
+     */
+    private void handleRealtimeCategory(WebhookRequest request, String eventType, DeviceInfoDO device) {
+        String finalEventType = request.getEventType();
+        Optional<WebhookEventHandler> handlerOpt = handlerRegistry.resolve(finalEventType);
+        
+        if (handlerOpt.isPresent()) {
+            // 有 Handler，根据策略决定处理方式
+            WebhookEventHandler handler = handlerOpt.get();
+            WebhookProcessingStrategy strategy = handler.getProcessingStrategy();
+            
+            log.debug("[Webhook-处理] [步骤3] 实时数据（有Handler），策略={}: messageId={}, eventType={}", 
+                strategy, request.getMessageId(), finalEventType);
+            
+            switch (strategy) {
+                case REALTIME_DIRECT:
+                    // 实时直接处理：只写Redis，不持久化
+                    handleRealtimeDirect(handler, request, finalEventType);
+                    break;
+                    
+                case REALTIME_WITH_PERSISTENCE:
+                    // 实时但需持久化：直接处理，Handler内部有事务保证
+                    handleRealtimeWithPersistence(handler, request, finalEventType);
+                    break;
+                    
+                case BUSINESS_PERSISTENT:
+                    // 特殊情况：REALTIME类别但需要持久化保证（保持兼容性）
+                    log.debug("[Webhook-处理] [步骤3] 实时数据（策略=BUSINESS_PERSISTENT），走收件箱流程: messageId={}, eventType={}", 
+                        request.getMessageId(), finalEventType);
+                    webhookInboxService.saveToInbox(request);
+                    if (asyncProcessEnabled) {
+                        processMessageAsync(request.getMessageId());
+                    }
+                    break;
+                    
+                default:
+                    // 未知策略，降级为仅缓存
+                    log.warn("[Webhook-处理] [步骤3] 未知处理策略，降级为仅缓存: strategy={}, messageId={}, eventType={}", 
+                        strategy, request.getMessageId(), finalEventType);
+                    realtimeWebhookCacheService.cache(finalEventType, device.getDeviceCode(), request);
+            }
+        } else {
+            // 无 Handler，只缓存原始数据（轻量级处理）
+            log.debug("[Webhook-处理] [步骤3] 实时数据（无Handler），仅缓存: messageId={}, eventType={}", 
+                request.getMessageId(), finalEventType);
+            realtimeWebhookCacheService.cache(finalEventType, device.getDeviceCode(), request);
+            log.debug("[Webhook-处理] [步骤3] 实时数据已缓存");
+        }
+    }
+
+    /**
+     * 实时直接处理：不持久化，只写Redis
+     * <p>
+     * 适用于：只写Redis缓存的事件（DEVICE_PROGRAM, DEVICE_AXIS等）
+     * </p>
+     *
+     * @param handler 事件处理器
+     * @param request Webhook请求
+     * @param eventType 事件类型
+     */
+    private void handleRealtimeDirect(WebhookEventHandler handler, WebhookRequest request, String eventType) {
+        try {
+            // 优先使用 handleRealtime 方法（更清晰的接口）
+            // 如果Handler实现了 handleRealtime，则使用；否则回退到 handle(null, request)
+            handler.handleRealtime(request);
+            
+            log.debug("[Webhook-处理] [步骤3] 实时直接处理完成: messageId={}, eventType={}", 
+                request.getMessageId(), eventType);
+        } catch (Exception e) {
+            log.error("[Webhook-处理] [步骤3] 实时直接处理失败: messageId={}, eventType={}", 
+                request.getMessageId(), eventType, e);
+            // REALTIME事件处理失败不影响主流程，只记录日志
+            // 这是REALTIME事件的低可靠性策略：允许丢失，不重试
+        }
+    }
+
+    /**
+     * 实时但需持久化处理：直接处理，Handler内部有事务保证
+     * <p>
+     * 适用于：REALTIME类别但需要写数据库（如DEVICE_TOOL需要写device_tool_compensation表）
+     * </p>
+     *
+     * @param handler 事件处理器
+     * @param request Webhook请求
+     * @param eventType 事件类型
+     */
+    private void handleRealtimeWithPersistence(WebhookEventHandler handler, WebhookRequest request, String eventType) {
+        try {
+            // 优先使用 handleRealtime 方法（更清晰的接口）
+            // Handler内部有@Transactional保证数据一致性
+            handler.handleRealtime(request);
+            
+            log.debug("[Webhook-处理] [步骤3] 实时持久化处理完成: messageId={}, eventType={}", 
+                request.getMessageId(), eventType);
+        } catch (Exception e) {
+            log.error("[Webhook-处理] [步骤3] 实时持久化处理失败: messageId={}, eventType={}", 
+                request.getMessageId(), eventType, e);
+            // REALTIME事件处理失败不影响主流程，只记录日志
+            // 虽然需要持久化，但保持REALTIME的低可靠性特性：允许丢失，不重试
+        }
     }
     
     /**

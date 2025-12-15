@@ -7,6 +7,7 @@ import com.weili.iot_portal.domain.ingestion.WebhookRequest;
 import com.weili.iot_portal.service.cache.DeviceAxisCacheService;
 import com.weili.iot_portal.service.cache.DeviceIdentityCacheService;
 import com.weili.iot_portal.service.ingestion.WebhookEventHandler;
+import com.weili.iot_portal.service.ingestion.WebhookProcessingStrategy;
 import com.weili.iot_portal.service.ingestion.handler.fields.DeviceAxisEventFields;
 import com.weili.iot_portal.service.ingestion.handler.support.WebhookHandlerUtils;
 
@@ -59,8 +60,29 @@ public class DeviceAxisEventHandler implements WebhookEventHandler {
     }
 
     @Override
+    public WebhookProcessingStrategy getProcessingStrategy() {
+        // 实时直接处理：只写Redis缓存，不需要持久化
+        return WebhookProcessingStrategy.REALTIME_DIRECT;
+    }
+
+    @Override
     @Transactional(rollbackFor = Exception.class)
     public void handle(WebhookInboxDO inbox, WebhookRequest request) throws Exception {
+        // REALTIME_DIRECT策略：inbox参数不使用，直接调用实时处理方法
+        handleRealtime(request);
+    }
+
+    /**
+     * 实时处理轴信息事件
+     * <p>
+     * REALTIME_DIRECT策略：只写Redis缓存，不需要持久化
+     * </p>
+     *
+     * @param request Webhook请求对象
+     * @throws Exception 处理异常
+     */
+    @Override
+    public void handleRealtime(WebhookRequest request) throws Exception {
         Map<String, Object> eventData = request.getEventData();
         if (eventData == null || eventData.isEmpty()) {
             throw new IotPortalException(IotPortalErrorCode.EVENT_DATA_EMPTY);

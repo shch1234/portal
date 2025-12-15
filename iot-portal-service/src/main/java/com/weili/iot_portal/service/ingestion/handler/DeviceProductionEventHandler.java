@@ -8,6 +8,7 @@ import com.weili.iot_portal.dal.repository.device.DeviceProductionRecordReposito
 import com.weili.iot_portal.domain.ingestion.WebhookRequest;
 import com.weili.iot_portal.service.cache.DeviceIdentityCacheService;
 import com.weili.iot_portal.service.ingestion.WebhookEventHandler;
+import com.weili.iot_portal.service.ingestion.WebhookProcessingStrategy;
 import com.weili.iot_portal.service.ingestion.handler.fields.DeviceProductionEventFields;
 import com.weili.iot_portal.service.ingestion.handler.support.WebhookHandlerUtils;
 
@@ -46,6 +47,12 @@ public class DeviceProductionEventHandler implements WebhookEventHandler {
     @Override
     public int order() {
         return WebhookHandlerOrder.DEVICE_PRODUCTION;
+    }
+
+    @Override
+    public WebhookProcessingStrategy getProcessingStrategy() {
+        // 业务持久化处理：需要写数据库，经过收件箱，支持重试
+        return WebhookProcessingStrategy.BUSINESS_PERSISTENT;
     }
 
     @Override

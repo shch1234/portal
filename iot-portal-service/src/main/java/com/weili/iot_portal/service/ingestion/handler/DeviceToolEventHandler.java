@@ -11,6 +11,7 @@ import com.weili.iot_portal.domain.ingestion.WebhookRequest;
 import com.weili.iot_portal.service.cache.DeviceIdentityCacheService;
 import com.weili.iot_portal.service.cache.DeviceToolCacheService;
 import com.weili.iot_portal.service.ingestion.WebhookEventHandler;
+import com.weili.iot_portal.service.ingestion.WebhookProcessingStrategy;
 import com.weili.iot_portal.service.ingestion.handler.fields.DeviceToolEventFields;
 import com.weili.iot_portal.service.ingestion.handler.support.WebhookHandlerUtils;
 
@@ -62,8 +63,30 @@ public class DeviceToolEventHandler implements WebhookEventHandler {
     }
 
     @Override
+    public WebhookProcessingStrategy getProcessingStrategy() {
+        // 实时但需持久化：REALTIME类别但需要写数据库（device_tool_compensation表）
+        // 直接处理，Handler内部有@Transactional保证数据一致性
+        return WebhookProcessingStrategy.REALTIME_WITH_PERSISTENCE;
+    }
+
+    @Override
     @Transactional(rollbackFor = Exception.class)
     public void handle(WebhookInboxDO inbox, WebhookRequest request) throws Exception {
+        // REALTIME_WITH_PERSISTENCE策略：inbox参数不使用，直接调用实时处理方法
+        handleRealtime(request);
+    }
+
+    /**
+     * 实时处理刀具事件（需要持久化）
+     * <p>
+     * REALTIME_WITH_PERSISTENCE策略：直接处理，Handler内部有@Transactional保证数据一致性
+     * </p>
+     *
+     * @param request Webhook请求对象
+     * @throws Exception 处理异常
+     */
+    @Override
+    public void handleRealtime(WebhookRequest request) throws Exception {
         Map<String, Object> eventData = request.getEventData();
         if (eventData == null || eventData.isEmpty()) {
             throw new IotPortalException(IotPortalErrorCode.EVENT_DATA_EMPTY);

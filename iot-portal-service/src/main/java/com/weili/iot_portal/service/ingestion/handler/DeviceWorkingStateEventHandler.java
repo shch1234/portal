@@ -10,6 +10,7 @@ import com.weili.iot_portal.domain.ingestion.WebhookRequest;
 import com.weili.iot_portal.service.cache.DeviceLockService;
 import com.weili.iot_portal.service.ingestion.WebhookEventHandler;
 import com.weili.iot_portal.service.ingestion.WebhookFailLogService;
+import com.weili.iot_portal.service.ingestion.WebhookProcessingStrategy;
 import com.weili.iot_portal.service.ingestion.handler.fields.DeviceWorkingStateEventFields;
 import com.weili.iot_portal.common.utils.WebhookTimestampUtils;
 import com.weili.iot_portal.service.ingestion.handler.support.WebhookHandlerUtils;
@@ -61,6 +62,12 @@ public class DeviceWorkingStateEventHandler implements WebhookEventHandler {
     @Override
     public int order() {
         return WebhookHandlerOrder.DEVICE_WORKING_STATE;
+    }
+
+    @Override
+    public WebhookProcessingStrategy getProcessingStrategy() {
+        // 业务持久化处理：需要写数据库，经过收件箱，支持重试
+        return WebhookProcessingStrategy.BUSINESS_PERSISTENT;
     }
 
     @Override

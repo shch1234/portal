@@ -31,6 +31,18 @@ public final class DeviceAlarmEventFields {
      * 包含多个报警对象的数组，每个对象包含 alarmCode、alarmText、alarmLevel
      */
     public static final String ALARMS = "alarms";
+    
+    /**
+     * 上一次报警数组字段
+     * TB侧发送的上一次报警数组，用于对比变化
+     */
+    public static final String PREVIOUS_ALARMS = "previousAlarms";
+    
+    /**
+     * 当前报警数组字段
+     * TB侧发送的当前报警数组
+     */
+    public static final String CURRENT_ALARMS = "currentAlarms";
 
     // ==================== 报警对象字段 ====================
     /**
@@ -70,6 +82,13 @@ public final class DeviceAlarmEventFields {
      * 用于将毫秒时间戳转换为秒时间戳
      */
     public static final long MILLIS_TO_SECONDS = 1000L;
+    
+    // ==================== 分布式锁配置 ====================
+    /**
+     * 分布式锁超时时间（秒）
+     * 用于设备报警处理的分布式锁超时时间
+     */
+    public static final int LOCK_TIMEOUT_SECONDS = 10;
 }
 
 
