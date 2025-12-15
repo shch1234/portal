@@ -72,8 +72,7 @@ public class LoginAuthController {
     @Operation(summary = "获取用户角色权限信息")
     public CommonResult<AuthPermissionRespVO> getPermission() {
         Oauth2UserDetail loginUser = SecurityContextUtils.getLoginUser();
-        LoginUserRespVO respVO = loginUserBizService.getByEmpId(loginUser.getEmpId());
-        List<RoleDO> roleList = userRoleBizService.getRoleByUserId(respVO.getId());
+        List<RoleDO> roleList = userRoleBizService.getRoleByUserId(loginUser.getUserId());
         if (CollectionUtils.isEmpty(roleList)) {
             log.warn("未查询到用户角色信息");
             return CommonResult.success(AuthLoginConvert.INSTANCE.convertNoUser(Collections.emptyList(), Collections.emptyList()));

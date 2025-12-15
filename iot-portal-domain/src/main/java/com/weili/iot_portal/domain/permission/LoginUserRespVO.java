@@ -19,7 +19,7 @@ public class LoginUserRespVO  extends BaseVO {
     private Long id;
 
     @Schema(description = "用户ID")
-    private Integer userId;
+    private Long userId;
 
     @Schema(description = "用户名称")
     private String userName;
