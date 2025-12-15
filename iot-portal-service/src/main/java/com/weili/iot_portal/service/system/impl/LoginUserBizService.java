@@ -1,11 +1,9 @@
 package com.weili.iot_portal.service.system.impl;
 
 import com.weili.basic.authorization.security.SecurityContextUtils;
-import com.weili.basic.common.exception.BaseException;
 import com.weili.basic.common.model.PageResult;
 import com.weili.basic.common.util.BeanUtils;
 import com.weili.basic.oauth2.oidc.Oauth2UserDetail;
-import com.weili.iot_portal.common.enums.BizErrorCodeEnum;
 import com.weili.iot_portal.common.enums.RoleCodeEnum;
 import com.weili.iot_portal.common.enums.StatusEnum;
 import com.weili.iot_portal.dal.dataobject.system.LoginUserDO;
@@ -47,7 +45,7 @@ public class LoginUserBizService implements ILoginUserBizService {
         Oauth2UserDetail loginUser = SecurityContextUtils.getLoginUser();
         LoginUserDO loginUserDO = loginUserRepository.getByEmpId(Long.valueOf(loginUser.getEmpId()));
         if (loginUserDO != null) {
-            return loginUserDO.getId();
+            return loginUser.getUserId();
         }
         loginUserDO = new LoginUserDO();
         loginUserDO.setUserId(loginUser.getUserId());
