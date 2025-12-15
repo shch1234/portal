@@ -20,7 +20,10 @@ public class AuthUserInfoRespVO extends BaseVO {
     private Long userId;
 
     @Schema(description = "登录用户名", requiredMode = Schema.RequiredMode.REQUIRED, example = "1024")
-    private String userName;
+    private String username;
+
+    @Schema(description = "登录用户名", requiredMode = Schema.RequiredMode.REQUIRED, example = "1024")
+    private String nickname;
 
     @Schema(description = "员工号", requiredMode = Schema.RequiredMode.REQUIRED, example = "1024")
     private String jobNumber;

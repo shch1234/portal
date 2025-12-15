@@ -57,6 +57,8 @@ public class LoginAuthController {
         AuthUserInfoRespVO infoRespVO = new AuthUserInfoRespVO();
         infoRespVO.setUserId(userId);
         infoRespVO.setJobNumber(loginUser.getEmpId());
+        infoRespVO.setUsername(loginUser.getUserName());
+        infoRespVO.setNickname(loginUser.getNickName());
         Oauth2UserDetail.Dept dept = SecurityContextUtils.getDept();
         if (dept != null) {
             infoRespVO.setDeptId(Long.valueOf(dept.getDeptId()));
