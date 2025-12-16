@@ -1,4 +1,4 @@
-package com.weili.iot_portal.service.device.config;
+package com.weili.iot_portal.service.config;
 
 import com.weili.basic.redis.client.RedisClient;
 import com.weili.iot_portal.service.device.ICheckpointService;
@@ -66,6 +66,34 @@ public class CheckpointServiceConfig {
         return new GenericCheckpointService(
                 redisClient,
                 "device_production_summary:checkpoint:",
+                ttlSeconds
+        );
+    }
+
+    /**
+     * 工厂实时指标检查点服务
+     */
+    @Bean("factoryMetricsCheckpointService")
+    public ICheckpointService<ICheckpointService.CheckpointData> factoryMetricsCheckpointService(
+            RedisClient redisClient,
+            @Value("${factory.metrics.checkpoint-ttl-seconds:3600}") long ttlSeconds) {
+        return new GenericCheckpointService(
+                redisClient,
+                "factory_metrics:checkpoint:",
+                ttlSeconds
+        );
+    }
+
+    /**
+     * 工厂班次指标汇总检查点服务
+     */
+    @Bean("factoryMetricsSummaryCheckpointService")
+    public ICheckpointService<ICheckpointService.CheckpointData> factoryMetricsSummaryCheckpointService(
+            RedisClient redisClient,
+            @Value("${factory.metrics.summary.checkpoint-ttl-seconds:86400}") long ttlSeconds) {
+        return new GenericCheckpointService(
+                redisClient,
+                "factory_metrics_summary:checkpoint:",
                 ttlSeconds
         );
     }

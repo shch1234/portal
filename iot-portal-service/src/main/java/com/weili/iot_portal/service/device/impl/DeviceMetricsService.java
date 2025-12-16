@@ -346,7 +346,7 @@ public class DeviceMetricsService implements IDeviceMetricsService {
                                     BigDecimal uptimeRate, BigDecimal performanceRate,
                                     BigDecimal availabilityRate, BigDecimal faultRate,
                                     BigDecimal oee, long updatedAtSec) {
-        String key = String.format(RedisConstant.RT_METRIC, "none", defaultBlank(factoryId), defaultBlank(deviceId));
+        String key = String.format(RedisConstant.RT_METRIC, defaultBlank(factoryId), defaultBlank(deviceId));
         Map<String, String> payload = new HashMap<>();
         payload.put("metric.uptimeRate", uptimeRate.toPlainString());
         payload.put("metric.performanceRate", performanceRate.toPlainString());
@@ -356,6 +356,45 @@ public class DeviceMetricsService implements IDeviceMetricsService {
         payload.put("updatedAt", String.valueOf(updatedAtSec));
         stringRedisTemplate.opsForHash().putAll(key, payload);
         stringRedisTemplate.expire(key, Duration.ofSeconds(ttlSeconds));
+    }
+
+    @Override
+    public java.util.Optional<RealtimeMetricSnapshot> getDeviceRealtimeMetrics(String factoryId, String deviceId) {
+        String key = String.format(RedisConstant.RT_METRIC, defaultBlank(factoryId), defaultBlank(deviceId));
+        Map<Object, Object> map = stringRedisTemplate.opsForHash().entries(key);
+        if (map == null || map.isEmpty()) {
+            return java.util.Optional.empty();
+        }
+        try {
+            java.math.BigDecimal uptime = parseDecimal(map.get("metric.uptimeRate"));
+            java.math.BigDecimal performance = parseDecimal(map.get("metric.performanceRate"));
+            java.math.BigDecimal availability = parseDecimal(map.get("metric.availabilityRate"));
+            java.math.BigDecimal fault = parseDecimal(map.get("metric.faultRate"));
+            java.math.BigDecimal oee = parseDecimal(map.get("metric.oee"));
+            long updatedAt = parseLong(map.get("updatedAt"), 0L);
+            return java.util.Optional.of(new RealtimeMetricSnapshot(uptime, performance, availability, fault, oee, updatedAt));
+        } catch (Exception e) {
+            log.warn("读取实时指标解析失败: key={}", key, e);
+            return java.util.Optional.empty();
+        }
+    }
+
+    private java.math.BigDecimal parseDecimal(Object v) {
+        if (v == null) {
+            return java.math.BigDecimal.ZERO;
+        }
+        return new java.math.BigDecimal(v.toString());
+    }
+
+    private long parseLong(Object v, long defaultVal) {
+        if (v == null) {
+            return defaultVal;
+        }
+        try {
+            return Long.parseLong(v.toString());
+        } catch (NumberFormatException ex) {
+            return defaultVal;
+        }
     }
 
     private String defaultBlank(String v) {

@@ -59,6 +59,18 @@ public class DeviceMetricSummaryRepositoryImpl implements DeviceMetricSummaryRep
     }
 
     @Override
+    public java.util.List<DeviceMetricSummaryDO> selectFinalizedUpTo(String deviceId, Long endTs) {
+        LambdaQueryWrapper<DeviceMetricSummaryDO> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(DeviceMetricSummaryDO::getDeviceInfoId, deviceId)
+                .eq(DeviceMetricSummaryDO::getIsFinalized, Boolean.TRUE);
+        if (endTs != null) {
+            wrapper.le(DeviceMetricSummaryDO::getShiftEndTs, endTs);
+        }
+        wrapper.orderByAsc(DeviceMetricSummaryDO::getShiftEndTs);
+        return mapper.selectList(wrapper);
+    }
+
+    @Override
     public void insert(DeviceMetricSummaryDO entity) {
         mapper.insert(entity);
     }

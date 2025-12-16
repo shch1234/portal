@@ -21,6 +21,15 @@ public interface DeviceMetricSummaryRepository {
      */
     DeviceMetricSummaryDO findByShift(String deviceId, LocalDate shiftDate, Integer shiftCode);
 
+    /**
+     * 查询统计时间点前已完成的班次记录
+     *
+     * @param deviceId 设备ID
+     * @param endTs    统计时间戳（秒）
+     * @return 班次记录列表（按 shift_end_ts 升序）
+     */
+    java.util.List<DeviceMetricSummaryDO> selectFinalizedUpTo(String deviceId, Long endTs);
+
     void insert(DeviceMetricSummaryDO entity);
 
     void update(DeviceMetricSummaryDO entity);

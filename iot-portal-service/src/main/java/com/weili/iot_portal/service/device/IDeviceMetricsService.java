@@ -51,6 +51,15 @@ public interface IDeviceMetricsService {
     void calculateDeviceMetrics(DeviceInfoDO device);
 
     /**
+     * 获取设备实时指标快照（从Redis读取）
+     *
+     * @param factoryId 工厂ID（可为空，用于key维度）
+     * @param deviceId  设备ID
+     * @return 指标快照，可为空（缓存不存在）
+     */
+    java.util.Optional<RealtimeMetricSnapshot> getDeviceRealtimeMetrics(String factoryId, String deviceId);
+
+    /**
      * 批量处理结果
      */
     class BatchProcessResult {
@@ -113,6 +122,62 @@ public interface IDeviceMetricsService {
 
         public int getErrorCount() {
             return errorCount;
+        }
+    }
+
+    /**
+     * 设备实时指标快照
+     */
+    class RealtimeMetricSnapshot {
+        private final java.math.BigDecimal uptimeRate;
+        private final java.math.BigDecimal performanceRate;
+        private final java.math.BigDecimal availabilityRate;
+        private final java.math.BigDecimal faultRate;
+        private final java.math.BigDecimal oee;
+        private final long updatedAtSec;
+
+        public RealtimeMetricSnapshot(java.math.BigDecimal uptimeRate,
+                                      java.math.BigDecimal performanceRate,
+                                      java.math.BigDecimal availabilityRate,
+                                      java.math.BigDecimal faultRate,
+                                      java.math.BigDecimal oee,
+                                      long updatedAtSec) {
+            this.uptimeRate = uptimeRate;
+            this.performanceRate = performanceRate;
+            this.availabilityRate = availabilityRate;
+            this.faultRate = faultRate;
+            this.oee = oee;
+            this.updatedAtSec = updatedAtSec;
+        }
+
+        public java.math.BigDecimal getUptimeRate() {
+            return uptimeRate;
+        }
+
+        public java.math.BigDecimal getPerformanceRate() {
+            return performanceRate;
+        }
+
+        public java.math.BigDecimal getAvailabilityRate() {
+            return availabilityRate;
+        }
+
+        public java.math.BigDecimal getFaultRate() {
+            return faultRate;
+        }
+
+        public java.math.BigDecimal getOee() {
+            return oee;
+        }
+
+        public long getUpdatedAtSec() {
+            return updatedAtSec;
+        }
+
+        public static RealtimeMetricSnapshot empty() {
+            return new RealtimeMetricSnapshot(java.math.BigDecimal.ZERO, java.math.BigDecimal.ZERO,
+                    java.math.BigDecimal.ZERO, java.math.BigDecimal.ZERO,
+                    java.math.BigDecimal.ZERO, 0);
         }
     }
 }
