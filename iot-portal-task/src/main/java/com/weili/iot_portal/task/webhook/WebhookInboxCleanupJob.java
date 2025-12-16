@@ -5,13 +5,13 @@ import com.xxl.job.core.handler.annotation.XxlJob;
 import com.weili.iot_portal.service.ingestion.support.WebhookInboxService;
 import com.weili.iot_portal.task.framework.BaseScheduledJob;
 import com.weili.iot_portal.task.framework.JobExecutionResult;
+import com.weili.iot_portal.task.webhook.config.WebhookInboxCleanupConfig;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 /**
- * Webhook 收件箱清理任务（XXL-Job）
+ * Webhook 收件箱清理任务
  * 
  * 功能：定期清理已处理成功的收件箱消息，避免表数据过多
  * 
@@ -21,12 +21,7 @@ import org.springframework.stereotype.Component;
  * - 清理天数可通过 Apollo 配置：webhook.inbox.cleanup.success-days（默认3天）
  * 
  * Apollo 配置示例：
- * webhook.inbox.cleanup.success-days=7  # 清理7天前已处理成功的消息
- * 
- * 使用框架：BaseScheduledJob
- * - 自动异常处理
- * - 自动统计收集
- * - 自动日志记录
+ * webhook.inbox.cleanup.success-days=3  # 清理3天前已处理成功的消息
  */
 @Slf4j
 @Component
@@ -34,15 +29,7 @@ import org.springframework.stereotype.Component;
 public class WebhookInboxCleanupJob extends BaseScheduledJob {
 
     private final WebhookInboxService webhookInboxService;
-
-    /**
-     * 清理天数（可通过 Apollo 配置，默认3天）
-     * 清理多少天前已处理成功的消息
-     * 
-     * Apollo 配置路径：webhook.inbox.cleanup.success-days
-     */
-    @Value("${webhook.inbox.cleanup.success-days:3}")
-    private int cleanupDays;
+    private final WebhookInboxCleanupConfig cleanupConfig;
 
     @Override
     protected String getJobName() {
@@ -57,6 +44,7 @@ public class WebhookInboxCleanupJob extends BaseScheduledJob {
 
     @Override
     protected JobExecutionResult executeInternal() throws Exception {
+        int cleanupDays = cleanupConfig.getSuccessDays();
         XxlJobHelper.log("开始清理收件箱，清理{}天前已处理成功的消息", cleanupDays);
         log.info("[Webhook-Inbox-Cleanup] 开始清理收件箱，清理{}天前已处理成功的消息", cleanupDays);
         

@@ -230,5 +230,117 @@ public class ShiftCalculationService implements IShiftCalculationService {
                 .crossDay(firstShift.getCrossDay())
                 .build();
     }
+
+    /**
+     * 计算前一个班次的时间范围
+     * 根据当前时间点，计算前一个班次（刚结束的班次）的时间范围
+     *
+     * @param factoryId            工厂ID
+     * @param deviceId             设备ID
+     * @param statisticsTimeSeconds 统计时间点（秒）
+     * @return 前一个班次的时间范围，如果无法计算则返回null
+     */
+    @Override
+    public ShiftTimeRange calculatePreviousShiftRange(
+            String factoryId,
+            String deviceId,
+            long statisticsTimeSeconds) {
+        try {
+            // 获取当前时间点的班次
+            ShiftTimeRange currentShift = calculateShiftRange(
+                    factoryId, deviceId, statisticsTimeSeconds * 1000L);
+
+            // 计算前一个班次
+            // 前一个班次的结束时间 = 当前班次的开始时间
+            long previousShiftEndTs = currentShift.getStartTs();
+
+            // 根据结束时间计算前一个班次的时间范围
+            return calculateShiftRangeByEndTime(factoryId, deviceId, previousShiftEndTs);
+        } catch (Exception e) {
+            log.warn("计算前一个班次失败: factoryId={}, deviceId={}, error={}",
+                    factoryId, deviceId, e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * 根据结束时间计算班次时间范围
+     * 用于根据已知的班次结束时间，反推整个班次的时间范围
+     *
+     * @param factoryId  工厂ID
+     * @param deviceId  设备ID
+     * @param endTsMillis 班次结束时间戳（毫秒）
+     * @return 班次时间范围，如果无法计算则返回null
+     */
+    @Override
+    public ShiftTimeRange calculateShiftRangeByEndTime(
+            String factoryId,
+            String deviceId,
+            long endTsMillis) {
+        try {
+            // 获取该时间点的班次配置
+            DeviceShiftConfigDO config = shiftConfigService.getCurrentConfiguration(
+                    factoryId, deviceId, endTsMillis);
+
+            LocalDateTime endDateTime = LocalDateTime.ofInstant(
+                    Instant.ofEpochMilli(endTsMillis),
+                    ZoneId.systemDefault());
+
+            LocalDate shiftDate = endDateTime.toLocalDate();
+            LocalTime endTime = endDateTime.toLocalTime();
+
+            // 查找匹配的班次
+            List<DeviceShiftConfigDO.ShiftDefinition> shifts = config.getShifts();
+            if (shifts == null || shifts.isEmpty()) {
+                log.warn("班次配置为空: factoryId={}, deviceId={}", factoryId, deviceId);
+                return null;
+            }
+
+            for (DeviceShiftConfigDO.ShiftDefinition shift : shifts) {
+                LocalTime shiftEndTime = LocalTime.parse(shift.getEndTime(), TIME_FORMATTER);
+
+                // 检查是否匹配（考虑跨天情况）
+                boolean matches = false;
+                if (Boolean.TRUE.equals(shift.getCrossDay())) {
+                    // 跨天班次：结束时间可能是当天的结束时间或次日的结束时间
+                    matches = endTime.equals(shiftEndTime) ||
+                            endTime.equals(shiftEndTime.minusHours(24));
+                } else {
+                    matches = endTime.equals(shiftEndTime);
+                }
+
+                if (matches) {
+                    // 计算开始时间
+                    LocalTime shiftStartTime = LocalTime.parse(shift.getStartTime(), TIME_FORMATTER);
+                    LocalDateTime shiftStart;
+
+                    if (Boolean.TRUE.equals(shift.getCrossDay())) {
+                        // 跨天班次：开始时间是前一天
+                        shiftStart = shiftDate.minusDays(1).atTime(shiftStartTime);
+                    } else {
+                        shiftStart = shiftDate.atTime(shiftStartTime);
+                    }
+
+                    long startTs = shiftStart.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
+
+                    return ShiftTimeRange.builder()
+                            .shiftCode(shift.getCode())
+                            .shiftName(shift.getName())
+                            .startTs(startTs)
+                            .endTs(endTsMillis)
+                            .durationMs(endTsMillis - startTs)
+                            .build();
+                }
+            }
+
+            log.warn("未找到匹配的班次: factoryId={}, deviceId={}, endTime={}",
+                    factoryId, deviceId, endTime);
+            return null;
+        } catch (Exception e) {
+            log.warn("根据结束时间计算班次范围失败: factoryId={}, deviceId={}, error={}",
+                    factoryId, deviceId, e.getMessage());
+            return null;
+        }
+    }
 }
 
