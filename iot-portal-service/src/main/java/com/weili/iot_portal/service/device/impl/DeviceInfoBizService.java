@@ -2,39 +2,30 @@ package com.weili.iot_portal.service.device.impl;
 
 import cn.hutool.core.util.StrUtil;
 import com.weili.basic.common.model.PageResult;
-import com.weili.iot_portal.dal.dataobject.device.DeviceModelDO;
-import com.weili.iot_portal.dal.dataobject.device.DeviceOrgRelationDO;
-import com.weili.iot_portal.dal.dataobject.device.DeviceTypeRelationDO;
 import com.weili.basic.common.util.BeanUtils;
 import com.weili.iot_portal.common.exception.IotPortalErrorCode;
 import com.weili.iot_portal.common.exception.IotPortalException;
-import com.weili.iot_portal.dal.dataobject.device.DeviceInfoDO;
-import com.weili.iot_portal.dal.dataobject.device.DeviceLocationDO;
-import com.weili.iot_portal.dal.dataobject.device.DeviceNetworkConfigDO;
-import com.weili.iot_portal.domain.device.req.DeviceInfoBasePageReqVO;
-import com.weili.iot_portal.domain.device.req.DeviceInfoSaveReqVO;
-import com.weili.iot_portal.domain.device.req.DeviceModelPageReqVO;
-import com.weili.iot_portal.domain.device.req.DeviceOrgRelationPageReqVO;
-import com.weili.iot_portal.domain.device.req.DeviceTypeRelationPageReqVO;
-import com.weili.iot_portal.domain.device.resp.DeviceInfoOptionsRespVO;
-import com.weili.iot_portal.domain.device.resp.DeviceInfoRespVO;
-import com.weili.iot_portal.domain.device.resp.DeviceModelRespVO;
-import com.weili.iot_portal.domain.device.resp.DeviceOrgRelationRespVO;
-import com.weili.iot_portal.domain.device.resp.DeviceTypeRelationRespVO;
+import com.weili.iot_portal.dal.dataobject.device.*;
 import com.weili.iot_portal.dal.ddd.device.DeviceBaseInfoPageQuery;
 import com.weili.iot_portal.dal.repository.device.DeviceInfoRepository;
 import com.weili.iot_portal.dal.repository.device.DeviceLocationRepository;
 import com.weili.iot_portal.dal.repository.device.DeviceModelRepository;
 import com.weili.iot_portal.dal.repository.device.DeviceNetworkConfigRepository;
+import com.weili.iot_portal.domain.device.req.*;
+import com.weili.iot_portal.domain.device.resp.*;
+import com.weili.iot_portal.service.assembler.DeviceInfoAssembler;
 import com.weili.iot_portal.service.device.IDeviceInfoBizService;
 import com.weili.iot_portal.service.device.IDeviceModelBizService;
 import com.weili.iot_portal.service.device.IDeviceOrgRelationBizService;
 import com.weili.iot_portal.service.device.IDeviceTypeRelationBizService;
 import jakarta.annotation.Resource;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -81,14 +72,15 @@ public class DeviceInfoBizService implements IDeviceInfoBizService {
 
         // 创建设备位置信息（如果提供）
         if (createReqVO.getLocation() != null) {
-            createDeviceLocation(deviceInfoId, createReqVO);
+            DeviceLocationDO deviceLocation = DeviceInfoAssembler.createDeviceLocation(deviceInfoId, createReqVO);
+            deviceLocationRepository.insert(deviceLocation);
         }
 
         // 创建设备网络配置（如果提供）
         if (createReqVO.getNetwork() != null) {
-            createDeviceNetworkConfig(deviceInfoId, createReqVO);
+            DeviceNetworkConfigDO networkConfig = DeviceInfoAssembler.createNetworkConfigDO(deviceInfoId, createReqVO);
+            deviceNetworkConfigRepository.insert(networkConfig);
         }
-
         return deviceInfoId;
     }
 
@@ -151,6 +143,20 @@ public class DeviceInfoBizService implements IDeviceInfoBizService {
             respVO.setNetwork(networkInfo);
         }
 
+        //组装数据
+        DeviceTypeRelationDO relationDO = deviceTypeRelationBizService.getDeviceTypeRelationByCode(deviceInfo.getDeviceTypeCode());
+        if (relationDO != null) {
+            respVO.setDeviceSubTypeName(relationDO.getDescription());
+            String parentTypeCode = relationDO.getParentTypeCode();
+            DeviceTypeRelationDO parentRelDO = deviceTypeRelationBizService.getDeviceTypeRelationByCode(parentTypeCode);
+            if (parentRelDO != null) {
+                respVO.setDeviceTypeName(parentRelDO.getDescription());
+            }
+        }
+        DeviceModelDO deviceModel = deviceModelBizService.getDeviceModel(deviceInfo.getDeviceModelId());
+        if (deviceModel != null) {
+            respVO.setDeviceModelName(deviceModel.getModelName());
+        }
         return respVO;
     }
 
@@ -167,9 +173,46 @@ public class DeviceInfoBizService implements IDeviceInfoBizService {
     }
 
     @Override
-    public PageResult<DeviceInfoDO> getDeviceInfoPage(DeviceInfoBasePageReqVO pageReqVO) {
-        return deviceInfoRepository.selectPage(BeanUtils.toBean(pageReqVO, DeviceBaseInfoPageQuery.class));
+    public PageResult<DeviceInfoRespVO> getDeviceInfoPage(DeviceInfoBasePageReqVO pageReqVO) {
+        PageResult<DeviceInfoDO> pageResult = deviceInfoRepository.selectPage(BeanUtils.toBean(pageReqVO, DeviceBaseInfoPageQuery.class));
+        PageResult<DeviceInfoRespVO> result = BeanUtils.toBean(pageResult, DeviceInfoRespVO.class);
+        Map<String, String> deviceSubNameMap = new HashMap<>();
+        Map<String, String> deviceTypeNameMap = new HashMap<>();
+        Map<String, String> deviceModelNameMap = new HashMap<>();
+        for (DeviceInfoRespVO row : result.getList()) {
+            String deviceTypeName = "";
+            String deviceSubTypeName = deviceSubNameMap.get(row.getDeviceTypeCode());
+            if (StringUtils.isBlank(deviceSubTypeName)) {
+                DeviceTypeRelationDO relationDO = deviceTypeRelationBizService.getDeviceTypeRelationByCode(row.getDeviceTypeCode());
+                if (relationDO != null) {
+                    deviceSubTypeName = relationDO.getDescription();
+                    deviceSubNameMap.put(row.getDeviceTypeCode(), deviceSubTypeName);
+                    deviceTypeName = deviceTypeNameMap.get(row.getDeviceTypeCode());
+                    if (StringUtils.isBlank(deviceTypeName)) {
+                        String parentTypeCode = relationDO.getParentTypeCode();
+                        DeviceTypeRelationDO parentRelDO = deviceTypeRelationBizService.getDeviceTypeRelationByCode(parentTypeCode);
+                        if (parentRelDO != null) {
+                            deviceTypeName = parentRelDO.getDescription();
+                            deviceTypeNameMap.put(row.getDeviceTypeCode(), deviceTypeName);
+                        }
+                    }
+                }
+            }
+            row.setDeviceTypeName(deviceTypeName);
+            row.setDeviceSubTypeName(deviceSubTypeName);
+            String modelName = deviceModelNameMap.get(row.getDeviceModelId());
+            if (StringUtils.isEmpty(modelName)) {
+                DeviceModelDO deviceModel = deviceModelBizService.getDeviceModel(row.getDeviceModelId());
+                if (deviceModel != null) {
+                    modelName = deviceModel.getModelName();
+                    deviceModelNameMap.put(row.getDeviceModelId(), modelName);
+                }
+            }
+            row.setDeviceModelName(modelName);
+        }
+        return result;
     }
+
 
     /**
      * 验证设备信息存在
@@ -224,63 +267,13 @@ public class DeviceInfoBizService implements IDeviceInfoBizService {
         }
     }
 
-    /**
-     * 创建设备位置信息
-     */
-    private void createDeviceLocation(String deviceInfoId, DeviceInfoSaveReqVO createReqVO) {
-        DeviceInfoSaveReqVO.DeviceLocationInfo locationInfo = createReqVO.getLocation();
-        DeviceLocationDO deviceLocation = new DeviceLocationDO();
-        deviceLocation.setDeviceInfoId(deviceInfoId);
-        deviceLocation.setOrgFactoryId(createReqVO.getOrgFactoryId());
-        deviceLocation.setLocationCode(locationInfo.getLocationCode());
-        deviceLocation.setLocationDescription(locationInfo.getLocationDescription());
-        deviceLocation.setCoordinates(locationInfo.getCoordinates());
-        deviceLocation.setFloorNo(locationInfo.getFloorNo());
-        deviceLocation.setAreaCode(locationInfo.getAreaCode());
-        deviceLocation.setLongitude(locationInfo.getLongitude());
-        deviceLocation.setLatitude(locationInfo.getLatitude());
-        deviceLocation.setEffectiveStartTs(locationInfo.getEffectiveStartTs() != null 
-            ? locationInfo.getEffectiveStartTs() 
-            : System.currentTimeMillis() / 1000);
-        deviceLocation.setEffectiveEndTs(locationInfo.getEffectiveEndTs());
-        deviceLocation.setActive(true);
-        deviceLocation.setDescription(locationInfo.getDescription());
-        deviceLocationRepository.insert(deviceLocation);
-    }
 
     /**
      * 更新设备位置信息
      */
     private void updateDeviceLocation(String deviceInfoId, DeviceInfoSaveReqVO updateReqVO) {
-        DeviceInfoSaveReqVO.DeviceLocationInfo locationInfo = updateReqVO.getLocation();
         Optional<DeviceLocationDO> existing = deviceLocationRepository.findByDeviceId(deviceInfoId);
-        
-        DeviceLocationDO deviceLocation;
-        if (existing.isPresent()) {
-            // 更新现有位置信息
-            deviceLocation = existing.get();
-        } else {
-            // 创建新位置信息
-            deviceLocation = new DeviceLocationDO();
-            deviceLocation.setDeviceInfoId(deviceInfoId);
-            deviceLocation.setEffectiveStartTs(System.currentTimeMillis() / 1000);
-            deviceLocation.setActive(true);
-        }
-        
-        deviceLocation.setOrgFactoryId(updateReqVO.getOrgFactoryId());
-        deviceLocation.setLocationCode(locationInfo.getLocationCode());
-        deviceLocation.setLocationDescription(locationInfo.getLocationDescription());
-        deviceLocation.setCoordinates(locationInfo.getCoordinates());
-        deviceLocation.setFloorNo(locationInfo.getFloorNo());
-        deviceLocation.setAreaCode(locationInfo.getAreaCode());
-        deviceLocation.setLongitude(locationInfo.getLongitude());
-        deviceLocation.setLatitude(locationInfo.getLatitude());
-        if (locationInfo.getEffectiveStartTs() != null) {
-            deviceLocation.setEffectiveStartTs(locationInfo.getEffectiveStartTs());
-        }
-        deviceLocation.setEffectiveEndTs(locationInfo.getEffectiveEndTs());
-        deviceLocation.setDescription(locationInfo.getDescription());
-        
+        DeviceLocationDO deviceLocation = DeviceInfoAssembler.updateDeviceLocation(deviceInfoId, existing.orElse(null), updateReqVO);
         if (existing.isPresent()) {
             deviceLocationRepository.update(deviceLocation);
         } else {
@@ -288,63 +281,13 @@ public class DeviceInfoBizService implements IDeviceInfoBizService {
         }
     }
 
-    /**
-     * 创建设备网络配置
-     */
-    private void createDeviceNetworkConfig(String deviceInfoId, DeviceInfoSaveReqVO createReqVO) {
-        DeviceInfoSaveReqVO.DeviceNetworkInfo networkInfo = createReqVO.getNetwork();
-        DeviceNetworkConfigDO deviceNetworkConfig = new DeviceNetworkConfigDO();
-        deviceNetworkConfig.setDeviceInfoId(deviceInfoId);
-        deviceNetworkConfig.setOrgFactoryId(createReqVO.getOrgFactoryId());
-        deviceNetworkConfig.setIpAddress(networkInfo.getIpAddress());
-        deviceNetworkConfig.setPort(networkInfo.getPort());
-        deviceNetworkConfig.setMacAddress(networkInfo.getMacAddress());
-        deviceNetworkConfig.setGateway(networkInfo.getGateway());
-        deviceNetworkConfig.setSubnetMask(networkInfo.getSubnetMask());
-        deviceNetworkConfig.setProtocol(networkInfo.getProtocol());
-        deviceNetworkConfig.setConnectionParams(networkInfo.getConnectionParams());
-        deviceNetworkConfig.setEffectiveStartTs(networkInfo.getEffectiveStartTs() != null 
-            ? networkInfo.getEffectiveStartTs() 
-            : System.currentTimeMillis() / 1000);
-        deviceNetworkConfig.setEffectiveEndTs(networkInfo.getEffectiveEndTs());
-        deviceNetworkConfig.setIsActive(true);
-        deviceNetworkConfig.setDescription(networkInfo.getDescription());
-        deviceNetworkConfigRepository.insert(deviceNetworkConfig);
-    }
 
     /**
      * 更新设备网络配置
      */
     private void updateDeviceNetworkConfig(String deviceInfoId, DeviceInfoSaveReqVO updateReqVO) {
-        DeviceInfoSaveReqVO.DeviceNetworkInfo networkInfo = updateReqVO.getNetwork();
         Optional<DeviceNetworkConfigDO> existing = deviceNetworkConfigRepository.findByDeviceInfoId(deviceInfoId);
-        
-        DeviceNetworkConfigDO deviceNetworkConfig;
-        if (existing.isPresent()) {
-            // 更新现有网络配置
-            deviceNetworkConfig = existing.get();
-        } else {
-            // 创建新网络配置
-            deviceNetworkConfig = new DeviceNetworkConfigDO();
-            deviceNetworkConfig.setDeviceInfoId(deviceInfoId);
-            deviceNetworkConfig.setEffectiveStartTs(System.currentTimeMillis() / 1000);
-            deviceNetworkConfig.setIsActive(true);
-        }
-        
-        deviceNetworkConfig.setOrgFactoryId(updateReqVO.getOrgFactoryId());
-        deviceNetworkConfig.setIpAddress(networkInfo.getIpAddress());
-        deviceNetworkConfig.setPort(networkInfo.getPort());
-        deviceNetworkConfig.setMacAddress(networkInfo.getMacAddress());
-        deviceNetworkConfig.setGateway(networkInfo.getGateway());
-        deviceNetworkConfig.setSubnetMask(networkInfo.getSubnetMask());
-        deviceNetworkConfig.setProtocol(networkInfo.getProtocol());
-        deviceNetworkConfig.setConnectionParams(networkInfo.getConnectionParams());
-        if (networkInfo.getEffectiveStartTs() != null) {
-            deviceNetworkConfig.setEffectiveStartTs(networkInfo.getEffectiveStartTs());
-        }
-        deviceNetworkConfig.setEffectiveEndTs(networkInfo.getEffectiveEndTs());
-        deviceNetworkConfig.setDescription(networkInfo.getDescription());
-        
+        DeviceNetworkConfigDO deviceNetworkConfig = DeviceInfoAssembler.updateNetworkConfigDO(deviceInfoId, existing.orElse(null), updateReqVO);
         if (existing.isPresent()) {
             deviceNetworkConfigRepository.update(deviceNetworkConfig);
         } else {
@@ -361,8 +304,15 @@ public class DeviceInfoBizService implements IDeviceInfoBizService {
         typePageReq.setIsActive(true);
         typePageReq.setPageNo(1);
         typePageReq.setPageSize(10000); // 设置一个很大的值以获取所有数据
+        typePageReq.setParentTypeId(null); //查询父的设备类型
         PageResult<DeviceTypeRelationDO> typePageResult = deviceTypeRelationBizService.getDeviceTypeRelationPage(typePageReq);
         List<DeviceTypeRelationRespVO> deviceTypes = BeanUtils.toBean(typePageResult.getList(), DeviceTypeRelationRespVO.class);
+        //查询父的子类型
+        for (DeviceTypeRelationRespVO relationType : deviceTypes) {
+            String typeCode = relationType.getTypeCode();
+            List<DeviceTypeRelationDO> subList = deviceTypeRelationBizService.getDeviceTypeRelationByParentCode(typeCode);
+            relationType.setSubDeviceList(BeanUtils.toBean(subList, DeviceTypeRelationRespVO.class));
+        }
         options.setDeviceTypes(deviceTypes);
 
         // 获取厂区列表（仅启用状态，层级1）

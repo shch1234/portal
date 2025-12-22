@@ -1,7 +1,7 @@
 package com.weili.iot_portal.service.shift;
 
-import com.weili.iot_portal.service.shift.model.ShiftInfo;
 import com.weili.iot_portal.service.shift.model.ShiftDateAndCode;
+import com.weili.iot_portal.service.shift.model.ShiftInfo;
 import com.weili.iot_portal.service.shift.model.ShiftTimeRange;
 
 /**

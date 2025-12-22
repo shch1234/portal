@@ -5,6 +5,8 @@ import com.weili.iot_portal.dal.dataobject.device.DeviceTypeRelationDO;
 import com.weili.iot_portal.domain.device.req.DeviceTypeRelationPageReqVO;
 import com.weili.iot_portal.domain.device.req.DeviceTypeRelationSaveReqVO;
 
+import java.util.List;
+
 /**
  * 设备类型业务服务接口
  */
@@ -39,6 +41,24 @@ public interface IDeviceTypeRelationBizService {
      * @return 设备类型
      */
     DeviceTypeRelationDO getDeviceTypeRelation(String id);
+
+    /**
+     * 根据设备类型编码获取设备类型
+     *
+     * @param typeCode 设备类型编码
+     * @return 设备类型
+     */
+    DeviceTypeRelationDO getDeviceTypeRelationByCode(String typeCode);
+
+
+    /**
+     * 根据设备类型父编码获取设备类型
+     *
+     * @param typeCode 设备类型编码
+     * @return 设备类型
+     */
+    List<DeviceTypeRelationDO> getDeviceTypeRelationByParentCode(String typeCode);
+
 
     /**
      * 分页查询设备类型

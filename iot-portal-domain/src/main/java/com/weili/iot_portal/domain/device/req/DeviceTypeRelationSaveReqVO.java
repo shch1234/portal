@@ -6,8 +6,6 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
-import java.util.Map;
-
 /**
  * 设备类型创建/修改 Request VO
  */
@@ -40,9 +38,6 @@ public class DeviceTypeRelationSaveReqVO {
 
     @Schema(description = "类型描述")
     private String description;
-
-    @Schema(description = "自定义字段定义（JSON）")
-    private Map<String, Object> customFields;
 
     @Schema(description = "是否启用：true-启用 false-停用", example = "true")
     private Boolean isActive;

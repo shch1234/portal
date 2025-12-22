@@ -5,8 +5,6 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
-import java.util.Map;
-
 /**
  * 设备型号创建/修改 Request VO
  */
@@ -36,11 +34,6 @@ public class DeviceModelSaveReqVO {
     @Size(max = 255, message = "制造商长度不能超过255个字符")
     private String manufacturer;
 
-    @Schema(description = "通用规格参数（JSON）：尺寸、重量、功率等")
-    private Map<String, Object> specifications;
-
-    @Schema(description = "类型特定属性（JSON）")
-    private Map<String, Object> typeSpecificAttrs;
 
     @Schema(description = "是否启用：true-启用 false-停用", example = "true")
     private Boolean isActive;

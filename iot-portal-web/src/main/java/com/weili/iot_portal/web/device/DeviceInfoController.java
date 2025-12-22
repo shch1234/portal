@@ -34,8 +34,8 @@ public class DeviceInfoController {
     @GetMapping("/page")
     @Operation(summary = "分页查询设备信息")
     public CommonResult<PageResult<DeviceInfoRespVO>> getDeviceInfoPage(@Valid DeviceInfoBasePageReqVO pageReqVO) {
-        PageResult<DeviceInfoDO> pageResult = deviceInfoBizService.getDeviceInfoPage(pageReqVO);
-        return CommonResult.success(BeanUtils.toBean(pageResult, DeviceInfoRespVO.class));
+        PageResult<DeviceInfoRespVO> pageResult = deviceInfoBizService.getDeviceInfoPage(pageReqVO);
+        return CommonResult.success(pageResult);
     }
 
 

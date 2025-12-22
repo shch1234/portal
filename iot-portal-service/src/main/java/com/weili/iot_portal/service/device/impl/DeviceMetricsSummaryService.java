@@ -5,13 +5,9 @@ import com.weili.iot_portal.dal.dataobject.device.DeviceInfoDO;
 import com.weili.iot_portal.dal.dataobject.device.DeviceMetricSummaryDO;
 import com.weili.iot_portal.dal.dataobject.device.DeviceParamConfigDO;
 import com.weili.iot_portal.dal.dataobject.device.DeviceStateSummaryDO;
-import com.weili.iot_portal.dal.repository.device.DeviceInfoRepository;
-import com.weili.iot_portal.dal.repository.device.DeviceMetricSummaryRepository;
-import com.weili.iot_portal.dal.repository.device.DeviceParamConfigRepository;
-import com.weili.iot_portal.dal.repository.device.DeviceProductionRecordRepository;
-import com.weili.iot_portal.dal.repository.device.DeviceStateSummaryRepository;
-import com.weili.iot_portal.service.device.IDeviceMetricsSummaryService;
+import com.weili.iot_portal.dal.repository.device.*;
 import com.weili.iot_portal.service.device.ICheckpointService;
+import com.weili.iot_portal.service.device.IDeviceMetricsSummaryService;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -20,13 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**

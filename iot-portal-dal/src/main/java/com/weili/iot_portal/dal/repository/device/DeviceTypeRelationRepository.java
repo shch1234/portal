@@ -18,6 +18,9 @@ public interface DeviceTypeRelationRepository {
 
     List<DeviceTypeRelationDO> findByParentTypeId(String parentTypeId);
 
+    List<DeviceTypeRelationDO> findByParentTypeCode(String parentTypeCode);
+
+
     boolean existsByTypeCode(String typeCode, String excludeId);
 
     PageResult<DeviceTypeRelationDO> selectPage(DeviceTypePageQuery query);

@@ -1,8 +1,8 @@
 package com.weili.iot_portal.task.webhook;
 
+import com.weili.iot_portal.service.ingestion.WebhookInboxProcessor;
 import com.weili.iot_portal.task.framework.BaseScheduledJob;
 import com.weili.iot_portal.task.framework.JobExecutionResult;
-import com.weili.iot_portal.service.ingestion.WebhookInboxProcessor;
 import com.xxl.job.core.context.XxlJobHelper;
 import com.xxl.job.core.handler.annotation.XxlJob;
 import lombok.RequiredArgsConstructor;

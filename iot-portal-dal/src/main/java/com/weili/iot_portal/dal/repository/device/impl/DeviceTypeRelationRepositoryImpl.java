@@ -42,6 +42,11 @@ public class DeviceTypeRelationRepositoryImpl implements DeviceTypeRelationRepos
     }
 
     @Override
+    public List<DeviceTypeRelationDO> findByParentTypeCode(String parentTypeCode) {
+        return mapper.selectList(new LambdaQueryWrapper<DeviceTypeRelationDO>().eq(DeviceTypeRelationDO::getParentTypeCode, parentTypeCode));
+    }
+
+    @Override
     public boolean existsByTypeCode(String typeCode, String excludeId) {
         LambdaQueryWrapper<DeviceTypeRelationDO> wrapper = new LambdaQueryWrapper<DeviceTypeRelationDO>()
                 .eq(DeviceTypeRelationDO::getTypeCode, typeCode);

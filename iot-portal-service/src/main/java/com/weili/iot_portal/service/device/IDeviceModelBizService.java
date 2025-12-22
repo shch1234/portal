@@ -5,7 +5,6 @@ import com.weili.iot_portal.dal.dataobject.device.DeviceModelDO;
 import com.weili.iot_portal.domain.device.req.DeviceModelPageReqVO;
 import com.weili.iot_portal.domain.device.req.DeviceModelSaveReqVO;
 
-import java.util.List;
 
 /**
  * 设备型号业务服务接口
@@ -49,13 +48,6 @@ public interface IDeviceModelBizService {
      * @return 分页结果
      */
     PageResult<DeviceModelDO> getDeviceModelPage(DeviceModelPageReqVO pageReqVO);
-
-    /**
-     * 获取所有设备型号列表
-     *
-     * @return 设备型号列表
-     */
-    List<DeviceModelDO> getDeviceModelList();
 }
 
 

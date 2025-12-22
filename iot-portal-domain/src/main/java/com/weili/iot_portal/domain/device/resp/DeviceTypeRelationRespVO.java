@@ -4,7 +4,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
 import java.time.LocalDateTime;
-import java.util.Map;
+import java.util.List;
 
 /**
  * 设备类型 Response VO
@@ -37,9 +37,6 @@ public class DeviceTypeRelationRespVO {
     @Schema(description = "类型描述")
     private String description;
 
-    @Schema(description = "自定义字段定义（JSON）")
-    private Map<String, Object> customFields;
-
     @Schema(description = "是否启用")
     private Boolean isActive;
 
@@ -51,5 +48,8 @@ public class DeviceTypeRelationRespVO {
 
     @Schema(description = "更新时间", requiredMode = Schema.RequiredMode.REQUIRED)
     private LocalDateTime updateTime;
+
+    @Schema(description = "子设备类型列表")
+    private List<DeviceTypeRelationRespVO> subDeviceList;
 }
 

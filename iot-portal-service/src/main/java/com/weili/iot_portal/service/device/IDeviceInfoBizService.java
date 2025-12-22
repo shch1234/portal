@@ -7,8 +7,6 @@ import com.weili.iot_portal.domain.device.req.DeviceInfoSaveReqVO;
 import com.weili.iot_portal.domain.device.resp.DeviceInfoOptionsRespVO;
 import com.weili.iot_portal.domain.device.resp.DeviceInfoRespVO;
 
-import java.util.List;
-
 /**
  * 设备信息业务服务接口
  */
@@ -66,7 +64,7 @@ public interface IDeviceInfoBizService {
      * @param pageReqVO 分页查询请求
      * @return 分页结果
      */
-    PageResult<DeviceInfoDO> getDeviceInfoPage(DeviceInfoBasePageReqVO pageReqVO);
+    PageResult<DeviceInfoRespVO> getDeviceInfoPage(DeviceInfoBasePageReqVO pageReqVO);
 
     /**
      * 获取设备信息选项数据（用于新增/编辑页面）

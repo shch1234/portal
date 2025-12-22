@@ -1,12 +1,11 @@
 package com.weili.iot_portal.task.device.config;
 
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 import org.springframework.validation.annotation.Validated;
-
-import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.NotNull;
 
 /**
  * 设备实时指标计算任务配置

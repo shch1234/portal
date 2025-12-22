@@ -5,13 +5,10 @@ import com.weili.iot_portal.common.exception.IotPortalException;
 import com.weili.iot_portal.dal.dataobject.ingestion.WebhookInboxDO;
 import com.weili.iot_portal.domain.ingestion.WebhookRequest;
 import com.weili.iot_portal.service.cache.DeviceAxisCacheService;
-import com.weili.iot_portal.service.cache.DeviceIdentityCacheService;
 import com.weili.iot_portal.service.ingestion.WebhookEventHandler;
 import com.weili.iot_portal.service.ingestion.WebhookProcessingStrategy;
 import com.weili.iot_portal.service.ingestion.handler.fields.DeviceAxisEventFields;
 import com.weili.iot_portal.service.ingestion.handler.support.WebhookHandlerUtils;
-
-import static com.weili.iot_portal.service.ingestion.handler.support.WebhookHandlerUtils.DeviceIdentity;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -20,6 +17,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashMap;
 import java.util.Map;
+
+import static com.weili.iot_portal.service.ingestion.handler.support.WebhookHandlerUtils.DeviceIdentity;
 
 /**
  * 设备轴信息事件处理器

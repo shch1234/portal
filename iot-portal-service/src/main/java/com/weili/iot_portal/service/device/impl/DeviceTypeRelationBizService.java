@@ -64,7 +64,7 @@ public class DeviceTypeRelationBizService implements IDeviceTypeRelationBizServi
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteDeviceTypeRelation(String id) {
-        DeviceTypeRelationDO deviceTypeRelation = validateDeviceTypeRelationExists(id);
+        validateDeviceTypeRelationExists(id);
         // 检查是否存在子类型
         List<DeviceTypeRelationDO> children = deviceTypeRelationRepository.findByParentTypeId(id);
         if (!children.isEmpty()) {
@@ -76,6 +76,17 @@ public class DeviceTypeRelationBizService implements IDeviceTypeRelationBizServi
     @Override
     public DeviceTypeRelationDO getDeviceTypeRelation(String id) {
         return validateDeviceTypeRelationExists(id);
+    }
+
+    @Override
+    public DeviceTypeRelationDO getDeviceTypeRelationByCode(String typeCode) {
+        Optional<DeviceTypeRelationDO> optional = deviceTypeRelationRepository.findByTypeCode(typeCode);
+        return optional.orElse(null);
+    }
+
+    @Override
+    public List<DeviceTypeRelationDO> getDeviceTypeRelationByParentCode(String typeCode) {
+        return deviceTypeRelationRepository.findByParentTypeCode(typeCode);
     }
 
     @Override

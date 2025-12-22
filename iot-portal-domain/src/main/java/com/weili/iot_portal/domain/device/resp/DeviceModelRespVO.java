@@ -4,7 +4,6 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
 import java.time.LocalDateTime;
-import java.util.Map;
 
 /**
  * 设备型号 Response VO
@@ -27,12 +26,6 @@ public class DeviceModelRespVO {
 
     @Schema(description = "制造商")
     private String manufacturer;
-
-    @Schema(description = "通用规格参数（JSON）")
-    private Map<String, Object> specifications;
-
-    @Schema(description = "类型特定属性（JSON）")
-    private Map<String, Object> typeSpecificAttrs;
 
     @Schema(description = "是否启用")
     private Boolean isActive;

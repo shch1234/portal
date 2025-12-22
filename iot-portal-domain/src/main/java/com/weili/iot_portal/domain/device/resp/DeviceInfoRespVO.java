@@ -32,14 +32,17 @@ public class DeviceInfoRespVO {
     @Schema(description = "设备类型名称")
     private String deviceTypeName;
 
+    @Schema(description = "设备子类型code")
+    private String deviceSubTypeCode;
+
     @Schema(description = "设备子类型名称")
     private String deviceSubTypeName;
 
     @Schema(description = "设备型号ID", requiredMode = Schema.RequiredMode.REQUIRED)
     private String deviceModelId;
 
-    @Schema(description = "型号名称")
-    private String modelName;
+    @Schema(description = "设备型号名称")
+    private String deviceModelName;
 
     @Schema(description = "制造商")
     private String manufacturer;

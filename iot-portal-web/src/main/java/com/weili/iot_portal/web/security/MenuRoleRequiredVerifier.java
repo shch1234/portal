@@ -3,7 +3,6 @@ package com.weili.iot_portal.web.security;
 import com.weili.basic.authorization.security.SecurityContextUtils;
 import com.weili.basic.common.exception.BaseException;
 import com.weili.iot_portal.common.enums.BizErrorCodeEnum;
-import com.weili.iot_portal.domain.permission.LoginUserRespVO;
 import com.weili.iot_portal.service.system.ILoginUserBizService;
 import com.weili.iot_portal.service.system.IPermissionBizService;
 import com.weili.iot_portal.web.annotation.PermRequired;

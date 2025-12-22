@@ -15,7 +15,6 @@ import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
 import java.util.Optional;
 
 /**
@@ -67,12 +66,6 @@ public class DeviceModelBizService implements IDeviceModelBizService {
         return deviceModelRepository.selectPage(BeanUtils.toBean(pageReqVO, DeviceModelPageQuery.class));
     }
 
-    @Override
-    public List<DeviceModelDO> getDeviceModelList() {
-        // 这里需要Repository提供查询所有的方法，暂时返回空列表
-        // 如果需要，可以在Repository中添加findAll方法
-        return List.of();
-    }
 
     /**
      * 验证设备型号存在

@@ -1,7 +1,5 @@
 package com.weili.iot_portal.task.device;
 
-import com.weili.iot_portal.dal.dataobject.device.DeviceInfoDO;
-import com.weili.iot_portal.dal.repository.device.DeviceInfoRepository;
 import com.weili.iot_portal.service.device.IDeviceShiftSummaryService;
 import com.weili.iot_portal.task.device.config.DeviceStateSummaryConfig;
 import com.weili.iot_portal.task.framework.BaseScheduledJob;
@@ -13,8 +11,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
-import java.util.*;
-import java.util.stream.Collectors;
 
 /**
  * 设备状态汇总定时任务
