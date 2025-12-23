@@ -10,6 +10,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 
 import java.io.Serial;
+import java.time.LocalDateTime;
 import java.util.Map;
 
 /**
@@ -52,9 +53,9 @@ public class DeviceLocationDO extends BaseDO {
 
     private Double latitude;
 
-    private Long effectiveStartTs;
+    private LocalDateTime effectiveStart;
 
-    private Long effectiveEndTs;
+    private LocalDateTime effectiveEnd;
 
     @TableField("is_active")
     private Boolean active;

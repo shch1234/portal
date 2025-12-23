@@ -4,6 +4,8 @@ import com.weili.iot_portal.dal.dataobject.device.DeviceLocationDO;
 import com.weili.iot_portal.dal.dataobject.device.DeviceNetworkConfigDO;
 import com.weili.iot_portal.domain.device.req.DeviceInfoSaveReqVO;
 
+import java.time.LocalDateTime;
+
 
 public final class DeviceInfoAssembler {
 
@@ -15,15 +17,14 @@ public final class DeviceInfoAssembler {
         deviceLocation.setOrgFactoryId(createReqVO.getOrgFactoryId());
         deviceLocation.setLocationCode(locationInfo.getLocationCode());
         deviceLocation.setLocationDescription(locationInfo.getLocationDescription());
-        deviceLocation.setCoordinates(locationInfo.getCoordinates());
         deviceLocation.setFloorNo(locationInfo.getFloorNo());
         deviceLocation.setAreaCode(locationInfo.getAreaCode());
         deviceLocation.setLongitude(locationInfo.getLongitude());
         deviceLocation.setLatitude(locationInfo.getLatitude());
-        deviceLocation.setEffectiveStartTs(locationInfo.getEffectiveStartTs() != null
-                ? locationInfo.getEffectiveStartTs()
-                : System.currentTimeMillis() / 1000);
-        deviceLocation.setEffectiveEndTs(locationInfo.getEffectiveEndTs());
+        deviceLocation.setEffectiveStart(locationInfo.getEffectiveStart() != null
+                ? locationInfo.getEffectiveStart()
+                : LocalDateTime.now());
+        deviceLocation.setEffectiveEnd(locationInfo.getEffectiveEnd());
         deviceLocation.setActive(true);
         deviceLocation.setDescription(locationInfo.getDescription());
         return deviceLocation;
@@ -42,22 +43,21 @@ public final class DeviceInfoAssembler {
             // 创建新位置信息
             deviceLocation = new DeviceLocationDO();
             deviceLocation.setDeviceInfoId(deviceInfoId);
-            deviceLocation.setEffectiveStartTs(System.currentTimeMillis() / 1000);
+            deviceLocation.setEffectiveStart(LocalDateTime.now());
             deviceLocation.setActive(true);
         }
 
         deviceLocation.setOrgFactoryId(updateReqVO.getOrgFactoryId());
         deviceLocation.setLocationCode(locationInfo.getLocationCode());
         deviceLocation.setLocationDescription(locationInfo.getLocationDescription());
-        deviceLocation.setCoordinates(locationInfo.getCoordinates());
         deviceLocation.setFloorNo(locationInfo.getFloorNo());
         deviceLocation.setAreaCode(locationInfo.getAreaCode());
         deviceLocation.setLongitude(locationInfo.getLongitude());
         deviceLocation.setLatitude(locationInfo.getLatitude());
-        if (locationInfo.getEffectiveStartTs() != null) {
-            deviceLocation.setEffectiveStartTs(locationInfo.getEffectiveStartTs());
+        if (locationInfo.getEffectiveStart() != null) {
+            deviceLocation.setEffectiveStart(locationInfo.getEffectiveStart());
         }
-        deviceLocation.setEffectiveEndTs(locationInfo.getEffectiveEndTs());
+        deviceLocation.setEffectiveEnd(locationInfo.getEffectiveEnd());
         deviceLocation.setDescription(locationInfo.getDescription());
         return deviceLocation;
     }
@@ -74,11 +74,10 @@ public final class DeviceInfoAssembler {
         deviceNetworkConfig.setGateway(networkInfo.getGateway());
         deviceNetworkConfig.setSubnetMask(networkInfo.getSubnetMask());
         deviceNetworkConfig.setProtocol(networkInfo.getProtocol());
-        deviceNetworkConfig.setConnectionParams(networkInfo.getConnectionParams());
-        deviceNetworkConfig.setEffectiveStartTs(networkInfo.getEffectiveStartTs() != null
-                ? networkInfo.getEffectiveStartTs()
-                : System.currentTimeMillis() / 1000);
-        deviceNetworkConfig.setEffectiveEndTs(networkInfo.getEffectiveEndTs());
+        deviceNetworkConfig.setEffectiveStart(networkInfo.getEffectiveStart() != null
+                ? networkInfo.getEffectiveStart()
+                : LocalDateTime.now());
+        deviceNetworkConfig.setEffectiveEnd(networkInfo.getEffectiveEnd());
         deviceNetworkConfig.setIsActive(true);
         deviceNetworkConfig.setDescription(networkInfo.getDescription());
         return deviceNetworkConfig;
@@ -97,7 +96,7 @@ public final class DeviceInfoAssembler {
             // 创建新网络配置
             deviceNetworkConfig = new DeviceNetworkConfigDO();
             deviceNetworkConfig.setDeviceInfoId(deviceInfoId);
-            deviceNetworkConfig.setEffectiveStartTs(System.currentTimeMillis() / 1000);
+            deviceNetworkConfig.setEffectiveStart(LocalDateTime.now());
             deviceNetworkConfig.setIsActive(true);
         }
         deviceNetworkConfig.setOrgFactoryId(updateReqVO.getOrgFactoryId());
@@ -107,11 +106,10 @@ public final class DeviceInfoAssembler {
         deviceNetworkConfig.setGateway(networkInfo.getGateway());
         deviceNetworkConfig.setSubnetMask(networkInfo.getSubnetMask());
         deviceNetworkConfig.setProtocol(networkInfo.getProtocol());
-        deviceNetworkConfig.setConnectionParams(networkInfo.getConnectionParams());
-        if (networkInfo.getEffectiveStartTs() != null) {
-            deviceNetworkConfig.setEffectiveStartTs(networkInfo.getEffectiveStartTs());
+        if (networkInfo.getEffectiveStart() != null) {
+            deviceNetworkConfig.setEffectiveStart(networkInfo.getEffectiveStart());
         }
-        deviceNetworkConfig.setEffectiveEndTs(networkInfo.getEffectiveEndTs());
+        deviceNetworkConfig.setEffectiveEnd(networkInfo.getEffectiveEnd());
         deviceNetworkConfig.setDescription(networkInfo.getDescription());
         return deviceNetworkConfig;
     }

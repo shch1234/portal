@@ -10,6 +10,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 
 import java.io.Serial;
+import java.time.LocalDateTime;
 import java.util.Map;
 
 /**
@@ -55,9 +56,9 @@ public class DeviceNetworkConfigDO extends BaseDO {
     @TableField(typeHandler = JacksonTypeHandler.class)
     private Map<String, Object> connectionParams;
 
-    private Long effectiveStartTs;
+    private LocalDateTime effectiveStart;
 
-    private Long effectiveEndTs;
+    private LocalDateTime effectiveEnd;
 
     private Boolean isActive;
 

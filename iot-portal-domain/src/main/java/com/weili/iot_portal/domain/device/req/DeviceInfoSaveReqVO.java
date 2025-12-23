@@ -6,6 +6,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
+import java.time.LocalDateTime;
 import java.util.Map;
 
 /**
@@ -58,9 +59,6 @@ public class DeviceInfoSaveReqVO {
     @Schema(description = "是否监控：true-监控 false-不监控", example = "true")
     private Boolean isMonitored;
 
-    @Schema(description = "扩展属性（JSON）：采购信息、资产编号、序列号等")
-    private Map<String, Object> extraProperties;
-
     @Schema(description = "备注信息")
     private String remarks;
 
@@ -86,9 +84,6 @@ public class DeviceInfoSaveReqVO {
         @Size(max = 500, message = "位置描述长度不能超过500个字符")
         private String locationDescription;
 
-        @Schema(description = "坐标信息（JSON）：经纬度、楼层、区域、位置编号等")
-        private Map<String, Object> coordinates;
-
         @Schema(description = "楼层号", example = "1")
         private Integer floorNo;
 
@@ -102,11 +97,11 @@ public class DeviceInfoSaveReqVO {
         @Schema(description = "纬度", example = "30.1234567")
         private Double latitude;
 
-        @Schema(description = "生效开始时间戳（秒，Unix时间戳）", example = "1704067200")
-        private Long effectiveStartTs;
+        @Schema(description = "生效开始时间yyyy-mm-dd")
+        private LocalDateTime effectiveStart;
 
-        @Schema(description = "生效结束时间戳（秒，Unix时间戳，NULL表示当前生效）", example = "1735689600")
-        private Long effectiveEndTs;
+        @Schema(description = "生效结束时间yyyy-mm-dd")
+        private LocalDateTime effectiveEnd;
 
         @Schema(description = "位置说明", example = "设备搬迁、位置调整等")
         private String description;
@@ -141,14 +136,11 @@ public class DeviceInfoSaveReqVO {
         @Size(max = 50, message = "通信协议长度不能超过50个字符")
         private String protocol;
 
-        @Schema(description = "连接参数（JSON）：超时、重试、轮询间隔等")
-        private Map<String, Object> connectionParams;
+        @Schema(description = "生效开始时间yyyy-mm-dd")
+        private LocalDateTime effectiveStart;
 
-        @Schema(description = "生效开始时间戳（秒，Unix时间戳）", example = "1704067200")
-        private Long effectiveStartTs;
-
-        @Schema(description = "生效结束时间戳（秒，Unix时间戳，NULL表示当前生效）", example = "1735689600")
-        private Long effectiveEndTs;
+        @Schema(description = "生效结束时间yyyy-mm-dd")
+        private LocalDateTime effectiveEnd;
 
         @Schema(description = "配置说明", example = "IP地址变更、网络调整等")
         private String description;
