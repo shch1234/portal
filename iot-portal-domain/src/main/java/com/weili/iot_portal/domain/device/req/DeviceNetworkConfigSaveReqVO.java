@@ -19,7 +19,7 @@ public class DeviceNetworkConfigSaveReqVO {
     private Long id;
 
     @Schema(description = "设备信息ID", requiredMode = Schema.RequiredMode.REQUIRED, example = "123456789")
-    @NotBlank(message = "设备信息ID不能为空")
+    @NotNull(message = "设备信息ID不能为空")
     private Long deviceInfoId;
 
     @Schema(description = "所属厂区ID", example = "123456789")

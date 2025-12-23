@@ -3,6 +3,7 @@ package com.weili.iot_portal.domain.device.req;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
@@ -41,7 +42,7 @@ public class DeviceInfoSaveReqVO {
     private String deviceTypeCode;
 
     @Schema(description = "设备型号ID", requiredMode = Schema.RequiredMode.REQUIRED, example = "123456789")
-    @NotBlank(message = "设备型号ID不能为空")
+    @NotNull
     private Long deviceModelId;
 
     @Schema(description = "所属厂区ID", example = "123456789")
