@@ -63,6 +63,5 @@ public class DeviceNetworkConfigDO extends BaseDO {
 
     private String description;
 
-    private String updatedBy;
 }
 
