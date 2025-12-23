@@ -1,6 +1,5 @@
 package com.weili.iot_portal.service.device.impl;
 
-import com.baomidou.mybatisplus.core.toolkit.IdWorker;
 import com.weili.iot_portal.common.enums.DeviceStateEnum;
 import com.weili.iot_portal.dal.dataobject.device.DeviceInfoDO;
 import com.weili.iot_portal.dal.dataobject.device.DeviceShiftConfigDO;
@@ -86,7 +85,7 @@ public class DeviceShiftSummaryService implements IDeviceShiftSummaryService {
         int skip = 0;
         int error = 0;
 
-        Map<String, List<DeviceInfoDO>> devicesByFactory = allDevices.stream()
+        Map<Long, List<DeviceInfoDO>> devicesByFactory = allDevices.stream()
                 .filter(device -> device.getOrgFactoryId() != null)
                 .collect(Collectors.groupingBy(DeviceInfoDO::getOrgFactoryId));
 
@@ -96,8 +95,8 @@ public class DeviceShiftSummaryService implements IDeviceShiftSummaryService {
             log.warn("设备状态汇总: 有 {} 个设备未关联工厂，已跳过", allDevices.size() - filtered);
         }
 
-        for (Map.Entry<String, List<DeviceInfoDO>> factoryEntry : devicesByFactory.entrySet()) {
-            String factoryId = factoryEntry.getKey();
+        for (Map.Entry<Long, List<DeviceInfoDO>> factoryEntry : devicesByFactory.entrySet()) {
+            Long factoryId = factoryEntry.getKey();
             List<DeviceInfoDO> devices = factoryEntry.getValue();
             try {
                 BatchProcessResult factoryResult = processFactoryDevicesWithCheckpoint(
@@ -151,14 +150,14 @@ public class DeviceShiftSummaryService implements IDeviceShiftSummaryService {
 
     @Override
     public BatchProcessResult processFactoryDevicesWithCheckpoint(
-            String factoryId,
+            Long factoryId,
             List<DeviceInfoDO> devices,
             long statisticsTimeSeconds,
             int batchSize,
             long timeoutMillis) {
 
         // 加载检查点，获取已处理的设备ID
-        Set<String> processedDeviceIds = checkpointService.getProcessedDeviceIds(
+        Set<Long> processedDeviceIds = checkpointService.getProcessedDeviceIds(
                 factoryId, statisticsTimeSeconds);
 
         // 过滤已处理的设备
@@ -176,7 +175,7 @@ public class DeviceShiftSummaryService implements IDeviceShiftSummaryService {
         int successCount = 0;
         int skipCount = 0;
         int errorCount = 0;
-        List<String> newProcessedIds = new ArrayList<>();
+        List<Long> newProcessedIds = new ArrayList<>();
         long startTime = System.currentTimeMillis();
 
         for (int i = 0; i < remainingDevices.size(); i += batchSize) {
@@ -206,7 +205,7 @@ public class DeviceShiftSummaryService implements IDeviceShiftSummaryService {
 
             // 每批处理完后更新检查点
             if (!newProcessedIds.isEmpty()) {
-                List<String> allProcessedIds = new ArrayList<>(processedDeviceIds);
+                List<Long> allProcessedIds = new ArrayList<>(processedDeviceIds);
                 checkpointService.saveCheckpoint(factoryId, statisticsTimeSeconds, allProcessedIds);
                 newProcessedIds.clear();
             }
@@ -226,7 +225,7 @@ public class DeviceShiftSummaryService implements IDeviceShiftSummaryService {
             return BatchProcessResult.completed(successCount, skipCount, errorCount);
         } else {
             // 还有未处理的设备，保存检查点
-            List<String> allProcessedIds = new ArrayList<>(processedDeviceIds);
+            List<Long> allProcessedIds = new ArrayList<>(processedDeviceIds);
             checkpointService.saveCheckpoint(factoryId, statisticsTimeSeconds, allProcessedIds);
             return BatchProcessResult.incomplete(successCount, skipCount, errorCount);
         }
@@ -308,8 +307,8 @@ public class DeviceShiftSummaryService implements IDeviceShiftSummaryService {
 
     @Override
     public void forceUpdateSummary(
-            String deviceId,
-            String orgFactoryId,
+            Long deviceId,
+            Long orgFactoryId,
             LocalDate shiftDate,
             ShiftTimeRange shiftRange,
             Map<String, StateStatistics> stateStats) {
@@ -321,8 +320,8 @@ public class DeviceShiftSummaryService implements IDeviceShiftSummaryService {
      * 保存或更新汇总记录
      */
     private void saveOrUpdateSummary(
-            String deviceId,
-            String orgFactoryId,
+            Long deviceId,
+            Long orgFactoryId,
             LocalDate shiftDate,
             ShiftTimeRange shiftRange,
             Map<String, StateStatistics> stateStats) {
@@ -333,7 +332,6 @@ public class DeviceShiftSummaryService implements IDeviceShiftSummaryService {
         boolean exists = summary != null;
         if (!exists) {
             summary = new DeviceStateSummaryDO();
-            summary.setId(IdWorker.getIdStr());
             summary.setDeviceInfoId(deviceId);
             summary.setOrgFactoryId(orgFactoryId);
             summary.setSummaryDate(shiftDate);

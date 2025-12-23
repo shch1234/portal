@@ -23,7 +23,7 @@ public class DeviceModelRepositoryImpl implements DeviceModelRepository {
     private final DeviceModelMapper mapper;
 
     @Override
-    public Optional<DeviceModelDO> findById(String id) {
+    public Optional<DeviceModelDO> findById(Long id) {
         return Optional.ofNullable(mapper.selectOne(new LambdaQueryWrapper<DeviceModelDO>().eq(DeviceModelDO::getId, id)));
     }
 
@@ -33,11 +33,11 @@ public class DeviceModelRepositoryImpl implements DeviceModelRepository {
     }
 
     @Override
-    public boolean existsByModelCode(String modelCode, String excludeId) {
+    public boolean existsByModelCode(String modelCode, Long id) {
         LambdaQueryWrapper<DeviceModelDO> wrapper = new LambdaQueryWrapper<DeviceModelDO>()
                 .eq(DeviceModelDO::getModelCode, modelCode);
-        if (StringUtils.isNotBlank(excludeId)) {
-            wrapper.ne(DeviceModelDO::getId, excludeId);
+        if (id != null) {
+            wrapper.ne(DeviceModelDO::getId, id);
         }
         return mapper.selectCount(wrapper) > 0;
     }
@@ -79,7 +79,7 @@ public class DeviceModelRepositoryImpl implements DeviceModelRepository {
     }
 
     @Override
-    public boolean deleteById(String id) {
+    public boolean deleteById(Long id) {
         return mapper.delete(new LambdaQueryWrapper<DeviceModelDO>().eq(DeviceModelDO::getId, id)) > 0;
     }
 

@@ -45,20 +45,20 @@ public class DeviceIdentityCacheService {
         if (StringUtils.isNotBlank(cached)) {
             DeviceIdentity identity = JsonUtils.parseObject(cached, DeviceIdentity.class);
             // 验证缓存中的身份信息是否完整
-            if (identity != null && StringUtils.isNotBlank(identity.getDeviceId()) 
-                    && StringUtils.isNotBlank(identity.getFactoryId())) {
+            if (identity != null && identity.getDeviceId() != null
+                    && identity.getFactoryId() != null) {
                 return identity;
             }
             // 缓存数据不完整，清除缓存并重新查询
             redisClient.delete(cacheKey);
         }
-        DeviceInfoDO device = deviceInfoRepository.findByDeviceCode( deviceCode)
+        DeviceInfoDO device = deviceInfoRepository.findByDeviceCode(deviceCode)
                 .orElseGet(() -> handleUnknownDevice(deviceCode, tbDeviceId, source));
-        if (StringUtils.isBlank(device.getId())) {
-            throw new IotPortalException(IotPortalErrorCode.DEVICE_INFO_NOT_FOUND, 
+        if (device.getId() == null) {
+            throw new IotPortalException(IotPortalErrorCode.DEVICE_INFO_NOT_FOUND,
                     "设备信息ID为空，设备编号: " + deviceCode);
         }
-        if (StringUtils.isBlank(device.getOrgFactoryId())) {
+        if (device.getOrgFactoryId() == null) {
             throw new IotPortalException(IotPortalErrorCode.DEVICE_NOT_ASSOCIATED_FACTORY);
         }
         DeviceIdentity identity = new DeviceIdentity(device.getId(), device.getOrgFactoryId());
@@ -78,7 +78,7 @@ public class DeviceIdentityCacheService {
         if (device == null || StringUtils.isBlank(device.getDeviceCode())) {
             return;
         }
-        if (StringUtils.isBlank(device.getOrgFactoryId())) {
+        if (device.getOrgFactoryId() != null) {
             evict(device.getDeviceCode());
             return;
         }
@@ -111,8 +111,8 @@ public class DeviceIdentityCacheService {
     @Data
     @AllArgsConstructor
     public static class DeviceIdentity {
-        private String deviceId;
-        private String factoryId;
+        private Long deviceId;
+        private Long factoryId;
     }
 }
 

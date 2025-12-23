@@ -25,8 +25,8 @@ public class FactoryMetricSummaryDO implements Serializable {
     private static final long serialVersionUID = 879654321L;
 
     @TableId(type = IdType.ASSIGN_ID)
-    private String id;
-    private String orgFactoryId;
+    private Long id;
+    private Long orgFactoryId;
     private LocalDate shiftDate;
     private String shiftCode;
     private Long shiftStartTs;

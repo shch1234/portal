@@ -1,6 +1,5 @@
 package com.weili.iot_portal.service.ingestion.handler;
 
-import com.baomidou.mybatisplus.core.toolkit.IdWorker;
 import com.weili.iot_portal.common.exception.IotPortalErrorCode;
 import com.weili.iot_portal.common.exception.IotPortalException;
 import com.weili.iot_portal.common.utils.WebhookTimestampUtils;
@@ -80,10 +79,10 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
 
         // 1. 解析事件数据
         EventData eventData = parseEventData(request);
-        
+
         // 2. 解析设备信息
         DeviceIdentity identity = webhookHandlerUtils.resolveDeviceIdentity(request);
-        
+
         // 3. 使用分布式锁处理换刀事件
         processToolChangeWithLock(eventData, identity, request);
     }
@@ -125,7 +124,7 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
                 }
             }
         }
-        
+
         if (currentToolNoObj == null) {
             throw new IotPortalException(IotPortalErrorCode.EVENT_TOOL_NUMBER_EMPTY);
         }
@@ -140,7 +139,7 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
         // 提取并验证刀具编号（支持数字和字符串）
         String previousToolNo = extractToolNumber(previousToolNoObj);
         String currentToolNo = extractToolNumber(currentToolNoObj);
-        
+
         if (StringUtils.isBlank(currentToolNo)) {
             throw new IotPortalException(IotPortalErrorCode.EVENT_TOOL_NUMBER_EMPTY);
         }
@@ -159,7 +158,7 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
         }
         String toolId = getString(eventDataMap, DeviceToolEventFields.TOOL_ID);
         String toolType = getString(eventDataMap, DeviceToolEventFields.TOOL_TYPE);
-        
+
         // 提取程序名（从 eventData 或 telemetryData 中提取）
         String programName = getString(eventDataMap, "programName");
         if (StringUtils.isBlank(programName)) {
@@ -171,18 +170,18 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
                 programName = getString(request.getTelemetryData(), "program");
             }
         }
-        
+
         // 提取刀补数据（提取所有以 offset/comp/tool/holder 开头的字段）
         Map<String, Object> compensationSnapshot = extractCompensationSnapshot(eventDataMap, request.getTelemetryData());
 
-        return new EventData(previousToolNo, currentToolNo, eventTimestamp, 
+        return new EventData(previousToolNo, currentToolNo, eventTimestamp,
                 toolHolderNumber, toolId, toolType, programName, compensationSnapshot);
     }
 
     /**
      * 提取刀具编号
      * 支持数字类型和字符串类型
-     * 
+     *
      * @param toolNoObj 刀具编号对象
      * @return 刀具编号字符串，如果无法识别则返回null
      */
@@ -190,18 +189,18 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
         if (toolNoObj == null) {
             return null;
         }
-        
+
         // 如果是字符串，直接返回（去除前后空格）
         if (toolNoObj instanceof String) {
             String toolNoStr = ((String) toolNoObj).trim();
             return toolNoStr.isEmpty() ? null : toolNoStr;
         }
-        
+
         // 如果是数字类型，转换为字符串
         if (toolNoObj instanceof Number) {
             return String.valueOf(((Number) toolNoObj).longValue());
         }
-        
+
         // 其他类型，尝试转换为字符串
         String toolNoStr = toolNoObj.toString().trim();
         return toolNoStr.isEmpty() ? null : toolNoStr;
@@ -213,14 +212,14 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
      * 提取所有以 offset/comp/tool/holder 开头的字段，保存为 JSON Map
      * 参考 DeviceToolEventHandler.extractCompensationValue 的逻辑
      * </p>
-     * 
-     * @param eventData 事件数据
+     *
+     * @param eventData     事件数据
      * @param telemetryData 遥测数据
      * @return 刀补数据快照（Map），如果没有则返回空 Map
      */
     private Map<String, Object> extractCompensationSnapshot(Map<String, Object> eventData, Map<String, Object> telemetryData) {
         Map<String, Object> snapshot = new HashMap<>();
-        
+
         // 从 eventData 中提取
         if (eventData != null) {
             eventData.forEach((k, v) -> {
@@ -234,7 +233,7 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
                 }
             });
         }
-        
+
         // 从 telemetryData 中提取（如果 eventData 中没有）
         if (telemetryData != null && snapshot.isEmpty()) {
             telemetryData.forEach((k, v) -> {
@@ -248,7 +247,7 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
                 }
             });
         }
-        
+
         return snapshot.isEmpty() ? null : snapshot;
     }
 
@@ -258,8 +257,8 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
      * 使用分布式锁处理换刀事件
      */
     private void processToolChangeWithLock(EventData eventData, DeviceIdentity identity, WebhookRequest request) {
-        String deviceInfoId = identity.deviceInfoId();
-        
+        Long deviceInfoId = identity.deviceInfoId();
+
         // 获取分布式锁
         if (!deviceLockService.tryLockToolChange(deviceInfoId, DeviceToolEventFields.LOCK_TIMEOUT_SECONDS_TOOL_CHANGE)) {
             log.warn("[Webhook-Handler-DeviceToolChange] 获取设备换刀锁失败: deviceInfoId={}, messageId={}",
@@ -271,7 +270,7 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
             // 查询数据库最新记录
             DeviceToolRecordDO latestOngoing = deviceToolRecordRepository.findLatestOngoing(deviceInfoId);
             Optional<DeviceToolRecordDO> latestOngoingOpt = Optional.ofNullable(latestOngoing);
-            
+
             // 处理换刀事件
             processToolChangeTransition(latestOngoingOpt, eventData, identity, request);
         } finally {
@@ -286,46 +285,46 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
                                              EventData eventData,
                                              DeviceIdentity identity,
                                              WebhookRequest request) {
-        String deviceInfoId = identity.deviceInfoId();
-        String orgFactoryId = identity.orgFactoryId();
-        
+        Long deviceInfoId = identity.deviceInfoId();
+        Long orgFactoryId = identity.orgFactoryId();
+
         String previousToolNo = eventData.previousToolNo();
         String currentToolNo = eventData.currentToolNo();
         long eventTimestamp = eventData.eventTimestamp();
-        
+
         log.debug("[DeviceToolChangeEventHandler] 处理换刀转换: deviceInfoId={}, previousToolNo={}, currentToolNo={}, timestamp={}",
                 deviceInfoId, previousToolNo, currentToolNo, eventTimestamp);
-        
+
         // 判断处理场景
         TransitionType transitionType = determineTransitionType(latestOngoingOpt, eventData);
-        
+
         switch (transitionType) {
             case FIRST_RECORD:
                 // 数据库无记录（首次记录）
                 handleFirstRecord(deviceInfoId, orgFactoryId, eventData);
                 break;
-                
+
             case NORMAL_CHANGE:
                 // 正常换刀：previousToolNo匹配数据库记录
                 handleNormalToolChange(latestOngoingOpt.get(), orgFactoryId, eventData);
                 break;
-                
+
             case TOOL_UNCHANGED:
                 // 刀具未变化（重复的相同刀具事件）
                 log.debug("[DeviceToolChangeEventHandler] 刀具未变化，跳过处理: deviceInfoId={}, toolNo={}",
                         deviceInfoId, currentToolNo);
                 break;
-                
+
             case TOOL_MISMATCH:
                 // 刀具不匹配（异常情况）
                 handleToolMismatch(latestOngoingOpt, eventData, identity, request);
                 break;
-                
+
             case FIRST_CONNECTION:
                 // 首次连接（previousToolNo = NULL，但数据库有记录）
-                handleFirstConnection(deviceInfoId, orgFactoryId, eventData, identity, request);
+                handleFirstConnection(deviceInfoId, orgFactoryId, eventData);
                 break;
-                
+
             default:
                 throw new IllegalStateException("未知的换刀转换类型: " + transitionType);
         }
@@ -345,36 +344,36 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
                                                    EventData eventData) {
         String previousToolNo = eventData.previousToolNo();
         String currentToolNo = eventData.currentToolNo();
-        
+
         // 先检查数据库是否有记录
         if (latestOngoingOpt.isEmpty()) {
             // 数据库无记录（首次记录）
             log.debug("[DeviceToolChangeEventHandler] 判断转换类型: FIRST_RECORD (数据库无记录)");
             return TransitionType.FIRST_RECORD;
         }
-        
+
         // 数据库有记录，检查 previousToolNo
         if (StringUtils.isBlank(previousToolNo)) {
             // 数据库有记录但 previousToolNo 为空（首次连接）
             log.debug("[DeviceToolChangeEventHandler] 判断转换类型: FIRST_CONNECTION (previousToolNo为空)");
             return TransitionType.FIRST_CONNECTION;
         }
-        
+
         // 刀具未变化
         if (previousToolNo.equals(currentToolNo)) {
             log.debug("[DeviceToolChangeEventHandler] 判断转换类型: TOOL_UNCHANGED (刀具未变化)");
             return TransitionType.TOOL_UNCHANGED;
         }
-        
+
         DeviceToolRecordDO latestOngoing = latestOngoingOpt.get();
         String dbToolNo = latestOngoing.getToolNo();
-        
+
         // 检查是否正常匹配
         if (previousToolNo.equals(dbToolNo)) {
             log.debug("[DeviceToolChangeEventHandler] 判断转换类型: NORMAL_CHANGE (正常换刀)");
             return TransitionType.NORMAL_CHANGE;
         }
-        
+
         // 刀具不匹配
         log.warn("[DeviceToolChangeEventHandler] 判断转换类型: TOOL_MISMATCH (previousToolNo={}, DB记录toolNo={})",
                 previousToolNo, dbToolNo);
@@ -390,39 +389,39 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
      * 直接插入新记录，不管 previousToolNo 是否为空
      * </p>
      */
-    private void handleFirstRecord(String deviceInfoId, String orgFactoryId, EventData eventData) {
+    private void handleFirstRecord(Long deviceInfoId, Long orgFactoryId, EventData eventData) {
         String currentToolNo = eventData.currentToolNo();
         long eventTimestamp = eventData.eventTimestamp();
-        
+
         log.info("[DeviceToolChangeEventHandler] 数据库无记录，插入首次刀具记录: deviceInfoId={}, toolNo={}, timestamp={}",
                 deviceInfoId, currentToolNo, eventTimestamp);
-        
+
         // 直接插入新记录
         DeviceToolRecordDO newRecord = createToolRecord(deviceInfoId, orgFactoryId, eventData, eventTimestamp);
         deviceToolRecordRepository.insert(newRecord);
-        
-        log.debug("[DeviceToolChangeEventHandler] 插入首次刀具记录: 刀号={}, startTs={}", 
+
+        log.debug("[DeviceToolChangeEventHandler] 插入首次刀具记录: 刀号={}, startTs={}",
                 currentToolNo, newRecord.getStartTs());
     }
 
     /**
      * 正常换刀：previousToolNo匹配数据库记录
      */
-    private void handleNormalToolChange(DeviceToolRecordDO latestOngoing, String orgFactoryId, EventData eventData) {
-        String deviceInfoId = latestOngoing.getDeviceInfoId();
+    private void handleNormalToolChange(DeviceToolRecordDO latestOngoing, Long orgFactoryId, EventData eventData) {
+        Long deviceInfoId = latestOngoing.getDeviceInfoId();
         String dbToolNo = latestOngoing.getToolNo();
         String currentToolNo = eventData.currentToolNo();
         long eventTimestamp = eventData.eventTimestamp();
-        
+
         log.info("[DeviceToolChangeEventHandler] 正常换刀: deviceInfoId={}, 旧刀号={}, 新刀号={}, timestamp={}",
                 deviceInfoId, dbToolNo, currentToolNo, eventTimestamp);
-        
+
         // 检查时间戳异常
         if (latestOngoing.getStartTs() != null && eventTimestamp < latestOngoing.getStartTs()) {
             handleTimestampAnomaly(latestOngoing, eventData, deviceInfoId, orgFactoryId);
             return;
         }
-        
+
         // 更新旧刀具记录（时间戳使用毫秒级）
         latestOngoing.setEndTs(eventTimestamp);
         if (latestOngoing.getStartTs() != null) {
@@ -430,33 +429,31 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
             long durationMs = eventTimestamp - latestOngoing.getStartTs();
             latestOngoing.setDurationS(durationMs < 0 ? 0L : durationMs);
         }
-            // 补充班次信息（如果缺失）
-            fillShiftInfoIfMissing(latestOngoing, orgFactoryId);
-            deviceToolRecordRepository.updateById(latestOngoing);
+        // 补充班次信息（如果缺失）
+        fillShiftInfoIfMissing(latestOngoing, orgFactoryId);
+        deviceToolRecordRepository.updateById(latestOngoing);
         log.debug("[DeviceToolChangeEventHandler] 更新旧刀具记录: 刀号={}, endTs={}, durationS={}",
                 dbToolNo, latestOngoing.getEndTs(), latestOngoing.getDurationS());
 
         // 插入新刀具记录
         DeviceToolRecordDO newRecord = createToolRecord(deviceInfoId, orgFactoryId, eventData, eventTimestamp);
         deviceToolRecordRepository.insert(newRecord);
-        
-        log.debug("[DeviceToolChangeEventHandler] 插入新刀具记录: 刀号={}, startTs={}", 
+
+        log.debug("[DeviceToolChangeEventHandler] 插入新刀具记录: 刀号={}, startTs={}",
                 currentToolNo, newRecord.getStartTs());
     }
 
     /**
      * 首次连接处理
      */
-    private void handleFirstConnection(String deviceInfoId, String orgFactoryId,
-                                       EventData eventData,
-                                       DeviceIdentity identity,
-                                       WebhookRequest request) {
+    private void handleFirstConnection(Long deviceInfoId, Long orgFactoryId,
+                                       EventData eventData) {
         String currentToolNo = eventData.currentToolNo();
         long eventTimestamp = eventData.eventTimestamp();
-        
+
         log.info("[DeviceToolChangeEventHandler] 首次连接，开始使用刀具: deviceInfoId={}, toolNo={}, timestamp={}",
                 deviceInfoId, currentToolNo, eventTimestamp);
-        
+
         // 检查是否有未结束的记录（异常情况）
         DeviceToolRecordDO latestOngoing = deviceToolRecordRepository.findLatestOngoing(deviceInfoId);
         if (latestOngoing != null) {
@@ -473,12 +470,12 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
             fillShiftInfoIfMissing(latestOngoing, orgFactoryId);
             deviceToolRecordRepository.updateById(latestOngoing);
         }
-        
+
         // 插入新记录
         DeviceToolRecordDO newRecord = createToolRecord(deviceInfoId, orgFactoryId, eventData, eventTimestamp);
         deviceToolRecordRepository.insert(newRecord);
-        
-        log.debug("[DeviceToolChangeEventHandler] 插入新刀具记录: 刀号={}, startTs={}", 
+
+        log.debug("[DeviceToolChangeEventHandler] 插入新刀具记录: 刀号={}, startTs={}",
                 currentToolNo, newRecord.getStartTs());
     }
 
@@ -489,26 +486,26 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
                                     EventData eventData,
                                     DeviceIdentity identity,
                                     WebhookRequest request) {
-        String deviceInfoId = identity.deviceInfoId();
-        String orgFactoryId = identity.orgFactoryId();
+        Long deviceInfoId = identity.deviceInfoId();
+        Long orgFactoryId = identity.orgFactoryId();
         String previousToolNo = eventData.previousToolNo();
         String currentToolNo = eventData.currentToolNo();
         long eventTimestamp = eventData.eventTimestamp();
-        
+
         log.warn("[DeviceToolChangeEventHandler] 刀具不匹配: deviceInfoId={}, previousToolNo={}, currentToolNo={}",
                 deviceInfoId, previousToolNo, currentToolNo);
-        
+
         if (latestOngoingOpt.isPresent()) {
             // 有进行中的记录
             DeviceToolRecordDO ongoing = latestOngoingOpt.get();
             String dbToolNo = ongoing.getToolNo();
-            
+
             // 检查时间戳异常
             if (ongoing.getStartTs() != null && eventTimestamp < ongoing.getStartTs()) {
                 handleTimestampAnomaly(ongoing, eventData, deviceInfoId, orgFactoryId);
                 return;
             }
-            
+
             // 如果previousToolNo与currentToolNo不同，但数据库记录不匹配，可能是状态不同步
             // 先结束该记录（时间戳使用毫秒级）
             log.warn("[DeviceToolChangeEventHandler] 刀具不匹配，结束进行中记录: DB刀号={}, previousToolNo={}",
@@ -520,7 +517,7 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
                 ongoing.setDurationS(durationMs < 0 ? 0L : durationMs);
             }
             deviceToolRecordRepository.updateById(ongoing);
-            
+
             String errorMessage = String.format("刀具不匹配但已修复: DB刀号=%s, previousToolNo=%s, currentToolNo=%s, 已结束进行中记录",
                     dbToolNo, previousToolNo, currentToolNo);
             webhookFailLogService.saveFailLog(request, DeviceToolEventFields.ERROR_TYPE_TOOL_MISMATCH,
@@ -532,12 +529,12 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
             webhookFailLogService.saveFailLog(request, DeviceToolEventFields.ERROR_TYPE_TOOL_MISMATCH,
                     errorMessage, true);
         }
-        
+
         // 插入新记录
         DeviceToolRecordDO newRecord = createToolRecord(deviceInfoId, orgFactoryId, eventData, eventTimestamp);
         deviceToolRecordRepository.insert(newRecord);
-        
-        log.debug("[DeviceToolChangeEventHandler] 插入新刀具记录: 刀号={}, startTs={}", 
+
+        log.debug("[DeviceToolChangeEventHandler] 插入新刀具记录: 刀号={}, startTs={}",
                 currentToolNo, newRecord.getStartTs());
     }
 
@@ -545,16 +542,16 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
      * 时间戳异常处理
      */
     private void handleTimestampAnomaly(DeviceToolRecordDO ongoing,
-                                         EventData eventData,
-                                         String deviceInfoId,
-                                         String orgFactoryId) {
+                                        EventData eventData,
+                                        Long deviceInfoId,
+                                        Long orgFactoryId) {
         long eventTimestamp = eventData.eventTimestamp();
         long gapMs = ongoing.getStartTs() - eventTimestamp;
         long gapSeconds = gapMs / DeviceToolEventFields.MILLIS_TO_SECONDS;
-        
+
         log.warn("[DeviceToolChangeEventHandler] 时间戳异常: deviceInfoId={}, 事件时间={}, 记录开始时间={}, 差距={}毫秒({}秒)",
                 deviceInfoId, eventTimestamp, ongoing.getStartTs(), gapMs, gapSeconds);
-        
+
         // 先结束异常记录（时间戳使用毫秒级）
         if (ongoing.getEndTs() == null) {
             ongoing.setEndTs(eventTimestamp);
@@ -565,7 +562,7 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
             }
             deviceToolRecordRepository.updateById(ongoing);
         }
-        
+
         // 插入新记录，使用事件时间戳（毫秒级）
         DeviceToolRecordDO newRecord = createToolRecord(deviceInfoId, orgFactoryId, eventData, eventTimestamp);
         deviceToolRecordRepository.insert(newRecord);
@@ -582,9 +579,8 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
      * - 设置班次信息（根据开始时间计算）
      * </p>
      */
-    private DeviceToolRecordDO createToolRecord(String deviceInfoId, String orgFactoryId, EventData eventData, long startTimestamp) {
+    private DeviceToolRecordDO createToolRecord(Long deviceInfoId, Long orgFactoryId, EventData eventData, long startTimestamp) {
         DeviceToolRecordDO record = new DeviceToolRecordDO();
-        record.setId(IdWorker.getIdStr());
         record.setDeviceInfoId(deviceInfoId);
         record.setOrgFactoryId(orgFactoryId);
         record.setToolNo(eventData.currentToolNo());
@@ -596,17 +592,17 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
         record.setStartTs(startTimestamp);
         record.setEndTs(null);
         record.setDurationS(null);
-        
+
         // 设置程序名（如果提供）
         if (StringUtils.isNotBlank(eventData.programName())) {
             record.setProgramName(eventData.programName());
         }
-        
+
         // 设置刀补数据快照（如果提供）
         if (eventData.compensationSnapshot() != null && !eventData.compensationSnapshot().isEmpty()) {
             record.setCompensationSnapshot(eventData.compensationSnapshot());
         }
-        
+
         // 设置班次信息
         if (startTimestamp != 0L) {
             try {
@@ -618,7 +614,7 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
                         deviceInfoId, startTimestamp, e.getMessage());
             }
         }
-        
+
         return record;
     }
 
@@ -630,7 +626,7 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
      * 参考 DeviceStateEventHandler.fillShiftInfoIfMissing 的逻辑
      * </p>
      */
-    private void fillShiftInfoIfMissing(DeviceToolRecordDO record, String factoryId) {
+    private void fillShiftInfoIfMissing(DeviceToolRecordDO record, Long factoryId) {
         if (record.getStartTs() != null
                 && (record.getShiftDate() == null || record.getShiftCode() == null)) {
             try {
@@ -668,7 +664,8 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
             String toolType,           // 刀具类型
             String programName,         // 程序名
             Map<String, Object> compensationSnapshot  // 刀补数据快照（JSON）
-    ) {}
+    ) {
+    }
 
     /**
      * 换刀转换类型

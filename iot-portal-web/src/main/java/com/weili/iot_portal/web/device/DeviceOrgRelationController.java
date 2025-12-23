@@ -32,8 +32,8 @@ public class DeviceOrgRelationController {
     @PostMapping("/create")
     @Operation(summary = "创建设备组织单元")
     @PermRequired(permission = "device-mgmt:device-org-relation:create")
-    public CommonResult<String> createDeviceOrgRelation(@Valid @RequestBody DeviceOrgRelationSaveReqVO createReqVO) {
-        String deviceOrgRelationId = deviceOrgRelationBizService.createDeviceOrgRelation(createReqVO);
+    public CommonResult<Long> createDeviceOrgRelation(@Valid @RequestBody DeviceOrgRelationSaveReqVO createReqVO) {
+        Long deviceOrgRelationId = deviceOrgRelationBizService.createDeviceOrgRelation(createReqVO);
         return CommonResult.success(deviceOrgRelationId);
     }
 

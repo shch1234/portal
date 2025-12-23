@@ -17,7 +17,7 @@ public interface IDeviceModelBizService {
      * @param createReqVO 设备型号创建请求
      * @return 设备型号ID
      */
-    String createDeviceModel(DeviceModelSaveReqVO createReqVO);
+    Long createDeviceModel(DeviceModelSaveReqVO createReqVO);
 
     /**
      * 更新设备型号
@@ -31,7 +31,7 @@ public interface IDeviceModelBizService {
      *
      * @param id 设备型号ID
      */
-    void deleteDeviceModel(String id);
+    void deleteDeviceModel(Long id);
 
     /**
      * 根据ID获取设备型号
@@ -39,7 +39,7 @@ public interface IDeviceModelBizService {
      * @param id 设备型号ID
      * @return 设备型号
      */
-    DeviceModelDO getDeviceModel(String id);
+    DeviceModelDO getDeviceModel(Long id);
 
     /**
      * 分页查询设备型号

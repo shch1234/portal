@@ -125,7 +125,7 @@ public interface WebhookInboxRepository {
      * @param ids 消息ID列表
      * @return 删除的记录数
      */
-    int deleteBatchByIds(List<String> ids);
+    int deleteBatchByIds(List<Long> ids);
 
     /**
      * 根据状态统计消息数量

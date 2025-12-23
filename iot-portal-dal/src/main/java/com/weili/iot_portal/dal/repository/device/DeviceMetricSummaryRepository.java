@@ -11,15 +11,15 @@ import java.util.Optional;
  */
 public interface DeviceMetricSummaryRepository {
 
-    Optional<DeviceMetricSummaryDO> selectLatestFinalized(String deviceId);
+    Optional<DeviceMetricSummaryDO> selectLatestFinalized(Long deviceId);
 
-    PageResult<DeviceMetricSummaryDO> selectPage(String deviceId,
+    PageResult<DeviceMetricSummaryDO> selectPage(Long deviceId,
                                                 Long startTs, Long endTs, int pageNo, int pageSize);
 
     /**
      * 按设备和班次查询单条记录
      */
-    DeviceMetricSummaryDO findByShift(String deviceId, LocalDate shiftDate, Integer shiftCode);
+    DeviceMetricSummaryDO findByShift(Long deviceId, LocalDate shiftDate, Integer shiftCode);
 
     /**
      * 查询统计时间点前已完成的班次记录
@@ -28,7 +28,7 @@ public interface DeviceMetricSummaryRepository {
      * @param endTs    统计时间戳（秒）
      * @return 班次记录列表（按 shift_end_ts 升序）
      */
-    java.util.List<DeviceMetricSummaryDO> selectFinalizedUpTo(String deviceId, Long endTs);
+    java.util.List<DeviceMetricSummaryDO> selectFinalizedUpTo(Long deviceId, Long endTs);
 
     void insert(DeviceMetricSummaryDO entity);
 

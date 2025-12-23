@@ -18,7 +18,7 @@ public interface IShiftCalculationService {
      * @param timestamp 时间戳（毫秒）
      * @return 班次信息
      */
-    ShiftInfo getCurrentShift(String factoryId, String deviceId, long timestamp);
+    ShiftInfo getCurrentShift(Long factoryId, Long deviceId, long timestamp);
 
     /**
      * 计算班次的时间范围（带工厂验证）
@@ -28,7 +28,7 @@ public interface IShiftCalculationService {
      * @param timestamp 时间戳（毫秒）
      * @return 班次时间范围
      */
-    ShiftTimeRange calculateShiftRange(String factoryId, String deviceId, long timestamp);
+    ShiftTimeRange calculateShiftRange(Long factoryId, Long deviceId, long timestamp);
 
     /**
      * 获取时间戳对应的班次日期和编码（带工厂验证）
@@ -38,7 +38,7 @@ public interface IShiftCalculationService {
      * @param timestamp 时间戳（毫秒）
      * @return 班次日期和编码
      */
-    ShiftDateAndCode getShiftDateAndCode(String factoryId, String deviceId, long timestamp);
+    ShiftDateAndCode getShiftDateAndCode(Long factoryId, Long deviceId, long timestamp);
 
     /**
      * 检查时间范围是否跨班（带工厂验证）
@@ -49,7 +49,7 @@ public interface IShiftCalculationService {
      * @param endTs 结束时间戳（毫秒）
      * @return true表示跨班，false表示不跨班
      */
-    boolean checkIfCrossesShift(String factoryId, String deviceId, Long startTs, Long endTs);
+    boolean checkIfCrossesShift(Long factoryId, Long deviceId, Long startTs, Long endTs);
 
     /**
      * 计算前一个班次的时间范围
@@ -61,8 +61,8 @@ public interface IShiftCalculationService {
      * @return 前一个班次的时间范围，如果无法计算则返回null
      */
     ShiftTimeRange calculatePreviousShiftRange(
-            String factoryId,
-            String deviceId,
+            Long factoryId,
+            Long deviceId,
             long statisticsTimeSeconds);
 
     /**
@@ -75,8 +75,8 @@ public interface IShiftCalculationService {
      * @return 班次时间范围，如果无法计算则返回null
      */
     ShiftTimeRange calculateShiftRangeByEndTime(
-            String factoryId,
-            String deviceId,
+            Long factoryId,
+            Long deviceId,
             long endTsMillis);
 }
 

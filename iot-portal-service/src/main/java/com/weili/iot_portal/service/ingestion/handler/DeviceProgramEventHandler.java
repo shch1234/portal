@@ -81,8 +81,8 @@ public class DeviceProgramEventHandler implements WebhookEventHandler {
         // 解析设备标识（按 deviceCode / deviceId 解析为 portal 的 deviceInfoId / factoryId）
         DeviceIdentity identity = 
                 webhookHandlerUtils.resolveDeviceIdentity(request);
-        String deviceInfoId = identity.deviceInfoId();
-        String orgFactoryId = identity.orgFactoryId();
+        Long deviceInfoId = identity.deviceInfoId();
+        Long orgFactoryId = identity.orgFactoryId();
 
         // 解析时间戳
         Long eventTimestamp = request.getDataTimestamp() != null

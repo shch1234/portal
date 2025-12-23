@@ -75,8 +75,8 @@ public class DeviceProductionEventHandler implements WebhookEventHandler {
 
         DeviceIdentity identity = 
                 webhookHandlerUtils.resolveDeviceIdentity(request);
-        String deviceInfoId = identity.deviceInfoId();
-        String orgFactoryId = identity.orgFactoryId();
+        Long deviceInfoId = identity.deviceInfoId();
+        Long orgFactoryId = identity.orgFactoryId();
 
         ShiftInfo shift = resolveShift(orgFactoryId, deviceInfoId, ts);
 
@@ -87,8 +87,8 @@ public class DeviceProductionEventHandler implements WebhookEventHandler {
         }
     }
 
-    private void handleStart(Map<String, Object> eventData, String deviceInfoId,
-                             String orgFactoryId, Long ts, ShiftInfo shift) {
+    private void handleStart(Map<String, Object> eventData, Long deviceInfoId,
+                             Long orgFactoryId, Long ts, ShiftInfo shift) {
         // 若已有进行中记录，按需关闭；这里直接插入新记录
         DeviceProductionRecordDO record = new DeviceProductionRecordDO();
         record.setDeviceInfoId(deviceInfoId);
@@ -102,8 +102,8 @@ public class DeviceProductionEventHandler implements WebhookEventHandler {
         deviceProductionRecordRepository.insert(record);
     }
 
-    private void handleEnd(Map<String, Object> eventData, String deviceInfoId,
-                           String orgFactoryId, Long ts, ShiftInfo shift) {
+    private void handleEnd(Map<String, Object> eventData, Long deviceInfoId,
+                           Long orgFactoryId, Long ts, ShiftInfo shift) {
         Optional<DeviceProductionRecordDO> ongoingOpt = deviceProductionRecordRepository.findLatestOngoing(deviceInfoId);
         if (ongoingOpt.isEmpty()) {
             // 若没有进行中，补一条仅 end 的记录（起止相同）
@@ -136,7 +136,7 @@ public class DeviceProductionEventHandler implements WebhookEventHandler {
         deviceProductionRecordRepository.updateById(ongoing);
     }
 
-    private ShiftInfo resolveShift(String factoryId, String deviceId, Long tsSeconds) {
+    private ShiftInfo resolveShift(Long factoryId, Long deviceId, Long tsSeconds) {
         long tsMs = tsSeconds * DeviceProductionEventFields.SECONDS_TO_MILLIS;
         ShiftDateAndCode shiftInfo = shiftCalculationService.getShiftDateAndCode(factoryId, deviceId, tsMs);
         return new ShiftInfo(shiftInfo.shiftDate(), shiftInfo.shiftCode());

@@ -24,18 +24,18 @@ public class DeviceStateRecordDO implements Serializable {
     private static final long serialVersionUID = -5709800285274273654L;
 
     @TableId(type = IdType.ASSIGN_ID)
-    private String id;
+    private Long id;
 
     /**
      * 设备ID（关联 device_info.id，对应 device_info_id 列）
      * 可通过 device_info.tb_device_id 查询 ThingsBoard 获取租户信息
      */
-    private String deviceInfoId;
+    private Long deviceInfoId;
 
     /**
      * 所属厂区ID（关联 device_org_relation.id，冗余字段，优化查询性能，对应 org_factory_id 列）
      */
-    private String orgFactoryId;
+    private Long orgFactoryId;
 
     /**
      * 设备状态编码（对应 state_code 列，TINYINT UNSIGNED）

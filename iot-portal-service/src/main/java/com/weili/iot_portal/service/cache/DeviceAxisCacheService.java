@@ -50,7 +50,7 @@ public class DeviceAxisCacheService {
      * @param traceId 追踪ID（可选）
      * @param ratio 倍率值（可选）
      */
-    public void saveAxisData(String factoryId, String deviceId, Map<String, Object> axisData,
+    public void saveAxisData(Long factoryId, Long deviceId, Map<String, Object> axisData,
                               long updatedAt, String source, String traceId, Object ratio) {
         if (axisData == null || axisData.isEmpty()) {
             return;
@@ -77,7 +77,7 @@ public class DeviceAxisCacheService {
      * @param deviceId 设备ID
      * @return 轴数据映射，如果不存在返回 null
      */
-    public Map<Object, Object> getAxisData(String factoryId, String deviceId) {
+    public Map<Object, Object> getAxisData(Long factoryId, Long deviceId) {
         String key = buildAxisKey(factoryId, deviceId);
         return redisTemplate.opsForHash().entries(key);
     }
@@ -88,7 +88,7 @@ public class DeviceAxisCacheService {
      * @param factoryId 工厂ID
      * @param deviceId 设备ID
      */
-    public void deleteAxisData(String factoryId, String deviceId) {
+    public void deleteAxisData(Long factoryId, Long deviceId) {
         String key = buildAxisKey(factoryId, deviceId);
         redisTemplate.delete(key);
     }
@@ -104,7 +104,7 @@ public class DeviceAxisCacheService {
      * @param value 指标值
      * @param maxLen 最大长度
      */
-    public void appendCurvePoint(String factoryId, String deviceId, String metric,
+    public void appendCurvePoint(Long factoryId, Long deviceId, String metric,
                                  long timestamp, Object value, int maxLen) {
         if (value == null) {
             return;
@@ -128,7 +128,7 @@ public class DeviceAxisCacheService {
      * @param end 结束索引（-1 表示全部）
      * @return 曲线数据点列表
      */
-    public java.util.List<String> getCurvePoints(String factoryId, String deviceId,
+    public java.util.List<String> getCurvePoints(Long factoryId, Long deviceId,
                                                   String metric, long start, long end) {
         String key = buildCurveKey(factoryId, deviceId, metric);
         return redisTemplate.opsForList().range(key, start, end);
@@ -141,7 +141,7 @@ public class DeviceAxisCacheService {
      * @param deviceId 设备ID
      * @param metric 指标名称
      */
-    public void deleteCurve(String factoryId, String deviceId, String metric) {
+    public void deleteCurve(Long factoryId, Long deviceId, String metric) {
         String key = buildCurveKey(factoryId, deviceId, metric);
         redisTemplate.delete(key);
     }
@@ -154,7 +154,7 @@ public class DeviceAxisCacheService {
      * @param deviceId 设备ID
      * @return Redis 键
      */
-    private String buildAxisKey(String factoryId, String deviceId) {
+    private String buildAxisKey(Long factoryId, Long deviceId) {
         return String.format(RedisConstant.RT_AXIS,
                 defaultBlank(factoryId), defaultBlank(deviceId));
     }
@@ -167,16 +167,16 @@ public class DeviceAxisCacheService {
      * @param metric 指标名称
      * @return Redis 键
      */
-    private String buildCurveKey(String factoryId, String deviceId, String metric) {
+    private String buildCurveKey(Long factoryId, Long deviceId, String metric) {
         return String.format("rt:axis:curve:%s:%s:%s",
-                defaultBlank(metric), defaultBlank(factoryId), defaultBlank(deviceId));
+                metric, factoryId, deviceId);
     }
 
     /**
      * 默认空值处理
      */
-    private String defaultBlank(String value) {
-        return StringUtils.defaultIfBlank(value, DEFAULT_BLANK_PLACEHOLDER);
+    private String defaultBlank(Long value) {
+        return value==null? DEFAULT_BLANK_PLACEHOLDER :value.toString();
     }
 }
 

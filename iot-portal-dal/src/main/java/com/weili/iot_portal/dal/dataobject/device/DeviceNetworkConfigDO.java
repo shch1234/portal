@@ -24,18 +24,18 @@ public class DeviceNetworkConfigDO extends BaseDO {
     private static final long serialVersionUID = 7639847559023457653L;
 
     @TableId(type = IdType.ASSIGN_ID)
-    private String id;
+    private Long id;
 
     /**
      * 设备信息ID（对应 device_info_id 列）
      * 可通过 device_info.tb_device_id 查询 ThingsBoard 获取租户信息
      */
-    private String deviceInfoId;
+    private Long deviceInfoId;
 
     /**
      * 所属厂区ID（关联 device_org_relation.id，冗余字段，优化查询性能，对应 org_factory_id 列）
      */
-    private String orgFactoryId;
+    private Long orgFactoryId;
 
     private String ipAddress;
 

@@ -25,7 +25,7 @@ public class DeviceInfoDO extends BaseDO {
     private static final long serialVersionUID = 3545101187655639470L;
 
     @TableId(type = IdType.ASSIGN_ID)
-    private String id;
+    private Long id;
 
     /**
      * ThingsBoard 设备ID（关联 ThingsBoard device.id，对应 tb_device_id 列）
@@ -50,22 +50,22 @@ public class DeviceInfoDO extends BaseDO {
     /**
      * 设备型号ID（关联 device_model.id，对应 device_model_id 列）
      */
-    private String deviceModelId;
+    private Long deviceModelId;
 
     /**
      * 所属厂区ID（关联 device_org_relation.id，对应 org_factory_id 列）
      */
-    private String orgFactoryId;
+    private Long orgFactoryId;
 
     /**
      * 所属车间ID（关联 device_org_relation.id，对应 org_workshop_id 列）
      */
-    private String orgWorkshopId;
+    private Long orgWorkshopId;
 
     /**
      * 所属产线ID（关联 device_org_relation.id，对应 org_production_line_id 列）
      */
-    private String orgProductionLineId;
+    private Long orgProductionLineId;
 
     /**
      * 设备状态：ACTIVE-在用 INACTIVE-停用 MAINTENANCE-维护中 RETIRED-报废

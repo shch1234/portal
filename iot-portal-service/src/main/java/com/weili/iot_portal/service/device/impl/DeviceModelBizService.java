@@ -28,7 +28,7 @@ public class DeviceModelBizService implements IDeviceModelBizService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public String createDeviceModel(DeviceModelSaveReqVO createReqVO) {
+    public Long createDeviceModel(DeviceModelSaveReqVO createReqVO) {
         // 验证型号编码唯一性
         validateModelCodeUnique(null, createReqVO.getModelCode());
 
@@ -51,13 +51,13 @@ public class DeviceModelBizService implements IDeviceModelBizService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void deleteDeviceModel(String id) {
+    public void deleteDeviceModel(Long id) {
         validateDeviceModelExists(id);
         deviceModelRepository.deleteById(id);
     }
 
     @Override
-    public DeviceModelDO getDeviceModel(String id) {
+    public DeviceModelDO getDeviceModel(Long id) {
         return validateDeviceModelExists(id);
     }
 
@@ -70,8 +70,8 @@ public class DeviceModelBizService implements IDeviceModelBizService {
     /**
      * 验证设备型号存在
      */
-    private DeviceModelDO validateDeviceModelExists(String id) {
-        if (StrUtil.isBlank(id)) {
+    private DeviceModelDO validateDeviceModelExists(Long id) {
+        if (id == null) {
             throw new IotPortalException(IotPortalErrorCode.DEVICE_ID_EMPTY);
         }
         Optional<DeviceModelDO> deviceModel = deviceModelRepository.findById(id);
@@ -84,7 +84,7 @@ public class DeviceModelBizService implements IDeviceModelBizService {
     /**
      * 验证型号编码唯一性
      */
-    private void validateModelCodeUnique(String id, String modelCode) {
+    private void validateModelCodeUnique(Long id, String modelCode) {
         if (StrUtil.isBlank(modelCode)) {
             return;
         }

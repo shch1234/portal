@@ -5,6 +5,9 @@ import com.weili.iot_portal.dal.dataobject.device.DeviceOrgRelationDO;
 import com.weili.iot_portal.domain.device.req.DeviceOrgRelationPageReqVO;
 import com.weili.iot_portal.domain.device.req.DeviceOrgRelationSaveReqVO;
 
+import java.util.List;
+import java.util.Map;
+
 /**
  * 设备组织单元业务服务接口
  */
@@ -16,7 +19,7 @@ public interface IDeviceOrgRelationBizService {
      * @param createReqVO 设备组织单元创建请求
      * @return 设备组织单元ID
      */
-    String createDeviceOrgRelation(DeviceOrgRelationSaveReqVO createReqVO);
+    Long createDeviceOrgRelation(DeviceOrgRelationSaveReqVO createReqVO);
 
     /**
      * 更新设备组织单元
@@ -47,6 +50,14 @@ public interface IDeviceOrgRelationBizService {
      * @return 分页结果
      */
     PageResult<DeviceOrgRelationDO> getDeviceOrgRelationPage(DeviceOrgRelationPageReqVO pageReqVO);
+
+    /**
+     * 根据ID列表获取设备组织单元
+     *
+     * @param ids 设备组织单元ID列表
+     * @return 设备组织单元
+     */
+    Map<Long, DeviceOrgRelationDO> listByIds(List<Long> ids);
 }
 
 

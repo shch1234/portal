@@ -25,18 +25,18 @@ public class DeviceStateSummaryDO implements Serializable {
     private static final long serialVersionUID = -1505674693530597958L;
 
     @TableId(type = IdType.ASSIGN_ID)
-    private String id;
+    private Long id;
 
     /**
      * 设备ID（关联 device_info.id，对应 device_info_id 列）
      * 可通过 device_info.tb_device_id 查询 ThingsBoard 获取租户信息
      */
-    private String deviceInfoId;
+    private Long deviceInfoId;
 
     /**
      * 所属厂区ID（关联 device_org_relation.id，冗余字段，优化查询性能，对应 org_factory_id 列）
      */
-    private String orgFactoryId;
+    private Long orgFactoryId;
 
     /**
      * 汇总日期（对应 summary_date 列）

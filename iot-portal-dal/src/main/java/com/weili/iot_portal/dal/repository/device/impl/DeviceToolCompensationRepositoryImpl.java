@@ -5,7 +5,6 @@ import com.weili.iot_portal.dal.dataobject.device.DeviceToolCompensationDO;
 import com.weili.iot_portal.dal.mapper.device.DeviceToolCompensationMapper;
 import com.weili.iot_portal.dal.repository.device.DeviceToolCompensationRepository;
 import lombok.RequiredArgsConstructor;
-import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -18,7 +17,7 @@ public class DeviceToolCompensationRepositoryImpl implements DeviceToolCompensat
 
 
     @Override
-    public DeviceToolCompensationDO findActive(String deviceId, String toolHolderNo) {
+    public DeviceToolCompensationDO findActive(Long deviceId, String toolHolderNo) {
         LambdaQueryWrapper<DeviceToolCompensationDO> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(DeviceToolCompensationDO::getDeviceInfoId, deviceId)
                 .eq(DeviceToolCompensationDO::getToolHolderNo, toolHolderNo)
@@ -29,10 +28,10 @@ public class DeviceToolCompensationRepositoryImpl implements DeviceToolCompensat
     }
 
     @Override
-    public List<DeviceToolCompensationDO> findActiveByDevice(String factoryId, String deviceId) {
+    public List<DeviceToolCompensationDO> findActiveByDevice(Long factoryId, String deviceId) {
         LambdaQueryWrapper<DeviceToolCompensationDO> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(DeviceToolCompensationDO::getDeviceInfoId, deviceId)
-                .eq(StringUtils.isNotBlank(factoryId), DeviceToolCompensationDO::getOrgFactoryId, factoryId)
+                .eq(factoryId != null, DeviceToolCompensationDO::getOrgFactoryId, factoryId)
                 .eq(DeviceToolCompensationDO::getActive, 1)
                 .orderByAsc(DeviceToolCompensationDO::getToolHolderNo);
         return mapper.selectList(wrapper);

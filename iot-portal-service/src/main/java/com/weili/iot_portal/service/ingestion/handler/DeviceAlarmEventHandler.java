@@ -1,6 +1,5 @@
 package com.weili.iot_portal.service.ingestion.handler;
 
-import com.baomidou.mybatisplus.core.toolkit.IdWorker;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.weili.basic.common.util.JsonUtils;
 import com.weili.iot_portal.common.exception.IotPortalErrorCode;
@@ -229,7 +228,7 @@ public class DeviceAlarmEventHandler implements WebhookEventHandler {
      * 使用分布式锁处理报警转换
      */
     private void processAlarmTransitionWithLock(EventData eventData, DeviceIdentity identity, WebhookRequest request) {
-        String deviceInfoId = identity.deviceInfoId();
+        Long deviceInfoId = identity.deviceInfoId();
         
         // 获取分布式锁
         if (!deviceLockService.tryLockState(deviceInfoId, DeviceAlarmEventFields.LOCK_TIMEOUT_SECONDS)) {
@@ -258,8 +257,8 @@ public class DeviceAlarmEventHandler implements WebhookEventHandler {
      */
     private void processAlarmTransition(List<DeviceAlarmHistoryDO> activeList, EventData eventData,
                                          DeviceIdentity identity, WebhookRequest request) {
-        String deviceInfoId = identity.deviceInfoId();
-        String orgFactoryId = identity.orgFactoryId();
+        Long deviceInfoId = identity.deviceInfoId();
+        Long orgFactoryId = identity.orgFactoryId();
         
         // 构建活跃报警Map（按alarmCode索引）
         Map<String, DeviceAlarmHistoryDO> activeByCode = activeList.stream()
@@ -306,7 +305,7 @@ public class DeviceAlarmEventHandler implements WebhookEventHandler {
                 // 情况C：报警不匹配（异常情况）
                 log.warn("[DeviceAlarmEventHandler] 报警不匹配: deviceInfoId={}, DB活跃报警数={}, 事件previousAlarms数={}, 事件currentAlarms数={}",
                         deviceInfoId, activeByCode.size(), eventData.previousAlarms().size(), eventData.currentAlarms().size());
-                handleAlarmsMismatch(activeByCode, eventData, identity, request);
+                handleAlarmsMismatch(activeByCode, eventData, identity);
                 break;
                 
             default:
@@ -425,7 +424,7 @@ public class DeviceAlarmEventHandler implements WebhookEventHandler {
     /**
      * 情况A：首次连接（previousAlarms = NULL）
      */
-    private void handleFirstConnection(String deviceInfoId, String orgFactoryId, EventData eventData) {
+    private void handleFirstConnection(Long deviceInfoId, Long orgFactoryId, EventData eventData) {
         if (eventData.currentAlarms().isEmpty()) {
             log.info("[DeviceAlarmEventHandler] 首次连接但当前报警数组为空，跳过处理: deviceInfoId={}", deviceInfoId);
             return;
@@ -449,9 +448,9 @@ public class DeviceAlarmEventHandler implements WebhookEventHandler {
      * 情况B：正常匹配（DB最新活跃报警 == previousAlarms）
      */
     private void handleNormalTransition(Map<String, DeviceAlarmHistoryDO> activeByCode,
-                                        String orgFactoryId, EventData eventData) {
+                                        Long orgFactoryId, EventData eventData) {
         // 从activeByCode中获取deviceInfoId（所有记录应该有相同的deviceInfoId）
-        String deviceInfoId = activeByCode.isEmpty() ? null : activeByCode.values().iterator().next().getDeviceInfoId();
+        Long deviceInfoId = activeByCode.isEmpty() ? null : activeByCode.values().iterator().next().getDeviceInfoId();
         
         Set<String> currentCodes = eventData.currentAlarms().stream()
                 .map(a -> toStr(a.get(DeviceAlarmEventFields.ALARM_CODE)))
@@ -491,9 +490,9 @@ public class DeviceAlarmEventHandler implements WebhookEventHandler {
      * 情况C：报警不匹配（异常情况）
      */
     private void handleAlarmsMismatch(Map<String, DeviceAlarmHistoryDO> activeByCode,
-                                       EventData eventData, DeviceIdentity identity, WebhookRequest request) {
-        String deviceInfoId = identity.deviceInfoId();
-        String orgFactoryId = identity.orgFactoryId();
+                                       EventData eventData, DeviceIdentity identity) {
+        Long deviceInfoId = identity.deviceInfoId();
+        Long orgFactoryId = identity.orgFactoryId();
         
         // 关闭所有现有活跃报警
         for (DeviceAlarmHistoryDO existing : activeByCode.values()) {
@@ -518,7 +517,7 @@ public class DeviceAlarmEventHandler implements WebhookEventHandler {
     /**
      * 情况D：数据库无记录（首次记录）
      */
-    private void handleFirstRecord(String deviceInfoId, String orgFactoryId, EventData eventData) {
+    private void handleFirstRecord(Long deviceInfoId, Long orgFactoryId, EventData eventData) {
         if (!eventData.previousAlarms().isEmpty()) {
             log.warn("[DeviceAlarmEventHandler] 数据库无记录但previousAlarms不为空: deviceInfoId={}, previousAlarmsCount={}",
                     deviceInfoId, eventData.previousAlarms().size());
@@ -548,14 +547,13 @@ public class DeviceAlarmEventHandler implements WebhookEventHandler {
     /**
      * 创建报警记录
      */
-    private void createAlarmRecord(String deviceInfoId, String orgFactoryId,
+    private void createAlarmRecord(Long deviceInfoId, Long orgFactoryId,
                                     Map<String, Object> alarm, Long eventTimestamp) {
         String code = toStr(alarm.get(DeviceAlarmEventFields.ALARM_CODE));
         String text = toStr(alarm.get(DeviceAlarmEventFields.ALARM_TEXT));
         String level = toStr(alarm.get(DeviceAlarmEventFields.ALARM_LEVEL));
         
         DeviceAlarmHistoryDO record = new DeviceAlarmHistoryDO();
-        record.setId(IdWorker.getIdStr());
         record.setDeviceInfoId(deviceInfoId);
         record.setOrgFactoryId(orgFactoryId);
         record.setAlarmCode(code);
@@ -611,7 +609,7 @@ public class DeviceAlarmEventHandler implements WebhookEventHandler {
     /**
      * 关闭报警记录
      */
-    private void closeAlarm(DeviceAlarmHistoryDO existing, Long eventTimestamp, String orgFactoryId) {
+    private void closeAlarm(DeviceAlarmHistoryDO existing, Long eventTimestamp, Long orgFactoryId) {
         existing.setEndTs(eventTimestamp);
         if (existing.getStartTs() != null) {
             existing.setDurationS((int) (eventTimestamp - existing.getStartTs()));
@@ -642,7 +640,7 @@ public class DeviceAlarmEventHandler implements WebhookEventHandler {
     /**
      * 如果班次信息缺失，根据开始时间补充
      */
-    private void fillShiftInfoIfMissing(DeviceAlarmHistoryDO record, String factoryId) {
+    private void fillShiftInfoIfMissing(DeviceAlarmHistoryDO record, Long factoryId) {
         if (record.getStartTs() != null
                 && (record.getStartShiftDate() == null || record.getStartShiftCode() == null)) {
             try {

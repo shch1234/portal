@@ -39,7 +39,7 @@ public class DeviceRealtimeMetricsCalcJob extends BaseScheduledJob {
     }
 
     @Override
-    @XxlJob("DeviceRealtimeMetricsCalcJob")
+    @XxlJob("deviceRealtimeMetricsCalcJob")
     public void execute() throws Exception {
         super.execute();
     }

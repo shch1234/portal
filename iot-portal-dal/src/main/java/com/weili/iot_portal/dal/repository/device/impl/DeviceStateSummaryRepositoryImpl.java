@@ -5,7 +5,6 @@ import com.weili.iot_portal.dal.dataobject.device.DeviceStateSummaryDO;
 import com.weili.iot_portal.dal.mapper.device.DeviceStateSummaryMapper;
 import com.weili.iot_portal.dal.repository.device.DeviceStateSummaryRepository;
 import lombok.RequiredArgsConstructor;
-import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
@@ -24,9 +23,9 @@ public class DeviceStateSummaryRepositoryImpl implements DeviceStateSummaryRepos
      * 按时间范围查询设备状态汇总（对应 device_state_summary 表的字段）
      */
     @Override
-    public List<DeviceStateSummaryDO> selectByRange(String deviceId, Long startTs, Long endTs) {
+    public List<DeviceStateSummaryDO> selectByRange(Long deviceId, Long startTs, Long endTs) {
         LambdaQueryWrapper<DeviceStateSummaryDO> wrapper = new LambdaQueryWrapper<>();
-        if (StringUtils.isNotBlank(deviceId)) {
+        if (deviceId != null) {
             wrapper.eq(DeviceStateSummaryDO::getDeviceInfoId, deviceId);
         }
         if (startTs != null) {
@@ -50,7 +49,7 @@ public class DeviceStateSummaryRepositoryImpl implements DeviceStateSummaryRepos
     }
 
     @Override
-    public DeviceStateSummaryDO findByShift(String deviceId, LocalDate shiftDate, Integer shiftCode) {
+    public DeviceStateSummaryDO findByShift(Long deviceId, LocalDate shiftDate, Integer shiftCode) {
         LambdaQueryWrapper<DeviceStateSummaryDO> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(DeviceStateSummaryDO::getDeviceInfoId, deviceId)
                 .eq(DeviceStateSummaryDO::getSummaryDate, shiftDate)

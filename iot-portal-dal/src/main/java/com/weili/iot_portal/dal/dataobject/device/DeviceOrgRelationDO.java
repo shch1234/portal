@@ -22,7 +22,7 @@ public class DeviceOrgRelationDO extends BaseDO {
     private static final long serialVersionUID = -7263912751231102451L;
 
     @TableId(type = IdType.ASSIGN_ID)
-    private String id;
+    private Long id;
 
     /**
      * 组织单元编码（全局唯一，对应 unit_code 列）

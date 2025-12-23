@@ -33,8 +33,8 @@ public class DeviceTypeRelationController {
     @PostMapping("/create")
     @Operation(summary = "创建设备类型")
     @PermRequired(permission = "device-mgmt:device-type-relation:create")
-    public CommonResult<String> createDeviceTypeRelation(@Valid @RequestBody DeviceTypeRelationSaveReqVO createReqVO) {
-        String deviceTypeRelationId = deviceTypeRelationBizService.createDeviceTypeRelation(createReqVO);
+    public CommonResult<Long> createDeviceTypeRelation(@Valid @RequestBody DeviceTypeRelationSaveReqVO createReqVO) {
+        Long deviceTypeRelationId = deviceTypeRelationBizService.createDeviceTypeRelation(createReqVO);
         return CommonResult.success(deviceTypeRelationId);
     }
 
@@ -66,6 +66,7 @@ public class DeviceTypeRelationController {
     @GetMapping("/page")
     @Operation(summary = "分页查询设备类型")
     public CommonResult<PageResult<DeviceTypeRelationRespVO>> getDeviceTypeRelationPage(@Valid DeviceTypeRelationPageReqVO pageReqVO) {
+
         PageResult<DeviceTypeRelationDO> pageResult = deviceTypeRelationBizService.getDeviceTypeRelationPage(pageReqVO);
         return CommonResult.success(BeanUtils.toBean(pageResult, DeviceTypeRelationRespVO.class));
     }

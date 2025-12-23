@@ -25,13 +25,13 @@ public class DeviceProductionSummaryDO implements Serializable {
     private static final long serialVersionUID = 9035405367945829902L;
 
     @TableId(type = IdType.ASSIGN_ID)
-    private String id;
+    private Long id;
 
     /**
      * 设备ID（关联 device_info.id，对应 device_info_id 列）
      * 可通过 device_info.tb_device_id 查询 ThingsBoard 获取租户信息
      */
-    private String deviceInfoId;
+    private Long deviceInfoId;
 
     /**
      * 班次日期（对应 shift_date 列）

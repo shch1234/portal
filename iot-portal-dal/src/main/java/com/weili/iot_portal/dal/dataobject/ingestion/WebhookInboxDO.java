@@ -25,7 +25,7 @@ public class WebhookInboxDO {
     private static final long serialVersionUID = 2113456789012345678L;
 
     @TableId(type = IdType.ASSIGN_ID)
-    private String id;
+    private Long id;
 
     /**
      * 消息唯一ID（幂等，对应 message_id 列）

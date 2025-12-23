@@ -14,7 +14,6 @@ import com.weili.iot_portal.service.device.IDeviceMetricsService;
 import com.weili.iot_portal.service.shift.IShiftCalculationService;
 import com.weili.iot_portal.service.shift.model.ShiftTimeRange;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
@@ -81,7 +80,7 @@ public class DeviceMetricsService implements IDeviceMetricsService {
         int skip = 0;
         int error = 0;
 
-        Map<String, List<DeviceInfoDO>> devicesByFactory = allDevices.stream()
+        Map<Long, List<DeviceInfoDO>> devicesByFactory = allDevices.stream()
                 .filter(device -> device.getOrgFactoryId() != null)
                 .collect(Collectors.groupingBy(DeviceInfoDO::getOrgFactoryId));
 
@@ -91,8 +90,8 @@ public class DeviceMetricsService implements IDeviceMetricsService {
             log.warn("设备指标计算: 有 {} 个设备未关联工厂，已跳过", allDevices.size() - filtered);
         }
 
-        for (Map.Entry<String, List<DeviceInfoDO>> factoryEntry : devicesByFactory.entrySet()) {
-            String factoryId = factoryEntry.getKey();
+        for (Map.Entry<Long, List<DeviceInfoDO>> factoryEntry : devicesByFactory.entrySet()) {
+            Long factoryId = factoryEntry.getKey();
             List<DeviceInfoDO> devices = factoryEntry.getValue();
             try {
                 BatchProcessResult factoryResult = processFactoryDevicesWithCheckpoint(
@@ -111,14 +110,14 @@ public class DeviceMetricsService implements IDeviceMetricsService {
 
     @Override
     public BatchProcessResult processFactoryDevicesWithCheckpoint(
-            String factoryId,
+            Long factoryId,
             List<DeviceInfoDO> devices,
             long calculationTimeSeconds,
             int batchSize,
             long timeoutMillis) {
 
         // 加载检查点，获取已处理的设备ID
-        Set<String> processedDeviceIds = checkpointService.getProcessedDeviceIds(
+        Set<Long> processedDeviceIds = checkpointService.getProcessedDeviceIds(
                 factoryId, calculationTimeSeconds);
 
         // 过滤已处理的设备
@@ -141,7 +140,7 @@ public class DeviceMetricsService implements IDeviceMetricsService {
         int successCount = 0;
         int skipCount = 0;
         int errorCount = 0;
-        List<String> newProcessedIds = new ArrayList<>();
+        List<Long> newProcessedIds = new ArrayList<>();
         long startTime = System.currentTimeMillis();
 
         for (int i = 0; i < remainingDevices.size(); i += batchSize) {
@@ -164,7 +163,7 @@ public class DeviceMetricsService implements IDeviceMetricsService {
 
             // 每批处理完后更新检查点
             if (!newProcessedIds.isEmpty()) {
-                List<String> allProcessedIds = new ArrayList<>(processedDeviceIds);
+                List<Long> allProcessedIds = new ArrayList<>(processedDeviceIds);
                 checkpointService.saveCheckpoint(factoryId, calculationTimeSeconds, allProcessedIds);
                 newProcessedIds.clear();
             }
@@ -184,7 +183,7 @@ public class DeviceMetricsService implements IDeviceMetricsService {
             return BatchProcessResult.completed(successCount, skipCount, errorCount);
         } else {
             // 还有未处理的设备，保存检查点
-            List<String> allProcessedIds = new ArrayList<>(processedDeviceIds);
+            List<Long> allProcessedIds = new ArrayList<>(processedDeviceIds);
             checkpointService.saveCheckpoint(factoryId, calculationTimeSeconds, allProcessedIds);
             return BatchProcessResult.incomplete(successCount, skipCount, errorCount);
         }
@@ -215,8 +214,8 @@ public class DeviceMetricsService implements IDeviceMetricsService {
 
     @Override
     public void calculateDeviceMetrics(DeviceInfoDO device) {
-        String factoryId = device.getOrgFactoryId();
-        String deviceId = device.getId();
+        Long factoryId = device.getOrgFactoryId();
+        Long deviceId = device.getId();
 
         long nowMs = System.currentTimeMillis();
         ShiftTimeRange shift = shiftCalculationService.calculateShiftRange(factoryId, deviceId, nowMs);
@@ -288,7 +287,7 @@ public class DeviceMetricsService implements IDeviceMetricsService {
     /**
      * 获取计划停机时间（秒）
      */
-    private long getPlannedDowntimeSeconds(String deviceId) {
+    private long getPlannedDowntimeSeconds(Long deviceId) {
         List<DeviceParamConfigDO> params = deviceParamConfigRepository.selectCurrent(deviceId);
         return params.stream()
                 .filter(p -> PARAM_PLANNED_DOWNTIME.equalsIgnoreCase(p.getParameterType()))
@@ -301,7 +300,7 @@ public class DeviceMetricsService implements IDeviceMetricsService {
     /**
      * 汇总状态持续时间
      */
-    private Map<String, Long> sumStateDurations(String deviceId, long startSec, long endSec, long nowSec) {
+    private Map<String, Long> sumStateDurations(Long deviceId, long startSec, long endSec, long nowSec) {
         List<DeviceStateRecordDO> timelines = deviceStateRecordRepository.selectByRange(deviceId, startSec, endSec);
         Map<String, Long> result = new HashMap<>();
         for (DeviceStateRecordDO t : timelines) {
@@ -325,7 +324,7 @@ public class DeviceMetricsService implements IDeviceMetricsService {
     /**
      * 获取理论周期（秒）
      */
-    private long getTheoreticalCycleSeconds(String deviceId) {
+    private long getTheoreticalCycleSeconds(Long deviceId) {
         List<DeviceParamConfigDO> params = deviceParamConfigRepository.selectCurrent(deviceId);
         return params.stream()
                 .filter(p -> PARAM_THEORETICAL_CYCLE.equalsIgnoreCase(p.getParameterType()))
@@ -338,7 +337,7 @@ public class DeviceMetricsService implements IDeviceMetricsService {
     /**
      * 写入指标到Redis
      */
-    private void writeMetricToRedis(String factoryId, String deviceId,
+    private void writeMetricToRedis(Long factoryId, Long deviceId,
                                     BigDecimal uptimeRate, BigDecimal performanceRate,
                                     BigDecimal availabilityRate, BigDecimal faultRate,
                                     BigDecimal oee, long updatedAtSec) {
@@ -355,10 +354,10 @@ public class DeviceMetricsService implements IDeviceMetricsService {
     }
 
     @Override
-    public java.util.Optional<RealtimeMetricSnapshot> getDeviceRealtimeMetrics(String factoryId, String deviceId) {
+    public java.util.Optional<RealtimeMetricSnapshot> getDeviceRealtimeMetrics(Long factoryId, Long deviceId) {
         String key = String.format(RedisConstant.RT_METRIC, defaultBlank(factoryId), defaultBlank(deviceId));
         Map<Object, Object> map = stringRedisTemplate.opsForHash().entries(key);
-        if (map == null || map.isEmpty()) {
+        if (map.isEmpty()) {
             return java.util.Optional.empty();
         }
         try {
@@ -393,8 +392,8 @@ public class DeviceMetricsService implements IDeviceMetricsService {
         }
     }
 
-    private String defaultBlank(String v) {
-        return StringUtils.defaultIfBlank(v, "none");
+    private String defaultBlank(Long v) {
+        return v == null ? "none" : v.toString();
     }
 }
 

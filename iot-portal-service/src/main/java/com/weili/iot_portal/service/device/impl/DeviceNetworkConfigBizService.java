@@ -1,6 +1,5 @@
 package com.weili.iot_portal.service.device.impl;
 
-import cn.hutool.core.util.StrUtil;
 import com.weili.basic.common.model.PageResult;
 import com.weili.basic.common.util.BeanUtils;
 import com.weili.iot_portal.common.exception.IotPortalErrorCode;
@@ -33,7 +32,7 @@ public class DeviceNetworkConfigBizService implements IDeviceNetworkConfigBizSer
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public String createDeviceNetworkConfig(DeviceNetworkConfigSaveReqVO createReqVO) {
+    public Long createDeviceNetworkConfig(DeviceNetworkConfigSaveReqVO createReqVO) {
         // 验证设备信息存在
         validateDeviceInfoExists(createReqVO.getDeviceInfoId());
         // 验证设备是否已存在网络配置
@@ -55,7 +54,7 @@ public class DeviceNetworkConfigBizService implements IDeviceNetworkConfigBizSer
     @Transactional(rollbackFor = Exception.class)
     public void updateDeviceNetworkConfig(DeviceNetworkConfigSaveReqVO updateReqVO) {
         // 验证设备网络配置存在
-        if (StrUtil.isNotBlank(updateReqVO.getId())) {
+        if (updateReqVO.getId() == null) {
             validateDeviceNetworkConfigExists(updateReqVO.getId());
         } else {
             // 如果没有ID，通过设备ID查找
@@ -74,19 +73,19 @@ public class DeviceNetworkConfigBizService implements IDeviceNetworkConfigBizSer
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void deleteDeviceNetworkConfig(String id) {
+    public void deleteDeviceNetworkConfig(Long id) {
         validateDeviceNetworkConfigExists(id);
         deviceNetworkConfigRepository.deleteById(id);
     }
 
     @Override
-    public DeviceNetworkConfigDO getDeviceNetworkConfig(String id) {
+    public DeviceNetworkConfigDO getDeviceNetworkConfig(Long id) {
         return validateDeviceNetworkConfigExists(id);
     }
 
     @Override
-    public DeviceNetworkConfigDO getDeviceNetworkConfigByDeviceId(String deviceInfoId) {
-        if (StrUtil.isBlank(deviceInfoId)) {
+    public DeviceNetworkConfigDO getDeviceNetworkConfigByDeviceId(Long deviceInfoId) {
+        if (deviceInfoId == null) {
             throw new IotPortalException(IotPortalErrorCode.DEVICE_ID_EMPTY);
         }
         Optional<DeviceNetworkConfigDO> deviceNetworkConfig = deviceNetworkConfigRepository.findByDeviceInfoId(deviceInfoId);
@@ -104,8 +103,8 @@ public class DeviceNetworkConfigBizService implements IDeviceNetworkConfigBizSer
     /**
      * 验证设备网络配置存在
      */
-    private DeviceNetworkConfigDO validateDeviceNetworkConfigExists(String id) {
-        if (StrUtil.isBlank(id)) {
+    private DeviceNetworkConfigDO validateDeviceNetworkConfigExists(Long id) {
+        if (id == null) {
             throw new IotPortalException(IotPortalErrorCode.DEVICE_ID_EMPTY);
         }
         Optional<DeviceNetworkConfigDO> deviceNetworkConfig = deviceNetworkConfigRepository.findById(id);
@@ -118,8 +117,8 @@ public class DeviceNetworkConfigBizService implements IDeviceNetworkConfigBizSer
     /**
      * 验证设备信息存在
      */
-    private void validateDeviceInfoExists(String deviceInfoId) {
-        if (StrUtil.isBlank(deviceInfoId)) {
+    private void validateDeviceInfoExists(Long deviceInfoId) {
+        if (deviceInfoId != null) {
             throw new IotPortalException(IotPortalErrorCode.DEVICE_ID_EMPTY);
         }
         Optional<DeviceInfoDO> deviceInfo = deviceInfoRepository.findById(deviceInfoId);

@@ -9,11 +9,11 @@ import java.util.List;
  */
 public interface DeviceParamConfigRepository {
 
-    List<DeviceParamConfigDO> selectCurrent(String deviceId);
+    List<DeviceParamConfigDO> selectCurrent(Long deviceId);
 
-    List<DeviceParamConfigDO> selectHistory(String deviceId, Long startTs, Long endTs);
+    List<DeviceParamConfigDO> selectHistory(Long deviceId, Long startTs, Long endTs);
 
-    void expireCurrent(String deviceId, String parameterType, long endTs);
+    void expireCurrent(Long deviceId, String parameterType, long endTs);
 
     void insert(DeviceParamConfigDO entity);
 }

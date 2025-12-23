@@ -14,11 +14,15 @@ import com.weili.iot_portal.domain.device.req.DeviceOrgRelationPageReqVO;
 import com.weili.iot_portal.domain.device.req.DeviceOrgRelationSaveReqVO;
 import com.weili.iot_portal.service.device.IDeviceOrgRelationBizService;
 import jakarta.annotation.Resource;
+import org.apache.commons.collections4.CollectionUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 /**
  * 设备组织单元业务服务实现
@@ -34,7 +38,7 @@ public class DeviceOrgRelationBizService implements IDeviceOrgRelationBizService
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public String createDeviceOrgRelation(DeviceOrgRelationSaveReqVO createReqVO) {
+    public Long createDeviceOrgRelation(DeviceOrgRelationSaveReqVO createReqVO) {
         // 验证组织单元编码唯一性
         validateUnitCodeUnique(null, createReqVO.getUnitCode());
         // 如果存在父级，验证父级存在
@@ -53,7 +57,7 @@ public class DeviceOrgRelationBizService implements IDeviceOrgRelationBizService
     @Transactional(rollbackFor = Exception.class)
     public void updateDeviceOrgRelation(DeviceOrgRelationSaveReqVO updateReqVO) {
         // 验证组织单元存在
-        DeviceOrgRelationDO existing = validateDeviceOrgRelationExists(updateReqVO.getId());
+        validateDeviceOrgRelationExists(updateReqVO.getId());
         // 验证组织单元编码唯一性
         validateUnitCodeUnique(updateReqVO.getId(), updateReqVO.getUnitCode());
         // 如果存在父级，验证父级存在且不能是自己
@@ -73,7 +77,7 @@ public class DeviceOrgRelationBizService implements IDeviceOrgRelationBizService
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteDeviceOrgRelation(String id) {
-        DeviceOrgRelationDO deviceOrgRelation = validateDeviceOrgRelationExists(id);
+        validateDeviceOrgRelationExists(id);
         // 检查是否存在子组织单元
         List<DeviceOrgRelationDO> children = deviceOrgRelationRepository.findByParentId(id);
         if (!children.isEmpty()) {
@@ -95,6 +99,15 @@ public class DeviceOrgRelationBizService implements IDeviceOrgRelationBizService
     @Override
     public PageResult<DeviceOrgRelationDO> getDeviceOrgRelationPage(DeviceOrgRelationPageReqVO pageReqVO) {
         return deviceOrgRelationRepository.selectPage(BeanUtils.toBean(pageReqVO, DeviceOrgRelationPageQuery.class));
+    }
+
+    @Override
+    public Map<Long, DeviceOrgRelationDO> listByIds(List<Long> ids) {
+        List<DeviceOrgRelationDO> relationList = deviceOrgRelationRepository.listByIds(ids);
+        if (CollectionUtils.isNotEmpty(relationList)) {
+            return relationList.stream().collect(Collectors.toMap(DeviceOrgRelationDO::getId, deviceOrgRelationDO -> deviceOrgRelationDO));
+        }
+        return Collections.emptyMap();
     }
 
     /**

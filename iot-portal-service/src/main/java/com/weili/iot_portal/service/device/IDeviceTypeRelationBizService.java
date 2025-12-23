@@ -18,7 +18,7 @@ public interface IDeviceTypeRelationBizService {
      * @param createReqVO 设备类型创建请求
      * @return 设备类型ID
      */
-    String createDeviceTypeRelation(DeviceTypeRelationSaveReqVO createReqVO);
+    Long createDeviceTypeRelation(DeviceTypeRelationSaveReqVO createReqVO);
 
     /**
      * 更新设备类型

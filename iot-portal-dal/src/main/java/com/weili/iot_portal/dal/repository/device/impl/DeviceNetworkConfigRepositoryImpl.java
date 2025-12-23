@@ -26,13 +26,13 @@ public class DeviceNetworkConfigRepositoryImpl implements DeviceNetworkConfigRep
     private final DeviceInfoRepository deviceInfoRepository;
 
     @Override
-    public Optional<DeviceNetworkConfigDO> findById(String id) {
+    public Optional<DeviceNetworkConfigDO> findById(Long id) {
         return Optional.ofNullable(mapper.selectOne(new LambdaQueryWrapper<DeviceNetworkConfigDO>()
                 .eq(DeviceNetworkConfigDO::getId, id)));
     }
 
     @Override
-    public Optional<DeviceNetworkConfigDO> findByDeviceInfoId(String deviceInfoId) {
+    public Optional<DeviceNetworkConfigDO> findByDeviceInfoId(Long deviceInfoId) {
         return Optional.ofNullable(mapper.selectOne(new LambdaQueryWrapper<DeviceNetworkConfigDO>()
                 .eq(DeviceNetworkConfigDO::getDeviceInfoId, deviceInfoId)
                 .eq(DeviceNetworkConfigDO::getIsActive, true)));
@@ -53,7 +53,7 @@ public class DeviceNetworkConfigRepositoryImpl implements DeviceNetworkConfigRep
         LambdaQueryWrapper<DeviceNetworkConfigDO> wrapper = new LambdaQueryWrapper<>();
 
         if (StringUtils.isNotBlank(query.getFactoryId())) {
-            List<String> deviceIds = deviceInfoRepository.findByFactoryId(query.getFactoryId())
+            List<Long> deviceIds = deviceInfoRepository.findByFactoryId(query.getFactoryId())
                     .stream()
                     .map(DeviceInfoDO::getId)
                     .collect(Collectors.toList());
@@ -91,7 +91,7 @@ public class DeviceNetworkConfigRepositoryImpl implements DeviceNetworkConfigRep
     }
 
     @Override
-    public boolean deleteById(String id) {
+    public boolean deleteById(Long id) {
         return mapper.delete(new LambdaQueryWrapper<DeviceNetworkConfigDO>()
                 .eq(DeviceNetworkConfigDO::getId, id)) > 0;
     }

@@ -27,7 +27,7 @@ public class DeviceProductionSummaryRepositoryImpl implements DeviceProductionSu
      * 查找当前班次的产量统计（对应 device_production_summary 表的字段）
      */
     @Override
-    public Optional<DeviceProductionSummaryDO> findCurrent(String deviceId, long currentTs) {
+    public Optional<DeviceProductionSummaryDO> findCurrent(Long deviceId, long currentTs) {
         LambdaQueryWrapper<DeviceProductionSummaryDO> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(DeviceProductionSummaryDO::getDeviceInfoId, deviceId)
                 .le(DeviceProductionSummaryDO::getShiftStartTs, currentTs)
@@ -76,7 +76,7 @@ public class DeviceProductionSummaryRepositoryImpl implements DeviceProductionSu
     }
 
     @Override
-    public DeviceProductionSummaryDO findByShift(String deviceId, LocalDate shiftDate, Integer shiftCode) {
+    public DeviceProductionSummaryDO findByShift(Long deviceId, LocalDate shiftDate, Integer shiftCode) {
         LambdaQueryWrapper<DeviceProductionSummaryDO> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(DeviceProductionSummaryDO::getDeviceInfoId, deviceId)
                 .eq(DeviceProductionSummaryDO::getShiftDate, shiftDate)

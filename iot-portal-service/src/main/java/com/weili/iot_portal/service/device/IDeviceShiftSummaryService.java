@@ -107,7 +107,7 @@ public interface IDeviceShiftSummaryService {
      * @return 处理结果
      */
     BatchProcessResult processFactoryDevicesWithCheckpoint(
-            String factoryId,
+            Long factoryId,
             List<DeviceInfoDO> devices,
             long statisticsTimeSeconds,
             int batchSize,
@@ -162,8 +162,8 @@ public interface IDeviceShiftSummaryService {
      * @param stateStats   状态统计结果
      */
     void forceUpdateSummary(
-            String deviceId,
-            String orgFactoryId,
+            Long deviceId,
+            Long orgFactoryId,
             LocalDate shiftDate,
             ShiftTimeRange shiftRange,
             Map<String, StateStatistics> stateStats);

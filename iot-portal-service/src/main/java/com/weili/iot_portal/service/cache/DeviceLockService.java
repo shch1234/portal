@@ -46,14 +46,15 @@ public class DeviceLockService {
     private static final String LOCK_KEY_PREFIX_PRODUCTION = "device_production_lock:";
 
     // ==================== 状态锁相关 ====================
+
     /**
      * 尝试获取设备状态锁
      *
-     * @param deviceId 设备ID
+     * @param deviceId       设备ID
      * @param timeoutSeconds 锁超时时间（秒）
      * @return true 如果成功获取锁
      */
-    public boolean tryLockState(String deviceId, long timeoutSeconds) {
+    public boolean tryLockState(Long deviceId, long timeoutSeconds) {
         return tryLock(buildStateLockKey(deviceId), timeoutSeconds);
     }
 
@@ -63,7 +64,7 @@ public class DeviceLockService {
      * @param deviceId 设备ID
      * @return true 如果成功获取锁
      */
-    public boolean tryLockState(String deviceId) {
+    public boolean tryLockState(Long deviceId) {
         return tryLockState(deviceId, DEFAULT_LOCK_TIMEOUT_SECONDS);
     }
 
@@ -72,21 +73,21 @@ public class DeviceLockService {
      *
      * @param deviceId 设备ID
      */
-    public void unlockState(String deviceId) {
+    public void unlockState(Long deviceId) {
         unlock(buildStateLockKey(deviceId));
     }
 
     /**
      * 带状态锁执行任务
      *
-     * @param deviceId 设备ID
+     * @param deviceId       设备ID
      * @param timeoutSeconds 锁超时时间（秒）
-     * @param task 要执行的任务
-     * @param <T> 返回值类型
+     * @param task           要执行的任务
+     * @param <T>            返回值类型
      * @return 任务执行结果
      * @throws RuntimeException 如果获取锁失败或任务执行异常
      */
-    public <T> T executeWithStateLock(String deviceId, long timeoutSeconds, Supplier<T> task) {
+    public <T> T executeWithStateLock(Long deviceId, long timeoutSeconds, Supplier<T> task) {
         return executeWithLock(buildStateLockKey(deviceId), timeoutSeconds, task);
     }
 
@@ -94,24 +95,25 @@ public class DeviceLockService {
      * 带状态锁执行任务（使用默认超时时间）
      *
      * @param deviceId 设备ID
-     * @param task 要执行的任务
-     * @param <T> 返回值类型
+     * @param task     要执行的任务
+     * @param <T>      返回值类型
      * @return 任务执行结果
      * @throws RuntimeException 如果获取锁失败或任务执行异常
      */
-    public <T> T executeWithStateLock(String deviceId, Supplier<T> task) {
+    public <T> T executeWithStateLock(Long deviceId, Supplier<T> task) {
         return executeWithStateLock(deviceId, DEFAULT_LOCK_TIMEOUT_SECONDS, task);
     }
 
     // ==================== 刀具变更锁相关 ====================
+
     /**
      * 尝试获取设备刀具变更锁
      *
-     * @param deviceId 设备ID
+     * @param deviceId       设备ID
      * @param timeoutSeconds 锁超时时间（秒）
      * @return true 如果成功获取锁
      */
-    public boolean tryLockToolChange(String deviceId, long timeoutSeconds) {
+    public boolean tryLockToolChange(Long deviceId, long timeoutSeconds) {
         return tryLock(buildToolChangeLockKey(deviceId), timeoutSeconds);
     }
 
@@ -121,7 +123,7 @@ public class DeviceLockService {
      * @param deviceId 设备ID
      * @return true 如果成功获取锁
      */
-    public boolean tryLockToolChange(String deviceId) {
+    public boolean tryLockToolChange(Long deviceId) {
         return tryLockToolChange(deviceId, DEFAULT_LOCK_TIMEOUT_SECONDS);
     }
 
@@ -130,21 +132,21 @@ public class DeviceLockService {
      *
      * @param deviceId 设备ID
      */
-    public void unlockToolChange(String deviceId) {
+    public void unlockToolChange(Long deviceId) {
         unlock(buildToolChangeLockKey(deviceId));
     }
 
     /**
      * 带刀具变更锁执行任务
      *
-     * @param deviceId 设备ID
+     * @param deviceId       设备ID
      * @param timeoutSeconds 锁超时时间（秒）
-     * @param task 要执行的任务
-     * @param <T> 返回值类型
+     * @param task           要执行的任务
+     * @param <T>            返回值类型
      * @return 任务执行结果
      * @throws RuntimeException 如果获取锁失败或任务执行异常
      */
-    public <T> T executeWithToolChangeLock(String deviceId, long timeoutSeconds, Supplier<T> task) {
+    public <T> T executeWithToolChangeLock(Long deviceId, long timeoutSeconds, Supplier<T> task) {
         return executeWithLock(buildToolChangeLockKey(deviceId), timeoutSeconds, task);
     }
 
@@ -152,24 +154,25 @@ public class DeviceLockService {
      * 带刀具变更锁执行任务（使用默认超时时间）
      *
      * @param deviceId 设备ID
-     * @param task 要执行的任务
-     * @param <T> 返回值类型
+     * @param task     要执行的任务
+     * @param <T>      返回值类型
      * @return 任务执行结果
      * @throws RuntimeException 如果获取锁失败或任务执行异常
      */
-    public <T> T executeWithToolChangeLock(String deviceId, Supplier<T> task) {
+    public <T> T executeWithToolChangeLock(Long deviceId, Supplier<T> task) {
         return executeWithToolChangeLock(deviceId, DEFAULT_LOCK_TIMEOUT_SECONDS, task);
     }
 
     // ==================== 加工状态锁相关 ====================
+
     /**
      * 尝试获取设备加工状态锁
      *
-     * @param deviceId 设备ID
+     * @param deviceId       设备ID
      * @param timeoutSeconds 锁超时时间（秒）
      * @return true 如果成功获取锁
      */
-    public boolean tryLockProduction(String deviceId, long timeoutSeconds) {
+    public boolean tryLockProduction(Long deviceId, long timeoutSeconds) {
         return tryLock(buildProductionLockKey(deviceId), timeoutSeconds);
     }
 
@@ -179,7 +182,7 @@ public class DeviceLockService {
      * @param deviceId 设备ID
      * @return true 如果成功获取锁
      */
-    public boolean tryLockProduction(String deviceId) {
+    public boolean tryLockProduction(Long deviceId) {
         return tryLockProduction(deviceId, DEFAULT_LOCK_TIMEOUT_SECONDS);
     }
 
@@ -188,16 +191,17 @@ public class DeviceLockService {
      *
      * @param deviceId 设备ID
      */
-    public void unlockProduction(String deviceId) {
+    public void unlockProduction(Long deviceId) {
         unlock(buildProductionLockKey(deviceId));
     }
 
     // ==================== 通用锁操作方法 ====================
+
     /**
      * 尝试获取锁
      * 使用 RedisClient.tryLock() 方法，直接使用原生 Redis 连接，不受 Spring 事务管理影响
      *
-     * @param lockKey 锁键
+     * @param lockKey        锁键
      * @param timeoutSeconds 超时时间（秒）
      * @return true 如果成功获取锁
      */
@@ -245,10 +249,10 @@ public class DeviceLockService {
     /**
      * 带锁执行任务（自动释放锁）
      *
-     * @param lockKey 锁键
+     * @param lockKey        锁键
      * @param timeoutSeconds 超时时间（秒）
-     * @param task 要执行的任务
-     * @param <T> 返回值类型
+     * @param task           要执行的任务
+     * @param <T>            返回值类型
      * @return 任务执行结果
      * @throws RuntimeException 如果获取锁失败或任务执行异常
      */
@@ -264,14 +268,15 @@ public class DeviceLockService {
     }
 
     // ==================== 锁键构建方法 ====================
+
     /**
      * 构建设备状态锁键
      *
      * @param deviceId 设备ID
      * @return 锁键
      */
-    private String buildStateLockKey(String deviceId) {
-        if (StringUtils.isBlank(deviceId)) {
+    private String buildStateLockKey(Long deviceId) {
+        if (deviceId == null) {
             throw new IllegalArgumentException("DeviceId cannot be blank for lock key");
         }
         return LOCK_KEY_PREFIX_STATE + deviceId;
@@ -283,8 +288,8 @@ public class DeviceLockService {
      * @param deviceId 设备ID
      * @return 锁键
      */
-    private String buildToolChangeLockKey(String deviceId) {
-        if (StringUtils.isBlank(deviceId)) {
+    private String buildToolChangeLockKey(Long deviceId) {
+        if (deviceId == null) {
             throw new IllegalArgumentException("DeviceId cannot be blank for lock key");
         }
         return LOCK_KEY_PREFIX_TOOL_CHANGE + deviceId;
@@ -296,8 +301,8 @@ public class DeviceLockService {
      * @param deviceId 设备ID
      * @return 锁键
      */
-    private String buildProductionLockKey(String deviceId) {
-        if (StringUtils.isBlank(deviceId)) {
+    private String buildProductionLockKey(Long deviceId) {
+        if (deviceId == null) {
             throw new IllegalArgumentException("DeviceId cannot be blank for lock key");
         }
         return LOCK_KEY_PREFIX_PRODUCTION + deviceId;

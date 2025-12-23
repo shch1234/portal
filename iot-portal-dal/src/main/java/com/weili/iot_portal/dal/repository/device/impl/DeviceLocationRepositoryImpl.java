@@ -19,14 +19,14 @@ public class DeviceLocationRepositoryImpl implements DeviceLocationRepository {
     private final DeviceLocationMapper mapper;
 
     @Override
-    public Optional<DeviceLocationDO> findByDeviceId(String deviceId) {
+    public Optional<DeviceLocationDO> findByDeviceId(Long deviceId) {
         return Optional.ofNullable(mapper.selectOne(new LambdaQueryWrapper<DeviceLocationDO>()
                 .eq(DeviceLocationDO::getDeviceInfoId, deviceId)
                 .eq(DeviceLocationDO::getActive, Boolean.TRUE)));
     }
 
     @Override
-    public List<DeviceLocationDO> findByDeviceIds(List<String> deviceIds) {
+    public List<DeviceLocationDO> findByDeviceIds(List<Long> deviceIds) {
         if (deviceIds == null || deviceIds.isEmpty()) {
             return Collections.emptyList();
         }
@@ -46,7 +46,7 @@ public class DeviceLocationRepositoryImpl implements DeviceLocationRepository {
     }
 
     @Override
-    public List<String> findDeviceIdsByLocationCode(String locationCode) {
+    public List<Long> findDeviceIdsByLocationCode(String locationCode) {
         if (locationCode == null) {
             return Collections.emptyList();
         }

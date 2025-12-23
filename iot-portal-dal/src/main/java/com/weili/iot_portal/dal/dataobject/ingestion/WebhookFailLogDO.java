@@ -25,7 +25,7 @@ public class WebhookFailLogDO {
     private static final long serialVersionUID = 2113456789012345679L;
 
     @TableId(type = IdType.ASSIGN_ID)
-    private String id;
+    private Long id;
 
     /**
      * 消息唯一ID（对应 message_id 列）

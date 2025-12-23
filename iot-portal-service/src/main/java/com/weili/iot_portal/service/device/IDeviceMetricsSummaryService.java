@@ -1,5 +1,9 @@
 package com.weili.iot_portal.service.device;
 
+import com.weili.iot_portal.dal.dataobject.device.DeviceInfoDO;
+
+import java.util.List;
+
 /**
  * 设备班次指标汇总服务
  * 依赖已完成的 device_state_summary，计算班次级指标并写入 device_metrics_summary
@@ -70,8 +74,8 @@ public interface IDeviceMetricsSummaryService {
      * @return 处理结果
      */
     BatchProcessResult processFactoryDevicesWithCheckpoint(
-            String factoryId,
-            java.util.List<com.weili.iot_portal.dal.dataobject.device.DeviceInfoDO> devices,
+            Long factoryId,
+            List<DeviceInfoDO> devices,
             long statPointSeconds,
             int batchSize,
             long timeoutMillis);

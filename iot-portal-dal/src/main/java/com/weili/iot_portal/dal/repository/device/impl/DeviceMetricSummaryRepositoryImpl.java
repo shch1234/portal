@@ -7,7 +7,6 @@ import com.weili.iot_portal.dal.dataobject.device.DeviceMetricSummaryDO;
 import com.weili.iot_portal.dal.mapper.device.DeviceMetricSummaryMapper;
 import com.weili.iot_portal.dal.repository.device.DeviceMetricSummaryRepository;
 import lombok.RequiredArgsConstructor;
-import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
@@ -23,7 +22,7 @@ public class DeviceMetricSummaryRepositoryImpl implements DeviceMetricSummaryRep
     private final DeviceMetricSummaryMapper mapper;
 
     @Override
-    public Optional<DeviceMetricSummaryDO> selectLatestFinalized(String deviceId) {
+    public Optional<DeviceMetricSummaryDO> selectLatestFinalized(Long deviceId) {
         LambdaQueryWrapper<DeviceMetricSummaryDO> wrapper = baseQuery(deviceId)
                 .eq(DeviceMetricSummaryDO::getIsFinalized, Boolean.TRUE)
                 .orderByDesc(DeviceMetricSummaryDO::getShiftStartTs)
@@ -32,8 +31,8 @@ public class DeviceMetricSummaryRepositoryImpl implements DeviceMetricSummaryRep
     }
 
     @Override
-    public PageResult<DeviceMetricSummaryDO> selectPage(String deviceId,
-                                                       Long startTs, Long endTs, int pageNo, int pageSize) {
+    public PageResult<DeviceMetricSummaryDO> selectPage(Long deviceId,
+                                                        Long startTs, Long endTs, int pageNo, int pageSize) {
         LambdaQueryWrapper<DeviceMetricSummaryDO> wrapper = baseQuery(deviceId);
         if (startTs != null) {
             wrapper.ge(DeviceMetricSummaryDO::getShiftStartTs, startTs);
@@ -49,7 +48,7 @@ public class DeviceMetricSummaryRepositoryImpl implements DeviceMetricSummaryRep
     }
 
     @Override
-    public DeviceMetricSummaryDO findByShift(String deviceId, LocalDate shiftDate, Integer shiftCode) {
+    public DeviceMetricSummaryDO findByShift(Long deviceId, LocalDate shiftDate, Integer shiftCode) {
         LambdaQueryWrapper<DeviceMetricSummaryDO> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(DeviceMetricSummaryDO::getDeviceInfoId, deviceId)
                 .eq(DeviceMetricSummaryDO::getShiftDate, shiftDate)
@@ -59,7 +58,7 @@ public class DeviceMetricSummaryRepositoryImpl implements DeviceMetricSummaryRep
     }
 
     @Override
-    public java.util.List<DeviceMetricSummaryDO> selectFinalizedUpTo(String deviceId, Long endTs) {
+    public java.util.List<DeviceMetricSummaryDO> selectFinalizedUpTo(Long deviceId, Long endTs) {
         LambdaQueryWrapper<DeviceMetricSummaryDO> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(DeviceMetricSummaryDO::getDeviceInfoId, deviceId)
                 .eq(DeviceMetricSummaryDO::getIsFinalized, Boolean.TRUE);
@@ -83,9 +82,9 @@ public class DeviceMetricSummaryRepositoryImpl implements DeviceMetricSummaryRep
     /**
      * 构建基础查询条件（对应 device_metrics_summary 表的字段）
      */
-    private LambdaQueryWrapper<DeviceMetricSummaryDO> baseQuery(String deviceId) {
+    private LambdaQueryWrapper<DeviceMetricSummaryDO> baseQuery(Long deviceId) {
         LambdaQueryWrapper<DeviceMetricSummaryDO> wrapper = new LambdaQueryWrapper<>();
-        if (StringUtils.isNotBlank(deviceId)) {
+        if (deviceId != null) {
             wrapper.eq(DeviceMetricSummaryDO::getDeviceInfoId, deviceId);
         }
         return wrapper;

@@ -32,8 +32,8 @@ public class DeviceModelController {
     @PostMapping("/create")
     @Operation(summary = "创建设备型号")
     @PermRequired(permission = "device-mgmt:device-model:create")
-    public CommonResult<String> createDeviceModel(@Valid @RequestBody DeviceModelSaveReqVO createReqVO) {
-        String deviceModelId = deviceModelBizService.createDeviceModel(createReqVO);
+    public CommonResult<Long> createDeviceModel(@Valid @RequestBody DeviceModelSaveReqVO createReqVO) {
+        Long deviceModelId = deviceModelBizService.createDeviceModel(createReqVO);
         return CommonResult.success(deviceModelId);
     }
 
@@ -49,7 +49,7 @@ public class DeviceModelController {
     @Operation(summary = "删除设备型号")
     @Parameter(name = "id", description = "设备型号ID", required = true, example = "123456789")
     @PermRequired(permission = "device-mgmt:device-model:delete")
-    public CommonResult<Boolean> deleteDeviceModel(@RequestParam("id") String id) {
+    public CommonResult<Boolean> deleteDeviceModel(@RequestParam("id") Long id) {
         deviceModelBizService.deleteDeviceModel(id);
         return CommonResult.success(true);
     }
@@ -57,7 +57,7 @@ public class DeviceModelController {
     @GetMapping("/get")
     @Operation(summary = "获取设备型号详情")
     @Parameter(name = "id", description = "设备型号ID", required = true, example = "123456789")
-    public CommonResult<DeviceModelRespVO> getDeviceModel(@RequestParam("id") String id) {
+    public CommonResult<DeviceModelRespVO> getDeviceModel(@RequestParam("id") Long id) {
         DeviceModelDO deviceModel = deviceModelBizService.getDeviceModel(id);
         return CommonResult.success(BeanUtils.toBean(deviceModel, DeviceModelRespVO.class));
     }

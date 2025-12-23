@@ -10,9 +10,9 @@ import java.util.Optional;
  */
 public interface DeviceStateRecordRepository {
 
-    List<DeviceStateRecordDO> selectByRange(String deviceId, Long startTs, Long endTs);
+    List<DeviceStateRecordDO> selectByRange(Long deviceId, Long startTs, Long endTs);
 
-    List<DeviceStateRecordDO> selectRecent(String deviceId, Long startTs, int limit);
+    List<DeviceStateRecordDO> selectRecent(Long deviceId, Long startTs, int limit);
 
     /**
      * 查询设备最新的状态记录（进行中或最近结束的）
@@ -21,7 +21,7 @@ public interface DeviceStateRecordRepository {
      * @param deviceId   设备ID
      * @return 最新的状态记录，如果不存在返回 Optional.empty()
      */
-    Optional<DeviceStateRecordDO> findLatestState(String deviceId);
+    Optional<DeviceStateRecordDO> findLatestState(Long deviceId);
 
     void insert(DeviceStateRecordDO record);
 

@@ -43,6 +43,6 @@ public class WebhookHandlerUtils {
      * @param deviceInfoId 设备信息ID
      * @param orgFactoryId 工厂ID
      */
-    public record DeviceIdentity(String deviceInfoId, String orgFactoryId) {}
+    public record DeviceIdentity(Long deviceInfoId, Long orgFactoryId) {}
 }
 

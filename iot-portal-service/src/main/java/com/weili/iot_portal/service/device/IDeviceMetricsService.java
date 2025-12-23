@@ -22,7 +22,7 @@ public interface IDeviceMetricsService {
      * @return 处理结果
      */
     BatchProcessResult processFactoryDevicesWithCheckpoint(
-            String factoryId,
+            Long factoryId,
             List<DeviceInfoDO> devices,
             long calculationTimeSeconds,
             int batchSize,
@@ -57,7 +57,7 @@ public interface IDeviceMetricsService {
      * @param deviceId  设备ID
      * @return 指标快照，可为空（缓存不存在）
      */
-    java.util.Optional<RealtimeMetricSnapshot> getDeviceRealtimeMetrics(String factoryId, String deviceId);
+    java.util.Optional<RealtimeMetricSnapshot> getDeviceRealtimeMetrics(Long factoryId, Long deviceId);
 
     /**
      * 批量处理结果

@@ -9,12 +9,12 @@ public interface DeviceToolCompensationRepository {
     /**
      * 查询当前有效的刀补记录
      */
-    DeviceToolCompensationDO findActive(String deviceId, String toolHolderNo);
+    DeviceToolCompensationDO findActive(Long deviceId, String toolHolderNo);
 
     /**
      * 查询设备的所有有效刀补记录（可按工厂过滤）
      */
-    List<DeviceToolCompensationDO> findActiveByDevice(String factoryId, String deviceId);
+    List<DeviceToolCompensationDO> findActiveByDevice(Long factoryId, String deviceId);
 
     void insert(DeviceToolCompensationDO record);
 

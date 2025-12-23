@@ -42,7 +42,7 @@ public class ShiftCalculationService implements IShiftCalculationService {
      * @return 班次信息
      */
     @Override
-    public ShiftInfo getCurrentShift(String factoryId, String deviceId, long timestamp) {
+    public ShiftInfo getCurrentShift(Long factoryId, Long deviceId, long timestamp) {
         DeviceShiftConfigDO config = shiftConfigService.getCurrentConfiguration(factoryId, deviceId, timestamp);
         return findShiftByTime(config, timestamp);
     }
@@ -56,7 +56,7 @@ public class ShiftCalculationService implements IShiftCalculationService {
      * @return 班次时间范围
      */
     @Override
-    public ShiftTimeRange calculateShiftRange(String factoryId, String deviceId, long timestamp) {
+    public ShiftTimeRange calculateShiftRange(Long factoryId, Long deviceId, long timestamp) {
         DeviceShiftConfigDO config = shiftConfigService.getCurrentConfiguration(factoryId, deviceId, timestamp);
         ShiftInfo shift = findShiftByTime(config, timestamp);
 
@@ -118,7 +118,7 @@ public class ShiftCalculationService implements IShiftCalculationService {
      * @return 班次日期和编码
      */
     @Override
-    public ShiftDateAndCode getShiftDateAndCode(String factoryId, String deviceId, long timestamp) {
+    public ShiftDateAndCode getShiftDateAndCode(Long factoryId, Long deviceId, long timestamp) {
         ShiftTimeRange range = calculateShiftRange(factoryId, deviceId, timestamp);
         LocalDate shiftDate = Instant.ofEpochMilli(range.getStartTs())
                 .atZone(ZoneId.systemDefault())
@@ -148,7 +148,7 @@ public class ShiftCalculationService implements IShiftCalculationService {
      * @return true表示跨班，false表示不跨班
      */
     @Override
-    public boolean checkIfCrossesShift(String factoryId, String deviceId, Long startTs, Long endTs) {
+    public boolean checkIfCrossesShift(Long factoryId, Long deviceId, Long startTs, Long endTs) {
         if (startTs == null || endTs == null) {
             return false;
         }
@@ -242,8 +242,8 @@ public class ShiftCalculationService implements IShiftCalculationService {
      */
     @Override
     public ShiftTimeRange calculatePreviousShiftRange(
-            String factoryId,
-            String deviceId,
+            Long factoryId,
+            Long deviceId,
             long statisticsTimeSeconds) {
         try {
             // 获取当前时间点的班次
@@ -274,8 +274,8 @@ public class ShiftCalculationService implements IShiftCalculationService {
      */
     @Override
     public ShiftTimeRange calculateShiftRangeByEndTime(
-            String factoryId,
-            String deviceId,
+            Long factoryId,
+            Long deviceId,
             long endTsMillis) {
         try {
             // 获取该时间点的班次配置

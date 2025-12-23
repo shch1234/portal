@@ -42,8 +42,8 @@ public class DeviceInfoController {
     @PostMapping("/create")
     @Operation(summary = "创建设备信息")
     @PermRequired(permission = "device-mgmt:device-info:create")
-    public CommonResult<String> createDeviceInfo(@Valid @RequestBody DeviceInfoSaveReqVO createReqVO) {
-        String deviceInfoId = deviceInfoBizService.createDeviceInfo(createReqVO);
+    public CommonResult<Long> createDeviceInfo(@Valid @RequestBody DeviceInfoSaveReqVO createReqVO) {
+        Long deviceInfoId = deviceInfoBizService.createDeviceInfo(createReqVO);
         return CommonResult.success(deviceInfoId);
     }
 
@@ -59,7 +59,7 @@ public class DeviceInfoController {
     @Operation(summary = "删除设备信息")
     @Parameter(name = "id", description = "设备信息ID", required = true, example = "123456789")
     @PermRequired(permission = "device-mgmt:device-info:delete")
-    public CommonResult<Boolean> deleteDeviceInfo(@RequestParam("id") String id) {
+    public CommonResult<Boolean> deleteDeviceInfo(@RequestParam("id") Long id) {
         deviceInfoBizService.deleteDeviceInfo(id);
         return CommonResult.success(true);
     }
@@ -67,7 +67,7 @@ public class DeviceInfoController {
     @GetMapping("/get")
     @Operation(summary = "获取设备信息详情（包含位置和网络配置）")
     @Parameter(name = "id", description = "设备信息ID", required = true, example = "123456789")
-    public CommonResult<DeviceInfoRespVO> getDeviceInfo(@RequestParam("id") String id) {
+    public CommonResult<DeviceInfoRespVO> getDeviceInfo(@RequestParam("id") Long id) {
         DeviceInfoRespVO deviceInfo = deviceInfoBizService.getDeviceInfoWithDetails(id);
         return CommonResult.success(deviceInfo);
     }

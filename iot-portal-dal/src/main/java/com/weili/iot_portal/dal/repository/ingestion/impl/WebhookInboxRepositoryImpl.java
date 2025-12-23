@@ -170,7 +170,7 @@ public class WebhookInboxRepositoryImpl implements WebhookInboxRepository {
     }
 
     @Override
-    public int deleteBatchByIds(List<String> ids) {
+    public int deleteBatchByIds(List<Long> ids) {
         return inboxMapper.deleteByIds(ids);
     }
 

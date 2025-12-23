@@ -16,7 +16,7 @@ public interface IDeviceNetworkConfigBizService {
      * @param createReqVO 设备网络配置创建请求
      * @return 设备网络配置ID
      */
-    String createDeviceNetworkConfig(DeviceNetworkConfigSaveReqVO createReqVO);
+    Long createDeviceNetworkConfig(DeviceNetworkConfigSaveReqVO createReqVO);
 
     /**
      * 更新设备网络配置
@@ -30,7 +30,7 @@ public interface IDeviceNetworkConfigBizService {
      *
      * @param id 设备网络配置ID
      */
-    void deleteDeviceNetworkConfig(String id);
+    void deleteDeviceNetworkConfig(Long id);
 
     /**
      * 根据ID获取设备网络配置
@@ -38,7 +38,7 @@ public interface IDeviceNetworkConfigBizService {
      * @param id 设备网络配置ID
      * @return 设备网络配置
      */
-    DeviceNetworkConfigDO getDeviceNetworkConfig(String id);
+    DeviceNetworkConfigDO getDeviceNetworkConfig(Long id);
 
     /**
      * 根据设备信息ID获取设备网络配置
@@ -46,7 +46,7 @@ public interface IDeviceNetworkConfigBizService {
      * @param deviceInfoId 设备信息ID
      * @return 设备网络配置
      */
-    DeviceNetworkConfigDO getDeviceNetworkConfigByDeviceId(String deviceInfoId);
+    DeviceNetworkConfigDO getDeviceNetworkConfigByDeviceId(Long deviceInfoId);
 
     /**
      * 分页查询设备网络配置

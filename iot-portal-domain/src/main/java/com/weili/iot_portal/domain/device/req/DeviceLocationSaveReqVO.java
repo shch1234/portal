@@ -16,14 +16,14 @@ import java.util.Map;
 public class DeviceLocationSaveReqVO {
 
     @Schema(description = "设备位置ID", example = "123456789")
-    private String id;
+    private Long id;
 
     @Schema(description = "设备信息ID", requiredMode = Schema.RequiredMode.REQUIRED, example = "123456789")
     @NotBlank(message = "设备信息ID不能为空")
-    private String deviceInfoId;
+    private Long deviceInfoId;
 
     @Schema(description = "所属厂区ID", example = "123456789")
-    private String orgFactoryId;
+    private Long orgFactoryId;
 
     @Schema(description = "位置编码（物理位置编码）", example = "A区-1层-01号位")
     @Size(max = 100, message = "位置编码长度不能超过100个字符")

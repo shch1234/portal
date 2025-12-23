@@ -379,7 +379,7 @@ public class WebhookInboxService {
             }
             
             // 批量删除
-            List<String> ids = toDelete.stream()
+            List<Long> ids = toDelete.stream()
                 .map(WebhookInboxDO::getId)
                 .collect(Collectors.toList());
             

@@ -1,6 +1,5 @@
 package com.weili.iot_portal.service.device.impl;
 
-import cn.hutool.core.util.StrUtil;
 import com.weili.basic.common.util.BeanUtils;
 import com.weili.iot_portal.common.exception.IotPortalErrorCode;
 import com.weili.iot_portal.common.exception.IotPortalException;
@@ -31,7 +30,7 @@ public class DeviceLocationBizService implements IDeviceLocationBizService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public String createDeviceLocation(DeviceLocationSaveReqVO createReqVO) {
+    public Long createDeviceLocation(DeviceLocationSaveReqVO createReqVO) {
         // 验证设备信息存在
         validateDeviceInfoExists(createReqVO.getDeviceInfoId());
 
@@ -61,8 +60,8 @@ public class DeviceLocationBizService implements IDeviceLocationBizService {
     }
 
     @Override
-    public DeviceLocationDO getDeviceLocationByDeviceId(String deviceInfoId) {
-        if (StrUtil.isBlank(deviceInfoId)) {
+    public DeviceLocationDO getDeviceLocationByDeviceId(Long deviceInfoId) {
+        if (deviceInfoId==null) {
             throw new IotPortalException(IotPortalErrorCode.DEVICE_ID_EMPTY);
         }
         Optional<DeviceLocationDO> deviceLocation = deviceLocationRepository.findByDeviceId(deviceInfoId);
@@ -73,7 +72,7 @@ public class DeviceLocationBizService implements IDeviceLocationBizService {
     }
 
     @Override
-    public List<DeviceLocationDO> getDeviceLocationsByDeviceIds(List<String> deviceInfoIds) {
+    public List<DeviceLocationDO> getDeviceLocationsByDeviceIds(List<Long> deviceInfoIds) {
         if (deviceInfoIds == null || deviceInfoIds.isEmpty()) {
             return List.of();
         }
@@ -83,8 +82,8 @@ public class DeviceLocationBizService implements IDeviceLocationBizService {
     /**
      * 验证设备信息存在
      */
-    private void validateDeviceInfoExists(String deviceInfoId) {
-        if (StrUtil.isBlank(deviceInfoId)) {
+    private void validateDeviceInfoExists(Long deviceInfoId) {
+        if (deviceInfoId==null) {
             throw new IotPortalException(IotPortalErrorCode.DEVICE_ID_EMPTY);
         }
         Optional<DeviceInfoDO> deviceInfo = deviceInfoRepository.findById(deviceInfoId);

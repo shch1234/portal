@@ -5,7 +5,6 @@ import com.weili.iot_portal.dal.dataobject.device.DeviceStateRecordDO;
 import com.weili.iot_portal.dal.mapper.device.DeviceStateRecordMapper;
 import com.weili.iot_portal.dal.repository.device.DeviceStateRecordRepository;
 import lombok.RequiredArgsConstructor;
-import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -22,7 +21,7 @@ public class DeviceStateRecordRepositoryImpl implements DeviceStateRecordReposit
     private final DeviceStateRecordMapper deviceStateRecordMapper;
 
     @Override
-    public List<DeviceStateRecordDO> selectByRange(String deviceId, Long startTs, Long endTs) {
+    public List<DeviceStateRecordDO> selectByRange(Long deviceId, Long startTs, Long endTs) {
         LambdaQueryWrapper<DeviceStateRecordDO> wrapper = baseQuery(deviceId);
         if (!Objects.isNull(startTs)) {
             wrapper.ge(DeviceStateRecordDO::getStartTs, startTs);
@@ -35,7 +34,7 @@ public class DeviceStateRecordRepositoryImpl implements DeviceStateRecordReposit
     }
 
     @Override
-    public List<DeviceStateRecordDO> selectRecent(String deviceId, Long startTs, int limit) {
+    public List<DeviceStateRecordDO> selectRecent(Long deviceId, Long startTs, int limit) {
         LambdaQueryWrapper<DeviceStateRecordDO> wrapper = baseQuery(deviceId)
                 .ge(startTs != null, DeviceStateRecordDO::getStartTs, startTs)
                 .orderByDesc(DeviceStateRecordDO::getStartTs)
@@ -46,25 +45,25 @@ public class DeviceStateRecordRepositoryImpl implements DeviceStateRecordReposit
     }
 
     @Override
-    public Optional<DeviceStateRecordDO> findLatestState(String deviceId) {
+    public Optional<DeviceStateRecordDO> findLatestState(Long deviceId) {
         LambdaQueryWrapper<DeviceStateRecordDO> wrapper = baseQuery(deviceId);
-        
+
         // 优先查询进行中的状态（end_ts IS NULL）
         wrapper.isNull(DeviceStateRecordDO::getEndTs)
                 .orderByDesc(DeviceStateRecordDO::getStartTs)
                 .last("limit 1");
-        
+
         DeviceStateRecordDO record = deviceStateRecordMapper.selectOne(wrapper);
         if (record != null) {
             return Optional.of(record);
         }
-        
+
         // 如果没有进行中的状态，查询最近结束的状态
         wrapper.isNotNull(DeviceStateRecordDO::getEndTs)
                 .orderByDesc(DeviceStateRecordDO::getEndTs)
                 .orderByDesc(DeviceStateRecordDO::getStartTs)
                 .last("limit 1");
-        
+
         record = deviceStateRecordMapper.selectOne(wrapper);
         return Optional.ofNullable(record);
     }
@@ -82,9 +81,9 @@ public class DeviceStateRecordRepositoryImpl implements DeviceStateRecordReposit
     /**
      * 构建基础查询条件（对应 device_state_record 表的字段）
      */
-    private LambdaQueryWrapper<DeviceStateRecordDO> baseQuery(String deviceId) {
+    private LambdaQueryWrapper<DeviceStateRecordDO> baseQuery(Long deviceId) {
         LambdaQueryWrapper<DeviceStateRecordDO> wrapper = new LambdaQueryWrapper<>();
-        if (StringUtils.isNotBlank(deviceId)) {
+        if (deviceId != null) {
             wrapper.eq(DeviceStateRecordDO::getDeviceInfoId, deviceId);
         }
         return wrapper;

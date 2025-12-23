@@ -5,11 +5,9 @@ import com.weili.iot_portal.dal.dataobject.device.DeviceAlarmHistoryDO;
 import com.weili.iot_portal.dal.mapper.device.DeviceAlarmHistoryMapper;
 import com.weili.iot_portal.dal.repository.device.DeviceAlarmHistoryRepository;
 import lombok.RequiredArgsConstructor;
-import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
-import java.util.UUID;
 
 @Repository
 @RequiredArgsConstructor
@@ -18,19 +16,19 @@ public class DeviceAlarmHistoryRepositoryImpl implements DeviceAlarmHistoryRepos
     private final DeviceAlarmHistoryMapper mapper;
 
     @Override
-    public List<DeviceAlarmHistoryDO> findActiveByDevice(String factoryId, String deviceId) {
+    public List<DeviceAlarmHistoryDO> findActiveByDevice(Long factoryId, Long deviceId) {
         LambdaQueryWrapper<DeviceAlarmHistoryDO> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(DeviceAlarmHistoryDO::getDeviceInfoId, deviceId)
-                .eq(StringUtils.isNotBlank(factoryId), DeviceAlarmHistoryDO::getOrgFactoryId, factoryId)
+                .eq(factoryId != null, DeviceAlarmHistoryDO::getOrgFactoryId, factoryId)
                 .eq(DeviceAlarmHistoryDO::getIsActive, 1);
         return mapper.selectList(wrapper);
     }
 
     @Override
-    public List<DeviceAlarmHistoryDO> findByRange(String factoryId, String deviceId, Long startTs, Long endTs) {
+    public List<DeviceAlarmHistoryDO> findByRange(Long factoryId, Long deviceId, Long startTs, Long endTs) {
         LambdaQueryWrapper<DeviceAlarmHistoryDO> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(DeviceAlarmHistoryDO::getDeviceInfoId, deviceId)
-                .eq(StringUtils.isNotBlank(factoryId), DeviceAlarmHistoryDO::getOrgFactoryId, factoryId);
+                .eq(factoryId != null, DeviceAlarmHistoryDO::getOrgFactoryId, factoryId);
         if (startTs != null) {
             wrapper.ge(DeviceAlarmHistoryDO::getStartTs, startTs);
         }
@@ -46,15 +44,12 @@ public class DeviceAlarmHistoryRepositoryImpl implements DeviceAlarmHistoryRepos
         if (record == null) {
             return;
         }
-        if (StringUtils.isBlank(record.getId())) {
-            record.setId(UUID.randomUUID().toString());
-        }
         mapper.insert(record);
     }
 
     @Override
     public void updateById(DeviceAlarmHistoryDO record) {
-        if (record == null || StringUtils.isBlank(record.getId())) {
+        if (record == null || record.getId() == null) {
             return;
         }
         mapper.updateById(record);

@@ -8,9 +8,9 @@ import java.util.Optional;
 
 public interface DeviceNetworkConfigRepository {
 
-    Optional<DeviceNetworkConfigDO> findById(String id);
+    Optional<DeviceNetworkConfigDO> findById(Long id);
 
-    Optional<DeviceNetworkConfigDO> findByDeviceInfoId(String deviceInfoId);
+    Optional<DeviceNetworkConfigDO> findByDeviceInfoId(Long deviceInfoId);
 
     boolean existsByDeviceInfoId(String deviceInfoId, String excludeId);
 
@@ -20,6 +20,6 @@ public interface DeviceNetworkConfigRepository {
 
     void update(DeviceNetworkConfigDO entity);
 
-    boolean deleteById(String id);
+    boolean deleteById(Long id);
 }
 

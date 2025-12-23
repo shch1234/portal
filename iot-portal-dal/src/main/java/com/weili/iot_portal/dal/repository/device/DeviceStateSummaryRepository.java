@@ -10,7 +10,7 @@ import java.util.List;
  */
 public interface DeviceStateSummaryRepository {
 
-    List<DeviceStateSummaryDO> selectByRange(String deviceId, Long startTs, Long endTs);
+    List<DeviceStateSummaryDO> selectByRange(Long deviceId, Long startTs, Long endTs);
 
     /**
      * 查询指定日期范围内未完成汇总的记录
@@ -20,7 +20,7 @@ public interface DeviceStateSummaryRepository {
     /**
      * 根据设备与班次唯一键查询
      */
-    DeviceStateSummaryDO findByShift(String deviceId, LocalDate shiftDate, Integer shiftCode);
+    DeviceStateSummaryDO findByShift(Long deviceId, LocalDate shiftDate, Integer shiftCode);
 
     /**
      * 新增汇总

@@ -1,6 +1,5 @@
 package com.weili.iot_portal.service.device.impl;
 
-import com.baomidou.mybatisplus.core.toolkit.IdWorker;
 import com.weili.iot_portal.dal.dataobject.device.DeviceInfoDO;
 import com.weili.iot_portal.dal.dataobject.device.DeviceMetricSummaryDO;
 import com.weili.iot_portal.dal.dataobject.device.DeviceParamConfigDO;
@@ -9,7 +8,6 @@ import com.weili.iot_portal.dal.repository.device.*;
 import com.weili.iot_portal.service.device.ICheckpointService;
 import com.weili.iot_portal.service.device.IDeviceMetricsSummaryService;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -62,8 +60,8 @@ public class DeviceMetricsSummaryService implements IDeviceMetricsSummaryService
         int success = 0, skip = 0, error = 0;
 
         // 过滤并按工厂分组
-        Map<String, List<DeviceInfoDO>> devicesByFactory = devices.stream()
-                .filter(d -> StringUtils.isNotBlank(d.getOrgFactoryId()))
+        Map<Long, List<DeviceInfoDO>> devicesByFactory = devices.stream()
+                .filter(d -> d.getOrgFactoryId()!=null)
                 .collect(Collectors.groupingBy(DeviceInfoDO::getOrgFactoryId));
 
         long filtered = devicesByFactory.values().stream().mapToLong(List::size).sum();
@@ -72,8 +70,8 @@ public class DeviceMetricsSummaryService implements IDeviceMetricsSummaryService
             log.warn("指标汇总: 有 {} 个设备未关联工厂，已跳过", devices.size() - filtered);
         }
 
-        for (Map.Entry<String, List<DeviceInfoDO>> entry : devicesByFactory.entrySet()) {
-            String factoryId = entry.getKey();
+        for (Map.Entry<Long, List<DeviceInfoDO>> entry : devicesByFactory.entrySet()) {
+            Long factoryId = entry.getKey();
             List<DeviceInfoDO> factoryDevices = entry.getValue();
             try {
                 BatchProcessResult factoryResult = processFactoryDevicesWithCheckpoint(
@@ -91,13 +89,13 @@ public class DeviceMetricsSummaryService implements IDeviceMetricsSummaryService
     }
 
     @Override
-    public BatchProcessResult processFactoryDevicesWithCheckpoint(String factoryId,
+    public BatchProcessResult processFactoryDevicesWithCheckpoint(Long factoryId,
                                                                   List<DeviceInfoDO> devices,
                                                                   long statPointSeconds,
                                                                   int batchSize,
                                                                   long timeoutMillis) {
         // 加载检查点
-        Set<String> processedIds = checkpointService.getProcessedDeviceIds(factoryId, statPointSeconds);
+        Set<Long> processedIds = checkpointService.getProcessedDeviceIds(factoryId, statPointSeconds);
         List<DeviceInfoDO> remaining = devices.stream()
                 .filter(d -> !processedIds.contains(d.getId()))
                 .collect(Collectors.toList());
@@ -112,7 +110,7 @@ public class DeviceMetricsSummaryService implements IDeviceMetricsSummaryService
         }
 
         int success = 0, skip = 0, error = 0;
-        List<String> newProcessed = new ArrayList<>();
+        List<Long> newProcessed = new ArrayList<>();
         long start = System.currentTimeMillis();
 
         for (int i = 0; i < remaining.size(); i += batchSize) {
@@ -248,7 +246,6 @@ public class DeviceMetricsSummaryService implements IDeviceMetricsSummaryService
                 device.getId(), stateSummary.getSummaryDate(), stateSummary.getShiftCode());
         if (existing == null) {
             DeviceMetricSummaryDO record = new DeviceMetricSummaryDO();
-            record.setId(IdWorker.getIdStr());
             record.setDeviceInfoId(device.getId());
             record.setShiftDate(stateSummary.getSummaryDate());
             record.setShiftCode(stateSummary.getShiftCode());
@@ -282,7 +279,7 @@ public class DeviceMetricsSummaryService implements IDeviceMetricsSummaryService
         }
     }
 
-    private long getPlannedDowntimeSeconds(String deviceId) {
+    private long getPlannedDowntimeSeconds(Long deviceId) {
         List<DeviceParamConfigDO> params = deviceParamConfigRepository.selectCurrent(deviceId);
         return params.stream()
                 .filter(p -> PARAM_PLANNED_DOWNTIME.equalsIgnoreCase(p.getParameterType()))
@@ -292,7 +289,7 @@ public class DeviceMetricsSummaryService implements IDeviceMetricsSummaryService
                 .orElse(0L);
     }
 
-    private long getTheoreticalCycleSeconds(String deviceId) {
+    private long getTheoreticalCycleSeconds(Long deviceId) {
         List<DeviceParamConfigDO> params = deviceParamConfigRepository.selectCurrent(deviceId);
         return params.stream()
                 .filter(p -> PARAM_THEORETICAL_CYCLE.equalsIgnoreCase(p.getParameterType()))

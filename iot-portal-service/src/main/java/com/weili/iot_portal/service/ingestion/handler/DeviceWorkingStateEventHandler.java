@@ -1,6 +1,5 @@
 package com.weili.iot_portal.service.ingestion.handler;
 
-import com.baomidou.mybatisplus.core.toolkit.IdWorker;
 import com.weili.iot_portal.common.exception.IotPortalErrorCode;
 import com.weili.iot_portal.common.exception.IotPortalException;
 import com.weili.iot_portal.common.utils.WebhookTimestampUtils;
@@ -173,7 +172,7 @@ public class DeviceWorkingStateEventHandler implements WebhookEventHandler {
      * 使用分布式锁处理加工状态变化
      */
     private void processWorkingStateChangeWithLock(EventData eventData, DeviceIdentity identity, WebhookRequest request) {
-        String deviceInfoId = identity.deviceInfoId();
+        Long deviceInfoId = identity.deviceInfoId();
         
         // 获取分布式锁
         if (!deviceLockService.tryLockProduction(deviceInfoId, DeviceWorkingStateEventFields.LOCK_TIMEOUT_SECONDS)) {
@@ -200,8 +199,8 @@ public class DeviceWorkingStateEventHandler implements WebhookEventHandler {
                                                 EventData eventData,
                                                 DeviceIdentity identity,
                                                 WebhookRequest request) {
-        String deviceInfoId = identity.deviceInfoId();
-        String orgFactoryId = identity.orgFactoryId();
+        Long deviceInfoId = identity.deviceInfoId();
+        Long orgFactoryId = identity.orgFactoryId();
         
         Integer previousStatus = eventData.previousStatus();
         Integer currentStatus = eventData.currentStatus();
@@ -302,7 +301,7 @@ public class DeviceWorkingStateEventHandler implements WebhookEventHandler {
     /**
      * 从0到1：开始加工新产品
      */
-    private void handleStartNewProduction(String deviceInfoId, String orgFactoryId, EventData eventData) {
+    private void handleStartNewProduction(Long deviceInfoId, Long orgFactoryId, EventData eventData) {
         log.info("[DeviceWorkingStateEventHandler] 开始加工新产品: deviceInfoId={}, timestamp={}",
                 deviceInfoId, eventData.eventTimestamp());
         
@@ -334,11 +333,11 @@ public class DeviceWorkingStateEventHandler implements WebhookEventHandler {
      * 从1到0：完成当前产品加工
      */
     private void handleEndCurrentProduction(DeviceProductionRecordDO ongoing,
-                                           String orgFactoryId,
+                                            Long orgFactoryId,
                                            EventData eventData,
                                            DeviceIdentity identity,
                                            WebhookRequest request) {
-        String deviceInfoId = identity.deviceInfoId();
+        Long deviceInfoId = identity.deviceInfoId();
         
         // 检查时间戳异常
         if (ongoing.getStartTs() != null && eventData.eventTimestamp() < ongoing.getStartTs()) {
@@ -364,7 +363,7 @@ public class DeviceWorkingStateEventHandler implements WebhookEventHandler {
     /**
      * 首次连接处理
      */
-    private void handleFirstConnection(String deviceInfoId, String orgFactoryId,
+    private void handleFirstConnection(Long deviceInfoId, Long orgFactoryId,
                                        EventData eventData,
                                        DeviceIdentity identity,
                                        WebhookRequest request) {
@@ -415,8 +414,8 @@ public class DeviceWorkingStateEventHandler implements WebhookEventHandler {
                                      EventData eventData,
                                      DeviceIdentity identity,
                                      WebhookRequest request) {
-        String deviceInfoId = identity.deviceInfoId();
-        String orgFactoryId = identity.orgFactoryId();
+        Long deviceInfoId = identity.deviceInfoId();
+        Long orgFactoryId = identity.orgFactoryId();
         Integer previousStatus = eventData.previousStatus();
         Integer currentStatus = eventData.currentStatus();
         
@@ -488,8 +487,8 @@ public class DeviceWorkingStateEventHandler implements WebhookEventHandler {
                                          EventData eventData,
                                          DeviceIdentity identity,
                                          WebhookRequest request) {
-        String deviceInfoId = identity.deviceInfoId();
-        String orgFactoryId = identity.orgFactoryId();
+        Long deviceInfoId = identity.deviceInfoId();
+        Long orgFactoryId = identity.orgFactoryId();
         
         long gapMs = ongoing.getStartTs() - eventData.eventTimestamp();
         long gapSeconds = gapMs / 1000;
@@ -524,10 +523,9 @@ public class DeviceWorkingStateEventHandler implements WebhookEventHandler {
     /**
      * 创建加工记录
      */
-    private DeviceProductionRecordDO createProductionRecord(String deviceInfoId, String orgFactoryId,
+    private DeviceProductionRecordDO createProductionRecord(Long deviceInfoId, Long orgFactoryId,
                                                              Long startTs, Long endTs) {
         DeviceProductionRecordDO record = new DeviceProductionRecordDO();
-        record.setId(IdWorker.getIdStr());
         record.setDeviceInfoId(deviceInfoId);
         record.setOrgFactoryId(orgFactoryId);
         record.setStartTs(startTs);
@@ -555,7 +553,7 @@ public class DeviceWorkingStateEventHandler implements WebhookEventHandler {
     /**
      * 如果班次信息缺失，根据开始时间补充
      */
-    private void fillShiftInfoIfMissing(DeviceProductionRecordDO record, String factoryId) {
+    private void fillShiftInfoIfMissing(DeviceProductionRecordDO record, Long factoryId) {
         if (record.getStartTs() != null
                 && (record.getShiftDate() == null || record.getShiftCode() == null)) {
             try {

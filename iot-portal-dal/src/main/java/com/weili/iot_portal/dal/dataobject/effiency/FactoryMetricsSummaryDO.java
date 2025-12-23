@@ -27,12 +27,12 @@ public class FactoryMetricsSummaryDO extends BaseSimpleDO {
     private static final long serialVersionUID = 1L;
 
     @TableId(type = IdType.ASSIGN_ID)
-    private String id;
+    private Long id;
 
     /**
      * 工厂ID（关联 device_org_relation.id，unit_type=FACTORY，对应 org_factory_id 列）
      */
-    private String orgFactoryId;
+    private Long orgFactoryId;
 
     /**
      * 班次日期（对应 shift_date 列）

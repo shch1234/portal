@@ -46,7 +46,7 @@ public class DeviceProgramCacheService {
      * @param source 数据来源
      * @param traceId 追踪ID（可选）
      */
-    public void saveProgram(String factoryId, String deviceId, Map<String, String> programData,
+    public void saveProgram(Long factoryId, Long deviceId, Map<String, String> programData,
                             long updatedAt, String source, String traceId) {
         if (programData == null || programData.isEmpty()) {
             return;
@@ -69,7 +69,7 @@ public class DeviceProgramCacheService {
      * @param deviceId 设备ID
      * @return 程序数据映射，如果不存在返回 null
      */
-    public Map<Object, Object> getProgram(String factoryId, String deviceId) {
+    public Map<Object, Object> getProgram(Long factoryId, Long deviceId) {
         String key = buildProgramKey(factoryId, deviceId);
         return redisTemplate.opsForHash().entries(key);
     }
@@ -81,7 +81,7 @@ public class DeviceProgramCacheService {
      * @param deviceId 设备ID
      * @return 程序名称，如果不存在返回 null
      */
-    public String getProgramName(String factoryId, String deviceId) {
+    public String getProgramName(Long factoryId, Long deviceId) {
         String key = buildProgramKey(factoryId, deviceId);
         Object value = redisTemplate.opsForHash().get(key, "programName");
         return value != null ? value.toString() : null;
@@ -93,7 +93,7 @@ public class DeviceProgramCacheService {
      * @param factoryId 工厂ID
      * @param deviceId 设备ID
      */
-    public void deleteProgram(String factoryId, String deviceId) {
+    public void deleteProgram(Long factoryId, Long deviceId) {
         String key = buildProgramKey(factoryId, deviceId);
         redisTemplate.delete(key);
     }
@@ -106,9 +106,9 @@ public class DeviceProgramCacheService {
      * @param deviceId 设备ID
      * @return Redis 键
      */
-    private String buildProgramKey(String factoryId, String deviceId) {
+    private String buildProgramKey(Long factoryId, Long deviceId) {
         return String.format(RedisConstant.RT_PROGRAM,
-                defaultBlank(factoryId), defaultBlank(deviceId));
+                factoryId, deviceId);
     }
 
     /**

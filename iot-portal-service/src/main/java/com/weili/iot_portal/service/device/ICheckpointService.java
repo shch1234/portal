@@ -15,17 +15,17 @@ public interface ICheckpointService<T extends ICheckpointService.CheckpointData>
      * 检查点数据基类
      */
     class CheckpointData {
-        private String factoryId;
+        private Long factoryId;
         private long timeSeconds;
-        private List<String> processedDeviceIds;
+        private List<Long> processedDeviceIds;
         private int totalDeviceCount;
         private long lastUpdateTime;
 
-        public String getFactoryId() {
+        public Long getFactoryId() {
             return factoryId;
         }
 
-        public void setFactoryId(String factoryId) {
+        public void setFactoryId(Long factoryId) {
             this.factoryId = factoryId;
         }
 
@@ -37,11 +37,11 @@ public interface ICheckpointService<T extends ICheckpointService.CheckpointData>
             this.timeSeconds = timeSeconds;
         }
 
-        public List<String> getProcessedDeviceIds() {
+        public List<Long> getProcessedDeviceIds() {
             return processedDeviceIds;
         }
 
-        public void setProcessedDeviceIds(List<String> processedDeviceIds) {
+        public void setProcessedDeviceIds(List<Long> processedDeviceIds) {
             this.processedDeviceIds = processedDeviceIds;
         }
 
@@ -69,7 +69,7 @@ public interface ICheckpointService<T extends ICheckpointService.CheckpointData>
      * @param timeSeconds 时间点（秒）
      * @return 检查点数据，如果不存在则返回null
      */
-    T loadCheckpoint(String factoryId, long timeSeconds);
+    T loadCheckpoint(Long factoryId, long timeSeconds);
 
     /**
      * 保存检查点
@@ -78,7 +78,7 @@ public interface ICheckpointService<T extends ICheckpointService.CheckpointData>
      * @param timeSeconds        时间点（秒）
      * @param processedDeviceIds 已处理的设备ID列表
      */
-    void saveCheckpoint(String factoryId, long timeSeconds, List<String> processedDeviceIds);
+    void saveCheckpoint(Long factoryId, long timeSeconds, List<Long> processedDeviceIds);
 
     /**
      * 清除检查点
@@ -86,7 +86,7 @@ public interface ICheckpointService<T extends ICheckpointService.CheckpointData>
      * @param factoryId   工厂ID
      * @param timeSeconds 时间点（秒）
      */
-    void clearCheckpoint(String factoryId, long timeSeconds);
+    void clearCheckpoint(Long factoryId, long timeSeconds);
 
     /**
      * 获取已处理的设备ID集合
@@ -95,6 +95,6 @@ public interface ICheckpointService<T extends ICheckpointService.CheckpointData>
      * @param timeSeconds 时间点（秒）
      * @return 已处理的设备ID集合
      */
-    Set<String> getProcessedDeviceIds(String factoryId, long timeSeconds);
+    Set<Long> getProcessedDeviceIds(Long factoryId, long timeSeconds);
 }
 

@@ -1,6 +1,5 @@
 package com.weili.iot_portal.service.factory.impl;
 
-import com.baomidou.mybatisplus.core.toolkit.IdWorker;
 import com.weili.iot_portal.common.constant.RedisConstant;
 import com.weili.iot_portal.dal.dataobject.device.DeviceInfoDO;
 import com.weili.iot_portal.dal.dataobject.device.DeviceMetricSummaryDO;
@@ -79,8 +78,8 @@ public class FactoryMetricsService implements IFactoryMetricsService {
 
         int success = 0, skip = 0, error = 0;
 
-        Map<String, List<DeviceInfoDO>> byFactory = allDevices.stream()
-                .filter(d -> StringUtils.isNotBlank(d.getOrgFactoryId()))
+        Map<Long, List<DeviceInfoDO>> byFactory = allDevices.stream()
+                .filter(d -> (d.getOrgFactoryId() != null))
                 .collect(Collectors.groupingBy(DeviceInfoDO::getOrgFactoryId));
 
         long filtered = byFactory.values().stream().mapToLong(List::size).sum();
@@ -89,8 +88,8 @@ public class FactoryMetricsService implements IFactoryMetricsService {
             log.warn("工厂实时指标: 有 {} 个设备未关联工厂，已跳过", allDevices.size() - filtered);
         }
 
-        for (Map.Entry<String, List<DeviceInfoDO>> entry : byFactory.entrySet()) {
-            String factoryId = entry.getKey();
+        for (Map.Entry<Long, List<DeviceInfoDO>> entry : byFactory.entrySet()) {
+            Long factoryId = entry.getKey();
             List<DeviceInfoDO> devices = entry.getValue();
             try {
                 BatchProcessResult r = processFactoryRealtime(factoryId, devices, calculationTimeSeconds, batchSize, timeoutMillis);
@@ -115,8 +114,8 @@ public class FactoryMetricsService implements IFactoryMetricsService {
 
         int success = 0, skip = 0, error = 0;
 
-        Map<String, List<DeviceInfoDO>> byFactory = allDevices.stream()
-                .filter(d -> StringUtils.isNotBlank(d.getOrgFactoryId()))
+        Map<Long, List<DeviceInfoDO>> byFactory = allDevices.stream()
+                .filter(d -> d.getOrgFactoryId() != null)
                 .collect(Collectors.groupingBy(DeviceInfoDO::getOrgFactoryId));
 
         long filtered = byFactory.values().stream().mapToLong(List::size).sum();
@@ -125,8 +124,8 @@ public class FactoryMetricsService implements IFactoryMetricsService {
             log.warn("工厂班次指标: 有 {} 个设备未关联工厂，已跳过", allDevices.size() - filtered);
         }
 
-        for (Map.Entry<String, List<DeviceInfoDO>> entry : byFactory.entrySet()) {
-            String factoryId = entry.getKey();
+        for (Map.Entry<Long, List<DeviceInfoDO>> entry : byFactory.entrySet()) {
+            Long factoryId = entry.getKey();
             List<DeviceInfoDO> devices = entry.getValue();
             try {
                 BatchProcessResult r = processFactoryShiftSummary(factoryId, devices, statisticsTimeSeconds, batchSize, timeoutMillis);
@@ -142,12 +141,12 @@ public class FactoryMetricsService implements IFactoryMetricsService {
         return BatchProcessResult.completed(success, skip, error);
     }
 
-    private BatchProcessResult processFactoryRealtime(String factoryId,
+    private BatchProcessResult processFactoryRealtime(Long factoryId,
                                                       List<DeviceInfoDO> devices,
                                                       long calculationTimeSeconds,
                                                       int batchSize,
                                                       long timeoutMillis) {
-        java.util.Set<String> processedIds = factoryMetricsCheckpointService.getProcessedDeviceIds(factoryId, calculationTimeSeconds);
+        java.util.Set<Long> processedIds = factoryMetricsCheckpointService.getProcessedDeviceIds(factoryId, calculationTimeSeconds);
         List<DeviceInfoDO> remaining = devices.stream()
                 .filter(d -> !processedIds.contains(d.getId()))
                 .collect(Collectors.toList());
@@ -167,7 +166,7 @@ public class FactoryMetricsService implements IFactoryMetricsService {
         int totalDevices = devices.size();
 
         int success = 0, skip = 0, error = 0;
-        List<String> newProcessed = new ArrayList<>();
+        List<Long> newProcessed = new ArrayList<>();
         long start = System.currentTimeMillis();
 
         for (int i = 0; i < remaining.size(); i += batchSize) {
@@ -225,12 +224,12 @@ public class FactoryMetricsService implements IFactoryMetricsService {
         return BatchProcessResult.completed(success, skip, error);
     }
 
-    private BatchProcessResult processFactoryShiftSummary(String factoryId,
+    private BatchProcessResult processFactoryShiftSummary(Long factoryId,
                                                           List<DeviceInfoDO> devices,
                                                           long statisticsTimeSeconds,
                                                           int batchSize,
                                                           long timeoutMillis) {
-        Set<String> processedIds = factoryMetricsSummaryCheckpointService.getProcessedDeviceIds(factoryId, statisticsTimeSeconds);
+        Set<Long> processedIds = factoryMetricsSummaryCheckpointService.getProcessedDeviceIds(factoryId, statisticsTimeSeconds);
         List<DeviceInfoDO> remaining = devices.stream()
                 .filter(d -> !processedIds.contains(d.getId()))
                 .collect(Collectors.toList());
@@ -242,7 +241,7 @@ public class FactoryMetricsService implements IFactoryMetricsService {
 
         Map<String, ShiftAggregate> shiftAggregates = new HashMap<>();
         int success = 0, skip = 0, error = 0;
-        List<String> newProcessed = new ArrayList<>();
+        List<Long> newProcessed = new ArrayList<>();
         long start = System.currentTimeMillis();
 
         for (int i = 0; i < remaining.size(); i += batchSize) {
@@ -251,7 +250,7 @@ public class FactoryMetricsService implements IFactoryMetricsService {
 
             for (DeviceInfoDO device : batch) {
                 try {
-                    boolean aggregated = aggregateDeviceShiftMetrics(factoryId, device, statisticsTimeSeconds, shiftAggregates);
+                    boolean aggregated = aggregateDeviceShiftMetrics(device, statisticsTimeSeconds, shiftAggregates);
                     if (aggregated) {
                         success++;
                     } else {
@@ -281,10 +280,10 @@ public class FactoryMetricsService implements IFactoryMetricsService {
         return BatchProcessResult.completed(success, skip, error);
     }
 
-    private boolean aggregateDeviceShiftMetrics(String factoryId,
-                                                DeviceInfoDO device,
-                                                long statPointSeconds,
-                                                Map<String, ShiftAggregate> aggregates) {
+    private boolean aggregateDeviceShiftMetrics(
+            DeviceInfoDO device,
+            long statPointSeconds,
+            Map<String, ShiftAggregate> aggregates) {
         List<DeviceMetricSummaryDO> summaries = deviceMetricSummaryRepository.selectFinalizedUpTo(device.getId(), statPointSeconds);
         if (summaries == null || summaries.isEmpty()) {
             return false;
@@ -335,7 +334,7 @@ public class FactoryMetricsService implements IFactoryMetricsService {
         return processed;
     }
 
-    private void persistFactoryShiftSummary(String factoryId,
+    private void persistFactoryShiftSummary(Long factoryId,
                                             Map<String, ShiftAggregate> aggregates,
                                             int totalDevices) {
         if (aggregates.isEmpty()) {
@@ -370,7 +369,6 @@ public class FactoryMetricsService implements IFactoryMetricsService {
             FactoryMetricSummaryDO existing = factoryMetricSummaryRepository.findByShift(factoryId, agg.shiftDate, agg.shiftCode);
             if (existing == null) {
                 FactoryMetricSummaryDO record = new FactoryMetricSummaryDO();
-                record.setId(IdWorker.getIdStr());
                 record.setOrgFactoryId(factoryId);
                 record.setShiftDate(agg.shiftDate);
                 record.setShiftCode(agg.shiftCode);
@@ -453,7 +451,7 @@ public class FactoryMetricsService implements IFactoryMetricsService {
         return (shiftDate == null ? "null" : shiftDate.toString()) + "#" + StringUtils.defaultIfBlank(shiftCode, "null");
     }
 
-    private long calculatePlannedDurationSeconds(String factoryId, String deviceId, long calcTimeSeconds) {
+    private long calculatePlannedDurationSeconds(Long factoryId, Long deviceId, long calcTimeSeconds) {
         long calcTimeMs = calcTimeSeconds * 1000;
         ShiftTimeRange shift = shiftCalculationService.calculateShiftRange(factoryId, deviceId, calcTimeMs);
         if (shift == null || shift.getStartTs() == null) {
@@ -464,7 +462,7 @@ public class FactoryMetricsService implements IFactoryMetricsService {
         return Math.max(0, endSec - startSec);
     }
 
-    private void writeFactoryRealtimeMetrics(String factoryId,
+    private void writeFactoryRealtimeMetrics(Long factoryId,
                                              long sumWeight,
                                              BigDecimal sumOee,
                                              BigDecimal sumUptime,
@@ -486,7 +484,7 @@ public class FactoryMetricsService implements IFactoryMetricsService {
                 : BigDecimal.valueOf(validDevices)
                 .divide(BigDecimal.valueOf(totalDevices), 4, RoundingMode.HALF_UP);
 
-        String key = String.format(RedisConstant.RT_FACTORY_METRIC, StringUtils.defaultIfBlank(factoryId, "none"));
+        String key = String.format(RedisConstant.RT_FACTORY_METRIC, factoryId == null ? "none" : factoryId);
         Map<String, String> payload = new java.util.HashMap<>();
         payload.put("metric.oee", oee.toPlainString());
         payload.put("metric.uptimeRate", uptime.toPlainString());

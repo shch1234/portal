@@ -13,7 +13,7 @@ import lombok.Data;
 public class DeviceModelSaveReqVO {
 
     @Schema(description = "设备型号ID", example = "123456789")
-    private String id;
+    private Long id;
 
     @Schema(description = "型号编码（租户内唯一）", requiredMode = Schema.RequiredMode.REQUIRED, example = "MODEL-001")
     @NotBlank(message = "型号编码不能为空")

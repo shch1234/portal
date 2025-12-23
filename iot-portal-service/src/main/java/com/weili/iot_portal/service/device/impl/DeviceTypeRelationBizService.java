@@ -29,7 +29,7 @@ public class DeviceTypeRelationBizService implements IDeviceTypeRelationBizServi
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public String createDeviceTypeRelation(DeviceTypeRelationSaveReqVO createReqVO) {
+    public Long createDeviceTypeRelation(DeviceTypeRelationSaveReqVO createReqVO) {
         // 验证类型编码唯一性
         validateTypeCodeUnique(null, createReqVO.getTypeCode());
         // 如果存在父级，验证父级存在

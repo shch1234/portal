@@ -39,7 +39,7 @@ public class DeviceInfoRespVO {
     private String deviceSubTypeName;
 
     @Schema(description = "设备型号ID", requiredMode = Schema.RequiredMode.REQUIRED)
-    private String deviceModelId;
+    private Long deviceModelId;
 
     @Schema(description = "设备型号名称")
     private String deviceModelName;
@@ -48,13 +48,13 @@ public class DeviceInfoRespVO {
     private String manufacturer;
 
     @Schema(description = "所属厂区ID")
-    private String orgFactoryId;
+    private Long orgFactoryId;
 
     @Schema(description = "所属车间ID")
-    private String orgWorkshopId;
+    private Long orgWorkshopId;
 
     @Schema(description = "所属产线ID")
-    private String orgProductionLineId;
+    private Long orgProductionLineId;
 
     @Schema(description = "厂区名称")
     private String factoryName;

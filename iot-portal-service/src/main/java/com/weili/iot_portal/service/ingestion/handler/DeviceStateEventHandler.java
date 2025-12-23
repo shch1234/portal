@@ -1,6 +1,5 @@
 package com.weili.iot_portal.service.ingestion.handler;
 
-import com.baomidou.mybatisplus.core.toolkit.IdWorker;
 import com.weili.iot_portal.common.enums.DeviceStateEnum;
 import com.weili.iot_portal.common.exception.IotPortalErrorCode;
 import com.weili.iot_portal.common.exception.IotPortalException;
@@ -185,7 +184,7 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
      * 使用分布式锁处理状态转换
      */
     private void processStateTransitionWithLock(EventData eventData, DeviceIdentity identity, WebhookRequest request) {
-        String deviceInfoId = identity.deviceInfoId();
+        Long deviceInfoId = identity.deviceInfoId();
         
         // 获取分布式锁
         if (!deviceLockService.tryLockState(deviceInfoId, DeviceStateEventFields.LOCK_TIMEOUT_SECONDS)) {
@@ -224,8 +223,8 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
                                                           EventData eventData,
                                                           DeviceIdentity identity,
                                                           WebhookRequest request) {
-        String deviceInfoId = identity.deviceInfoId();
-        String orgFactoryId = identity.orgFactoryId();
+        Long deviceInfoId = identity.deviceInfoId();
+        Long orgFactoryId = identity.orgFactoryId();
         
         // 判断处理场景
         TransitionType transitionType = determineTransitionType(latestStateOpt, eventData);
@@ -337,7 +336,7 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
     /**
      * 情况A：首次连接（previousState = NULL）
      */
-    private void handleFirstConnection(String deviceInfoId, String orgFactoryId, EventData eventData) {
+    private void handleFirstConnection(Long deviceInfoId, Long orgFactoryId, EventData eventData) {
         Map<String, Object> properties = DeviceStateUtils.createPropertiesWithOriginalState(
                 eventData.currentStateResult(), null, eventData.eventTimestamp());
         DeviceStateRecordDO newRecord = createStateRecord(deviceInfoId, orgFactoryId,
@@ -348,7 +347,7 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
     /**
      * 情况B：正常匹配（DB最新状态 = previousState）
      */
-    private void handleNormalTransition(DeviceStateRecordDO latestState, String orgFactoryId, EventData eventData) {
+    private void handleNormalTransition(DeviceStateRecordDO latestState, Long orgFactoryId, EventData eventData) {
         DeviceStateEnum latestStateEnum = DeviceStateEnum.fromCode(latestState.getStateCode());
         log.debug("[DeviceStateEventHandler] 处理正常状态转换: 结束状态={}({}), startTs={}, endTs={}, 新状态={}, 新startTs={}",
                 latestStateEnum.name(), latestState.getStateCode(), latestState.getStartTs(), eventData.eventTimestamp(),
@@ -405,8 +404,8 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
     private void handleEndedStateMismatch(DeviceStateRecordDO latestState, EventData eventData,
                                           DeviceIdentity identity, WebhookRequest request) {
         Long latestEndTs = latestState.getEndTs();
-        String deviceInfoId = identity.deviceInfoId();
-        String orgFactoryId = identity.orgFactoryId();
+        Long deviceInfoId = identity.deviceInfoId();
+        Long orgFactoryId = identity.orgFactoryId();
 
         // 检查是否存在状态间隙
         if (latestEndTs < eventData.eventTimestamp()) {
@@ -451,8 +450,8 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
             return;
         }
 
-        String deviceInfoId = identity.deviceInfoId();
-        String orgFactoryId = identity.orgFactoryId();
+        Long deviceInfoId = identity.deviceInfoId();
+        Long orgFactoryId = identity.orgFactoryId();
 
         // 将数据库中的进行中状态标记为 UNKNOWN
         Map<String, Object> mismatchProperties = new HashMap<>();
@@ -509,8 +508,8 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
         log.warn("时间戳异常: deviceInfoId={}, 事件时间={}, DB状态开始时间={}, 差距={}毫秒 ({}秒)",
                 identity.deviceInfoId(), eventData.eventTimestamp(), latestState.getStartTs(), gapMs, gapSeconds);
 
-        String deviceInfoId = identity.deviceInfoId();
-        String orgFactoryId = identity.orgFactoryId();
+        Long deviceInfoId = identity.deviceInfoId();
+        Long orgFactoryId = identity.orgFactoryId();
 
         // 先结束数据库中的异常记录
         if (latestState.getEndTs() == null) {
@@ -561,7 +560,7 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
     /**
      * 情况D：数据库无记录（首次记录）
      */
-    private void handleFirstRecord(String deviceInfoId, String orgFactoryId, EventData eventData) {
+    private void handleFirstRecord(Long deviceInfoId, Long orgFactoryId, EventData eventData) {
         if (eventData.previousStateCode() != null) {
             log.warn("[Webhook-Handler-DeviceState] 数据库无记录但previousState不为NULL: deviceInfoId={}, previousState={}",
                     deviceInfoId, eventData.previousState());
@@ -579,14 +578,13 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
     /**
      * 创建状态记录
      */
-    private DeviceStateRecordDO createStateRecord(String deviceInfoId, String orgFactoryId,
+    private DeviceStateRecordDO createStateRecord(Long deviceInfoId, Long orgFactoryId,
                                                    Integer stateCode, Long startTs, Long endTs, boolean isComplete,
                                                    Map<String, Object> properties) {
         // 直接使用数字编码（无需转换）
         Integer stateCodeInt = stateCode;
         
         DeviceStateRecordDO record = new DeviceStateRecordDO();
-        record.setId(IdWorker.getIdStr());
         record.setDeviceInfoId(deviceInfoId);
         record.setOrgFactoryId(orgFactoryId);
         record.setStateCode(stateCodeInt);
@@ -624,7 +622,7 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
     /**
      * 如果班次信息缺失，根据开始时间补充
      */
-    private void fillShiftInfoIfMissing(DeviceStateRecordDO record, String factoryId) {
+    private void fillShiftInfoIfMissing(DeviceStateRecordDO record, Long factoryId) {
         if (record.getStartTs() != null
                 && (record.getShiftDate() == null || record.getShiftCode() == null)) {
             try {
@@ -650,8 +648,8 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
      */
     private void updateCacheAfterStateTransition(DeviceIdentity identity, EventData eventData,
                                                  boolean needUpdateCache, WebhookRequest request) {
-        String orgFactoryId = identity.orgFactoryId();
-        String deviceInfoId = identity.deviceInfoId();
+        Long orgFactoryId = identity.orgFactoryId();
+        Long deviceInfoId = identity.deviceInfoId();
         
         if (needUpdateCache) {
             // 更新状态缓存（使用数字编码）
@@ -666,7 +664,7 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
     /**
      * 更新实时状态缓存（事务外执行）
      */
-    private void updateStateCache(String factoryId, String deviceId, Integer currentStateCode,
+    private void updateStateCache(Long factoryId, Long deviceId, Integer currentStateCode,
                                   Long eventTimestamp, String traceId) {
         // 将数字编码转换为字符串存储到缓存
         String stateStr = String.valueOf(currentStateCode);
@@ -678,7 +676,7 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
     /**
      * 状态未变化时，刷新状态缓存 TTL（不改值）并刷新心跳（事务外执行）
      */
-    private void refreshStateCacheAndHeartbeat(String factoryId, String deviceId,
+    private void refreshStateCacheAndHeartbeat(Long factoryId, Long deviceId,
                                                Long eventTimestamp, String traceId) {
         deviceStateCacheService.refreshStateTtl(factoryId, deviceId);
         deviceStateCacheService.saveHeartbeat(factoryId, deviceId, traceId);
@@ -711,8 +709,8 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
         
         DeviceIdentity identity = 
                 webhookHandlerUtils.resolveDeviceIdentity(request);
-        String deviceInfoId = identity.deviceInfoId();
-        String orgFactoryId = identity.orgFactoryId();
+        Long deviceInfoId = identity.deviceInfoId();
+        Long orgFactoryId = identity.orgFactoryId();
 
         long ts = request.getDataTimestamp() != null
                 ? request.getDataTimestamp()

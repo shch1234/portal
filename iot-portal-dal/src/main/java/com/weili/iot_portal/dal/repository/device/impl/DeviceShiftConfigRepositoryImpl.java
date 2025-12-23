@@ -24,7 +24,7 @@ public class DeviceShiftConfigRepositoryImpl implements DeviceShiftConfigReposit
      * 查找指定时间点的有效班次配置（对应 device_shift_config 表的字段）
      */
     @Override
-    public Optional<DeviceShiftConfigDO> findActiveByDeviceAndTime(String deviceId, long timestamp) {
+    public Optional<DeviceShiftConfigDO> findActiveByDeviceAndTime(Long deviceId, long timestamp) {
         LambdaQueryWrapper<DeviceShiftConfigDO> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(DeviceShiftConfigDO::getDeviceInfoId, deviceId)
                 .eq(DeviceShiftConfigDO::getIsActive, Boolean.TRUE)
@@ -41,7 +41,7 @@ public class DeviceShiftConfigRepositoryImpl implements DeviceShiftConfigReposit
      * 查找时间范围内的班次配置（对应 device_shift_config 表的字段）
      */
     @Override
-    public List<DeviceShiftConfigDO> findByDeviceAndTimeRange(String deviceId, long startTs, long endTs) {
+    public List<DeviceShiftConfigDO> findByDeviceAndTimeRange(Long deviceId, long startTs, long endTs) {
         LambdaQueryWrapper<DeviceShiftConfigDO> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(DeviceShiftConfigDO::getDeviceInfoId, deviceId)
                 .le(DeviceShiftConfigDO::getEffectiveStartTs, endTs)

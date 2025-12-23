@@ -12,15 +12,15 @@ import java.util.Optional;
  */
 public interface DeviceInfoRepository {
 
-    Optional<DeviceInfoDO> findById(String id);
+    Optional<DeviceInfoDO> findById(Long id);
 
     Optional<DeviceInfoDO> findByDeviceCode(String deviceCode);
 
     Optional<DeviceInfoDO> findByTbDeviceId(String tbDeviceId);
 
-    boolean existsByDeviceCode(String deviceCode, String excludeId);
+    boolean existsByDeviceCode(String deviceCode, Long excludeId);
 
-    boolean existsByTbDeviceId(String tbDeviceId, String excludeId);
+    boolean existsByTbDeviceId(String tbDeviceId, Long excludeId);
 
     PageResult<DeviceInfoDO> selectPage(DeviceBaseInfoPageQuery query);
 
@@ -42,6 +42,6 @@ public interface DeviceInfoRepository {
 
     void update(DeviceInfoDO entity);
 
-    boolean deleteById(String id);
+    boolean deleteById(Long id);
 }
 

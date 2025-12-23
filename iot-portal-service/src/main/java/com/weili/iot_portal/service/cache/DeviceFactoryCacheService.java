@@ -21,11 +21,11 @@ public class DeviceFactoryCacheService {
     @Resource
     private RedisClient redisClient;
 
-    public String get(String deviceId) {
+    public String get(Long deviceId) {
         return redisClient.get(formatKey(deviceId));
     }
 
-    public String getOrLoad(String deviceId, Supplier<String> loader) {
+    public String getOrLoad(Long deviceId, Supplier<String> loader) {
         String cached = get(deviceId);
         if (StringUtils.isNotBlank(cached)) {
             return cached;
@@ -34,23 +34,23 @@ public class DeviceFactoryCacheService {
         if (StringUtils.isBlank(factoryId)) {
             return null;
         }
-        cache(deviceId, factoryId);
+        cache(deviceId, Long.valueOf(factoryId));
         return factoryId;
     }
 
-    public void cache(String deviceId, String factoryId) {
-        if (StringUtils.isBlank(factoryId)) {
+    public void cache(Long deviceId, Long factoryId) {
+        if (factoryId==null) {
             evict(deviceId);
             return;
         }
-        redisClient.set(formatKey(deviceId), factoryId, DEFAULT_TTL_SECONDS, TimeUnit.SECONDS);
+        redisClient.set(formatKey(deviceId), String.valueOf(factoryId), DEFAULT_TTL_SECONDS, TimeUnit.SECONDS);
     }
 
-    public void evict(String deviceId) {
+    public void evict(Long deviceId) {
         redisClient.delete(formatKey(deviceId));
     }
 
-    private String formatKey(String deviceId) {
+    private String formatKey(Long deviceId) {
         return String.format(RedisConstant.DEVICE_FACTORY, deviceId);
     }
 }

@@ -24,7 +24,7 @@ public class DeviceShiftConfigDO extends BaseDO {
     private static final long serialVersionUID = 1L;
 
     @TableId(type = IdType.ASSIGN_ID)
-    private String id;
+    private Long id;
 
     /**
      * 设备ID（关联 device_info.id，对应 device_info_id 列）

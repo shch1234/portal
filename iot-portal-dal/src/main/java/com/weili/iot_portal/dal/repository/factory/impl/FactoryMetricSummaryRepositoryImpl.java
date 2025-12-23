@@ -20,7 +20,7 @@ public class FactoryMetricSummaryRepositoryImpl implements FactoryMetricSummaryR
     private final FactoryMetricSummaryMapper mapper;
 
     @Override
-    public FactoryMetricSummaryDO findByShift(String factoryId, LocalDate shiftDate, String shiftCode) {
+    public FactoryMetricSummaryDO findByShift(Long factoryId, LocalDate shiftDate, String shiftCode) {
         LambdaQueryWrapper<FactoryMetricSummaryDO> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(FactoryMetricSummaryDO::getOrgFactoryId, factoryId)
                 .eq(FactoryMetricSummaryDO::getShiftDate, shiftDate)

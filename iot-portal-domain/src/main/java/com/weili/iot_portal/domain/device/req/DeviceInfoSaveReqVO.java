@@ -17,7 +17,7 @@ import java.util.Map;
 public class DeviceInfoSaveReqVO {
 
     @Schema(description = "设备信息ID", example = "123456789")
-    private String id;
+    private Long id;
 
     @Schema(description = "ThingsBoard 设备ID", requiredMode = Schema.RequiredMode.REQUIRED, example = "550e8400-e29b-41d4-a716-446655440000")
     @NotBlank(message = "ThingsBoard设备ID不能为空")
@@ -41,16 +41,16 @@ public class DeviceInfoSaveReqVO {
 
     @Schema(description = "设备型号ID", requiredMode = Schema.RequiredMode.REQUIRED, example = "123456789")
     @NotBlank(message = "设备型号ID不能为空")
-    private String deviceModelId;
+    private Long deviceModelId;
 
     @Schema(description = "所属厂区ID", example = "123456789")
-    private String orgFactoryId;
+    private Long orgFactoryId;
 
     @Schema(description = "所属车间ID", example = "123456789")
-    private String orgWorkshopId;
+    private Long orgWorkshopId;
 
     @Schema(description = "所属产线ID", example = "123456789")
-    private String orgProductionLineId;
+    private Long orgProductionLineId;
 
     @Schema(description = "设备状态：ACTIVE-在用 INACTIVE-停用 MAINTENANCE-维护中 RETIRED-报废", example = "ACTIVE")
     private String deviceStatus;

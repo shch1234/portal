@@ -47,7 +47,7 @@ public class ShiftConfigService implements IShiftConfigService {
      * @param timestamp 时间戳（毫秒）
      * @return 班次配置
      */
-    public DeviceShiftConfigDO getCurrentConfiguration(String factoryId, String deviceId, long timestamp) {
+    public DeviceShiftConfigDO getCurrentConfiguration(Long factoryId, Long deviceId, long timestamp) {
         // 验证设备属于指定工厂
         deviceFactoryValidator.ensureDeviceBelongsToFactory(factoryId, deviceId);
 
@@ -79,7 +79,7 @@ public class ShiftConfigService implements IShiftConfigService {
      * @param endTs     结束时间戳
      * @return 班次配置列表（按生效时间倒序）
      */
-    public List<DeviceShiftConfigDO> getConfigurationsInRange(String factoryId, String deviceId, long startTs, long endTs) {
+    public List<DeviceShiftConfigDO> getConfigurationsInRange(Long factoryId, Long deviceId, long startTs, long endTs) {
         // 验证设备属于指定工厂
         deviceFactoryValidator.ensureDeviceBelongsToFactory(factoryId, deviceId);
 

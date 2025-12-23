@@ -22,7 +22,7 @@ public class WebhookMonitorRecordDO implements Serializable {
     private static final long serialVersionUID = 4812234234234234234L;
 
     @TableId(type = IdType.ASSIGN_ID)
-    private String id;
+    private Long id;
 
     /**
      * 事件类型

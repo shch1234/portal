@@ -17,7 +17,7 @@ public interface DeviceShiftConfigRepository {
      * @param timestamp 时间戳
      * @return 班次配置
      */
-    Optional<DeviceShiftConfigDO> findActiveByDeviceAndTime(String deviceId, long timestamp);
+    Optional<DeviceShiftConfigDO> findActiveByDeviceAndTime(Long deviceId, long timestamp);
 
     /**
      * 查询设备在时间范围内的所有班次配置（按生效时间倒序）
@@ -27,7 +27,7 @@ public interface DeviceShiftConfigRepository {
      * @param endTs 结束时间戳
      * @return 班次配置列表
      */
-    List<DeviceShiftConfigDO> findByDeviceAndTimeRange(String deviceId, long startTs, long endTs);
+    List<DeviceShiftConfigDO> findByDeviceAndTimeRange(Long deviceId, long startTs, long endTs);
 
     /**
      * 插入班次配置

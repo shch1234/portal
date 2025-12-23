@@ -28,10 +28,10 @@ public class DeviceToolCompensationDO implements Serializable {
      * 设备ID（关联 device_info.id，对应 device_info_id 列）
      * 可通过 device_info.tb_device_id 查询 ThingsBoard 获取租户信息
      */
-    private String deviceInfoId;
+    private Long deviceInfoId;
 
     /** 所属厂区ID */
-    private String orgFactoryId;
+    private Long orgFactoryId;
 
     /** 刀补号 */
     private String toolHolderNo;

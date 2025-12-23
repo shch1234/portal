@@ -16,7 +16,7 @@ public interface IDeviceLocationBizService {
      * @param createReqVO 设备位置创建请求
      * @return 设备位置ID
      */
-    String createDeviceLocation(DeviceLocationSaveReqVO createReqVO);
+    Long createDeviceLocation(DeviceLocationSaveReqVO createReqVO);
 
     /**
      * 更新设备位置
@@ -31,7 +31,7 @@ public interface IDeviceLocationBizService {
      * @param deviceInfoId 设备信息ID
      * @return 设备位置
      */
-    DeviceLocationDO getDeviceLocationByDeviceId(String deviceInfoId);
+    DeviceLocationDO getDeviceLocationByDeviceId(Long deviceInfoId);
 
     /**
      * 根据设备ID列表批量获取设备位置
@@ -39,7 +39,7 @@ public interface IDeviceLocationBizService {
      * @param deviceInfoIds 设备信息ID列表
      * @return 设备位置列表
      */
-    List<DeviceLocationDO> getDeviceLocationsByDeviceIds(List<String> deviceInfoIds);
+    List<DeviceLocationDO> getDeviceLocationsByDeviceIds(List<Long> deviceInfoIds);
 }
 
 

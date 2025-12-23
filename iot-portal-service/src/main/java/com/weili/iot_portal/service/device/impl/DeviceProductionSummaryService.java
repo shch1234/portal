@@ -1,6 +1,5 @@
 package com.weili.iot_portal.service.device.impl;
 
-import com.baomidou.mybatisplus.core.toolkit.IdWorker;
 import com.weili.iot_portal.dal.dataobject.device.DeviceInfoDO;
 import com.weili.iot_portal.dal.dataobject.device.DeviceProductionSummaryDO;
 import com.weili.iot_portal.dal.repository.device.DeviceInfoRepository;
@@ -11,7 +10,6 @@ import com.weili.iot_portal.service.device.IDeviceProductionSummaryService;
 import com.weili.iot_portal.service.shift.IShiftCalculationService;
 import com.weili.iot_portal.service.shift.model.ShiftTimeRange;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
@@ -61,8 +59,8 @@ public class DeviceProductionSummaryService implements IDeviceProductionSummaryS
 
         int success = 0, skip = 0, error = 0;
 
-        Map<String, List<DeviceInfoDO>> devicesByFactory = allDevices.stream()
-                .filter(d -> StringUtils.isNotBlank(d.getOrgFactoryId()))
+        Map<Long, List<DeviceInfoDO>> devicesByFactory = allDevices.stream()
+                .filter(d -> d.getOrgFactoryId()!=null)
                 .collect(Collectors.groupingBy(DeviceInfoDO::getOrgFactoryId));
 
         long filtered = devicesByFactory.values().stream().mapToLong(List::size).sum();
@@ -71,8 +69,8 @@ public class DeviceProductionSummaryService implements IDeviceProductionSummaryS
             log.warn("产量汇总: 有 {} 个设备未关联工厂，已跳过", allDevices.size() - filtered);
         }
 
-        for (Map.Entry<String, List<DeviceInfoDO>> entry : devicesByFactory.entrySet()) {
-            String factoryId = entry.getKey();
+        for (Map.Entry<Long, List<DeviceInfoDO>> entry : devicesByFactory.entrySet()) {
+            Long factoryId = entry.getKey();
             List<DeviceInfoDO> devices = entry.getValue();
             try {
                 BatchProcessResult factoryResult = processFactoryDevicesWithCheckpoint(
@@ -90,12 +88,12 @@ public class DeviceProductionSummaryService implements IDeviceProductionSummaryS
     }
 
     @Override
-    public BatchProcessResult processFactoryDevicesWithCheckpoint(String factoryId,
+    public BatchProcessResult processFactoryDevicesWithCheckpoint(Long factoryId,
                                                                   List<DeviceInfoDO> devices,
                                                                   long statisticsTimeSeconds,
                                                                   int batchSize,
                                                                   long timeoutMillis) {
-        Set<String> processedIds = checkpointService.getProcessedDeviceIds(factoryId, statisticsTimeSeconds);
+        Set<Long> processedIds = checkpointService.getProcessedDeviceIds(factoryId, statisticsTimeSeconds);
         List<DeviceInfoDO> remaining = devices.stream()
                 .filter(d -> !processedIds.contains(d.getId()))
                 .collect(Collectors.toList());
@@ -117,7 +115,7 @@ public class DeviceProductionSummaryService implements IDeviceProductionSummaryS
             int endIndex = Math.min(i + batchSize, remaining.size());
             List<DeviceInfoDO> batch = remaining.subList(i, endIndex);
 
-            List<String> batchProcessed = new ArrayList<>();
+            List<Long> batchProcessed = new ArrayList<>();
             for (DeviceInfoDO device : batch) {
                 try {
                     boolean processed = processSingleDevice(device, statisticsTimeSeconds);
@@ -180,7 +178,7 @@ public class DeviceProductionSummaryService implements IDeviceProductionSummaryS
         return true;
     }
 
-    private void upsertSummary(String deviceId,
+    private void upsertSummary(Long deviceId,
                                LocalDate shiftDate,
                                Integer shiftCode,
                                long shiftStartSec,
@@ -190,7 +188,6 @@ public class DeviceProductionSummaryService implements IDeviceProductionSummaryS
         DeviceProductionSummaryDO existing = productionSummaryRepository.findByShift(deviceId, shiftDate, shiftCode);
         if (existing == null) {
             DeviceProductionSummaryDO summary = new DeviceProductionSummaryDO();
-            summary.setId(IdWorker.getIdStr());
             summary.setDeviceInfoId(deviceId);
             summary.setShiftDate(shiftDate);
             summary.setShiftCode(shiftCode);

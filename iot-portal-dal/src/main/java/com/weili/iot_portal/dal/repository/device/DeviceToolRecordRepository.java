@@ -8,12 +8,12 @@ public interface DeviceToolRecordRepository {
 
     void insertBatch(List<DeviceToolRecordDO> list);
 
-    List<DeviceToolRecordDO> selectByRange(String deviceId, Long startTs, Long endTs, Integer limit);
+    List<DeviceToolRecordDO> selectByRange(Long deviceId, Long startTs, Long endTs, Integer limit);
 
     /**
      * 查询设备最新的"进行中"刀具记录（end_ts IS NULL）
      */
-    DeviceToolRecordDO findLatestOngoing(String deviceId);
+    DeviceToolRecordDO findLatestOngoing(Long deviceId);
 
     /**
      * 插入单条记录

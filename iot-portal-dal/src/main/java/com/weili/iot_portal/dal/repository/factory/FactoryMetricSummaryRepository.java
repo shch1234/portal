@@ -11,7 +11,7 @@ import java.util.List;
  */
 public interface FactoryMetricSummaryRepository {
 
-    FactoryMetricSummaryDO findByShift(String factoryId, LocalDate shiftDate, String shiftCode);
+    FactoryMetricSummaryDO findByShift(Long factoryId, LocalDate shiftDate, String shiftCode);
 
     void insert(FactoryMetricSummaryDO record);
 

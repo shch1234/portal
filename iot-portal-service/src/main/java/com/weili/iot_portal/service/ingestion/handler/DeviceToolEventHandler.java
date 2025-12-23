@@ -93,8 +93,8 @@ public class DeviceToolEventHandler implements WebhookEventHandler {
 
         DeviceIdentity identity = 
                 webhookHandlerUtils.resolveDeviceIdentity(request);
-        String deviceInfoId = identity.deviceInfoId();
-        String orgFactoryId = identity.orgFactoryId();
+        Long deviceInfoId = identity.deviceInfoId();
+        Long orgFactoryId = identity.orgFactoryId();
 
         Long eventTimestamp = request.getDataTimestamp() != null
                 ? request.getDataTimestamp()
@@ -333,7 +333,7 @@ public class DeviceToolEventHandler implements WebhookEventHandler {
      * @param compValue 刀补值（JSON Map）
      * @param eventTimestamp 事件时间戳（毫秒）
      */
-    private void upsertCompensation(String deviceId, String factoryId,
+    private void upsertCompensation(Long deviceId, Long factoryId,
                                     String holderNumber, Map<String, Object> compValue, Long eventTimestamp) {
         // 1. 先查Redis缓存（性能优化：减少数据库查询）
         Map<String, Object> cachedCompValue = deviceToolCacheService.getActiveCompensation(deviceId, holderNumber);

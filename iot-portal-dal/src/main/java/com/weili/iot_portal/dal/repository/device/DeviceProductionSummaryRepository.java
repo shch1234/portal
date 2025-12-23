@@ -12,11 +12,11 @@ import java.util.Optional;
  */
 public interface DeviceProductionSummaryRepository {
 
-    Optional<DeviceProductionSummaryDO> findCurrent(String deviceId, long currentTs);
+    Optional<DeviceProductionSummaryDO> findCurrent(Long deviceId, long currentTs);
 
     PageResult<DeviceProductionSummaryDO> selectPage(ProductionCounterPageQuery query);
 
-    DeviceProductionSummaryDO findByShift(String deviceId, LocalDate shiftDate, Integer shiftCode);
+    DeviceProductionSummaryDO findByShift(Long deviceId, LocalDate shiftDate, Integer shiftCode);
 
     void insert(DeviceProductionSummaryDO entity);
 

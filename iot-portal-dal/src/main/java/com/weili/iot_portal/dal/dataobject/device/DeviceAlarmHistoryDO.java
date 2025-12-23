@@ -20,15 +20,15 @@ public class DeviceAlarmHistoryDO implements Serializable {
     private static final long serialVersionUID = 1L;
 
     @TableId(type = IdType.ASSIGN_ID)
-    private String id;
+    private Long id;
 
     /**
      * 设备ID（关联 device_info.id，对应 device_info_id 列）
      * 可通过 device_info.tb_device_id 查询 ThingsBoard 获取租户信息
      */
-    private String deviceInfoId;
+    private Long deviceInfoId;
 
-    private String orgFactoryId;
+    private Long orgFactoryId;
 
     private String alarmCode;
 

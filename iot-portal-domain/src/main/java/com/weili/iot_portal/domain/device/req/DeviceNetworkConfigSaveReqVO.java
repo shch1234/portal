@@ -16,11 +16,11 @@ import java.util.Map;
 public class DeviceNetworkConfigSaveReqVO {
 
     @Schema(description = "设备网络配置ID", example = "123456789")
-    private String id;
+    private Long id;
 
     @Schema(description = "设备信息ID", requiredMode = Schema.RequiredMode.REQUIRED, example = "123456789")
     @NotBlank(message = "设备信息ID不能为空")
-    private String deviceInfoId;
+    private Long deviceInfoId;
 
     @Schema(description = "所属厂区ID", example = "123456789")
     private String orgFactoryId;

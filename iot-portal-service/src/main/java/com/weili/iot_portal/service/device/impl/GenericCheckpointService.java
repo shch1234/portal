@@ -36,7 +36,7 @@ public class GenericCheckpointService implements ICheckpointService<ICheckpointS
     }
 
     @Override
-    public ICheckpointService.CheckpointData loadCheckpoint(String factoryId, long timeSeconds) {
+    public ICheckpointService.CheckpointData loadCheckpoint(Long factoryId, long timeSeconds) {
         String key = buildCheckpointKey(factoryId, timeSeconds);
         try {
             String value = redisClient.get(key);
@@ -51,7 +51,7 @@ public class GenericCheckpointService implements ICheckpointService<ICheckpointS
     }
 
     @Override
-    public void saveCheckpoint(String factoryId, long timeSeconds, List<String> processedDeviceIds) {
+    public void saveCheckpoint(Long factoryId, long timeSeconds, List<Long> processedDeviceIds) {
         String key = buildCheckpointKey(factoryId, timeSeconds);
 
         ICheckpointService.CheckpointData checkpoint = new ICheckpointService.CheckpointData();
@@ -71,7 +71,7 @@ public class GenericCheckpointService implements ICheckpointService<ICheckpointS
     }
 
     @Override
-    public void clearCheckpoint(String factoryId, long timeSeconds) {
+    public void clearCheckpoint(Long factoryId, long timeSeconds) {
         String key = buildCheckpointKey(factoryId, timeSeconds);
         try {
             redisClient.delete(key);
@@ -82,7 +82,7 @@ public class GenericCheckpointService implements ICheckpointService<ICheckpointS
     }
 
     @Override
-    public Set<String> getProcessedDeviceIds(String factoryId, long timeSeconds) {
+    public Set<Long> getProcessedDeviceIds(Long factoryId, long timeSeconds) {
         ICheckpointService.CheckpointData checkpoint = loadCheckpoint(factoryId, timeSeconds);
         if (checkpoint == null || checkpoint.getProcessedDeviceIds() == null) {
             return new HashSet<>();
@@ -93,7 +93,7 @@ public class GenericCheckpointService implements ICheckpointService<ICheckpointS
     /**
      * 构建检查点Key
      */
-    private String buildCheckpointKey(String factoryId, long timeSeconds) {
+    private String buildCheckpointKey(Long factoryId, long timeSeconds) {
         return String.format("%s%s:%d", keyPrefix, factoryId, timeSeconds);
     }
 }

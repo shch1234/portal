@@ -92,6 +92,11 @@ public class DeviceOrgRelationRepositoryImpl implements DeviceOrgRelationReposit
         return mapper.delete(new LambdaQueryWrapper<DeviceOrgRelationDO>().eq(DeviceOrgRelationDO::getId, id)) > 0;
     }
 
+    @Override
+    public List<DeviceOrgRelationDO> listByIds(List<Long> ids) {
+        return mapper.selectList(new LambdaQueryWrapper<DeviceOrgRelationDO>().in(DeviceOrgRelationDO::getId, ids));
+    }
+
     private void applySort(LambdaQueryWrapper<DeviceOrgRelationDO> wrapper, String sortBy, String sortDirection) {
         // 如果 sortBy 为空，则使用默认排序：先按 sortOrder 升序，再按 createTime 降序
         if (StringUtils.isBlank(sortBy)) {

@@ -8,7 +8,7 @@ import com.weili.iot_portal.domain.device.req.DeviceInfoSaveReqVO;
 public final class DeviceInfoAssembler {
 
 
-    public static DeviceLocationDO createDeviceLocation(String deviceInfoId, DeviceInfoSaveReqVO createReqVO) {
+    public static DeviceLocationDO createDeviceLocation(Long deviceInfoId, DeviceInfoSaveReqVO createReqVO) {
         DeviceInfoSaveReqVO.DeviceLocationInfo locationInfo = createReqVO.getLocation();
         DeviceLocationDO deviceLocation = new DeviceLocationDO();
         deviceLocation.setDeviceInfoId(deviceInfoId);
@@ -30,7 +30,7 @@ public final class DeviceInfoAssembler {
     }
 
 
-    public static DeviceLocationDO updateDeviceLocation(String deviceInfoId,
+    public static DeviceLocationDO updateDeviceLocation(Long deviceInfoId,
                                                         DeviceLocationDO existing,
                                                         DeviceInfoSaveReqVO updateReqVO) {
         DeviceInfoSaveReqVO.DeviceLocationInfo locationInfo = updateReqVO.getLocation();
@@ -63,7 +63,7 @@ public final class DeviceInfoAssembler {
     }
 
 
-    public static DeviceNetworkConfigDO createNetworkConfigDO(String deviceInfoId, DeviceInfoSaveReqVO createReqVO) {
+    public static DeviceNetworkConfigDO createNetworkConfigDO(Long deviceInfoId, DeviceInfoSaveReqVO createReqVO) {
         DeviceInfoSaveReqVO.DeviceNetworkInfo networkInfo = createReqVO.getNetwork();
         DeviceNetworkConfigDO deviceNetworkConfig = new DeviceNetworkConfigDO();
         deviceNetworkConfig.setDeviceInfoId(deviceInfoId);
@@ -85,7 +85,7 @@ public final class DeviceInfoAssembler {
     }
 
 
-    public static DeviceNetworkConfigDO updateNetworkConfigDO(String deviceInfoId,
+    public static DeviceNetworkConfigDO updateNetworkConfigDO(Long deviceInfoId,
                                                               DeviceNetworkConfigDO existing,
                                                               DeviceInfoSaveReqVO updateReqVO) {
         DeviceInfoSaveReqVO.DeviceNetworkInfo networkInfo = updateReqVO.getNetwork();

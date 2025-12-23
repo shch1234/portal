@@ -60,7 +60,7 @@ public interface IDeviceProductionSummaryService {
      * 处理指定工厂的设备（带检查点）
      */
     BatchProcessResult processFactoryDevicesWithCheckpoint(
-            String factoryId,
+            Long factoryId,
             List<DeviceInfoDO> devices,
             long statisticsTimeSeconds,
             int batchSize,

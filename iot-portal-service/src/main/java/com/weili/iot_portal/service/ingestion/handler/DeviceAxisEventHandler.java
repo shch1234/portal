@@ -90,8 +90,8 @@ public class DeviceAxisEventHandler implements WebhookEventHandler {
         // 解析设备标识（按 deviceCode / deviceId 解析为 portal 的 deviceInfoId / factoryId）
         DeviceIdentity identity = 
                 webhookHandlerUtils.resolveDeviceIdentity(request);
-        String deviceInfoId = identity.deviceInfoId();
-        String orgFactoryId = identity.orgFactoryId();
+        Long deviceInfoId = identity.deviceInfoId();
+        Long orgFactoryId = identity.orgFactoryId();
 
         // 解析时间戳
         Long eventTimestamp = request.getDataTimestamp() != null
@@ -139,7 +139,7 @@ public class DeviceAxisEventHandler implements WebhookEventHandler {
      * 写入曲线点（若存在）
      */
     private void appendCurveIfPresent(String metric, Long eventTimestamp,
-                                      String orgFactoryId, String deviceInfoId,
+                                      Long orgFactoryId, Long deviceInfoId,
                                       Map<String, Object> eventData, int maxLen) {
         Object value = eventData.get(metric);
         if (value == null) {

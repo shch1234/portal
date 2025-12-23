@@ -18,7 +18,7 @@ public interface IDeviceInfoBizService {
      * @param createReqVO 设备信息创建请求
      * @return 设备信息ID
      */
-    String createDeviceInfo(DeviceInfoSaveReqVO createReqVO);
+    Long createDeviceInfo(DeviceInfoSaveReqVO createReqVO);
 
     /**
      * 更新设备信息
@@ -32,7 +32,7 @@ public interface IDeviceInfoBizService {
      *
      * @param id 设备信息ID
      */
-    void deleteDeviceInfo(String id);
+    void deleteDeviceInfo(Long id);
 
     /**
      * 根据ID获取设备信息
@@ -40,7 +40,7 @@ public interface IDeviceInfoBizService {
      * @param id 设备信息ID
      * @return 设备信息
      */
-    DeviceInfoDO getDeviceInfo(String id);
+    DeviceInfoDO getDeviceInfo(Long id);
 
     /**
      * 根据ID获取设备信息（包含位置和网络配置）
@@ -48,7 +48,7 @@ public interface IDeviceInfoBizService {
      * @param id 设备信息ID
      * @return 设备信息响应VO
      */
-    DeviceInfoRespVO getDeviceInfoWithDetails(String id);
+    DeviceInfoRespVO getDeviceInfoWithDetails(Long id);
 
     /**
      * 根据设备编号获取设备信息

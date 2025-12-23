@@ -19,7 +19,7 @@ public interface IShiftConfigService {
      * @param timestamp 时间戳（毫秒）
      * @return 班次配置
      */
-    DeviceShiftConfigDO getCurrentConfiguration(String factoryId, String deviceId, long timestamp);
+    DeviceShiftConfigDO getCurrentConfiguration(Long factoryId, Long deviceId, long timestamp);
 
     /**
      * 获取时间范围内的所有配置版本（带工厂验证）
@@ -30,5 +30,5 @@ public interface IShiftConfigService {
      * @param endTs 结束时间戳
      * @return 班次配置列表（按生效时间倒序）
      */
-    List<DeviceShiftConfigDO> getConfigurationsInRange(String factoryId, String deviceId, long startTs, long endTs);
+    List<DeviceShiftConfigDO> getConfigurationsInRange(Long factoryId, Long deviceId, long startTs, long endTs);
 }

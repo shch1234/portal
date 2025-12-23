@@ -27,5 +27,7 @@ public interface DeviceOrgRelationRepository {
     void update(DeviceOrgRelationDO entity);
 
     boolean deleteById(String id);
+
+    List<DeviceOrgRelationDO> listByIds(List<Long> ids);
 }
 
