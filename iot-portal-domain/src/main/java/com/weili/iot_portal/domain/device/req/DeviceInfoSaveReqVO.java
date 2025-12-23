@@ -8,7 +8,6 @@ import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 import java.time.LocalDateTime;
-import java.util.Map;
 
 /**
  * 设备信息创建/修改 Request VO
@@ -20,11 +19,6 @@ public class DeviceInfoSaveReqVO {
 
     @Schema(description = "设备信息ID", example = "123456789")
     private Long id;
-
-    @Schema(description = "ThingsBoard 设备ID", requiredMode = Schema.RequiredMode.REQUIRED, example = "550e8400-e29b-41d4-a716-446655440000")
-    @NotBlank(message = "ThingsBoard设备ID不能为空")
-    @Size(max = 36, message = "ThingsBoard设备ID长度不能超过36个字符")
-    private String tbDeviceId;
 
     @Schema(description = "设备编号（威力编号，租户内唯一）", requiredMode = Schema.RequiredMode.REQUIRED, example = "WL-S21-JQ001")
     @NotBlank(message = "设备编号不能为空")

@@ -58,8 +58,6 @@ public class DeviceInfoBizService implements IDeviceInfoBizService {
     public Long createDeviceInfo(DeviceInfoSaveReqVO createReqVO) {
         // 验证设备编号唯一性
         validateDeviceCodeUnique(null, createReqVO.getDeviceCode());
-        // 验证ThingsBoard设备ID唯一性
-        validateTbDeviceIdUnique(null, createReqVO.getTbDeviceId());
         // 验证设备型号存在
         validateDeviceModelExists(createReqVO.getDeviceModelId());
 
@@ -89,8 +87,6 @@ public class DeviceInfoBizService implements IDeviceInfoBizService {
         DeviceInfoDO existingDevice = validateDeviceInfoExists(updateReqVO.getId());
         // 验证设备编号唯一性
         validateDeviceCodeUnique(updateReqVO.getId(), updateReqVO.getDeviceCode());
-        // 验证ThingsBoard设备ID唯一性
-        validateTbDeviceIdUnique(updateReqVO.getId(), updateReqVO.getTbDeviceId());
         // 验证设备型号存在
         validateDeviceModelExists(updateReqVO.getDeviceModelId());
 
@@ -273,23 +269,10 @@ public class DeviceInfoBizService implements IDeviceInfoBizService {
     }
 
     /**
-     * 验证ThingsBoard设备ID唯一性
-     */
-    private void validateTbDeviceIdUnique(Long id, String tbDeviceId) {
-        if (StrUtil.isBlank(tbDeviceId)) {
-            return;
-        }
-        boolean exists = deviceInfoRepository.existsByTbDeviceId(tbDeviceId, id);
-        if (exists) {
-            throw new IotPortalException(IotPortalErrorCode.DEVICE_TB_DEVICE_ID_DUPLICATE);
-        }
-    }
-
-    /**
      * 验证设备型号存在
      */
     private void validateDeviceModelExists(Long deviceModelId) {
-        if (deviceModelId==null) {
+        if (deviceModelId == null) {
             return;
         }
         Optional<DeviceModelDO> deviceModel = deviceModelRepository.findById(deviceModelId);
