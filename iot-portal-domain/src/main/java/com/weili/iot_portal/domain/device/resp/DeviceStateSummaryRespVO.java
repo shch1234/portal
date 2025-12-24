@@ -21,6 +21,12 @@ import java.util.List;
 @AllArgsConstructor
 public class DeviceStateSummaryRespVO {
 
+    @Schema(description = "当前状态", example = "STANDBY")
+    private String currentState;
+
+    @Schema(description = "当前心跳", example = "2025-12-23 13:39:00")
+    private String currentHeart;
+
     @Schema(description = "状态占比统计（饼图数据）")
     private StateRatioStatistics ratioStatistics;
 

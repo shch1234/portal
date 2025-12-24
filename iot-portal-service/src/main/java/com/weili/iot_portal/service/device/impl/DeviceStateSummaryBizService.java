@@ -1,12 +1,17 @@
 package com.weili.iot_portal.service.device.impl;
 
 import com.weili.iot_portal.common.enums.DeviceStateEnum;
+import com.weili.iot_portal.common.exception.IotPortalErrorCode;
+import com.weili.iot_portal.common.exception.IotPortalException;
+import com.weili.iot_portal.dal.dataobject.device.DeviceInfoDO;
 import com.weili.iot_portal.dal.dataobject.device.DeviceStateRecordDO;
 import com.weili.iot_portal.dal.dataobject.device.DeviceStateSummaryDO;
 import com.weili.iot_portal.dal.repository.device.DeviceStateRecordRepository;
 import com.weili.iot_portal.dal.repository.device.DeviceStateSummaryRepository;
 import com.weili.iot_portal.domain.device.req.DeviceStateSummaryQueryReqVO;
 import com.weili.iot_portal.domain.device.resp.DeviceStateSummaryRespVO;
+import com.weili.iot_portal.service.cache.DeviceStateCacheService;
+import com.weili.iot_portal.service.device.IDeviceInfoBizService;
 import com.weili.iot_portal.service.device.IDeviceStateSummaryBizService;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
@@ -23,30 +28,43 @@ import java.util.List;
 public class DeviceStateSummaryBizService implements IDeviceStateSummaryBizService {
 
     @Resource
+    private IDeviceInfoBizService deviceInfoBizService;
+    @Resource
+    private DeviceStateCacheService deviceStateCacheService;
+    @Resource
     private DeviceStateSummaryRepository deviceStateSummaryRepository;
-
     @Resource
     private DeviceStateRecordRepository deviceStateRecordRepository;
 
 
     @Override
     public DeviceStateSummaryRespVO getDeviceStateSummary(DeviceStateSummaryQueryReqVO queryReqVO) {
+        // 0. 查询设备当前状态
+        DeviceInfoDO deviceInfo = deviceInfoBizService.getDeviceInfo(queryReqVO.getDeviceId());
+        if (deviceInfo == null) {
+            throw new IotPortalException(IotPortalErrorCode.DEVICE_INFO_NOT_FOUND, "设备不存在");
+        }
+        String stateValue = deviceStateCacheService.getStateValue(deviceInfo.getOrgFactoryId(), deviceInfo.getId());
+        String heartbeat = deviceStateCacheService.getHeartbeat(deviceInfo.getOrgFactoryId(), deviceInfo.getId());
+
         // 1. 查询汇总数据（用于饼图）
         List<DeviceStateSummaryDO> summaryList = deviceStateSummaryRepository.selectByRange(
-                queryReqVO.getDeviceInfoId(),
+                queryReqVO.getDeviceId(),
                 queryReqVO.getStartTime(),
                 queryReqVO.getEndTime()
         );
 
         // 2. 查询状态记录数据（用于时间轴）
         List<DeviceStateRecordDO> stateRecordList = deviceStateRecordRepository.selectByRange(
-                queryReqVO.getDeviceInfoId(),
+                queryReqVO.getDeviceId(),
                 queryReqVO.getStartTime(),
                 queryReqVO.getEndTime()
         );
 
         // 3. 构建响应数据
         return DeviceStateSummaryRespVO.builder()
+                .currentState(stateValue)
+                .currentHeart(heartbeat)
                 .ratioStatistics(buildRatioStatistics(summaryList))
                 .timelineData(buildTimelineData(stateRecordList))
                 .build();

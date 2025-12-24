@@ -53,7 +53,6 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
 
     private final DeviceStateRecordRepository stateTimelineRepository;
     private final WebhookFailLogService webhookFailLogService;
-    private final WebhookInboxService inboxService;
     private final DeviceLockService deviceLockService;
     private final DeviceStateCacheService deviceStateCacheService;
     private final IShiftCalculationService shiftCalculationService;

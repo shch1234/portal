@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * @author luying
- * @className DeviceViewController
+ * @className DeviceDetailViewController
  * @description
  * @date 2025-12-23 13:39
  **/

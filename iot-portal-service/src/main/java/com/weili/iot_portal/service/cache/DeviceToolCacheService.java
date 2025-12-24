@@ -86,7 +86,7 @@ public class DeviceToolCacheService {
     public String getToolNumber(Long factoryId, Long deviceId) {
         String key = buildToolKey(factoryId, deviceId);
         Object value = redisTemplate.opsForHash().get(key, DeviceToolEventFields.TOOL_NUMBER);
-        return value != null ? value.toString() : null;
+        return String.valueOf(value);
     }
 
     /**

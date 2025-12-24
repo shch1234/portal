@@ -96,17 +96,6 @@ public class DeviceStateCacheService {
         redisTemplate.expire(key, Duration.ofMillis(stateTtlMillis));
     }
 
-    /**
-     * 删除设备状态缓存
-     *
-     * @param factoryId 工厂ID
-     * @param deviceId  设备ID
-     */
-    public void deleteState(Long factoryId, Long deviceId) {
-        String key = buildStateKey(factoryId, deviceId);
-        redisTemplate.delete(key);
-    }
-
     // ==================== 状态心跳缓存 ====================
 
     /**
@@ -132,17 +121,6 @@ public class DeviceStateCacheService {
     public String getHeartbeat(Long factoryId, Long deviceId) {
         String key = buildHeartbeatKey(factoryId, deviceId);
         return redisTemplate.opsForValue().get(key);
-    }
-
-    /**
-     * 删除状态心跳
-     *
-     * @param factoryId 工厂ID
-     * @param deviceId  设备ID
-     */
-    public void deleteHeartbeat(Long factoryId, Long deviceId) {
-        String key = buildHeartbeatKey(factoryId, deviceId);
-        redisTemplate.delete(key);
     }
 
     // ==================== 辅助方法 ====================

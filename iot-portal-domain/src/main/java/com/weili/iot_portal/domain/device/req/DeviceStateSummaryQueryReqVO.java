@@ -15,7 +15,7 @@ public class DeviceStateSummaryQueryReqVO {
 
     @Schema(description = "设备ID", requiredMode = Schema.RequiredMode.REQUIRED, example = "123456789")
     @NotNull(message = "设备ID不能为空")
-    private Long deviceInfoId;
+    private Long deviceId;
 
     @Schema(description = "开始时间（前端传 yyyy-MM-dd HH:mm:ss，后端自动转为毫秒时间戳）", requiredMode = Schema.RequiredMode.REQUIRED, example = "2024-11-13 08:00:00")
     @NotNull(message = "开始时间不能为空")

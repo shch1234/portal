@@ -17,9 +17,6 @@ public class DeviceInfoRespVO {
     @Schema(description = "设备信息ID", requiredMode = Schema.RequiredMode.REQUIRED)
     private String id;
 
-    @Schema(description = "ThingsBoard 设备ID", requiredMode = Schema.RequiredMode.REQUIRED)
-    private String tbDeviceId;
-
     @Schema(description = "设备编号（威力编号）", requiredMode = Schema.RequiredMode.REQUIRED)
     private String deviceCode;
 
