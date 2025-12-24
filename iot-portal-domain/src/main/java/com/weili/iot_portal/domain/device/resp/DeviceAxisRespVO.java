@@ -1,7 +1,5 @@
 package com.weili.iot_portal.domain.device.resp;
 
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import com.weili.iot_portal.common.serializer.TimestampLongSerializer;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -29,13 +27,6 @@ public class DeviceAxisRespVO {
 
     @Schema(description = "倍率值（百分比）", example = "50")
     private Integer ratio;
-
-    @Schema(description = "数据更新时间（毫秒时间戳，返回时自动转为 yyyy-MM-dd HH:mm:ss）")
-    @JsonSerialize(using = TimestampLongSerializer.class)
-    private Long updatedAt;
-
-    @Schema(description = "数据来源", example = "TB")
-    private String source;
 
     /**
      * 主轴信息

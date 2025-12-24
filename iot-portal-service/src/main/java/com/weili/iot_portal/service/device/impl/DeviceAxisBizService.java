@@ -87,18 +87,9 @@ public class DeviceAxisBizService implements IDeviceAxisBizService {
 
         // 3. 获取曲线数据（使用指定的聚合类型）
         DeviceAxisRespVO.SpindleInfo spindleInfo = buildSpindleInfo(orgFactoryId, deviceInfoId, aggregationType);
-
-        // 4. 提取元数据
-        Long updatedAt = parseLong(axisData.get(DeviceAxisEventFields.UPDATED_AT));
-        String source = String.valueOf(axisData.get(DeviceAxisEventFields.SOURCE));
-        Integer ratio = parseInteger(axisData.get(DeviceAxisEventFields.RATIO));
-
         return DeviceAxisRespVO.builder()
                 .spindleInfo(spindleInfo)
                 .axisCoordinates(axisCoordinates)
-                .ratio(ratio)
-                .updatedAt(updatedAt)
-                .source(source)
                 .build();
     }
 
