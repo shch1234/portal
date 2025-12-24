@@ -19,6 +19,8 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
+
 /**
  * @author luying
  * @className DeviceDetailViewController
@@ -53,8 +55,8 @@ public class DeviceDetailViewController {
 
     @GetMapping("/tool-compensation")
     @Operation(summary = "获取设备刀具补偿信息")
-    public CommonResult<DeviceToolCompensationRespVO> getDeviceToolCompensation(@Valid DeviceToolCompensationQueryReqVO queryReqVO) {
-        DeviceToolCompensationRespVO result = deviceToolCompensationBizService.getDeviceToolCompensation(queryReqVO);
+    public CommonResult<List<DeviceToolCompensationRespVO>> getDeviceToolCompensation(@Valid DeviceToolCompensationQueryReqVO queryReqVO) {
+        List<DeviceToolCompensationRespVO> result = deviceToolCompensationBizService.getDeviceToolCompensation(queryReqVO);
         return CommonResult.success(result);
     }
 

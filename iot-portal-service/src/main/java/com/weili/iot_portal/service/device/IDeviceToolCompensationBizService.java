@@ -3,6 +3,8 @@ package com.weili.iot_portal.service.device;
 import com.weili.iot_portal.domain.device.req.DeviceToolCompensationQueryReqVO;
 import com.weili.iot_portal.domain.device.resp.DeviceToolCompensationRespVO;
 
+import java.util.List;
+
 /**
  * 设备刀具补偿业务接口
  */
@@ -14,5 +16,5 @@ public interface IDeviceToolCompensationBizService {
      * @param queryReqVO 查询请求参数
      * @return 刀具补偿响应VO
      */
-    DeviceToolCompensationRespVO getDeviceToolCompensation(DeviceToolCompensationQueryReqVO queryReqVO);
+    List<DeviceToolCompensationRespVO> getDeviceToolCompensation(DeviceToolCompensationQueryReqVO queryReqVO);
 }

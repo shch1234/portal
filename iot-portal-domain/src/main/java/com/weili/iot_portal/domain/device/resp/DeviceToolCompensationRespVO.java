@@ -7,43 +7,26 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
-import java.util.List;
+
 
 /**
- * 设备刀具补偿响应VO
+ * 刀具补偿项（每一行代表一个刀补号的数据）
  */
 @Data
-@Schema(description = "设备刀具补偿响应")
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+@Schema(description = "刀具补偿项")
 public class DeviceToolCompensationRespVO {
 
-    @Schema(description = "刀具补偿列表")
-    private List<CompensationItem> compensationList;
+    @Schema(description = "刀补号", example = "T01")
+    private String toolHolderNo;
 
-    /**
-     * 刀具补偿项（每一行代表一个刀补号的数据）
-     */
-    @Data
-    @Builder
-    @NoArgsConstructor
-    @AllArgsConstructor
-    @Schema(description = "刀具补偿项")
-    public static class CompensationItem {
+    @Schema(description = "几何补偿")
+    private GeometryCompensation geometry;
 
-        @Schema(description = "刀补号", example = "T01")
-        private String toolHolderNo;
-
-        @Schema(description = "几何补偿")
-        private GeometryCompensation geometry;
-
-        @Schema(description = "磨损补偿")
-        private WearCompensation wear;
-
-        @Schema(description = "版本号", example = "1")
-        private Integer version;
-
-        @Schema(description = "生效开始时间（毫秒）", example = "1731470400000")
-        private Long startTs;
-    }
+    @Schema(description = "磨损补偿")
+    private WearCompensation wear;
 
     /**
      * 几何补偿（Geometry）

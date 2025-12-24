@@ -13,8 +13,5 @@ public class DeviceToolCompensationQueryReqVO {
 
     @NotNull(message = "设备ID不能为空")
     @Schema(description = "设备ID", required = true, example = "1234567890")
-    private Long deviceInfoId;
-
-    @Schema(description = "工厂ID（可选，用于过滤）", example = "1001")
-    private Long orgFactoryId;
+    private Long deviceId;
 }
