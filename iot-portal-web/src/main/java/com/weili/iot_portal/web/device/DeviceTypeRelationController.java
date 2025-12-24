@@ -66,7 +66,6 @@ public class DeviceTypeRelationController {
     @GetMapping("/page")
     @Operation(summary = "分页查询设备类型")
     public CommonResult<PageResult<DeviceTypeRelationRespVO>> getDeviceTypeRelationPage(@Valid DeviceTypeRelationPageReqVO pageReqVO) {
-
         PageResult<DeviceTypeRelationDO> pageResult = deviceTypeRelationBizService.getDeviceTypeRelationPage(pageReqVO);
         return CommonResult.success(BeanUtils.toBean(pageResult, DeviceTypeRelationRespVO.class));
     }

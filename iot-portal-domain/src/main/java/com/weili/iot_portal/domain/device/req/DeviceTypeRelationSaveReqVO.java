@@ -24,10 +24,6 @@ public class DeviceTypeRelationSaveReqVO {
     @Schema(description = "父类型ID", example = "123456789")
     private Long parentTypeId;
 
-    @Schema(description = "父类型编码", example = "MACHINE_TOOL")
-    @Size(max = 100, message = "父类型编码长度不能超过100个字符")
-    private String parentTypeCode;
-
     @Schema(description = "层级：1主类型、2子类型", requiredMode = Schema.RequiredMode.REQUIRED, example = "1")
     @NotNull(message = "层级不能为空")
     private Integer levelNo;
