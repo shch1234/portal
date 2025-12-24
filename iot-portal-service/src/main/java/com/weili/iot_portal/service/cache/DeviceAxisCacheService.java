@@ -80,16 +80,6 @@ public class DeviceAxisCacheService {
         return redisTemplate.opsForHash().entries(key);
     }
 
-    /**
-     * 删除设备轴数据缓存
-     *
-     * @param factoryId 工厂ID
-     * @param deviceId  设备ID
-     */
-    public void deleteAxisData(Long factoryId, Long deviceId) {
-        String key = buildAxisKey(factoryId, deviceId);
-        redisTemplate.delete(key);
-    }
 
     // ==================== 轴曲线数据缓存 ====================
 
@@ -136,54 +126,6 @@ public class DeviceAxisCacheService {
         return redisTemplate.opsForList().range(key, start, end);
     }
 
-    /**
-     * 删除轴曲线数据
-     *
-     * @param factoryId 工厂ID
-     * @param deviceId  设备ID
-     * @param metric    指标名称
-     */
-    public void deleteCurve(Long factoryId, Long deviceId, String metric) {
-        String key = buildCurveKey(factoryId, deviceId, metric);
-        redisTemplate.delete(key);
-    }
-
-    // ==================== 批量查询优化 ====================
-
-    /**
-     * 批量获取多个设备的轴数据（使用Pipeline优化）
-     *
-     * @param factoryId  工厂ID
-     * @param deviceIds  设备ID列表
-     * @return 设备ID到轴数据的映射
-     */
-    public Map<Long, Map<Object, Object>> batchGetAxisData(Long factoryId, List<Long> deviceIds) {
-        if (deviceIds == null || deviceIds.isEmpty()) {
-            return new HashMap<>();
-        }
-
-        Map<Long, Map<Object, Object>> result = new HashMap<>();
-
-        // 使用Pipeline批量获取，减少网络往返
-        List<Object> pipelineResults = redisTemplate.executePipelined((org.springframework.data.redis.core.RedisCallback<Object>) connection -> {
-            for (Long deviceId : deviceIds) {
-                String key = buildAxisKey(factoryId, deviceId);
-                connection.hGetAll(key.getBytes());
-            }
-            return null;
-        });
-
-        // 组装结果
-        for (int i = 0; i < deviceIds.size(); i++) {
-            @SuppressWarnings("unchecked")
-            Map<Object, Object> axisData = (Map<Object, Object>) pipelineResults.get(i);
-            if (axisData != null && !axisData.isEmpty()) {
-                result.put(deviceIds.get(i), axisData);
-            }
-        }
-
-        return result;
-    }
 
     // ==================== 辅助方法 ====================
 

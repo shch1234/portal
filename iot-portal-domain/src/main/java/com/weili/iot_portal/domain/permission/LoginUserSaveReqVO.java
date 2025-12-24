@@ -22,7 +22,7 @@ public class LoginUserSaveReqVO extends BaseVO {
 
     @Schema(description = "用户id")
     @NotNull
-    private Long userId;
+    private List<Long> userId;
     @Schema(description = "关联角色id列表")
     @NotNull
     private List<Long> roleList;

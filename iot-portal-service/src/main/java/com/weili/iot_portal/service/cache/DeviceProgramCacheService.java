@@ -13,9 +13,9 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * 设备程序缓存服务
+ * 设备程序实时缓存服务
  * <p>
- * 统一管理设备程序相关的缓存操作
+ * 设备运行程序相关的缓存操作
  * </p>
  *
  * @author system
@@ -83,16 +83,6 @@ public class DeviceProgramCacheService {
         return value != null ? value.toString() : null;
     }
 
-    /**
-     * 删除设备程序缓存
-     *
-     * @param factoryId 工厂ID
-     * @param deviceId  设备ID
-     */
-    public void deleteProgram(Long factoryId, Long deviceId) {
-        String key = buildProgramKey(factoryId, deviceId);
-        redisTemplate.delete(key);
-    }
 
     // ==================== 辅助方法 ====================
 

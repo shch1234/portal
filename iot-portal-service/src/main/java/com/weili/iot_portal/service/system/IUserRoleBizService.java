@@ -2,6 +2,7 @@ package com.weili.iot_portal.service.system;
 
 import com.weili.basic.common.model.PageResult;
 import com.weili.iot_portal.dal.dataobject.system.RoleDO;
+import com.weili.iot_portal.domain.permission.LoginUserRespVO;
 import com.weili.iot_portal.domain.permission.RolePageReqVO;
 import com.weili.iot_portal.domain.permission.RoleSaveReqVO;
 
@@ -115,4 +116,5 @@ public interface IUserRoleBizService {
 
     void deleteByUserId(Long id);
 
+    List<LoginUserRespVO> selectUserList(String code);
 }

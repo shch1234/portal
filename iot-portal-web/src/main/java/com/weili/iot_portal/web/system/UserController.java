@@ -4,9 +4,7 @@ import com.weili.basic.common.model.CommonResult;
 import com.weili.basic.common.model.PageResult;
 import com.weili.iot_portal.domain.permission.LoginUserPageReqVO;
 import com.weili.iot_portal.domain.permission.LoginUserRespVO;
-import com.weili.iot_portal.domain.permission.LoginUserSaveReqVO;
 import com.weili.iot_portal.service.system.ILoginUserBizService;
-import com.weili.iot_portal.web.annotation.PermRequired;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -43,13 +41,5 @@ public class UserController {
     @Parameter(name = "id", description = "用户id", required = true)
     public CommonResult<LoginUserRespVO> getUser(@RequestParam("id") Long id) {
         return CommonResult.success(loginUserBizService.getById(id));
-    }
-
-    @PutMapping("/update")
-    @Operation(summary = "更新用户关联角色")
-    @PermRequired(permission = "system:user:update")
-    public CommonResult<Boolean> update(@Valid @RequestBody LoginUserSaveReqVO reqVO) {
-        loginUserBizService.update(reqVO);
-        return CommonResult.success(true);
     }
 }

@@ -45,4 +45,23 @@ public class RedisConstant {
      * 刀补补偿缓存：当前有效的补偿值（Hash，按设备ID分组，field为刀补号，value为JSON）
      */
     public static final String COMPENSATION_ACTIVE = COMMON + "compensation:active:%s";
+
+
+    /**
+     * 设备状态锁键前缀
+     */
+    public static final String LOCK_KEY_PREFIX_STATE = COMMON + "state_lock:";
+    /**
+     * 设备告警锁键前缀
+     */
+    public static final String LOCK_KEY_PREFIX_ALARM = COMMON + "alarm_lock:";
+    /**
+     * 设备刀具变更锁键前缀
+     */
+    public static final String LOCK_KEY_PREFIX_TOOL_CHANGE = COMMON + "tool_lock:";
+
+    /**
+     * 设备加工状态锁键前缀
+     */
+    public static final String LOCK_KEY_PREFIX_PRODUCTION = COMMON + "production_lock:";
 }

@@ -4,6 +4,8 @@ import com.weili.basic.common.model.PageResult;
 import com.weili.iot_portal.dal.dataobject.system.LoginUserDO;
 import com.weili.iot_portal.dal.ddd.system.LoginUserPageQuery;
 
+import java.util.List;
+
 
 /**
  * @InterfaceName: ILoginUserRepository
@@ -24,4 +26,5 @@ public interface ILoginUserRepository {
 
     LoginUserDO getByEmpId(Long id);
 
+    List<LoginUserDO> listByUserIds(List<Long> userIds);
 }

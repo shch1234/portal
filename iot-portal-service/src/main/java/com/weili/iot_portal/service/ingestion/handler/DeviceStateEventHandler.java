@@ -16,7 +16,6 @@ import com.weili.iot_portal.service.ingestion.WebhookFailLogService;
 import com.weili.iot_portal.service.ingestion.WebhookProcessingStrategy;
 import com.weili.iot_portal.service.ingestion.handler.fields.DeviceStateEventFields;
 import com.weili.iot_portal.service.ingestion.handler.support.WebhookHandlerUtils;
-import com.weili.iot_portal.service.ingestion.support.WebhookInboxService;
 import com.weili.iot_portal.service.shift.IShiftCalculationService;
 import com.weili.iot_portal.service.shift.model.ShiftDateAndCode;
 import lombok.RequiredArgsConstructor;
@@ -170,8 +169,8 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
     private void logTimestampExtraction(Map<String, Object> eventDataMap, WebhookRequest request, Long eventTimestamp) {
         Long eventDataTs = WebhookTimestampUtils.extractTimestamp(eventDataMap);
         Long telemetryDataTs = WebhookTimestampUtils.extractTimestamp(request.getTelemetryData());
-        String timestampSource = (eventDataTs != null && eventTimestamp.equals(eventDataTs)) ? "eventData" :
-                ((telemetryDataTs != null && eventTimestamp.equals(telemetryDataTs)) ? "telemetryData" :
+        String timestampSource = (eventTimestamp.equals(eventDataTs)) ? "eventData" :
+                ((eventTimestamp.equals(telemetryDataTs)) ? "telemetryData" :
                 ((request.getDataTimestamp() != null && eventTimestamp.equals(request.getDataTimestamp())) ? "dataTimestamp" : "timestamp"));
         log.debug("[DeviceStateEventHandler] 时间戳提取结果: eventTimestamp={}, 来源={}, eventData.timestamp={}, telemetryData.timestamp={}, request.dataTimestamp={}, request.timestamp={}",
                 eventTimestamp, timestampSource, eventDataTs, telemetryDataTs, request.getDataTimestamp(), request.getTimestamp());
@@ -185,15 +184,14 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
     private void processStateTransitionWithLock(EventData eventData, DeviceIdentity identity, WebhookRequest request) {
         Long deviceInfoId = identity.deviceInfoId();
         
-        // 获取分布式锁
-        if (!deviceLockService.tryLockState(deviceInfoId, DeviceStateEventFields.LOCK_TIMEOUT_SECONDS)) {
+        if (deviceLockService.tryLockState(deviceInfoId, DeviceStateEventFields.LOCK_TIMEOUT_SECONDS)) {
             log.warn("[Webhook-Handler-DeviceState] 获取设备状态锁失败: deviceInfoId={}, messageId={}",
                     deviceInfoId, request.getMessageId());
             throw new IotPortalException(IotPortalErrorCode.EVENT_DEVICE_STATE_PROCESSING);
         }
 
-        boolean needUpdateCache = false;
-        boolean dbOperationSuccess = false;
+        boolean needUpdateCache;
+        boolean dbOperationSuccess;
 
         try {
             // 查询数据库最新状态

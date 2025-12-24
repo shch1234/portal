@@ -4,7 +4,7 @@ import com.weili.iot_portal.common.exception.IotPortalErrorCode;
 import com.weili.iot_portal.common.exception.IotPortalException;
 import com.weili.iot_portal.dal.dataobject.device.DeviceInfoDO;
 import com.weili.iot_portal.dal.repository.device.DeviceInfoRepository;
-import com.weili.iot_portal.service.cache.DeviceFactoryCacheService;
+import com.weili.iot_portal.service.cache.DeviceIdentityCacheService;
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Component;
@@ -17,7 +17,7 @@ import org.springframework.stereotype.Component;
 public class DeviceFactoryValidator {
 
     private final DeviceInfoRepository deviceInfoRepository;
-    private final DeviceFactoryCacheService deviceFactoryCacheService;
+    private final DeviceIdentityCacheService deviceIdentityCacheService;
 
     /**
      * 验证设备是否存在且属于指定工厂
@@ -45,7 +45,7 @@ public class DeviceFactoryValidator {
             throw new IotPortalException(IotPortalErrorCode.DEVICE_ID_EMPTY);
         }
 
-        String cached = deviceFactoryCacheService.get(deviceId);
+        String cached = deviceIdentityCacheService.getFactoryId(deviceId);
         if (StringUtils.isNotBlank(cached)) {
             return Long.parseLong(cached);
         }
@@ -57,7 +57,7 @@ public class DeviceFactoryValidator {
             throw new IotPortalException(IotPortalErrorCode.DEVICE_NOT_ASSOCIATED_FACTORY);
         }
 
-        deviceFactoryCacheService.cache(device.getId(), device.getOrgFactoryId());
+        deviceIdentityCacheService.putFactoryId(device.getId(), device.getOrgFactoryId());
         return device.getOrgFactoryId();
     }
 }

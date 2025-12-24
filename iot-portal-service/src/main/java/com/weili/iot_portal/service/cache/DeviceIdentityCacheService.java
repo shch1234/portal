@@ -97,6 +97,20 @@ public class DeviceIdentityCacheService {
         redisClient.delete(buildKey(deviceCode));
     }
 
+
+    public String getFactoryId(Long deviceId) {
+        return redisClient.get(formatKey(deviceId));
+    }
+
+    public void putFactoryId(Long deviceId, Long factoryId) {
+        if (factoryId == null) {
+            redisClient.delete(formatKey(deviceId));
+            return;
+        }
+        redisClient.set(formatKey(deviceId), String.valueOf(factoryId), DEFAULT_TTL_SECONDS, TimeUnit.SECONDS);
+    }
+
+
     private void cache(String deviceCode, DeviceIdentity identity) {
         redisClient.set(buildKey(deviceCode),
                 JsonUtils.toJsonString(identity),
@@ -107,6 +121,11 @@ public class DeviceIdentityCacheService {
     private String buildKey(String deviceCode) {
         return String.format(RedisConstant.DEVICE_CODE_IDENTITY, deviceCode);
     }
+
+    private String formatKey(Long deviceId) {
+        return String.format(RedisConstant.DEVICE_FACTORY, deviceId);
+    }
+
 
     @Data
     @AllArgsConstructor

@@ -14,6 +14,7 @@ import com.weili.iot_portal.service.cache.DeviceStateCacheService;
 import com.weili.iot_portal.service.device.IDeviceInfoBizService;
 import com.weili.iot_portal.service.device.IDeviceStateSummaryBizService;
 import jakarta.annotation.Resource;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -61,10 +62,9 @@ public class DeviceStateSummaryBizService implements IDeviceStateSummaryBizServi
                 queryReqVO.getEndTime()
         );
 
-        // 3. 构建响应数据
         return DeviceStateSummaryRespVO.builder()
                 .currentState(stateValue)
-                .currentHeart(heartbeat)
+                .currentHeart(StringUtils.isNotBlank(heartbeat))
                 .ratioStatistics(buildRatioStatistics(summaryList))
                 .timelineData(buildTimelineData(stateRecordList))
                 .build();

@@ -14,12 +14,12 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * 设备状态缓存服务
+ * 设备状态实时缓存服务
  * <p>
- * 统一管理设备状态相关的缓存操作，包括状态数据、心跳等
+ * 设备当前运行的状态和心跳
  * </p>
  *
- * @author system
+ * @author luying
  */
 @Slf4j
 @Service

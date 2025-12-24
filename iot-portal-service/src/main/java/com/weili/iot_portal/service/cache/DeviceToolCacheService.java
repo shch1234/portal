@@ -16,9 +16,9 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * 设备刀具缓存服务
+ * 设备刀具实时缓存服务
  * <p>
- * 统一管理设备刀具相关的缓存操作
+ * 当前设备刀具相关的缓存操作
  * </p>
  *
  * @author system

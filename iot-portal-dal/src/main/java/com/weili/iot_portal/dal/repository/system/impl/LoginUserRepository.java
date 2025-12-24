@@ -8,10 +8,13 @@ import com.weili.iot_portal.dal.dataobject.system.LoginUserDO;
 import com.weili.iot_portal.dal.ddd.system.LoginUserPageQuery;
 import com.weili.iot_portal.dal.mapper.system.LoginUserMapper;
 import com.weili.iot_portal.dal.repository.system.ILoginUserRepository;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
+import java.util.Collections;
+import java.util.List;
 
 /**
  * @author luying
@@ -80,5 +83,15 @@ public class LoginUserRepository extends ServiceImpl<LoginUserMapper, LoginUserD
         LambdaQueryWrapperX<LoginUserDO> queryWrapper = new LambdaQueryWrapperX<>();
         queryWrapper.eq(LoginUserDO::getJobNumber, empId);
         return super.getOne(queryWrapper);
+    }
+
+    @Override
+    public List<LoginUserDO> listByUserIds(List<Long> userIds) {
+        if (CollectionUtils.isEmpty(userIds)) {
+            return Collections.emptyList();
+        }
+        LambdaQueryWrapperX<LoginUserDO> queryWrapper = new LambdaQueryWrapperX<>();
+        queryWrapper.in(LoginUserDO::getUserId, userIds);
+        return super.list(queryWrapper);
     }
 }

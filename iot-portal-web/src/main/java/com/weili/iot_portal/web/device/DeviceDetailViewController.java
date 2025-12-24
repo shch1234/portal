@@ -46,4 +46,5 @@ public class DeviceDetailViewController {
         return CommonResult.success(result);
     }
 
+
 }

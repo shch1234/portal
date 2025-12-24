@@ -11,11 +11,14 @@ import com.weili.basic.common.util.BeanUtils;
 import com.weili.iot_portal.common.enums.RoleCodeEnum;
 import com.weili.iot_portal.common.enums.StatusEnum;
 import com.weili.iot_portal.common.exception.IotPortalErrorCode;
+import com.weili.iot_portal.dal.dataobject.system.LoginUserDO;
 import com.weili.iot_portal.dal.dataobject.system.RoleDO;
 import com.weili.iot_portal.dal.dataobject.system.UserRoleDO;
 import com.weili.iot_portal.dal.ddd.system.RolePageQuery;
 import com.weili.iot_portal.dal.repository.system.IRoleRepository;
 import com.weili.iot_portal.dal.repository.system.IUserRoleRepository;
+import com.weili.iot_portal.dal.repository.system.impl.LoginUserRepository;
+import com.weili.iot_portal.domain.permission.LoginUserRespVO;
 import com.weili.iot_portal.domain.permission.RolePageReqVO;
 import com.weili.iot_portal.domain.permission.RoleSaveReqVO;
 import com.weili.iot_portal.service.system.IMenuBizService;
@@ -49,7 +52,8 @@ public class UserRoleBizService implements IUserRoleBizService {
     private IMenuBizService menuBizService;
     @Resource
     private IUserRoleRepository userRoleRepository;
-
+    @Resource
+    private LoginUserRepository loginUserRepository;
 
     @Override
     public boolean userHasBindRole(Long roleId) {
@@ -183,6 +187,21 @@ public class UserRoleBizService implements IUserRoleBizService {
     @Override
     public void deleteByUserId(Long userId) {
         userRoleRepository.deleteListByUserId(userId);
+    }
+
+    @Override
+    public List<LoginUserRespVO> selectUserList(String code) {
+        RoleDO roleDO = roleRepository.selectByCode(code);
+        if (roleDO == null) {
+            throw new ServiceException(ErrorCodeConstants.ROLE_NOT_EXISTS);
+        }
+        List<UserRoleDO> userRoleList = userRoleRepository.selectListByRoleIds(List.of(roleDO.getId()));
+        if (CollectionUtils.isEmpty(userRoleList)) {
+            return Collections.emptyList();
+        }
+        List<Long> userIds = userRoleList.stream().map(UserRoleDO::getUserId).distinct().toList();
+        List<LoginUserDO> userList = loginUserRepository.listByUserIds(userIds);
+        return BeanUtils.toBean(userList, LoginUserRespVO.class);
     }
 
 

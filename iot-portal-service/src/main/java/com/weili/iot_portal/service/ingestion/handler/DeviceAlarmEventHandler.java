@@ -231,14 +231,11 @@ public class DeviceAlarmEventHandler implements WebhookEventHandler {
         Long deviceInfoId = identity.deviceInfoId();
         
         // 获取分布式锁
-        if (!deviceLockService.tryLockState(deviceInfoId, DeviceAlarmEventFields.LOCK_TIMEOUT_SECONDS)) {
+        if (deviceLockService.tryLockAlarm(deviceInfoId, DeviceAlarmEventFields.LOCK_TIMEOUT_SECONDS)) {
             log.warn("[Webhook-Handler-DeviceAlarm] 获取设备报警锁失败: deviceInfoId={}, messageId={}",
                     deviceInfoId, request.getMessageId());
             throw new IotPortalException(IotPortalErrorCode.EVENT_DEVICE_STATE_PROCESSING);
         }
-
-        boolean dbOperationSuccess = false;
-
         try {
             // 查询数据库最新活跃报警
             List<DeviceAlarmHistoryDO> activeList = deviceAlarmHistoryRepository.findActiveByDevice(
@@ -246,9 +243,8 @@ public class DeviceAlarmEventHandler implements WebhookEventHandler {
             
             // 处理报警转换
             processAlarmTransition(activeList, eventData, identity, request);
-            dbOperationSuccess = true;
         } finally {
-            deviceLockService.unlockState(deviceInfoId);
+            deviceLockService.unlockAlarm(deviceInfoId);
         }
     }
 

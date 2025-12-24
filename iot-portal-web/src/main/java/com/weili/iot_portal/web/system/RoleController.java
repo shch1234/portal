@@ -5,6 +5,7 @@ import com.weili.basic.common.model.PageResult;
 import com.weili.basic.common.util.BeanUtils;
 import com.weili.basic.framework.annotation.ApiInterceptor;
 import com.weili.iot_portal.dal.dataobject.system.RoleDO;
+import com.weili.iot_portal.domain.permission.LoginUserRespVO;
 import com.weili.iot_portal.domain.permission.RolePageReqVO;
 import com.weili.iot_portal.domain.permission.RoleRespVO;
 import com.weili.iot_portal.domain.permission.RoleSaveReqVO;
@@ -85,5 +86,13 @@ public class RoleController {
         List<RoleDO> list = userRoleBizService.selectEnableList();
         list.sort(Comparator.comparing(RoleDO::getSort));
         return CommonResult.success(BeanUtils.toBean(list, RoleRespVO.class));
+    }
+
+    @GetMapping("/user-list")
+    @Operation(summary = "获取角色下的用户列表")
+    @ApiInterceptor
+    public CommonResult<List<LoginUserRespVO>> selectUserList(@RequestParam("code") String code) {
+        List<LoginUserRespVO> list = userRoleBizService.selectUserList(code);
+        return CommonResult.success(list);
     }
 }
