@@ -2,24 +2,23 @@ package com.weili.iot_portal.web.system;
 
 import com.weili.basic.authorization.security.SecurityContextUtils;
 import com.weili.basic.common.model.CommonResult;
-import com.weili.basic.common.model.PageResult;
 import com.weili.basic.oauth2.oidc.Oauth2UserDetail;
 import com.weili.iot_portal.dal.dataobject.system.MenuDO;
 import com.weili.iot_portal.dal.dataobject.system.RoleDO;
-import com.weili.iot_portal.domain.permission.*;
+import com.weili.iot_portal.domain.permission.AuthPermissionRespVO;
+import com.weili.iot_portal.domain.permission.AuthUserInfoRespVO;
 import com.weili.iot_portal.service.system.ILoginUserBizService;
 import com.weili.iot_portal.service.system.IMenuBizService;
 import com.weili.iot_portal.service.system.IUserRoleBizService;
-import com.weili.iot_portal.web.annotation.PermRequired;
 import com.weili.iot_portal.web.converter.AuthLoginConvert;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.Resource;
-import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -35,7 +34,7 @@ import static com.weili.basic.common.model.CommonResult.success;
  * @description: TODO
  * @date 2025/6/16 22:51
  */
-@Tag(name = "用户管理")
+@Tag(name = "登录管理")
 @RestController
 @RequestMapping("/system/auth")
 @Slf4j
@@ -89,27 +88,5 @@ public class LoginAuthController {
             log.warn("未查询到用户角色有效菜单信息");
         }
         return success(AuthLoginConvert.INSTANCE.convertNoUser(roleList, filterList));
-    }
-
-    @GetMapping("/page")
-    @Operation(summary = "获得用户分页列表")
-    public CommonResult<PageResult<LoginUserRespVO>> getUserPage(@Valid LoginUserPageReqVO pageReqVO) {
-        PageResult<LoginUserRespVO> pageResult = loginUserBizService.selectPage(pageReqVO);
-        return CommonResult.success(pageResult);
-    }
-
-    @GetMapping("/get")
-    @Operation(summary = "获得用户详情")
-    @Parameter(name = "id", description = "用户id", required = true)
-    public CommonResult<LoginUserRespVO> getUser(@RequestParam("id") Long id) {
-        return CommonResult.success(loginUserBizService.getById(id));
-    }
-
-    @PutMapping("/update")
-    @Operation(summary = "更新用户关联角色")
-    @PermRequired(permission = "system:user:update")
-    public CommonResult<Boolean> update(@Valid @RequestBody LoginUserSaveReqVO reqVO) {
-        loginUserBizService.update(reqVO);
-        return CommonResult.success(true);
     }
 }

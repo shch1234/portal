@@ -14,7 +14,7 @@ import lombok.Data;
 public class DeviceTypeRelationSaveReqVO {
 
     @Schema(description = "设备类型ID", example = "123456789")
-    private String id;
+    private Long id;
 
     @Schema(description = "设备类型编码（字典 value）", requiredMode = Schema.RequiredMode.REQUIRED, example = "CNC_5AXIS")
     @NotBlank(message = "设备类型编码不能为空")
@@ -22,7 +22,7 @@ public class DeviceTypeRelationSaveReqVO {
     private String typeCode;
 
     @Schema(description = "父类型ID", example = "123456789")
-    private String parentTypeId;
+    private Long parentTypeId;
 
     @Schema(description = "父类型编码", example = "MACHINE_TOOL")
     @Size(max = 100, message = "父类型编码长度不能超过100个字符")

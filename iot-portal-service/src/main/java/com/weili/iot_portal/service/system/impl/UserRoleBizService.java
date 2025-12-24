@@ -8,9 +8,9 @@ import com.weili.basic.common.exception.BaseException;
 import com.weili.basic.common.exception.ServiceException;
 import com.weili.basic.common.model.PageResult;
 import com.weili.basic.common.util.BeanUtils;
-import com.weili.iot_portal.common.enums.BizErrorCodeEnum;
 import com.weili.iot_portal.common.enums.RoleCodeEnum;
 import com.weili.iot_portal.common.enums.StatusEnum;
+import com.weili.iot_portal.common.exception.IotPortalErrorCode;
 import com.weili.iot_portal.dal.dataobject.system.RoleDO;
 import com.weili.iot_portal.dal.dataobject.system.UserRoleDO;
 import com.weili.iot_portal.dal.ddd.system.RolePageQuery;
@@ -194,7 +194,7 @@ public class UserRoleBizService implements IUserRoleBizService {
             throw new ServiceException(ErrorCodeConstants.ROLE_NOT_EXISTS);
         }
         if (userHasBindRole(id)) {
-            throw new BaseException(BizErrorCodeEnum.DATA_OPERATE_ERROR, "角色已绑定用户，不允许删除");
+            throw new BaseException(IotPortalErrorCode.DATA_OPERATE_ERROR, "角色已绑定用户，不允许删除");
         }
         roleRepository.delete(id);
         userRoleRepository.deleteListByRoleId(id);

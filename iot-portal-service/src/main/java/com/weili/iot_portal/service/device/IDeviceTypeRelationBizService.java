@@ -32,7 +32,7 @@ public interface IDeviceTypeRelationBizService {
      *
      * @param id 设备类型ID
      */
-    void deleteDeviceTypeRelation(String id);
+    void deleteDeviceTypeRelation(Long id);
 
     /**
      * 根据ID获取设备类型
@@ -40,7 +40,7 @@ public interface IDeviceTypeRelationBizService {
      * @param id 设备类型ID
      * @return 设备类型
      */
-    DeviceTypeRelationDO getDeviceTypeRelation(String id);
+    DeviceTypeRelationDO getDeviceTypeRelation(Long id);
 
     /**
      * 根据设备类型编码获取设备类型

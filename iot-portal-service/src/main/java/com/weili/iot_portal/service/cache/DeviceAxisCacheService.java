@@ -1,6 +1,7 @@
 package com.weili.iot_portal.service.cache;
 
 import com.weili.iot_portal.common.constant.RedisConstant;
+import com.weili.iot_portal.service.ingestion.handler.fields.DeviceAxisEventFields;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -10,12 +11,13 @@ import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
  * 设备轴数据缓存服务
  * <p>
- * 统一管理设备轴数据相关的缓存操作，包括轴坐标数据、曲线数据等
+ * 轴坐标数据、曲线数据等
  * </p>
  *
  * @author system
@@ -30,40 +32,36 @@ public class DeviceAxisCacheService {
     @Value("${rt.axis.ttl-millis:300000}")
     private long axisTtlMillis;
 
-    @Value("${rt.axis.curve.ttl-millis:600000}")
+    @Value("${rt.axis.curve.ttl-millis:300000}")
     private long axisCurveTtlMillis;
 
-    /**
-     * 默认空值占位符
-     */
-    private static final String DEFAULT_BLANK_PLACEHOLDER = "none";
-
     // ==================== 轴数据缓存 ====================
+
     /**
      * 保存或更新设备轴数据缓存
      *
      * @param factoryId 工厂ID
-     * @param deviceId 设备ID
-     * @param axisData 轴数据映射（key 为字段名，value 为字段值）
+     * @param deviceId  设备ID
+     * @param axisData  轴数据映射（key 为字段名，value 为字段值）
      * @param updatedAt 更新时间戳（毫秒）
-     * @param source 数据来源
-     * @param traceId 追踪ID（可选）
-     * @param ratio 倍率值（可选）
+     * @param source    数据来源
+     * @param traceId   追踪ID（可选）
+     * @param ratio     倍率值（可选）
      */
     public void saveAxisData(Long factoryId, Long deviceId, Map<String, Object> axisData,
-                              long updatedAt, String source, String traceId, Object ratio) {
+                             long updatedAt, String source, String traceId, Object ratio) {
         if (axisData == null || axisData.isEmpty()) {
             return;
         }
         Map<String, String> payload = new HashMap<>();
         axisData.forEach((k, v) -> payload.put(k, String.valueOf(v)));
-        payload.put("updatedAt", String.valueOf(updatedAt));
-        payload.put("source", source);
+        payload.put(DeviceAxisEventFields.UPDATED_AT, String.valueOf(updatedAt));
+        payload.put(DeviceAxisEventFields.SOURCE, source);
         if (StringUtils.isNotBlank(traceId)) {
-            payload.put("traceId", traceId);
+            payload.put(DeviceAxisEventFields.TRACE_ID, traceId);
         }
         if (ratio != null) {
-            payload.put("ratio", String.valueOf(ratio));
+            payload.put(DeviceAxisEventFields.RATIO, String.valueOf(ratio));
         }
         String key = buildAxisKey(factoryId, deviceId);
         redisTemplate.opsForHash().putAll(key, payload);
@@ -74,7 +72,7 @@ public class DeviceAxisCacheService {
      * 获取设备轴数据缓存
      *
      * @param factoryId 工厂ID
-     * @param deviceId 设备ID
+     * @param deviceId  设备ID
      * @return 轴数据映射，如果不存在返回 null
      */
     public Map<Object, Object> getAxisData(Long factoryId, Long deviceId) {
@@ -86,7 +84,7 @@ public class DeviceAxisCacheService {
      * 删除设备轴数据缓存
      *
      * @param factoryId 工厂ID
-     * @param deviceId 设备ID
+     * @param deviceId  设备ID
      */
     public void deleteAxisData(Long factoryId, Long deviceId) {
         String key = buildAxisKey(factoryId, deviceId);
@@ -94,24 +92,28 @@ public class DeviceAxisCacheService {
     }
 
     // ==================== 轴曲线数据缓存 ====================
+
     /**
-     * 追加轴曲线数据点
+     * 追加轴曲线数据点（优化版：使用紧凑格式）
+     * 优化前：{"ts":1731470400000,"value":50} (32字节)
+     * 优化后：1731470400000:50 (16字节)
+     * 节省约50%内存 + JSON序列化开销
      *
      * @param factoryId 工厂ID
-     * @param deviceId 设备ID
-     * @param metric 指标名称（load/rpm/feed）
+     * @param deviceId  设备ID
+     * @param metric    指标名称（load/rpm/feed）
      * @param timestamp 时间戳（毫秒）
-     * @param value 指标值
-     * @param maxLen 最大长度
+     * @param value     指标值
+     * @param maxLen    最大长度
      */
     public void appendCurvePoint(Long factoryId, Long deviceId, String metric,
                                  long timestamp, Object value, int maxLen) {
         if (value == null) {
             return;
         }
-        String pointJson = String.format("{\"ts\":%d,\"value\":%s}", timestamp, value);
+        String pointData = timestamp + ":" + value;
         String key = buildCurveKey(factoryId, deviceId, metric);
-        redisTemplate.opsForList().leftPush(key, pointJson);
+        redisTemplate.opsForList().leftPush(key, pointData);
         if (maxLen > 0) {
             redisTemplate.opsForList().trim(key, 0, maxLen - 1);
         }
@@ -122,14 +124,14 @@ public class DeviceAxisCacheService {
      * 获取轴曲线数据
      *
      * @param factoryId 工厂ID
-     * @param deviceId 设备ID
-     * @param metric 指标名称
-     * @param start 起始索引
-     * @param end 结束索引（-1 表示全部）
+     * @param deviceId  设备ID
+     * @param metric    指标名称
+     * @param start     起始索引
+     * @param end       结束索引（-1 表示全部）
      * @return 曲线数据点列表
      */
-    public java.util.List<String> getCurvePoints(Long factoryId, Long deviceId,
-                                                  String metric, long start, long end) {
+    public List<String> getCurvePoints(Long factoryId, Long deviceId,
+                                       String metric, long start, long end) {
         String key = buildCurveKey(factoryId, deviceId, metric);
         return redisTemplate.opsForList().range(key, start, end);
     }
@@ -138,45 +140,75 @@ public class DeviceAxisCacheService {
      * 删除轴曲线数据
      *
      * @param factoryId 工厂ID
-     * @param deviceId 设备ID
-     * @param metric 指标名称
+     * @param deviceId  设备ID
+     * @param metric    指标名称
      */
     public void deleteCurve(Long factoryId, Long deviceId, String metric) {
         String key = buildCurveKey(factoryId, deviceId, metric);
         redisTemplate.delete(key);
     }
 
+    // ==================== 批量查询优化 ====================
+
+    /**
+     * 批量获取多个设备的轴数据（使用Pipeline优化）
+     *
+     * @param factoryId  工厂ID
+     * @param deviceIds  设备ID列表
+     * @return 设备ID到轴数据的映射
+     */
+    public Map<Long, Map<Object, Object>> batchGetAxisData(Long factoryId, List<Long> deviceIds) {
+        if (deviceIds == null || deviceIds.isEmpty()) {
+            return new HashMap<>();
+        }
+
+        Map<Long, Map<Object, Object>> result = new HashMap<>();
+
+        // 使用Pipeline批量获取，减少网络往返
+        List<Object> pipelineResults = redisTemplate.executePipelined((org.springframework.data.redis.core.RedisCallback<Object>) connection -> {
+            for (Long deviceId : deviceIds) {
+                String key = buildAxisKey(factoryId, deviceId);
+                connection.hGetAll(key.getBytes());
+            }
+            return null;
+        });
+
+        // 组装结果
+        for (int i = 0; i < deviceIds.size(); i++) {
+            @SuppressWarnings("unchecked")
+            Map<Object, Object> axisData = (Map<Object, Object>) pipelineResults.get(i);
+            if (axisData != null && !axisData.isEmpty()) {
+                result.put(deviceIds.get(i), axisData);
+            }
+        }
+
+        return result;
+    }
+
     // ==================== 辅助方法 ====================
+
     /**
      * 构建轴数据缓存键
      *
      * @param factoryId 工厂ID
-     * @param deviceId 设备ID
+     * @param deviceId  设备ID
      * @return Redis 键
      */
     private String buildAxisKey(Long factoryId, Long deviceId) {
-        return String.format(RedisConstant.RT_AXIS,
-                defaultBlank(factoryId), defaultBlank(deviceId));
+        return String.format(RedisConstant.RT_AXIS, factoryId, deviceId);
     }
 
     /**
      * 构建轴曲线数据键
      *
      * @param factoryId 工厂ID
-     * @param deviceId 设备ID
-     * @param metric 指标名称
+     * @param deviceId  设备ID
+     * @param metric    指标名称
      * @return Redis 键
      */
     private String buildCurveKey(Long factoryId, Long deviceId, String metric) {
         return String.format("rt:axis:curve:%s:%s:%s",
                 metric, factoryId, deviceId);
-    }
-
-    /**
-     * 默认空值处理
-     */
-    private String defaultBlank(Long value) {
-        return value==null? DEFAULT_BLANK_PLACEHOLDER :value.toString();
     }
 }
 

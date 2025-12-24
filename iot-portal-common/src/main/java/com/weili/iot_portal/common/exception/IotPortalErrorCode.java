@@ -9,6 +9,19 @@ import com.weili.basic.common.enums.IEnumBase;
  * @date 2025-12-11 09:14
  **/
 public enum IotPortalErrorCode implements IEnumBase {
+
+    ILLEGAL("参数非法"),
+    OVER_LENGTH("超出长度"),
+    PERMISSION_ERROR("权限校验失败"),
+    DATA_OPERATE_ERROR("数据操作失败"),
+    DB_DATABASE_ERROR("数据库操作上失败"),
+
+    //登录
+    AUTH_LOGIN_FAIL("登录失败，请联系管理员"),
+    AUTH_LOGIN_EXPIRE("登录过期"),
+    LOGIN_USER_NOT_EXIST("获取用户信息为空"),
+
+
     // Webhook 相关错误
     WEBHOOK_CATEGORY_NOT_SUPPORTED("不支持的 webhook category"),
     WEBHOOK_MESSAGE_ID_MISSING("缺少 messageId"),

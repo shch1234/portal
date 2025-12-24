@@ -1,7 +1,5 @@
 package com.weili.iot_portal.service.ingestion.handler;
 
-import com.weili.iot_portal.common.exception.IotPortalErrorCode;
-import com.weili.iot_portal.common.exception.IotPortalException;
 import com.weili.iot_portal.dal.dataobject.ingestion.WebhookInboxDO;
 import com.weili.iot_portal.domain.ingestion.WebhookRequest;
 import com.weili.iot_portal.service.cache.DeviceProgramCacheService;
@@ -74,10 +72,6 @@ public class DeviceProgramEventHandler implements WebhookEventHandler {
     @Override
     public void handleRealtime(WebhookRequest request) throws Exception {
         Map<String, Object> eventData = request.getEventData();
-        if (eventData == null || eventData.isEmpty()) {
-            throw new IotPortalException(IotPortalErrorCode.EVENT_DATA_EMPTY);
-        }
-
         // 解析设备标识（按 deviceCode / deviceId 解析为 portal 的 deviceInfoId / factoryId）
         DeviceIdentity identity = 
                 webhookHandlerUtils.resolveDeviceIdentity(request);

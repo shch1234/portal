@@ -1,7 +1,11 @@
 package com.weili.iot_portal.service.ingestion;
 
+import com.weili.iot_portal.common.exception.IotPortalErrorCode;
+import com.weili.iot_portal.common.exception.IotPortalException;
 import com.weili.iot_portal.dal.dataobject.ingestion.WebhookInboxDO;
 import com.weili.iot_portal.domain.ingestion.WebhookRequest;
+
+import java.util.Map;
 
 /**
  * Webhook 事件处理接口，支持按 eventType 动态分发
@@ -39,6 +43,10 @@ public interface WebhookEventHandler {
      * @throws Exception 处理异常
      */
     default void handleRealtime(WebhookRequest request) throws Exception {
+        Map<String, Object> eventData = request.getEventData();
+        if (eventData == null || eventData.isEmpty()) {
+            throw new IotPortalException(IotPortalErrorCode.EVENT_DATA_EMPTY);
+        }
         // 默认实现：调用原有方法，inbox为null
         handle(null, request);
     }

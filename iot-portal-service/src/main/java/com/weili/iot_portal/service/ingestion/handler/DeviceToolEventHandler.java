@@ -2,8 +2,6 @@ package com.weili.iot_portal.service.ingestion.handler;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.weili.basic.common.util.JsonUtils;
-import com.weili.iot_portal.common.exception.IotPortalErrorCode;
-import com.weili.iot_portal.common.exception.IotPortalException;
 import com.weili.iot_portal.dal.dataobject.device.DeviceToolCompensationDO;
 import com.weili.iot_portal.dal.dataobject.ingestion.WebhookInboxDO;
 import com.weili.iot_portal.dal.repository.device.DeviceToolCompensationRepository;
@@ -87,11 +85,7 @@ public class DeviceToolEventHandler implements WebhookEventHandler {
     @Override
     public void handleRealtime(WebhookRequest request) throws Exception {
         Map<String, Object> eventData = request.getEventData();
-        if (eventData == null || eventData.isEmpty()) {
-            throw new IotPortalException(IotPortalErrorCode.EVENT_DATA_EMPTY);
-        }
-
-        DeviceIdentity identity = 
+        DeviceIdentity identity =
                 webhookHandlerUtils.resolveDeviceIdentity(request);
         Long deviceInfoId = identity.deviceInfoId();
         Long orgFactoryId = identity.orgFactoryId();

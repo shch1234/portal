@@ -33,7 +33,7 @@ public class DeviceTypeRelationBizService implements IDeviceTypeRelationBizServi
         // 验证类型编码唯一性
         validateTypeCodeUnique(null, createReqVO.getTypeCode());
         // 如果存在父级，验证父级存在
-        if (StrUtil.isNotBlank(createReqVO.getParentTypeId())) {
+        if (createReqVO.getParentTypeId() != null) {
             validateDeviceTypeRelationExists(createReqVO.getParentTypeId());
         }
 
@@ -46,11 +46,11 @@ public class DeviceTypeRelationBizService implements IDeviceTypeRelationBizServi
     @Transactional(rollbackFor = Exception.class)
     public void updateDeviceTypeRelation(DeviceTypeRelationSaveReqVO updateReqVO) {
         // 验证设备类型存在
-        DeviceTypeRelationDO existing = validateDeviceTypeRelationExists(updateReqVO.getId());
+        validateDeviceTypeRelationExists(updateReqVO.getId());
         // 验证类型编码唯一性
         validateTypeCodeUnique(updateReqVO.getId(), updateReqVO.getTypeCode());
         // 如果存在父级，验证父级存在且不能是自己
-        if (StrUtil.isNotBlank(updateReqVO.getParentTypeId())) {
+        if (updateReqVO.getParentTypeId() != null) {
             if (updateReqVO.getParentTypeId().equals(updateReqVO.getId())) {
                 throw new IotPortalException(IotPortalErrorCode.DEFAULT_ERROR, "父类型不能是自己");
             }
@@ -63,7 +63,7 @@ public class DeviceTypeRelationBizService implements IDeviceTypeRelationBizServi
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void deleteDeviceTypeRelation(String id) {
+    public void deleteDeviceTypeRelation(Long id) {
         validateDeviceTypeRelationExists(id);
         // 检查是否存在子类型
         List<DeviceTypeRelationDO> children = deviceTypeRelationRepository.findByParentTypeId(id);
@@ -74,7 +74,7 @@ public class DeviceTypeRelationBizService implements IDeviceTypeRelationBizServi
     }
 
     @Override
-    public DeviceTypeRelationDO getDeviceTypeRelation(String id) {
+    public DeviceTypeRelationDO getDeviceTypeRelation(Long id) {
         return validateDeviceTypeRelationExists(id);
     }
 
@@ -97,8 +97,8 @@ public class DeviceTypeRelationBizService implements IDeviceTypeRelationBizServi
     /**
      * 验证设备类型存在
      */
-    private DeviceTypeRelationDO validateDeviceTypeRelationExists(String id) {
-        if (StrUtil.isBlank(id)) {
+    private DeviceTypeRelationDO validateDeviceTypeRelationExists(Long id) {
+        if (id == null) {
             throw new IotPortalException(IotPortalErrorCode.DEVICE_ID_EMPTY);
         }
         Optional<DeviceTypeRelationDO> deviceTypeRelation = deviceTypeRelationRepository.findById(id);
@@ -111,7 +111,7 @@ public class DeviceTypeRelationBizService implements IDeviceTypeRelationBizServi
     /**
      * 验证类型编码唯一性
      */
-    private void validateTypeCodeUnique(String id, String typeCode) {
+    private void validateTypeCodeUnique(Long id, String typeCode) {
         if (StrUtil.isBlank(typeCode)) {
             return;
         }

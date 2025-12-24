@@ -303,8 +303,8 @@ public class DeviceInfoBizService implements IDeviceInfoBizService {
         DeviceTypeRelationDO relationDO = deviceTypeRelationBizService.getDeviceTypeRelationByCode(respVO.getDeviceTypeCode());
         if (relationDO != null) {
             respVO.setDeviceSubTypeName(relationDO.getDescription());
-            String parentTypeCode = relationDO.getParentTypeCode();
-            DeviceTypeRelationDO parentRelDO = deviceTypeRelationBizService.getDeviceTypeRelationByCode(parentTypeCode);
+            Long parentTypeId = relationDO.getParentTypeId();
+            DeviceTypeRelationDO parentRelDO = deviceTypeRelationBizService.getDeviceTypeRelation(parentTypeId);
             if (parentRelDO != null) {
                 respVO.setDeviceTypeName(parentRelDO.getDescription());
             }

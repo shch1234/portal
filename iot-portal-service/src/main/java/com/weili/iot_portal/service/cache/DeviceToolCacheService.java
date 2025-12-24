@@ -36,11 +36,6 @@ public class DeviceToolCacheService {
     @Value("${compensation.cache.ttl-seconds:86400}")
     private long compensationCacheTtlSeconds;
 
-    /**
-     * 默认空值占位符
-     */
-    private static final String DEFAULT_BLANK_PLACEHOLDER = "none";
-
     // ==================== 刀具数据缓存 ====================
 
     /**
@@ -210,13 +205,6 @@ public class DeviceToolCacheService {
     private String buildToolKey(Long factoryId, Long deviceId) {
         return String.format(RedisConstant.RT_TOOL,
                 factoryId, deviceId);
-    }
-
-    /**
-     * 默认空值处理
-     */
-    private String defaultBlank(String value) {
-        return StringUtils.defaultIfBlank(value, DEFAULT_BLANK_PLACEHOLDER);
     }
 }
 

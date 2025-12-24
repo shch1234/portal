@@ -29,7 +29,7 @@ public class DeviceTypeRelationDO extends BaseSimpleDO {
     private String typeCode;
 
     /** 父类型ID，对应 parent_type_id */
-    private String parentTypeId;
+    private Long parentTypeId;
 
     /** 父类型编码，对应 parent_type_code */
     private String parentTypeCode;

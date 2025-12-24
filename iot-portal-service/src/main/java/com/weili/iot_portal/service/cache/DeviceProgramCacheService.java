@@ -30,21 +30,17 @@ public class DeviceProgramCacheService {
     @Value("${rt.program.ttl-millis:300000}")
     private long programTtlMillis;
 
-    /**
-     * 默认空值占位符
-     */
-    private static final String DEFAULT_BLANK_PLACEHOLDER = "none";
-
     // ==================== 程序数据缓存 ====================
+
     /**
      * 保存或更新设备程序缓存
      *
-     * @param factoryId 工厂ID
-     * @param deviceId 设备ID
+     * @param factoryId   工厂ID
+     * @param deviceId    设备ID
      * @param programData 程序数据映射（key 为字段名，value 为字段值）
-     * @param updatedAt 更新时间戳（毫秒）
-     * @param source 数据来源
-     * @param traceId 追踪ID（可选）
+     * @param updatedAt   更新时间戳（毫秒）
+     * @param source      数据来源
+     * @param traceId     追踪ID（可选）
      */
     public void saveProgram(Long factoryId, Long deviceId, Map<String, String> programData,
                             long updatedAt, String source, String traceId) {
@@ -66,7 +62,7 @@ public class DeviceProgramCacheService {
      * 获取设备程序缓存
      *
      * @param factoryId 工厂ID
-     * @param deviceId 设备ID
+     * @param deviceId  设备ID
      * @return 程序数据映射，如果不存在返回 null
      */
     public Map<Object, Object> getProgram(Long factoryId, Long deviceId) {
@@ -78,7 +74,7 @@ public class DeviceProgramCacheService {
      * 获取程序名称
      *
      * @param factoryId 工厂ID
-     * @param deviceId 设备ID
+     * @param deviceId  设备ID
      * @return 程序名称，如果不存在返回 null
      */
     public String getProgramName(Long factoryId, Long deviceId) {
@@ -91,7 +87,7 @@ public class DeviceProgramCacheService {
      * 删除设备程序缓存
      *
      * @param factoryId 工厂ID
-     * @param deviceId 设备ID
+     * @param deviceId  设备ID
      */
     public void deleteProgram(Long factoryId, Long deviceId) {
         String key = buildProgramKey(factoryId, deviceId);
@@ -99,24 +95,18 @@ public class DeviceProgramCacheService {
     }
 
     // ==================== 辅助方法 ====================
+
     /**
      * 构建程序缓存键
      *
      * @param factoryId 工厂ID
-     * @param deviceId 设备ID
+     * @param deviceId  设备ID
      * @return Redis 键
      */
     private String buildProgramKey(Long factoryId, Long deviceId) {
-        return String.format(RedisConstant.RT_PROGRAM,
-                factoryId, deviceId);
+        return String.format(RedisConstant.RT_PROGRAM, factoryId, deviceId);
     }
 
-    /**
-     * 默认空值处理
-     */
-    private String defaultBlank(String value) {
-        return StringUtils.defaultIfBlank(value, DEFAULT_BLANK_PLACEHOLDER);
-    }
 }
 
 

@@ -50,7 +50,7 @@ public class DeviceTypeRelationController {
     @Operation(summary = "删除设备类型")
     @Parameter(name = "id", description = "设备类型ID", required = true, example = "123456789")
     @PermRequired(permission = "device-mgmt:device-type-relation:delete")
-    public CommonResult<Boolean> deleteDeviceTypeRelation(@RequestParam("id") String id) {
+    public CommonResult<Boolean> deleteDeviceTypeRelation(@RequestParam("id") Long id) {
         deviceTypeRelationBizService.deleteDeviceTypeRelation(id);
         return CommonResult.success(true);
     }
@@ -58,7 +58,7 @@ public class DeviceTypeRelationController {
     @GetMapping("/get")
     @Operation(summary = "获取设备类型详情")
     @Parameter(name = "id", description = "设备类型ID", required = true, example = "123456789")
-    public CommonResult<DeviceTypeRelationRespVO> getDeviceTypeRelation(@RequestParam("id") String id) {
+    public CommonResult<DeviceTypeRelationRespVO> getDeviceTypeRelation(@RequestParam("id") Long id) {
         DeviceTypeRelationDO deviceTypeRelation = deviceTypeRelationBizService.getDeviceTypeRelation(id);
         return CommonResult.success(BeanUtils.toBean(deviceTypeRelation, DeviceTypeRelationRespVO.class));
     }

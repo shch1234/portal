@@ -26,7 +26,7 @@ public class DeviceTypeRelationRepositoryImpl implements DeviceTypeRelationRepos
 
 
     @Override
-    public Optional<DeviceTypeRelationDO> findById(String id) {
+    public Optional<DeviceTypeRelationDO> findById(Long id) {
         return Optional.ofNullable(mapper.selectOne(new LambdaQueryWrapper<DeviceTypeRelationDO>()
                 .eq(DeviceTypeRelationDO::getId, id)));
     }
@@ -37,7 +37,7 @@ public class DeviceTypeRelationRepositoryImpl implements DeviceTypeRelationRepos
     }
 
     @Override
-    public List<DeviceTypeRelationDO> findByParentTypeId(String parentTypeId) {
+    public List<DeviceTypeRelationDO> findByParentTypeId(Long parentTypeId) {
         return mapper.selectList(new LambdaQueryWrapper<DeviceTypeRelationDO>().eq(DeviceTypeRelationDO::getParentTypeId, parentTypeId));
     }
 
@@ -47,10 +47,10 @@ public class DeviceTypeRelationRepositoryImpl implements DeviceTypeRelationRepos
     }
 
     @Override
-    public boolean existsByTypeCode(String typeCode, String excludeId) {
+    public boolean existsByTypeCode(String typeCode, Long excludeId) {
         LambdaQueryWrapper<DeviceTypeRelationDO> wrapper = new LambdaQueryWrapper<DeviceTypeRelationDO>()
                 .eq(DeviceTypeRelationDO::getTypeCode, typeCode);
-        if (StringUtils.isNotBlank(excludeId)) {
+        if (excludeId != null) {
             wrapper.ne(DeviceTypeRelationDO::getId, excludeId);
         }
         return mapper.selectCount(wrapper) > 0;
@@ -93,7 +93,7 @@ public class DeviceTypeRelationRepositoryImpl implements DeviceTypeRelationRepos
     }
 
     @Override
-    public boolean deleteById(String id) {
+    public boolean deleteById(Long id) {
         return mapper.delete(new LambdaQueryWrapper<DeviceTypeRelationDO>().eq(DeviceTypeRelationDO::getId, id)) > 0;
     }
 

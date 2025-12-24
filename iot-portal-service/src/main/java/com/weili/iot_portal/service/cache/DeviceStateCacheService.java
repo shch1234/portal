@@ -34,11 +34,6 @@ public class DeviceStateCacheService {
     @Value("${rt.state.heartbeat-ttl-seconds:300}")
     private long stateHeartbeatTtlSeconds;
 
-    /**
-     * 默认空值占位符
-     */
-    private static final String DEFAULT_BLANK_PLACEHOLDER = "none";
-
     // ==================== 状态数据缓存 ====================
 
     /**
@@ -160,8 +155,7 @@ public class DeviceStateCacheService {
      * @return Redis 键
      */
     private String buildStateKey(Long factoryId, Long deviceId) {
-        return String.format(RedisConstant.RT_STATE,
-                defaultBlank(factoryId), defaultBlank(deviceId));
+        return String.format(RedisConstant.RT_STATE, factoryId, deviceId);
     }
 
     /**
@@ -172,16 +166,9 @@ public class DeviceStateCacheService {
      * @return Redis 键
      */
     private String buildHeartbeatKey(Long factoryId, Long deviceId) {
-        return String.format(RedisConstant.RT_STATE_HEARTBEAT,
-                defaultBlank(factoryId), defaultBlank(deviceId));
+        return String.format(RedisConstant.RT_STATE_HEARTBEAT, factoryId, deviceId);
     }
 
-    /**
-     * 默认空值处理
-     */
-    private String defaultBlank(Long value) {
-        return value == null ? DEFAULT_BLANK_PLACEHOLDER : value.toString();
-    }
 }
 
 

@@ -50,12 +50,12 @@ public class DeviceStateSummaryDO implements Serializable {
     private Integer shiftCode;
 
     /**
-     * 班次开始时间戳（秒，Unix时间戳，对应 shift_start_ts 列）
+     * 班次开始时间戳（毫秒，Unix时间戳，对应 shift_start_ts 列）
      */
     private Long shiftStartTs;
 
     /**
-     * 班次结束时间戳（秒，Unix时间戳，对应 shift_end_ts 列）
+     * 班次结束时间戳（毫秒，Unix时间戳，对应 shift_end_ts 列）
      */
     private Long shiftEndTs;
 
@@ -67,22 +67,22 @@ public class DeviceStateSummaryDO implements Serializable {
     private Map<String, Object> stateStatistics;
 
     /**
-     * 加工中时长（秒，冗余字段，对应 working_duration_s 列）
+     * 加工中时长（毫秒，冗余字段，对应 working_duration_s 列）
      */
     private Integer workingDurationS;
 
     /**
-     * 待机时长（秒，冗余字段，对应 standby_duration_s 列）
+     * 待机时长（毫秒，冗余字段，对应 standby_duration_s 列）
      */
     private Integer standbyDurationS;
 
     /**
-     * 故障时长（秒，冗余字段，对应 fault_duration_s 列）
+     * 故障时长（毫秒，冗余字段，对应 fault_duration_s 列）
      */
     private Integer faultDurationS;
 
     /**
-     * 关机时长（秒，冗余字段，对应 shutdown_duration_s 列）
+     * 关机时长（毫秒，冗余字段，对应 shutdown_duration_s 列）
      */
     private Integer shutdownDurationS;
 
