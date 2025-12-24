@@ -12,6 +12,7 @@ import com.weili.iot_portal.domain.device.req.DeviceToolCompensationQueryReqVO;
 import com.weili.iot_portal.domain.device.req.DeviceToolRecordQueryReqVO;
 import com.weili.iot_portal.domain.device.resp.DeviceToolCompensationRespVO;
 import com.weili.iot_portal.domain.device.resp.DeviceToolRecordRespVO;
+import com.weili.iot_portal.service.cache.DeviceToolCacheService;
 import com.weili.iot_portal.service.device.IDeviceInfoBizService;
 import com.weili.iot_portal.service.device.IDeviceToolBizService;
 import lombok.RequiredArgsConstructor;
@@ -25,7 +26,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 /**
- * 设备刀具补偿业务实现
+ * 设备刀具业务实现
  */
 @Slf4j
 @Service
@@ -33,6 +34,7 @@ import java.util.concurrent.TimeUnit;
 public class DeviceToolBizService implements IDeviceToolBizService {
 
     private final IDeviceInfoBizService deviceInfoBizService;
+    private final DeviceToolCacheService deviceToolCacheService;
     private final DeviceToolRecordRepository deviceToolRecordRepository;
     private final DeviceToolCompensationRepository deviceToolCompensationRepository;
 
@@ -44,21 +46,16 @@ public class DeviceToolBizService implements IDeviceToolBizService {
             throw new IotPortalException(IotPortalErrorCode.DEVICE_INFO_NOT_FOUND, "设备不存在");
         }
         Long factoryId = deviceInfoDO.getOrgFactoryId();
-
-        // 获取分页参数
         Integer pageNo = queryReqVO.getPageNo();
         Integer pageSize = queryReqVO.getPageSize();
         Integer offset = (pageNo - 1) * pageSize;
 
-        // 数据库分页查询
         List<DeviceToolCompensationDO> compensationList = deviceToolCompensationRepository
                 .findActiveByDeviceWithPage(factoryId, String.valueOf(deviceId), offset, pageSize);
 
-        // 查询总数
         Long total = deviceToolCompensationRepository
                 .countActiveByDevice(factoryId, String.valueOf(deviceId));
 
-        // 解析并构建VO列表
         List<DeviceToolCompensationRespVO> items = new ArrayList<>();
         for (DeviceToolCompensationDO compensation : compensationList) {
             try {
@@ -73,14 +70,23 @@ public class DeviceToolBizService implements IDeviceToolBizService {
             }
         }
 
-        // 构建分页结果
         PageResult<DeviceToolCompensationRespVO> pageResult = new PageResult<>();
         pageResult.setTotal(total);
         pageResult.setPageNo(pageNo);
         pageResult.setPageSize(pageSize);
         pageResult.setList(items);
-
         return pageResult;
+    }
+
+    @Override
+    public DeviceToolRecordRespVO getCurrentToolRecord(Long deviceId) {
+        DeviceInfoDO deviceInfoDO = deviceInfoBizService.getDeviceInfo(deviceId);
+        if (deviceInfoDO == null) {
+            throw new IotPortalException(IotPortalErrorCode.DEVICE_INFO_NOT_FOUND, "设备不存在");
+        }
+        //TODO "当前刀具号、刀套号、刀补值
+        Map<Object, Object> toolData = deviceToolCacheService.getTool(deviceInfoDO.getOrgFactoryId(), deviceId);
+        return null;
     }
 
     @Override
@@ -90,7 +96,6 @@ public class DeviceToolBizService implements IDeviceToolBizService {
         Integer pageSize = queryReqVO.getPageSize();
         Integer offset = (pageNo - 1) * pageSize;
 
-        // 数据库分页查询
         List<DeviceToolRecordDO> recordList = deviceToolRecordRepository
                 .selectByRangeWithPage(deviceId, offset, pageSize);
 

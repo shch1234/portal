@@ -6,7 +6,6 @@ import com.weili.iot_portal.domain.device.req.DeviceToolRecordQueryReqVO;
 import com.weili.iot_portal.domain.device.resp.DeviceToolCompensationRespVO;
 import com.weili.iot_portal.domain.device.resp.DeviceToolRecordRespVO;
 
-import java.util.List;
 
 /**
  * 设备刀具补偿业务接口
@@ -28,4 +27,12 @@ public interface IDeviceToolBizService {
      * @return 刀具补偿响应VO
      */
     PageResult<DeviceToolCompensationRespVO> getDeviceToolCompensation(DeviceToolCompensationQueryReqVO queryReqVO);
+
+    /**
+     * 获取当前刀具实时使用记录
+     *
+     * @param id 设备ID
+     * @return 刀具使用记录
+     */
+    DeviceToolRecordRespVO getCurrentToolRecord(Long id);
 }

@@ -89,17 +89,6 @@ public class DeviceToolCacheService {
         return String.valueOf(value);
     }
 
-    /**
-     * 删除设备刀具缓存
-     *
-     * @param factoryId 工厂ID
-     * @param deviceId  设备ID
-     */
-    public void deleteTool(Long factoryId, Long deviceId) {
-        String key = buildToolKey(factoryId, deviceId);
-        redisTemplate.delete(key);
-    }
-
     // ==================== 刀补补偿缓存 ====================
 
     /**

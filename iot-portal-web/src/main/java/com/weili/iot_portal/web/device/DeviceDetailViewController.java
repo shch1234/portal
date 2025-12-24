@@ -20,9 +20,8 @@ import jakarta.validation.Valid;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-
-import java.util.List;
 
 /**
  * @author luying
@@ -70,4 +69,10 @@ public class DeviceDetailViewController {
         return CommonResult.success(result);
     }
 
+    @GetMapping("/tool-current")
+    @Operation(summary = "获取设备刀具实时使用记录", description = "当前刀具号、刀套号、刀补值")
+    public CommonResult<DeviceToolRecordRespVO> getDeviceToolRecords(@RequestParam("deviceId") Long id) {
+        DeviceToolRecordRespVO result = deviceToolBizService.getCurrentToolRecord(id);
+        return CommonResult.success(result);
+    }
 }
