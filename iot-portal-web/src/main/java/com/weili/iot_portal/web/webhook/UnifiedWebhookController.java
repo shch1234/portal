@@ -85,7 +85,7 @@ public class UnifiedWebhookController {
             }
             
             // 调用业务处理
-            webhookReceiveService.handle(category, eventType, rawBody, webhookRequest);
+            webhookReceiveService.handle(category, eventType, webhookRequest);
             
             long cost = System.currentTimeMillis() - startTime;
             log.debug("[Webhook-接收] ====== Webhook请求处理完成 ====== 耗时: {}ms", cost);
