@@ -3,10 +3,13 @@ package com.weili.iot_portal.web.device;
 import com.weili.basic.common.model.CommonResult;
 import com.weili.iot_portal.domain.device.req.DeviceAxisQueryReqVO;
 import com.weili.iot_portal.domain.device.req.DeviceStateSummaryQueryReqVO;
+import com.weili.iot_portal.domain.device.req.DeviceToolCompensationQueryReqVO;
 import com.weili.iot_portal.domain.device.resp.DeviceAxisRespVO;
 import com.weili.iot_portal.domain.device.resp.DeviceStateSummaryRespVO;
+import com.weili.iot_portal.domain.device.resp.DeviceToolCompensationRespVO;
 import com.weili.iot_portal.service.device.IDeviceAxisBizService;
 import com.weili.iot_portal.service.device.IDeviceStateSummaryBizService;
+import com.weili.iot_portal.service.device.IDeviceToolCompensationBizService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.Resource;
@@ -31,6 +34,8 @@ public class DeviceDetailViewController {
     private IDeviceAxisBizService deviceAxisBizService;
     @Resource
     private IDeviceStateSummaryBizService deviceStateSummaryBizService;
+    @Resource
+    private IDeviceToolCompensationBizService deviceToolCompensationBizService;
 
     @GetMapping("/state-summary")
     @Operation(summary = "获取设备状态统计（饼图+时间轴）")
@@ -46,5 +51,11 @@ public class DeviceDetailViewController {
         return CommonResult.success(result);
     }
 
+    @GetMapping("/tool-compensation")
+    @Operation(summary = "获取设备刀具补偿信息")
+    public CommonResult<DeviceToolCompensationRespVO> getDeviceToolCompensation(@Valid DeviceToolCompensationQueryReqVO queryReqVO) {
+        DeviceToolCompensationRespVO result = deviceToolCompensationBizService.getDeviceToolCompensation(queryReqVO);
+        return CommonResult.success(result);
+    }
 
 }
