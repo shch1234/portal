@@ -45,17 +45,26 @@ public class DeviceToolBizService implements IDeviceToolBizService {
         }
         Long factoryId = deviceInfoDO.getOrgFactoryId();
 
-        // 查询所有有效的刀具补偿记录
+        // 获取分页参数
+        Integer pageNo = queryReqVO.getPageNo();
+        Integer pageSize = queryReqVO.getPageSize();
+        Integer offset = (pageNo - 1) * pageSize;
+
+        // 数据库分页查询
         List<DeviceToolCompensationDO> compensationList = deviceToolCompensationRepository
-                .findActiveByDevice(factoryId, String.valueOf(deviceId));
+                .findActiveByDeviceWithPage(factoryId, String.valueOf(deviceId), offset, pageSize);
+
+        // 查询总数
+        Long total = deviceToolCompensationRepository
+                .countActiveByDevice(factoryId, String.valueOf(deviceId));
 
         // 解析并构建VO列表
-        List<DeviceToolCompensationRespVO> allItems = new ArrayList<>();
+        List<DeviceToolCompensationRespVO> items = new ArrayList<>();
         for (DeviceToolCompensationDO compensation : compensationList) {
             try {
                 DeviceToolCompensationRespVO item = buildCompensationItem(compensation);
                 if (item != null) {
-                    allItems.add(item);
+                    items.add(item);
                 }
             } catch (Exception e) {
                 // 对于不规范的JSON结构，记录日志并跳过该条记录
@@ -64,29 +73,12 @@ public class DeviceToolBizService implements IDeviceToolBizService {
             }
         }
 
-        // 手动分页处理
-        Integer pageNo = queryReqVO.getPageNo();
-        Integer pageSize = queryReqVO.getPageSize();
-        long total = allItems.size();
-
-        // 计算分页起始位置
-        int startIndex = (pageNo - 1) * pageSize;
-        int endIndex = Math.min(startIndex + pageSize, allItems.size());
-
-        // 获取当前页数据
-        List<DeviceToolCompensationRespVO> pageItems;
-        if (startIndex >= allItems.size()) {
-            pageItems = new ArrayList<>();
-        } else {
-            pageItems = allItems.subList(startIndex, endIndex);
-        }
-
         // 构建分页结果
         PageResult<DeviceToolCompensationRespVO> pageResult = new PageResult<>();
         pageResult.setTotal(total);
         pageResult.setPageNo(pageNo);
         pageResult.setPageSize(pageSize);
-        pageResult.setList(pageItems);
+        pageResult.setList(items);
 
         return pageResult;
     }
@@ -96,33 +88,20 @@ public class DeviceToolBizService implements IDeviceToolBizService {
         Long deviceId = queryReqVO.getDeviceInfoId();
         Integer pageNo = queryReqVO.getPageNo();
         Integer pageSize = queryReqVO.getPageSize();
+        Integer offset = (pageNo - 1) * pageSize;
 
-        // 使用limit查询足够多的数据用于分页
-        // 注意：这里需要查询更多数据以支持分页，但Repository的limit是总限制
-        // 如果Repository不支持offset，我们需要查询所有数据然后手动分页
-        List<DeviceToolRecordDO> allRecords = deviceToolRecordRepository
-                .selectByRange(deviceId, null, null, null);
+        // 数据库分页查询
+        List<DeviceToolRecordDO> recordList = deviceToolRecordRepository
+                .selectByRangeWithPage(deviceId, offset, pageSize);
+
+        // 查询总数
+        Long total = deviceToolRecordRepository.countByDevice(deviceId);
 
         // 构建VO列表
-        List<DeviceToolRecordRespVO> allItems = new ArrayList<>();
-        for (DeviceToolRecordDO record : allRecords) {
+        List<DeviceToolRecordRespVO> items = new ArrayList<>();
+        for (DeviceToolRecordDO record : recordList) {
             DeviceToolRecordRespVO vo = buildToolRecordVO(record);
-            allItems.add(vo);
-        }
-
-        // 手动分页处理
-        long total = allItems.size();
-
-        // 计算分页起始位置
-        int startIndex = (pageNo - 1) * pageSize;
-        int endIndex = Math.min(startIndex + pageSize, allItems.size());
-
-        // 获取当前页数据
-        List<DeviceToolRecordRespVO> pageItems;
-        if (startIndex >= allItems.size()) {
-            pageItems = new ArrayList<>();
-        } else {
-            pageItems = allItems.subList(startIndex, endIndex);
+            items.add(vo);
         }
 
         // 构建分页结果
@@ -130,7 +109,7 @@ public class DeviceToolBizService implements IDeviceToolBizService {
         pageResult.setTotal(total);
         pageResult.setPageNo(pageNo);
         pageResult.setPageSize(pageSize);
-        pageResult.setList(pageItems);
+        pageResult.setList(items);
 
         return pageResult;
     }

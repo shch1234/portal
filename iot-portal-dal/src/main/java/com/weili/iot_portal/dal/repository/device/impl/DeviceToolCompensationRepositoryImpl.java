@@ -38,6 +38,26 @@ public class DeviceToolCompensationRepositoryImpl implements DeviceToolCompensat
     }
 
     @Override
+    public List<DeviceToolCompensationDO> findActiveByDeviceWithPage(Long factoryId, String deviceId, Integer offset, Integer limit) {
+        LambdaQueryWrapper<DeviceToolCompensationDO> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(DeviceToolCompensationDO::getDeviceInfoId, deviceId)
+                .eq(factoryId != null, DeviceToolCompensationDO::getOrgFactoryId, factoryId)
+                .eq(DeviceToolCompensationDO::getActive, 1)
+                .orderByAsc(DeviceToolCompensationDO::getToolHolderNo)
+                .last("LIMIT " + limit + " OFFSET " + offset);
+        return mapper.selectList(wrapper);
+    }
+
+    @Override
+    public Long countActiveByDevice(Long factoryId, String deviceId) {
+        LambdaQueryWrapper<DeviceToolCompensationDO> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(DeviceToolCompensationDO::getDeviceInfoId, deviceId)
+                .eq(factoryId != null, DeviceToolCompensationDO::getOrgFactoryId, factoryId)
+                .eq(DeviceToolCompensationDO::getActive, 1);
+        return mapper.selectCount(wrapper);
+    }
+
+    @Override
     public void insert(DeviceToolCompensationDO record) {
         if (record == null) {
             return;

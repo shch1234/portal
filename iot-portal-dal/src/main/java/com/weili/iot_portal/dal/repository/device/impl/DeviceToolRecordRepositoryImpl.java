@@ -61,6 +61,22 @@ public class DeviceToolRecordRepositoryImpl implements DeviceToolRecordRepositor
     }
 
     @Override
+    public List<DeviceToolRecordDO> selectByRangeWithPage(Long deviceId, Integer offset, Integer limit) {
+        LambdaQueryWrapper<DeviceToolRecordDO> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(DeviceToolRecordDO::getDeviceInfoId, deviceId)
+                .orderByDesc(DeviceToolRecordDO::getStartTs)
+                .last("LIMIT " + limit + " OFFSET " + offset);
+        return mapper.selectList(wrapper);
+    }
+
+    @Override
+    public Long countByDevice(Long deviceId) {
+        LambdaQueryWrapper<DeviceToolRecordDO> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(DeviceToolRecordDO::getDeviceInfoId, deviceId);
+        return mapper.selectCount(wrapper);
+    }
+
+    @Override
     public DeviceToolRecordDO findLatestOngoing(Long deviceId) {
         LambdaQueryWrapper<DeviceToolRecordDO> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(DeviceToolRecordDO::getDeviceInfoId, deviceId)
