@@ -1,14 +1,19 @@
 package com.weili.iot_portal.service.device.impl;
 
+import com.weili.basic.common.model.PageResult;
 import com.weili.iot_portal.common.exception.IotPortalErrorCode;
 import com.weili.iot_portal.common.exception.IotPortalException;
 import com.weili.iot_portal.dal.dataobject.device.DeviceInfoDO;
 import com.weili.iot_portal.dal.dataobject.device.DeviceToolCompensationDO;
+import com.weili.iot_portal.dal.dataobject.device.DeviceToolRecordDO;
 import com.weili.iot_portal.dal.repository.device.DeviceToolCompensationRepository;
+import com.weili.iot_portal.dal.repository.device.DeviceToolRecordRepository;
 import com.weili.iot_portal.domain.device.req.DeviceToolCompensationQueryReqVO;
+import com.weili.iot_portal.domain.device.req.DeviceToolRecordQueryReqVO;
 import com.weili.iot_portal.domain.device.resp.DeviceToolCompensationRespVO;
+import com.weili.iot_portal.domain.device.resp.DeviceToolRecordRespVO;
 import com.weili.iot_portal.service.device.IDeviceInfoBizService;
-import com.weili.iot_portal.service.device.IDeviceToolCompensationBizService;
+import com.weili.iot_portal.service.device.IDeviceToolBizService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -17,6 +22,7 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 /**
  * 设备刀具补偿业务实现
@@ -24,29 +30,32 @@ import java.util.Map;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class DeviceToolCompensationBizService implements IDeviceToolCompensationBizService {
+public class DeviceToolBizService implements IDeviceToolBizService {
 
     private final IDeviceInfoBizService deviceInfoBizService;
+    private final DeviceToolRecordRepository deviceToolRecordRepository;
     private final DeviceToolCompensationRepository deviceToolCompensationRepository;
 
     @Override
-    public List<DeviceToolCompensationRespVO> getDeviceToolCompensation(DeviceToolCompensationQueryReqVO queryReqVO) {
+    public PageResult<DeviceToolCompensationRespVO> getDeviceToolCompensation(DeviceToolCompensationQueryReqVO queryReqVO) {
         Long deviceId = queryReqVO.getDeviceId();
         DeviceInfoDO deviceInfoDO = deviceInfoBizService.getDeviceInfo(deviceId);
         if (deviceInfoDO == null) {
             throw new IotPortalException(IotPortalErrorCode.DEVICE_INFO_NOT_FOUND, "设备不存在");
         }
         Long factoryId = deviceInfoDO.getOrgFactoryId();
+
+        // 查询所有有效的刀具补偿记录
         List<DeviceToolCompensationDO> compensationList = deviceToolCompensationRepository
                 .findActiveByDevice(factoryId, String.valueOf(deviceId));
 
-        List<DeviceToolCompensationRespVO> items = new ArrayList<>();
-
+        // 解析并构建VO列表
+        List<DeviceToolCompensationRespVO> allItems = new ArrayList<>();
         for (DeviceToolCompensationDO compensation : compensationList) {
             try {
                 DeviceToolCompensationRespVO item = buildCompensationItem(compensation);
                 if (item != null) {
-                    items.add(item);
+                    allItems.add(item);
                 }
             } catch (Exception e) {
                 // 对于不规范的JSON结构，记录日志并跳过该条记录
@@ -55,13 +64,82 @@ public class DeviceToolCompensationBizService implements IDeviceToolCompensation
             }
         }
 
-        return items;
+        // 手动分页处理
+        Integer pageNo = queryReqVO.getPageNo();
+        Integer pageSize = queryReqVO.getPageSize();
+        long total = allItems.size();
+
+        // 计算分页起始位置
+        int startIndex = (pageNo - 1) * pageSize;
+        int endIndex = Math.min(startIndex + pageSize, allItems.size());
+
+        // 获取当前页数据
+        List<DeviceToolCompensationRespVO> pageItems;
+        if (startIndex >= allItems.size()) {
+            pageItems = new ArrayList<>();
+        } else {
+            pageItems = allItems.subList(startIndex, endIndex);
+        }
+
+        // 构建分页结果
+        PageResult<DeviceToolCompensationRespVO> pageResult = new PageResult<>();
+        pageResult.setTotal(total);
+        pageResult.setPageNo(pageNo);
+        pageResult.setPageSize(pageSize);
+        pageResult.setList(pageItems);
+
+        return pageResult;
     }
+
+    @Override
+    public PageResult<DeviceToolRecordRespVO> getDeviceToolRecords(DeviceToolRecordQueryReqVO queryReqVO) {
+        Long deviceId = queryReqVO.getDeviceInfoId();
+        Integer pageNo = queryReqVO.getPageNo();
+        Integer pageSize = queryReqVO.getPageSize();
+
+        // 使用limit查询足够多的数据用于分页
+        // 注意：这里需要查询更多数据以支持分页，但Repository的limit是总限制
+        // 如果Repository不支持offset，我们需要查询所有数据然后手动分页
+        List<DeviceToolRecordDO> allRecords = deviceToolRecordRepository
+                .selectByRange(deviceId, null, null, null);
+
+        // 构建VO列表
+        List<DeviceToolRecordRespVO> allItems = new ArrayList<>();
+        for (DeviceToolRecordDO record : allRecords) {
+            DeviceToolRecordRespVO vo = buildToolRecordVO(record);
+            allItems.add(vo);
+        }
+
+        // 手动分页处理
+        long total = allItems.size();
+
+        // 计算分页起始位置
+        int startIndex = (pageNo - 1) * pageSize;
+        int endIndex = Math.min(startIndex + pageSize, allItems.size());
+
+        // 获取当前页数据
+        List<DeviceToolRecordRespVO> pageItems;
+        if (startIndex >= allItems.size()) {
+            pageItems = new ArrayList<>();
+        } else {
+            pageItems = allItems.subList(startIndex, endIndex);
+        }
+
+        // 构建分页结果
+        PageResult<DeviceToolRecordRespVO> pageResult = new PageResult<>();
+        pageResult.setTotal(total);
+        pageResult.setPageNo(pageNo);
+        pageResult.setPageSize(pageSize);
+        pageResult.setList(pageItems);
+
+        return pageResult;
+    }
+
 
     /**
      * 构建刀具补偿项
      *
-     * @throws ClassCastException 当JSON结构不符合预期时抛出
+     * @throws ClassCastException   当JSON结构不符合预期时抛出
      * @throws NullPointerException 当必要字段为null时抛出
      */
     private DeviceToolCompensationRespVO buildCompensationItem(DeviceToolCompensationDO compensation) {
@@ -100,7 +178,7 @@ public class DeviceToolCompensationBizService implements IDeviceToolCompensation
      * }
      *
      * @param compValueJson 补偿值JSON
-     * @param toolHolderNo 刀补号（用于日志）
+     * @param toolHolderNo  刀补号（用于日志）
      * @return 几何补偿对象
      */
     @SuppressWarnings("unchecked")
@@ -161,7 +239,7 @@ public class DeviceToolCompensationBizService implements IDeviceToolCompensation
      * }
      *
      * @param compValueJson 补偿值JSON
-     * @param toolHolderNo 刀补号（用于日志）
+     * @param toolHolderNo  刀补号（用于日志）
      * @return 磨损补偿对象
      */
     @SuppressWarnings("unchecked")
@@ -227,5 +305,83 @@ public class DeviceToolCompensationBizService implements IDeviceToolCompensation
             log.warn("转换BigDecimal失败: {}", value);
             return BigDecimal.ZERO;
         }
+    }
+
+
+    /**
+     * 构建刀具记录VO
+     */
+    private DeviceToolRecordRespVO buildToolRecordVO(DeviceToolRecordDO record) {
+        // 计算持续时长
+        Long durationMs = calculateDuration(record);
+        String durationStr = formatDuration(durationMs);
+
+        return DeviceToolRecordRespVO.builder()
+                .toolNo(record.getToolNo())
+                .toolMagazineNo(record.getToolMagazineNo())
+                .startTs(record.getStartTs())
+                .endTs(record.getEndTs())
+                .duration(durationStr)
+                .durationMs(durationMs)
+                .build();
+    }
+
+    /**
+     * 计算持续时长（毫秒）
+     */
+    private Long calculateDuration(DeviceToolRecordDO record) {
+        // 优先使用数据库中已存储的持续时长
+        if (record.getDurationS() != null) {
+            return record.getDurationS();
+        }
+
+        // 如果没有存储的持续时长，则根据开始和结束时间计算
+        if (record.getStartTs() != null && record.getEndTs() != null) {
+            return record.getEndTs() - record.getStartTs();
+        }
+
+        // 如果是正在使用中的刀具（endTs为null），返回null
+        if (record.getStartTs() != null && record.getEndTs() == null) {
+            return System.currentTimeMillis() - record.getStartTs();
+        }
+
+        return 0L;
+    }
+
+    /**
+     * 格式化持续时长
+     *
+     * @param durationMs 持续时长（毫秒）
+     * @return 格式化字符串，如："2小时30分钟"、"45分钟"、"30秒"
+     */
+    private String formatDuration(Long durationMs) {
+        if (durationMs == null || durationMs == 0) {
+            return "0秒";
+        }
+
+        long hours = TimeUnit.MILLISECONDS.toHours(durationMs);
+        long minutes = TimeUnit.MILLISECONDS.toMinutes(durationMs) % 60;
+        long seconds = TimeUnit.MILLISECONDS.toSeconds(durationMs) % 60;
+
+        StringBuilder sb = new StringBuilder();
+
+        if (hours > 0) {
+            sb.append(hours).append("小时");
+        }
+
+        if (minutes > 0) {
+            sb.append(minutes).append("分钟");
+        }
+
+        if (seconds > 0 && hours == 0) {
+            // 只有当小时为0时才显示秒数，避免"2小时30分钟15秒"这样过于详细
+            sb.append(seconds).append("秒");
+        }
+
+        if (sb.length() == 0) {
+            return "0秒";
+        }
+
+        return sb.toString();
     }
 }

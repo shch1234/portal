@@ -1,6 +1,7 @@
 package com.weili.iot_portal.web.device;
 
 import com.weili.basic.common.model.CommonResult;
+import com.weili.basic.common.model.PageResult;
 import com.weili.iot_portal.domain.device.req.DeviceAxisQueryReqVO;
 import com.weili.iot_portal.domain.device.req.DeviceStateSummaryQueryReqVO;
 import com.weili.iot_portal.domain.device.req.DeviceToolCompensationQueryReqVO;
@@ -11,8 +12,7 @@ import com.weili.iot_portal.domain.device.resp.DeviceToolCompensationRespVO;
 import com.weili.iot_portal.domain.device.resp.DeviceToolRecordRespVO;
 import com.weili.iot_portal.service.device.IDeviceAxisBizService;
 import com.weili.iot_portal.service.device.IDeviceStateSummaryBizService;
-import com.weili.iot_portal.service.device.IDeviceToolCompensationBizService;
-import com.weili.iot_portal.service.device.IDeviceToolRecordBizService;
+import com.weili.iot_portal.service.device.IDeviceToolBizService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.Resource;
@@ -40,9 +40,7 @@ public class DeviceDetailViewController {
     @Resource
     private IDeviceStateSummaryBizService deviceStateSummaryBizService;
     @Resource
-    private IDeviceToolCompensationBizService deviceToolCompensationBizService;
-    @Resource
-    private IDeviceToolRecordBizService deviceToolRecordBizService;
+    private IDeviceToolBizService deviceToolBizService;
 
     @GetMapping("/state-summary")
     @Operation(summary = "获取设备状态统计（饼图+时间轴）")
@@ -60,15 +58,15 @@ public class DeviceDetailViewController {
 
     @GetMapping("/tool-compensation")
     @Operation(summary = "获取设备刀具补偿信息")
-    public CommonResult<List<DeviceToolCompensationRespVO>> getDeviceToolCompensation(@Valid DeviceToolCompensationQueryReqVO queryReqVO) {
-        List<DeviceToolCompensationRespVO> result = deviceToolCompensationBizService.getDeviceToolCompensation(queryReqVO);
+    public CommonResult<PageResult<DeviceToolCompensationRespVO>> getDeviceToolCompensation(@Valid DeviceToolCompensationQueryReqVO queryReqVO) {
+        PageResult<DeviceToolCompensationRespVO> result = deviceToolBizService.getDeviceToolCompensation(queryReqVO);
         return CommonResult.success(result);
     }
 
     @GetMapping("/tool-records")
     @Operation(summary = "获取设备刀具使用记录列表")
-    public CommonResult<List<DeviceToolRecordRespVO>> getDeviceToolRecords(@Valid DeviceToolRecordQueryReqVO queryReqVO) {
-        List<DeviceToolRecordRespVO> result = deviceToolRecordBizService.getDeviceToolRecords(queryReqVO);
+    public CommonResult<PageResult<DeviceToolRecordRespVO>> getDeviceToolRecords(@Valid DeviceToolRecordQueryReqVO queryReqVO) {
+        PageResult<DeviceToolRecordRespVO> result = deviceToolBizService.getDeviceToolRecords(queryReqVO);
         return CommonResult.success(result);
     }
 

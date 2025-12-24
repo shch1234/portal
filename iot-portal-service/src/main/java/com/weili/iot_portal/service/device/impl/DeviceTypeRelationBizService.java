@@ -38,6 +38,8 @@ public class DeviceTypeRelationBizService implements IDeviceTypeRelationBizServi
         }
 
         DeviceTypeRelationDO deviceTypeRelation = BeanUtils.toBean(createReqVO, DeviceTypeRelationDO.class);
+        //处理path
+        deviceTypeRelation.setPath(buildPath(deviceTypeRelation.getParentTypeId()) + "/" + deviceTypeRelation.getId());
         deviceTypeRelationRepository.insert(deviceTypeRelation);
         return deviceTypeRelation.getId();
     }
@@ -46,7 +48,7 @@ public class DeviceTypeRelationBizService implements IDeviceTypeRelationBizServi
     @Transactional(rollbackFor = Exception.class)
     public void updateDeviceTypeRelation(DeviceTypeRelationSaveReqVO updateReqVO) {
         // 验证设备类型存在
-        validateDeviceTypeRelationExists(updateReqVO.getId());
+        DeviceTypeRelationDO existing = validateDeviceTypeRelationExists(updateReqVO.getId());
         // 验证类型编码唯一性
         validateTypeCodeUnique(updateReqVO.getId(), updateReqVO.getTypeCode());
         // 如果存在父级，验证父级存在且不能是自己
@@ -58,6 +60,14 @@ public class DeviceTypeRelationBizService implements IDeviceTypeRelationBizServi
         }
 
         DeviceTypeRelationDO deviceTypeRelation = BeanUtils.toBean(updateReqVO, DeviceTypeRelationDO.class);
+        if (!existing.getParentTypeId().equals(updateReqVO.getParentTypeId())) {
+            deviceTypeRelation.setPath(buildPath(deviceTypeRelation.getParentTypeId()) + "/" + deviceTypeRelation.getId());
+            // 更新所有子节点的路径
+            updateChildrenPaths(deviceTypeRelation.getId(), deviceTypeRelation.getPath());
+        } else {
+            // 父类型未变化，保持原有路径
+            deviceTypeRelation.setPath(existing.getPath());
+        }
         deviceTypeRelationRepository.update(deviceTypeRelation);
     }
 
@@ -118,6 +128,40 @@ public class DeviceTypeRelationBizService implements IDeviceTypeRelationBizServi
         boolean exists = deviceTypeRelationRepository.existsByTypeCode(typeCode, id);
         if (exists) {
             throw new IotPortalException(IotPortalErrorCode.DEVICE_TYPE_CODE_DUPLICATE);
+        }
+    }
+
+    /**
+     * 构建设备类型路径，递归获取父级路径
+     */
+    private String buildPath(Long parentTypeId) {
+        if (parentTypeId == null) {
+            return "";
+        }
+
+        DeviceTypeRelationDO parent = validateDeviceTypeRelationExists(parentTypeId);
+        String parentPath = parent.getPath();
+        if (parentPath == null) {
+            // 如果父节点路径为空，递归构建
+            parentPath = buildPath(parent.getParentTypeId()) + "/" + parent.getId();
+            // 同时更新父节点的路径，确保路径一致性
+            parent.setPath(parentPath);
+            deviceTypeRelationRepository.update(parent);
+        }
+        return parentPath;
+    }
+
+    /**
+     * 递归更新子节点的路径
+     */
+    private void updateChildrenPaths(Long parentId, String parentPath) {
+        List<DeviceTypeRelationDO> children = deviceTypeRelationRepository.findByParentTypeId(parentId);
+        for (DeviceTypeRelationDO child : children) {
+            String newPath = parentPath + "/" + child.getId();
+            child.setPath(newPath);
+            deviceTypeRelationRepository.update(child);
+            // 递归更新下级子节点
+            updateChildrenPaths(child.getId(), newPath);
         }
     }
 }

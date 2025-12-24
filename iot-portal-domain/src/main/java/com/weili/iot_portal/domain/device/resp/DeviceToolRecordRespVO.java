@@ -1,7 +1,7 @@
 package com.weili.iot_portal.domain.device.resp;
 
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import com.weili.iot_portal.common.serializer.TimestampSerializer;
+import com.weili.iot_portal.common.serializer.TimestampLongSerializer;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -25,11 +25,11 @@ public class DeviceToolRecordRespVO {
     private String toolMagazineNo;
 
     @Schema(description = "开始使用时间（yyyy-MM-dd HH:mm:ss格式）", example = "2024-11-13 08:30:00")
-    @JsonSerialize(using = TimestampSerializer.class)
+    @JsonSerialize(using = TimestampLongSerializer.class)
     private Long startTs;
 
     @Schema(description = "结束使用时间（yyyy-MM-dd HH:mm:ss格式，NULL表示使用中）", example = "2024-11-13 10:30:00")
-    @JsonSerialize(using = TimestampSerializer.class)
+    @JsonSerialize(using = TimestampLongSerializer.class)
     private Long endTs;
 
     @Schema(description = "持续时长（格式化字符串，如：2小时30分钟）", example = "2小时30分钟")

@@ -37,10 +37,16 @@ public class DeviceTypeRelationDO extends BaseSimpleDO {
     /** 层级，对应 level_no */
     private Integer levelNo;
 
+    /** 路径，对应 path */
+    private String path;
+
+    /** 业务分类：机床/机器人/PLC等，对应 category */
     private String category;
 
+    /** 类型描述，对应 description */
     private String description;
 
+    /** 自定义字段，对应 custom_fields */
     @TableField(typeHandler = JacksonTypeHandler.class)
     private Map<String, Object> customFields;
 
