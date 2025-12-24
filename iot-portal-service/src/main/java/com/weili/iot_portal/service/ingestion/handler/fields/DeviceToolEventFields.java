@@ -25,54 +25,17 @@ public final class DeviceToolEventFields {
     public static final String EVENT_TYPE_CHANGE = "DEVICE_TOOL_CHANGE";
 
     /**
-     * 事件来源标识（用于日志和追踪）
-     * 标识该事件来自 DeviceToolEvent 处理器
-     */
-    public static final String EVENT_SOURCE = "DeviceToolEvent";
-
-    /**
-     * 事件来源标识（用于日志和追踪）
-     * 标识该事件来自 DeviceToolChangeEvent 处理器
-     */
-    public static final String EVENT_SOURCE_CHANGE = "DeviceToolChangeEvent";
-
-    // ==================== 刀具编号相关字段 ====================
-    /**
      * 刀具编号（标准字段名）
      * 用于标识当前使用的刀具编号
      */
-    public static final String TOOL_NUMBER = "toolNumber";
+    public static final String TOOL_NUMBER = "toolNo";
 
     /**
-     * 刀具编号（别名1：驼峰命名）
-     * 兼容不同的命名风格
-     */
-    public static final String TOOL_NO = "toolNo";
-
-    /**
-     * 刀具编号（别名2：下划线命名）
-     * 兼容不同的命名风格
-     */
-    public static final String TOOL_NUM = "tool_num";
-
-    // ==================== 刀架/刀补号相关字段 ====================
-    /**
-     * 刀架号/刀补号（标准字段名）
+     * 刀补号（标准字段名）
      * 用于标识刀具所在的刀架位置编号，是刀补补偿的关键标识
      */
-    public static final String HOLDER_NUMBER = "holderNumber";
+    public static final String HOLDER_NUMBER = "toolMagazineNo";
 
-    /**
-     * 刀架号（别名1：驼峰命名）
-     * 兼容不同的命名风格
-     */
-    public static final String TOOL_HOLDER = "toolHolder";
-
-    /**
-     * 刀架号（别名2：下划线命名）
-     * 兼容不同的命名风格
-     */
-    public static final String HOLDER_NUM = "holder_num";
 
     // ==================== 刀补值相关字段前缀 ====================
     /**
@@ -239,12 +202,6 @@ public final class DeviceToolEventFields {
      */
     public static final String ERROR_TYPE_TOOL_MISMATCH = "TOOL_MISMATCH";
 
-    /**
-     * 错误类型：时间戳异常
-     * 用于记录时间戳异常的情况
-     */
-    public static final String ERROR_TYPE_TIMESTAMP_ANOMALY = "TIMESTAMP_ANOMALY";
-
     // ==================== 辅助方法 ====================
     /**
      * 判断字段名是否为刀具编号的别名
@@ -257,9 +214,7 @@ public final class DeviceToolEventFields {
             return false;
         }
         String key = fieldName.trim();
-        return TOOL_NUMBER.equalsIgnoreCase(key)
-                || TOOL_NO.equalsIgnoreCase(key)
-                || TOOL_NUM.equalsIgnoreCase(key);
+        return TOOL_NUMBER.equalsIgnoreCase(key);
     }
 
     /**
@@ -273,9 +228,7 @@ public final class DeviceToolEventFields {
             return false;
         }
         String key = fieldName.trim();
-        return HOLDER_NUMBER.equalsIgnoreCase(key)
-                || TOOL_HOLDER.equalsIgnoreCase(key)
-                || HOLDER_NUM.equalsIgnoreCase(key);
+        return HOLDER_NUMBER.equalsIgnoreCase(key);
     }
 
     /**

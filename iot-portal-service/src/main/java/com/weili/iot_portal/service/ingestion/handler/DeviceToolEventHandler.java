@@ -104,10 +104,9 @@ public class DeviceToolEventHandler implements WebhookEventHandler {
         }
         String holderNumber = payload.getOrDefault(DeviceToolEventFields.HOLDER_NUMBER, null);
         if (StringUtils.isBlank(holderNumber)) {
-            log.warn("{} 事件缺少刀补号({}/{})，跳过入库: deviceInfoId={}",
+            log.warn("{} 事件缺少刀补号({})，跳过入库: deviceInfoId={}",
                     DeviceToolEventFields.EVENT_TYPE,
                     DeviceToolEventFields.HOLDER_NUMBER,
-                    DeviceToolEventFields.TOOL_HOLDER,
                     deviceInfoId);
         }
         payload.put(DeviceToolEventFields.UPDATED_AT, String.valueOf(eventTimestamp));
