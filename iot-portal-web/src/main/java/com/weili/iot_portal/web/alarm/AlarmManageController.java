@@ -2,9 +2,8 @@ package com.weili.iot_portal.web.alarm;
 
 import com.weili.basic.common.model.CommonResult;
 import com.weili.basic.common.model.PageResult;
-import com.weili.iot_portal.domain.device.req.AlarmManageQueryReqVO;
 import com.weili.iot_portal.domain.device.req.DeviceAlarmHistoryQueryReqVO;
-import com.weili.iot_portal.domain.device.resp.AlarmManageRespVO;
+import com.weili.iot_portal.domain.device.resp.AlarmHistoryRespVO;
 import com.weili.iot_portal.domain.device.resp.DeviceAlarmHistoryRespVO;
 import com.weili.iot_portal.service.device.IDeviceAlarmHistoryBizService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -31,7 +30,7 @@ public class AlarmManageController {
     private IDeviceAlarmHistoryBizService deviceAlarmHistoryBizService;
 
     @GetMapping("/device-history")
-    @Operation(summary = "查询设备的告警历史列表，包括当前告警记录")
+    @Operation(summary = "查询设备的报警记录（包含当前的报警）")
     public CommonResult<DeviceAlarmHistoryRespVO> getDeviceAlarmHistory(@Valid DeviceAlarmHistoryQueryReqVO queryReqVO) {
         DeviceAlarmHistoryRespVO result = deviceAlarmHistoryBizService.getDeviceAlarmHistory(queryReqVO);
         return CommonResult.success(result);
@@ -39,8 +38,8 @@ public class AlarmManageController {
 
     @GetMapping("/list")
     @Operation(summary = "查询报警管理列表")
-    public CommonResult<PageResult<AlarmManageRespVO>> queryAlarmManageList(@Valid AlarmManageQueryReqVO queryReqVO) {
-        PageResult<AlarmManageRespVO> result = deviceAlarmHistoryBizService.queryAlarmManageList(queryReqVO);
+    public CommonResult<PageResult<AlarmHistoryRespVO>> queryAlarmManageList(@Valid DeviceAlarmHistoryQueryReqVO queryReqVO) {
+        PageResult<AlarmHistoryRespVO> result = deviceAlarmHistoryBizService.queryAlarmManageList(queryReqVO);
         return CommonResult.success(result);
     }
 }

@@ -1,10 +1,14 @@
 package com.weili.iot_portal.domain.device.resp;
 
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.weili.iot_portal.common.serializer.TimestampLongDeserializer;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+
+import java.io.Serializable;
 
 /**
  * 报警管理响应VO
@@ -13,11 +17,8 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Schema(description = "报警管理响应")
-public class AlarmManageRespVO {
-
-    @Schema(description = "序号", example = "1")
-    private Integer rowNum;
+@Schema(description = "报警响应")
+public class AlarmHistoryRespVO implements Serializable {
 
     @Schema(description = "设备编号", example = "sb-001")
     private String deviceCode;
@@ -32,10 +33,12 @@ public class AlarmManageRespVO {
     private String alarmText;
 
     @Schema(description = "开始时间", example = "2025-11-14 10:32:45")
-    private String startTime;
+    @JsonDeserialize(using = TimestampLongDeserializer.class)
+    private Long startTime;
 
     @Schema(description = "结束时间", example = "2025-11-14 12:32:45")
-    private String endTime;
+    @JsonDeserialize(using = TimestampLongDeserializer.class)
+    private Long endTime;
 
     @Schema(description = "持续时间(S)", example = "3600")
     private Integer durationS;

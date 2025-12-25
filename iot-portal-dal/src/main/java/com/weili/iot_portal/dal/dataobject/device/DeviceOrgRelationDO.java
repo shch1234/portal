@@ -45,11 +45,6 @@ public class DeviceOrgRelationDO extends BaseDO {
     private String orgParentId;
 
     /**
-     * 层级：1厂区、2车间、3产线（对应 level_no 列）
-     */
-    private Integer levelNo;
-
-    /**
      * 层级路径（物化路径模式）：使用 unit_code 组合，以 / 分隔（对应 path 列）
      */
     private String path;

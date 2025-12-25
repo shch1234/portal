@@ -16,11 +16,7 @@ public interface DeviceInfoRepository {
 
     Optional<DeviceInfoDO> findByDeviceCode(String deviceCode);
 
-    Optional<DeviceInfoDO> findByTbDeviceId(String tbDeviceId);
-
     boolean existsByDeviceCode(String deviceCode, Long excludeId);
-
-    boolean existsByTbDeviceId(String tbDeviceId, Long excludeId);
 
     PageResult<DeviceInfoDO> selectPage(DeviceBaseInfoPageQuery query);
 

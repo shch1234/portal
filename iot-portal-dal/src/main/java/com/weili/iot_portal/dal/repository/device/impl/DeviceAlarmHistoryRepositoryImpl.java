@@ -1,11 +1,14 @@
 package com.weili.iot_portal.dal.repository.device.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.weili.basic.common.model.PageResult;
 import com.weili.iot_portal.dal.dataobject.device.DeviceAlarmHistoryDO;
+import com.weili.iot_portal.dal.ddd.device.DeviceAlarmHistoryQuery;
 import com.weili.iot_portal.dal.mapper.device.DeviceAlarmHistoryMapper;
 import com.weili.iot_portal.dal.repository.device.DeviceAlarmHistoryRepository;
-import com.weili.iot_portal.domain.device.resp.AlarmManageRespVO;
 import lombok.RequiredArgsConstructor;
+import org.apache.commons.collections4.CollectionUtils;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -26,58 +29,32 @@ public class DeviceAlarmHistoryRepositoryImpl implements DeviceAlarmHistoryRepos
     }
 
     @Override
-    public List<DeviceAlarmHistoryDO> findByRange(Long factoryId, Long deviceId, Long startTs, Long endTs) {
+    public PageResult<DeviceAlarmHistoryDO> selectPage(DeviceAlarmHistoryQuery query) {
+        Page<DeviceAlarmHistoryDO> page = new Page<>(query.getPageNo(), query.getPageSize());
         LambdaQueryWrapper<DeviceAlarmHistoryDO> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(DeviceAlarmHistoryDO::getDeviceInfoId, deviceId)
-                .eq(factoryId != null, DeviceAlarmHistoryDO::getOrgFactoryId, factoryId);
-        if (startTs != null) {
-            wrapper.ge(DeviceAlarmHistoryDO::getStartTs, startTs);
+        if (query.getDeviceId()!= null) {
+            wrapper.eq(DeviceAlarmHistoryDO::getDeviceInfoId, query.getDeviceId());
         }
-        if (endTs != null) {
-            wrapper.le(DeviceAlarmHistoryDO::getStartTs, endTs);
+        if (CollectionUtils.isNotEmpty(query.getDeviceIds())) {
+            wrapper.in(DeviceAlarmHistoryDO::getDeviceInfoId, query.getDeviceIds());
+        }
+        if (query.getFactoryId() != null) {
+            wrapper.eq(DeviceAlarmHistoryDO::getOrgFactoryId, query.getFactoryId());
+        }
+        if (query.getIsActive() != null) {
+            wrapper.eq(DeviceAlarmHistoryDO::getIsActive, query.getIsActive());
+        }
+        if (query.getStartTime() != null) {
+            wrapper.eq(DeviceAlarmHistoryDO::getStartTs, query.getStartTime());
+        }
+        if (query.getEndTime() != null) {
+            wrapper.eq(DeviceAlarmHistoryDO::getEndTs, query.getEndTime());
         }
         wrapper.orderByDesc(DeviceAlarmHistoryDO::getStartTs);
-        return mapper.selectList(wrapper);
+        Page<DeviceAlarmHistoryDO> result = mapper.selectPage(page, wrapper);
+        return new PageResult<>(result.getRecords(), result.getTotal());
     }
 
-    @Override
-    public List<DeviceAlarmHistoryDO> findByRangeWithPage(Long deviceId, Long startTs, Long endTs, Integer offset, Integer limit) {
-        LambdaQueryWrapper<DeviceAlarmHistoryDO> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(DeviceAlarmHistoryDO::getDeviceInfoId, deviceId);
-        if (startTs != null) {
-            wrapper.ge(DeviceAlarmHistoryDO::getStartTs, startTs);
-        }
-        if (endTs != null) {
-            wrapper.le(DeviceAlarmHistoryDO::getStartTs, endTs);
-        }
-        wrapper.orderByDesc(DeviceAlarmHistoryDO::getStartTs)
-                .last("LIMIT " + limit + " OFFSET " + offset);
-        return mapper.selectList(wrapper);
-    }
-
-    @Override
-    public Long countByRange(Long deviceId, Long startTs, Long endTs) {
-        LambdaQueryWrapper<DeviceAlarmHistoryDO> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(DeviceAlarmHistoryDO::getDeviceInfoId, deviceId);
-        if (startTs != null) {
-            wrapper.ge(DeviceAlarmHistoryDO::getStartTs, startTs);
-        }
-        if (endTs != null) {
-            wrapper.le(DeviceAlarmHistoryDO::getStartTs, endTs);
-        }
-        return mapper.selectCount(wrapper);
-    }
-
-    @Override
-    public Long countAlarmManageList(String deviceCode, String deviceType, Integer isActive, Long startTime, Long endTime) {
-        return mapper.countAlarmManageList(deviceCode, deviceType, isActive, startTime, endTime);
-    }
-
-    @Override
-    public List<AlarmManageRespVO> selectAlarmManageList(String deviceCode, String deviceType, Integer isActive,
-                                                          Long startTime, Long endTime, Integer offset, Integer limit) {
-        return mapper.selectAlarmManageList(deviceCode, deviceType, isActive, startTime, endTime, offset, limit);
-    }
 
     @Override
     public void insert(DeviceAlarmHistoryDO record) {

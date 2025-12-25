@@ -27,9 +27,6 @@ public class DeviceOrgRelationRespVO {
     @Schema(description = "父级组织ID")
     private String orgParentId;
 
-    @Schema(description = "层级：1厂区、2车间、3产线", requiredMode = Schema.RequiredMode.REQUIRED)
-    private Integer levelNo;
-
     @Schema(description = "层级路径")
     private String path;
 
@@ -38,9 +35,6 @@ public class DeviceOrgRelationRespVO {
 
     @Schema(description = "是否启用")
     private Boolean isActive;
-
-    @Schema(description = "排序号")
-    private Integer sortOrder;
 
     @Schema(description = "创建时间", requiredMode = Schema.RequiredMode.REQUIRED)
     private LocalDateTime createTime;

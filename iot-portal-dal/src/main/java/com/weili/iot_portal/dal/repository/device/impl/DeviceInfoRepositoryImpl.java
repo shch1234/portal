@@ -36,12 +36,6 @@ public class DeviceInfoRepositoryImpl implements DeviceInfoRepository {
     }
 
     @Override
-    public Optional<DeviceInfoDO> findByTbDeviceId(String tbDeviceId) {
-        return Optional.ofNullable(mapper.selectOne(new LambdaQueryWrapper<DeviceInfoDO>()
-                .eq(DeviceInfoDO::getTbDeviceId, tbDeviceId)));
-    }
-
-    @Override
     public boolean existsByDeviceCode(String deviceCode, Long excludeId) {
         LambdaQueryWrapper<DeviceInfoDO> wrapper = new LambdaQueryWrapper<DeviceInfoDO>()
                 .eq(DeviceInfoDO::getDeviceCode, deviceCode);
@@ -51,15 +45,6 @@ public class DeviceInfoRepositoryImpl implements DeviceInfoRepository {
         return mapper.selectCount(wrapper) > 0;
     }
 
-    @Override
-    public boolean existsByTbDeviceId(String tbDeviceId, Long excludeId) {
-        LambdaQueryWrapper<DeviceInfoDO> wrapper = new LambdaQueryWrapper<DeviceInfoDO>()
-                .eq(DeviceInfoDO::getTbDeviceId, tbDeviceId);
-        if (excludeId!=null) {
-            wrapper.ne(DeviceInfoDO::getId, excludeId);
-        }
-        return mapper.selectCount(wrapper) > 0;
-    }
 
     @Override
     public List<DeviceInfoDO> findByFactoryId(String factoryId) {

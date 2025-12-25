@@ -2,7 +2,6 @@ package com.weili.iot_portal.domain.device.req;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
@@ -34,17 +33,10 @@ public class DeviceOrgRelationSaveReqVO {
     @Schema(description = "父级组织ID", example = "123456789")
     private String orgParentId;
 
-    @Schema(description = "层级：1厂区、2车间、3产线", requiredMode = Schema.RequiredMode.REQUIRED, example = "1")
-    @NotNull(message = "层级不能为空")
-    private Integer levelNo;
-
     @Schema(description = "描述信息")
     private String description;
 
     @Schema(description = "是否启用：true-启用 false-停用", example = "true")
     private Boolean isActive;
-
-    @Schema(description = "排序号（越小越靠前）", example = "0")
-    private Integer sortOrder;
 }
 
