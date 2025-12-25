@@ -1,6 +1,6 @@
 package com.weili.iot_portal.service.device;
 
-import com.weili.iot_portal.service.model.CheckpointData;
+import com.weili.iot_portal.domain.ingestion.CheckpointData;
 
 import java.util.List;
 import java.util.Set;

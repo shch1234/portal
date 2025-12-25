@@ -11,11 +11,11 @@ import com.weili.iot_portal.dal.repository.device.DeviceProductionRecordReposito
 import com.weili.iot_portal.dal.repository.device.DeviceStateRecordRepository;
 import com.weili.iot_portal.service.device.ICheckpointService;
 import com.weili.iot_portal.service.device.IDeviceMetricsService;
-import com.weili.iot_portal.service.model.BatchProcessResult;
-import com.weili.iot_portal.service.model.MetricsCalculationResult;
-import com.weili.iot_portal.service.model.RealtimeMetricSnapshot;
+import com.weili.iot_portal.domain.ingestion.BatchProcessResult;
+import com.weili.iot_portal.domain.ingestion.MetricsCalculationResult;
+import com.weili.iot_portal.domain.ingestion.RealtimeMetricSnapshot;
 import com.weili.iot_portal.service.shift.IShiftCalculationService;
-import com.weili.iot_portal.service.model.ShiftTimeRange;
+import com.weili.iot_portal.domain.ingestion.ShiftTimeRange;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;

@@ -9,11 +9,13 @@ import com.weili.iot_portal.domain.device.req.DeviceToolCompensationQueryReqVO;
 import com.weili.iot_portal.domain.device.req.DeviceToolRecordQueryReqVO;
 import com.weili.iot_portal.domain.device.resp.DeviceAlarmHistoryRespVO;
 import com.weili.iot_portal.domain.device.resp.DeviceAxisRespVO;
+import com.weili.iot_portal.domain.device.resp.DeviceProgramRespVO;
 import com.weili.iot_portal.domain.device.resp.DeviceStateSummaryRespVO;
 import com.weili.iot_portal.domain.device.resp.DeviceToolCompensationRespVO;
 import com.weili.iot_portal.domain.device.resp.DeviceToolRecordRespVO;
 import com.weili.iot_portal.service.device.IDeviceAlarmHistoryBizService;
 import com.weili.iot_portal.service.device.IDeviceAxisBizService;
+import com.weili.iot_portal.service.device.IDeviceProgramBizService;
 import com.weili.iot_portal.service.device.IDeviceStateSummaryBizService;
 import com.weili.iot_portal.service.device.IDeviceToolBizService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -45,6 +47,8 @@ public class DeviceDetailController {
     private IDeviceToolBizService deviceToolBizService;
     @Resource
     private IDeviceAlarmHistoryBizService deviceAlarmHistoryBizService;
+    @Resource
+    private IDeviceProgramBizService deviceProgramBizService;
 
     @GetMapping("/state-summary")
     @Operation(summary = "获取设备状态统计（饼图+时间轴）")
@@ -78,6 +82,13 @@ public class DeviceDetailController {
     @Operation(summary = "获取设备告警历史列表， 包括当前告警记录")
     public CommonResult<DeviceAlarmHistoryRespVO> getDeviceAlarmHistory(@Valid DeviceAlarmHistoryQueryReqVO queryReqVO) {
         DeviceAlarmHistoryRespVO result = deviceAlarmHistoryBizService.getDeviceAlarmHistory(queryReqVO);
+        return CommonResult.success(result);
+    }
+
+    @GetMapping("/program")
+    @Operation(summary = "获取设备程序信息")
+    public CommonResult<DeviceProgramRespVO> getDeviceProgram(@RequestParam("deviceId") Long deviceId) {
+        DeviceProgramRespVO result = deviceProgramBizService.getDeviceProgram(deviceId);
         return CommonResult.success(result);
     }
 }

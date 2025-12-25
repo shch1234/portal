@@ -1,6 +1,6 @@
 package com.weili.iot_portal.service.factory;
 
-import com.weili.iot_portal.service.model.BatchProcessResult;
+import com.weili.iot_portal.domain.ingestion.BatchProcessResult;
 
 /**
  * 工厂级指标计算/汇总服务

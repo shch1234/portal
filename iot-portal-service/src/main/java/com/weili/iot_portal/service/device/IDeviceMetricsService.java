@@ -1,9 +1,9 @@
 package com.weili.iot_portal.service.device;
 
 import com.weili.iot_portal.dal.dataobject.device.DeviceInfoDO;
-import com.weili.iot_portal.service.model.BatchProcessResult;
-import com.weili.iot_portal.service.model.MetricsCalculationResult;
-import com.weili.iot_portal.service.model.RealtimeMetricSnapshot;
+import com.weili.iot_portal.domain.ingestion.BatchProcessResult;
+import com.weili.iot_portal.domain.ingestion.MetricsCalculationResult;
+import com.weili.iot_portal.domain.ingestion.RealtimeMetricSnapshot;
 
 import java.util.List;
 import java.util.Optional;

@@ -1,4 +1,4 @@
-package com.weili.iot_portal.service.model;
+package com.weili.iot_portal.domain.ingestion;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

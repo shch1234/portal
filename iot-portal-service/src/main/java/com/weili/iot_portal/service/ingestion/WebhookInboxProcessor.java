@@ -1,6 +1,6 @@
 package com.weili.iot_portal.service.ingestion;
 
-import com.weili.iot_portal.service.model.ProcessResult;
+import com.weili.iot_portal.domain.ingestion.ProcessResult;
 
 /**
  * Webhook 收件箱批处理服务

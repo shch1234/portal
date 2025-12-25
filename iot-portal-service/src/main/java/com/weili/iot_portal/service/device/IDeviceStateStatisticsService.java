@@ -1,7 +1,7 @@
 package com.weili.iot_portal.service.device;
 
 import com.weili.iot_portal.dal.dataobject.device.DeviceStateRecordDO;
-import com.weili.iot_portal.service.model.StateStatistics;
+import com.weili.iot_portal.domain.ingestion.StateStatistics;
 
 import java.util.List;
 import java.util.Map;

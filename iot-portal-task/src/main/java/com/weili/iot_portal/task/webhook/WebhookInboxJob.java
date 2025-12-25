@@ -1,7 +1,7 @@
 package com.weili.iot_portal.task.webhook;
 
 import com.weili.iot_portal.service.ingestion.WebhookInboxProcessor;
-import com.weili.iot_portal.service.model.ProcessResult;
+import com.weili.iot_portal.domain.ingestion.ProcessResult;
 import com.weili.iot_portal.task.framework.BaseScheduledJob;
 import com.weili.iot_portal.task.framework.JobExecutionResult;
 import com.xxl.job.core.context.XxlJobHelper;
