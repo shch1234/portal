@@ -3,6 +3,7 @@ package com.weili.iot_portal.service.device.impl;
 import com.weili.basic.common.util.JsonUtils;
 import com.weili.basic.redis.client.RedisClient;
 import com.weili.iot_portal.service.device.ICheckpointService;
+import com.weili.iot_portal.service.model.CheckpointData;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 
@@ -16,7 +17,7 @@ import java.util.concurrent.TimeUnit;
  * 通过配置区分不同的业务场景
  */
 @Slf4j
-public class GenericCheckpointService implements ICheckpointService<ICheckpointService.CheckpointData> {
+public class GenericCheckpointService implements ICheckpointService<CheckpointData> {
 
     private final RedisClient redisClient;
     private final String keyPrefix;
@@ -36,14 +37,14 @@ public class GenericCheckpointService implements ICheckpointService<ICheckpointS
     }
 
     @Override
-    public ICheckpointService.CheckpointData loadCheckpoint(Long factoryId, long timeSeconds) {
+    public CheckpointData loadCheckpoint(Long factoryId, long timeSeconds) {
         String key = buildCheckpointKey(factoryId, timeSeconds);
         try {
             String value = redisClient.get(key);
             if (StringUtils.isBlank(value)) {
                 return null;
             }
-            return JsonUtils.parseObject(value, ICheckpointService.CheckpointData.class);
+            return JsonUtils.parseObject(value, CheckpointData.class);
         } catch (Exception e) {
             log.error("加载检查点失败: key={}", key, e);
             return null;
@@ -54,7 +55,7 @@ public class GenericCheckpointService implements ICheckpointService<ICheckpointS
     public void saveCheckpoint(Long factoryId, long timeSeconds, List<Long> processedDeviceIds) {
         String key = buildCheckpointKey(factoryId, timeSeconds);
 
-        ICheckpointService.CheckpointData checkpoint = new ICheckpointService.CheckpointData();
+        CheckpointData checkpoint = new CheckpointData();
         checkpoint.setFactoryId(factoryId);
         checkpoint.setTimeSeconds(timeSeconds);
         checkpoint.setProcessedDeviceIds(processedDeviceIds);
@@ -83,7 +84,7 @@ public class GenericCheckpointService implements ICheckpointService<ICheckpointS
 
     @Override
     public Set<Long> getProcessedDeviceIds(Long factoryId, long timeSeconds) {
-        ICheckpointService.CheckpointData checkpoint = loadCheckpoint(factoryId, timeSeconds);
+        CheckpointData checkpoint = loadCheckpoint(factoryId, timeSeconds);
         if (checkpoint == null || checkpoint.getProcessedDeviceIds() == null) {
             return new HashSet<>();
         }

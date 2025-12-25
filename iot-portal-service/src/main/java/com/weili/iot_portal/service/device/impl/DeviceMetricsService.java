@@ -11,6 +11,9 @@ import com.weili.iot_portal.dal.repository.device.DeviceProductionRecordReposito
 import com.weili.iot_portal.dal.repository.device.DeviceStateRecordRepository;
 import com.weili.iot_portal.service.device.ICheckpointService;
 import com.weili.iot_portal.service.device.IDeviceMetricsService;
+import com.weili.iot_portal.service.model.BatchProcessResult;
+import com.weili.iot_portal.service.model.MetricsCalculationResult;
+import com.weili.iot_portal.service.model.RealtimeMetricSnapshot;
 import com.weili.iot_portal.service.shift.IShiftCalculationService;
 import com.weili.iot_portal.service.shift.model.ShiftTimeRange;
 import lombok.extern.slf4j.Slf4j;
@@ -354,27 +357,27 @@ public class DeviceMetricsService implements IDeviceMetricsService {
     }
 
     @Override
-    public java.util.Optional<RealtimeMetricSnapshot> getDeviceRealtimeMetrics(Long factoryId, Long deviceId) {
+    public Optional<RealtimeMetricSnapshot> getDeviceRealtimeMetrics(Long factoryId, Long deviceId) {
         String key = String.format(RedisConstant.RT_METRIC, defaultBlank(factoryId), defaultBlank(deviceId));
         Map<Object, Object> map = stringRedisTemplate.opsForHash().entries(key);
         if (map.isEmpty()) {
-            return java.util.Optional.empty();
+            return Optional.empty();
         }
         try {
-            java.math.BigDecimal uptime = parseDecimal(map.get("metric.uptimeRate"));
-            java.math.BigDecimal performance = parseDecimal(map.get("metric.performanceRate"));
-            java.math.BigDecimal availability = parseDecimal(map.get("metric.availabilityRate"));
-            java.math.BigDecimal fault = parseDecimal(map.get("metric.faultRate"));
-            java.math.BigDecimal oee = parseDecimal(map.get("metric.oee"));
+            BigDecimal uptime = parseDecimal(map.get("metric.uptimeRate"));
+            BigDecimal performance = parseDecimal(map.get("metric.performanceRate"));
+            BigDecimal availability = parseDecimal(map.get("metric.availabilityRate"));
+            BigDecimal fault = parseDecimal(map.get("metric.faultRate"));
+            BigDecimal oee = parseDecimal(map.get("metric.oee"));
             long updatedAt = parseLong(map.get("updatedAt"), 0L);
-            return java.util.Optional.of(new RealtimeMetricSnapshot(uptime, performance, availability, fault, oee, updatedAt));
+            return Optional.of(new RealtimeMetricSnapshot(uptime, performance, availability, fault, oee, updatedAt));
         } catch (Exception e) {
             log.warn("读取实时指标解析失败: key={}", key, e);
-            return java.util.Optional.empty();
+            return Optional.empty();
         }
     }
 
-    private java.math.BigDecimal parseDecimal(Object v) {
+    private BigDecimal parseDecimal(Object v) {
         if (v == null) {
             return java.math.BigDecimal.ZERO;
         }

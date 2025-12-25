@@ -1,13 +1,17 @@
 package com.weili.iot_portal.dal.dataobject.device;
 
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
 import lombok.Data;
 
 import java.io.Serial;
 import java.io.Serializable;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.Map;
 
 /**
  * 设备报警历史记录（device_alarm_history）
@@ -28,22 +32,49 @@ public class DeviceAlarmHistoryDO implements Serializable {
      */
     private Long deviceInfoId;
 
+    /**
+     * 所属厂区ID（关联 org_factory.id，对应 org_factory_id 列）
+     */
     private Long orgFactoryId;
 
+    /**
+     * 报警编码
+     */
     private String alarmCode;
 
+    /**
+     * 报警内容
+     */
     private String alarmText;
 
+    /**
+     * 报警级别：INFO-信息 WARNING-警告 ERROR-错误 CRITICAL-严重
+     */
     private String alarmLevel;
 
+    /**
+     * 报警开始时间戳（毫秒，Unix时间戳）
+     */
     private Long startTs;
 
+    /**
+     * 报警结束时间戳（毫秒，Unix时间戳，NULL表示报警中）
+     */
     private Long endTs;
 
+    /**
+     * 持续时长（秒）
+     */
     private Integer durationS;
 
+    /**
+     * 是否报警中：1-报警中 0-已解除
+     */
     private Integer isActive;
 
+    /**
+     * 报警开始班次日期
+     */
     private LocalDate startShiftDate;
 
     /**
@@ -52,7 +83,10 @@ public class DeviceAlarmHistoryDO implements Serializable {
      */
     private Integer startShiftCode;
 
-    private LocalDate endShiftDate;
+    /**
+     * 报警结束班次日期
+     */
+    private LocalDateTime endShiftDate;
 
     /**
      * 报警结束班次编码（对应 end_shift_code 列，TINYINT UNSIGNED）
@@ -60,7 +94,11 @@ public class DeviceAlarmHistoryDO implements Serializable {
      */
     private Integer endShiftCode;
 
-    private String properties; // JSON 字符串（简化处理）
+    /**
+     * 报警属性（JSON，对应 properties 列）
+     */
+    @TableField(typeHandler = JacksonTypeHandler.class)
+    private Map<String, Object> properties;
 }
 
 

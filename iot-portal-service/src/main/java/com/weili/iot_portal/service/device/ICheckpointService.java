@@ -1,5 +1,7 @@
 package com.weili.iot_portal.service.device;
 
+import com.weili.iot_portal.service.model.CheckpointData;
+
 import java.util.List;
 import java.util.Set;
 
@@ -9,58 +11,7 @@ import java.util.Set;
  *
  * @param <T> 检查点数据类型
  */
-public interface ICheckpointService<T extends ICheckpointService.CheckpointData> {
-
-    /**
-     * 检查点数据基类
-     */
-    class CheckpointData {
-        private Long factoryId;
-        private long timeSeconds;
-        private List<Long> processedDeviceIds;
-        private int totalDeviceCount;
-        private long lastUpdateTime;
-
-        public Long getFactoryId() {
-            return factoryId;
-        }
-
-        public void setFactoryId(Long factoryId) {
-            this.factoryId = factoryId;
-        }
-
-        public long getTimeSeconds() {
-            return timeSeconds;
-        }
-
-        public void setTimeSeconds(long timeSeconds) {
-            this.timeSeconds = timeSeconds;
-        }
-
-        public List<Long> getProcessedDeviceIds() {
-            return processedDeviceIds;
-        }
-
-        public void setProcessedDeviceIds(List<Long> processedDeviceIds) {
-            this.processedDeviceIds = processedDeviceIds;
-        }
-
-        public int getTotalDeviceCount() {
-            return totalDeviceCount;
-        }
-
-        public void setTotalDeviceCount(int totalDeviceCount) {
-            this.totalDeviceCount = totalDeviceCount;
-        }
-
-        public long getLastUpdateTime() {
-            return lastUpdateTime;
-        }
-
-        public void setLastUpdateTime(long lastUpdateTime) {
-            this.lastUpdateTime = lastUpdateTime;
-        }
-    }
+public interface ICheckpointService<T extends CheckpointData> {
 
     /**
      * 加载检查点

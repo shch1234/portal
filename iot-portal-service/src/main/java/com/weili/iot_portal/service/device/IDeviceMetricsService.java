@@ -1,8 +1,12 @@
 package com.weili.iot_portal.service.device;
 
 import com.weili.iot_portal.dal.dataobject.device.DeviceInfoDO;
+import com.weili.iot_portal.service.model.BatchProcessResult;
+import com.weili.iot_portal.service.model.MetricsCalculationResult;
+import com.weili.iot_portal.service.model.RealtimeMetricSnapshot;
 
 import java.util.List;
+import java.util.Optional;
 
 /**
  * 设备实时指标计算服务接口
@@ -57,19 +61,6 @@ public interface IDeviceMetricsService {
      * @param deviceId  设备ID
      * @return 指标快照，可为空（缓存不存在）
      */
-    java.util.Optional<RealtimeMetricSnapshot> getDeviceRealtimeMetrics(Long factoryId, Long deviceId);
-    /**
-     * 指标计算结果
-     */
-    class MetricsCalculationResult {
-
-    }
-
-    /**
-     * 设备实时指标快照
-     */
-    class RealtimeMetricSnapshot {
-
-    }
+    Optional<RealtimeMetricSnapshot> getDeviceRealtimeMetrics(Long factoryId, Long deviceId);
 }
 
