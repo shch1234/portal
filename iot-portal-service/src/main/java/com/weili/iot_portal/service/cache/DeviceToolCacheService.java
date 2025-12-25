@@ -40,40 +40,86 @@ public class DeviceToolCacheService {
 
     /**
      * 保存或更新设备刀具缓存
+     * <p>
+     * 存储格式：包含 toolNo、holderNumber 和 compensation 的完整JSON结构
+     * </p>
      *
-     * @param factoryId 工厂ID
-     * @param deviceId  设备ID
-     * @param toolData  刀具数据映射（key 为字段名，value 为字段值）
-     * @param updatedAt 更新时间戳（毫秒）
-     * @param source    数据来源
-     * @param traceId   追踪ID（可选）
+     * @param factoryId    工厂ID
+     * @param deviceId     设备ID
+     * @param toolNo       刀具编号
+     * @param holderNumber 刀补号
+     * @param compensation 补偿数据（Map，包含geom和wear）
+     * @param updatedAt    更新时间戳（毫秒）
+     * @param source       数据来源
+     * @param traceId      追踪ID（可选）
      */
-    public void saveTool(Long factoryId, Long deviceId, Map<String, String> toolData,
-                         long updatedAt, String source, String traceId) {
-        if (toolData == null || toolData.isEmpty()) {
+    public void saveTool(Long factoryId, Long deviceId, String toolNo, String holderNumber,
+                         Map<String, Object> compensation, long updatedAt, String source, String traceId) {
+        if (StringUtils.isBlank(toolNo) && StringUtils.isBlank(holderNumber) && 
+            (compensation == null || compensation.isEmpty())) {
             return;
         }
-        Map<String, String> payload = new HashMap<>(toolData);
-        payload.put(DeviceToolEventFields.UPDATED_AT, String.valueOf(updatedAt));
-        payload.put(DeviceToolEventFields.SOURCE, source);
-        if (StringUtils.isNotBlank(traceId)) {
-            payload.put(DeviceToolEventFields.TRACE_ID, traceId);
+        
+        // 构建包含 toolNo、holderNumber 和 compensation 的完整结构
+        Map<String, Object> toolData = new HashMap<>();
+        if (StringUtils.isNotBlank(toolNo)) {
+            toolData.put(DeviceToolEventFields.TOOL_NO, toolNo);
         }
-        String key = buildToolKey(factoryId, deviceId);
-        redisTemplate.opsForHash().putAll(key, payload);
-        redisTemplate.expire(key, Duration.ofMillis(toolTtlMillis));
+        if (StringUtils.isNotBlank(holderNumber)) {
+            toolData.put(DeviceToolEventFields.HOLDER_NUMBER, holderNumber);
+        }
+        if (compensation != null && !compensation.isEmpty()) {
+            toolData.put(DeviceToolEventFields.COMPENSATION_FIELD, compensation);
+        }
+        
+        // 添加元数据
+        toolData.put(DeviceToolEventFields.UPDATED_AT, updatedAt);
+        toolData.put(DeviceToolEventFields.SOURCE, source);
+        if (StringUtils.isNotBlank(traceId)) {
+            toolData.put(DeviceToolEventFields.TRACE_ID, traceId);
+        }
+        
+        // 将整个结构序列化为JSON字符串，存储到Redis Hash的"data"字段
+        try {
+            String json = JsonUtils.toJsonString(toolData);
+            String key = buildToolKey(factoryId, deviceId);
+            Map<String, String> payload = new HashMap<>();
+            payload.put("data", json);
+            redisTemplate.opsForHash().putAll(key, payload);
+            redisTemplate.expire(key, Duration.ofMillis(toolTtlMillis));
+        } catch (Exception e) {
+            log.warn("[DeviceToolCacheService] 保存刀具缓存失败: factoryId={}, deviceId={}, error={}",
+                    factoryId, deviceId, e.getMessage());
+        }
     }
 
     /**
      * 获取设备刀具缓存
+     * <p>
+     * 返回格式：包含 toolNo、holderNumber 和 compensation 的完整结构
+     * </p>
      *
      * @param factoryId 工厂ID
      * @param deviceId  设备ID
-     * @return 刀具数据映射，如果不存在返回 null
+     * @return 刀具数据映射（包含 toolNo、holderNumber 和 compensation），如果不存在返回 null
      */
-    public Map<Object, Object> getTool(Long factoryId, Long deviceId) {
+    public Map<String, Object> getTool(Long factoryId, Long deviceId) {
         String key = buildToolKey(factoryId, deviceId);
-        return redisTemplate.opsForHash().entries(key);
+        Object dataObj = redisTemplate.opsForHash().get(key, "data");
+        if (dataObj == null) {
+            return null;
+        }
+        String json = dataObj.toString();
+        if (StringUtils.isBlank(json)) {
+            return null;
+        }
+        try {
+            return JsonUtils.parseObject(json, new TypeReference<Map<String, Object>>() {});
+        } catch (Exception e) {
+            log.warn("[DeviceToolCacheService] 解析刀具缓存失败: factoryId={}, deviceId={}, error={}",
+                    factoryId, deviceId, e.getMessage());
+            return null;
+        }
     }
 
     /**
@@ -85,7 +131,7 @@ public class DeviceToolCacheService {
      */
     public String getToolNumber(Long factoryId, Long deviceId) {
         String key = buildToolKey(factoryId, deviceId);
-        Object value = redisTemplate.opsForHash().get(key, DeviceToolEventFields.TOOL_NUMBER);
+        Object value = redisTemplate.opsForHash().get(key, DeviceToolEventFields.TOOL_NO);
         return String.valueOf(value);
     }
 

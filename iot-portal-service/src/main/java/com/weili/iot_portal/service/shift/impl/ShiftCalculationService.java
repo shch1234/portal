@@ -109,6 +109,19 @@ public class ShiftCalculationService implements IShiftCalculationService {
 
     /**
      * 获取时间戳对应的班次日期和编码（带工厂验证）
+     * <p>
+     * 班次配置获取：
+     * - 优先从数据库查询设备的班次配置
+     * - 如果数据库中没有配置，使用默认班次配置（默认2班制，可通过配置项 shift.default.mode 修改）
+     * </p>
+     * <p>
+     * 班次日期计算规则：
+     * 1. 对于跨天班次（如三班制第三班：次日0:00-次日8:00，两班制第二班：20:00-次日8:00）：
+     *    - 如果时间戳在班次的后半段（次日的部分），班次日期应该是前一日
+     *    - 例如：三班制第三班，时间戳是次日2:00，业务上属于"昨日"的第三班，shiftDate应该是昨日
+     * 2. 对于不跨天班次：
+     *    - 班次日期就是时间戳对应的日期
+     * </p>
      * 
      * @param factoryId 工厂ID
      * @param deviceId 设备ID
@@ -117,11 +130,42 @@ public class ShiftCalculationService implements IShiftCalculationService {
      */
     @Override
     public ShiftDateAndCode getShiftDateAndCode(Long factoryId, Long deviceId, long timestamp) {
-        ShiftTimeRange range = calculateShiftRange(factoryId, deviceId, timestamp);
-        LocalDateTime shiftDate = Instant.ofEpochMilli(range.getStartTs())
-                .atZone(ZoneId.systemDefault())
-                .toLocalDate().atStartOfDay();
-        return new ShiftDateAndCode(shiftDate, range.getShiftCode());
+        DeviceShiftConfigDO config = shiftConfigService.getCurrentConfiguration(factoryId, deviceId, timestamp);
+        ShiftInfo shift = findShiftByTime(config, timestamp);
+        
+        LocalDateTime baseTime = LocalDateTime.ofInstant(
+                Instant.ofEpochMilli(timestamp),
+                ZoneId.systemDefault());
+        LocalDate baseDate = baseTime.toLocalDate();
+        LocalTime currentTime = baseTime.toLocalTime();
+        LocalTime startTime = LocalTime.parse(shift.getStartTime(), TIME_FORMATTER);
+        
+        LocalDate shiftDate;
+        
+        if (Boolean.TRUE.equals(shift.getCrossDay())) {
+            // 跨天班次处理
+            LocalTime endTime = LocalTime.parse(shift.getEndTime(), TIME_FORMATTER);
+            
+            // 判断时间戳在班次的哪个部分：
+            // 1. 如果 currentTime < endTime，说明在班次的后半段（次日的部分）
+            //    例如：三班制第三班 00:00-08:00，时间戳是次日02:00，属于前一天的班次
+            // 2. 如果 currentTime >= startTime，说明在班次的前半段（当日的部分）
+            //    例如：两班制第二班 20:00-次日08:00，时间戳是当日22:00，属于当天的班次
+            if (currentTime.isBefore(endTime)) {
+                // 当前时间在跨天班次的后半段（次日的部分）
+                // 业务上属于前一天的班次
+                shiftDate = baseDate.minusDays(1);
+            } else {
+                // 当前时间在跨天班次的前半段（当日的部分）
+                // 业务上属于当天的班次
+                shiftDate = baseDate;
+            }
+        } else {
+            // 不跨天班次：班次日期就是时间戳对应的日期
+            shiftDate = baseDate;
+        }
+        
+        return new ShiftDateAndCode(shiftDate, shift.getCode());
     }
 
     /**

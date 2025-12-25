@@ -10,8 +10,13 @@ import com.weili.iot_portal.service.ingestion.support.WebhookRequestValidator;
 import jakarta.annotation.security.PermitAll;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.ResponseEntity;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 
 @Slf4j
 @PermitAll
@@ -26,6 +31,10 @@ public class UnifiedWebhookController {
 
     @Autowired
     private WebhookRequestValidator webhookRequestValidator;
+
+    @Autowired(required = false)
+    @Qualifier("webhookAsyncExecutor")
+    private Executor webhookAsyncExecutor;
 
     /**
      * URL 验证：返回 echostr
@@ -84,11 +93,23 @@ public class UnifiedWebhookController {
                     webhookRequest.getTelemetryData() != null ? webhookRequest.getTelemetryData().toString() : "null");
             }
             
-            // 调用业务处理
-            webhookReceiveService.handle(category, eventType, webhookRequest);
+            // 异步处理业务逻辑，立即返回响应
+            if (webhookAsyncExecutor != null) {
+                CompletableFuture.runAsync(() -> {
+                    try {
+                        webhookReceiveService.handle(category, eventType, webhookRequest);
+                    } catch (Exception e) {
+                        log.error("[Webhook-接收] 异步处理失败: category={}, eventType={}, messageId={}",
+                                category, eventType, webhookRequest.getMessageId(), e);
+                    }
+                }, webhookAsyncExecutor);
+            } else {
+                // 如果没有配置异步线程池，同步处理
+                webhookReceiveService.handle(category, eventType, webhookRequest);
+            }
             
             long cost = System.currentTimeMillis() - startTime;
-            log.debug("[Webhook-接收] ====== Webhook请求处理完成 ====== 耗时: {}ms", cost);
+            log.debug("[Webhook-接收] ====== Webhook请求接收完成 ====== 耗时: {}ms", cost);
             return ResponseEntity.ok("success");
         } catch (BaseException ex) {
             long cost = System.currentTimeMillis() - startTime;

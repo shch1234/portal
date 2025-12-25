@@ -30,8 +30,8 @@ import static com.weili.iot_portal.service.ingestion.handler.WebhookHandlerUtils
  * </p>
  * <p>
  * 事件数据建议字段（eventData）：
- * - toolNumber / toolNo / tool_num - 刀具编号
- * - holderNumber / toolHolder / holder_num - 刀架号/刀补号
+ * - toolNo - 刀具编号（统一使用此字段名，与数据库保持一致；允许值为0，0表示"未使用刀具"，这是一个有效的状态）
+ * - holderNumber / hNo / toolEdgeNumber / dNo - 刀补号（值为0时表示未使用刀补，不处理）
  * - offsetX / offsetY / offsetZ / offsetR ... - 刀补值（各轴向补偿）
  * - 其他刀具相关字段将原样透出
  * </p>
@@ -101,42 +101,52 @@ public class DeviceToolEventHandler implements WebhookEventHandler {
             log.warn("{} 事件未包含刀具相关字段，跳过: deviceInfoId={}", DeviceToolEventFields.EVENT_TYPE, deviceInfoId);
             return;
         }
+        
+        // 提取toolNo和holderNumber
+        String toolNo = payload.get(DeviceToolEventFields.TOOL_NO);
         String holderNumber = payload.getOrDefault(DeviceToolEventFields.HOLDER_NUMBER, null);
-        if (StringUtils.isBlank(holderNumber)) {
-            log.warn("{} 事件缺少刀补号({})，跳过入库: deviceInfoId={}",
-                    DeviceToolEventFields.EVENT_TYPE,
-                    DeviceToolEventFields.HOLDER_NUMBER,
-                    deviceInfoId);
+        
+        // 如果toolNo不存在，跳过处理
+        if (StringUtils.isBlank(toolNo)) {
+            log.debug("{} 事件toolNo不存在，跳过处理: deviceInfoId={}", 
+                    DeviceToolEventFields.EVENT_TYPE, deviceInfoId);
+            return;
         }
-        payload.put(DeviceToolEventFields.UPDATED_AT, String.valueOf(eventTimestamp));
-        payload.put(DeviceToolEventFields.SOURCE, DeviceToolEventFields.SOURCE_TB);
-        if (StringUtils.isNotBlank(request.getMessageId())) {
-            payload.put(DeviceToolEventFields.TRACE_ID, request.getMessageId());
+        
+        // 如果holderNumber为0或不存在，不写入刀补补偿表（刀补号0没有意义）
+        if (StringUtils.isBlank(holderNumber) || isZeroValue(holderNumber)) {
+            log.debug("{} 事件刀补号为0或不存在，跳过刀补补偿表写入: deviceInfoId={}", 
+                    DeviceToolEventFields.EVENT_TYPE, deviceInfoId);
+            holderNumber = null;  // 确保为null，不写入补偿表
         }
-
-        deviceToolCacheService.saveTool(orgFactoryId, deviceInfoId, payload,
-                eventTimestamp, DeviceToolEventFields.SOURCE_TB, request.getMessageId());
-
-        // 写入刀补补偿表（版本化覆盖）
+        
+        // 提取补偿数据
+        Map<String, Object> compValue = null;
         if (StringUtils.isNotBlank(holderNumber)) {
-            Map<String, Object> compValue = extractCompensationValue(eventData);
+            compValue = extractCompensationValue(eventData);
             if (!compValue.isEmpty()) {
+                // 写入刀补补偿表（版本化覆盖）
                 upsertCompensation(deviceInfoId, orgFactoryId, holderNumber, compValue, eventTimestamp);
             } else {
                 log.warn("[DeviceToolEventHandler] 刀补号存在但补偿数据为空，跳过刀补补偿表写入: deviceId={}, holderNumber={}", 
                         deviceInfoId, holderNumber);
             }
         }
+        
+        // 构建包含 toolNo、holderNumber 和 compensation 的完整结构，存入Redis
+        deviceToolCacheService.saveTool(orgFactoryId, deviceInfoId, toolNo, holderNumber, compValue,
+                eventTimestamp, DeviceToolEventFields.SOURCE_TB, request.getMessageId());
     }
 
     /**
      * 提取刀具相关字段
      * <p>
      * 提取规则：
-     * 1. 提取所有以 tool/holder/offset 开头的字段
-     * 2. 将刀具编号的多种别名统一映射为 toolNumber
-     * 3. 将刀架号的多种别名统一映射为 holderNumber
-     * 4. 刀补号优先级：hNo > toolEdgeNumber > dNo > holderNumber/toolHolder/holder_num
+     * 1. 提取所有以 offset 开头的字段
+     * 2. 将刀具编号统一映射为 toolNo（与数据库保持一致，允许值为0，0表示"未使用刀具"）
+     * 3. 将刀补号的多种别名统一映射为 holderNumber
+     * 4. 刀补号优先级：hNo > toolEdgeNumber > dNo > holderNumber
+     * 5. 刀补号过滤规则：hNo、toolEdgeNumber、dNo、holderNumber 为0时表示未使用刀补，不进行提取
      * </p>
      *
      * @param eventData 事件数据
@@ -148,7 +158,7 @@ public class DeviceToolEventHandler implements WebhookEventHandler {
         String hNo = null;
         String toolEdgeNumber = null;
         String dNo = null;
-        String holderNumber = null;  // 兼容字段
+        String holderNumber = null;  // 标准字段
 
         for (Map.Entry<String, Object> entry : eventData.entrySet()) {
             String k = entry.getKey();
@@ -158,29 +168,38 @@ public class DeviceToolEventHandler implements WebhookEventHandler {
             }
             String key = k.trim();
 
-            // 提取所有刀具相关字段（tool/holder/offset 开头）
+            // 提取所有刀具相关字段（offset 开头）
             if (DeviceToolEventFields.isToolRelatedField(key)) {
                 map.put(key, String.valueOf(v));
             }
 
-            // 统一刀具编号字段名
+            // 统一刀具编号字段名（允许值为0，0表示"未使用刀具"）
             if (DeviceToolEventFields.isToolNumberField(key)) {
-                map.put(DeviceToolEventFields.TOOL_NUMBER, String.valueOf(v));
+                map.put(DeviceToolEventFields.TOOL_NO, String.valueOf(v));
             }
 
-            // 收集刀补号候选值（按优先级）
+            // 收集刀补号候选值（按优先级，过滤0值）
             if (DeviceToolEventFields.H_NO.equalsIgnoreCase(key)) {
-                hNo = String.valueOf(v);
+                String hNoValue = String.valueOf(v);
+                if (!isZeroValue(hNoValue)) {
+                    hNo = hNoValue;
+                }
             } else if (DeviceToolEventFields.TOOL_EDGE_NUMBER.equalsIgnoreCase(key)) {
-                toolEdgeNumber = String.valueOf(v);
+                String toolEdgeNumberValue = String.valueOf(v);
+                if (!isZeroValue(toolEdgeNumberValue)) {
+                    toolEdgeNumber = toolEdgeNumberValue;
+                }
             } else if (DeviceToolEventFields.D_NO.equalsIgnoreCase(key)) {
-                dNo = String.valueOf(v);
-            } else if (DeviceToolEventFields.isHolderNumberField(key) 
-                    && !DeviceToolEventFields.H_NO.equalsIgnoreCase(key)
-                    && !DeviceToolEventFields.TOOL_EDGE_NUMBER.equalsIgnoreCase(key)
-                    && !DeviceToolEventFields.D_NO.equalsIgnoreCase(key)) {
-                // 兼容原有的 holderNumber/toolHolder/holder_num（排除已处理的字段）
-                holderNumber = String.valueOf(v);
+                String dNoValue = String.valueOf(v);
+                if (!isZeroValue(dNoValue)) {
+                    dNo = dNoValue;
+                }
+            } else if (DeviceToolEventFields.HOLDER_NUMBER.equalsIgnoreCase(key)) {
+                // 标准刀补号字段（过滤0值）
+                String holderNumberValue = String.valueOf(v);
+                if (!isZeroValue(holderNumberValue)) {
+                    holderNumber = holderNumberValue;
+                }
             }
         }
 
@@ -196,7 +215,7 @@ public class DeviceToolEventHandler implements WebhookEventHandler {
             finalHolderNumber = holderNumber;
         }
 
-        // 统一设置刀补号（如果找到）
+        // 统一设置刀补号（如果找到且不为0，刀补号0没有意义）
         if (finalHolderNumber != null) {
             map.put(DeviceToolEventFields.HOLDER_NUMBER, finalHolderNumber);
         }
@@ -204,13 +223,40 @@ public class DeviceToolEventHandler implements WebhookEventHandler {
         return map;
     }
 
+    /**
+     * 判断值是否为0（表示未使用）
+     * <p>
+     * 支持字符串"0"和数字0的判断
+     * </p>
+     *
+     * @param value 值（字符串格式）
+     * @return true 如果值为0
+     */
+    private boolean isZeroValue(String value) {
+        if (value == null || value.trim().isEmpty()) {
+            return false;
+        }
+        String trimmed = value.trim();
+        // 判断是否为字符串"0"
+        if ("0".equals(trimmed)) {
+            return true;
+        }
+        // 尝试解析为数字，判断是否为0
+        try {
+            double numValue = Double.parseDouble(trimmed);
+            return numValue == 0.0;
+        } catch (NumberFormatException e) {
+            // 不是数字，返回false
+            return false;
+        }
+    }
+
 
     /**
-     * 提取补偿值：仅支持结构化补偿数据
+     * 提取补偿值：仅支持结构化补偿对象格式
      * <p>
-     * 支持的数据格式（二选一）：
-     * 1. 补偿对象：{"compensation": {"shape": {"offsetX": 0.5, "offsetY": -0.3}, "wear": {"compX": 0.1}}}
-     * 2. 补偿数组：{"compensations": [{"type": "shape", "offsetX": 0.5, "offsetY": -0.3}, {"type": "wear", "compX": 0.1}]}
+     * 支持的数据格式：
+     * 补偿对象：{"compensation": {"geom": {"offsetX": 0.5, "offsetY": -0.3}, "wear": {"compX": 0.1}}}
      * </p>
      *
      * @param eventData 事件数据
@@ -219,14 +265,11 @@ public class DeviceToolEventHandler implements WebhookEventHandler {
     private Map<String, Object> extractCompensationValue(Map<String, Object> eventData) {
         Map<String, Object> compensation = new HashMap<>();
         
-        // 查找结构化补偿字段（compensation 或 compensations）
+        // 查找结构化补偿字段（compensation）
         Object compensationObj = eventData.get(DeviceToolEventFields.COMPENSATION_FIELD);
-        if (compensationObj == null) {
-            compensationObj = eventData.get(DeviceToolEventFields.COMPENSATIONS_FIELD);
-        }
         
         if (compensationObj == null) {
-            log.warn("[DeviceToolEventHandler] 未找到补偿数据（compensation/compensations字段），跳过刀补补偿表写入");
+            log.warn("[DeviceToolEventHandler] 未找到补偿数据（compensation字段），跳过刀补补偿表写入");
             return compensation;
         }
         
@@ -236,14 +279,8 @@ public class DeviceToolEventHandler implements WebhookEventHandler {
             Map<String, Object> compMap = (Map<String, Object>) compensationObj;
             compensation.putAll(compMap);
             log.debug("[DeviceToolEventHandler] 使用补偿对象格式: {}", compensation.keySet());
-        } else if (compensationObj instanceof java.util.List) {
-            // 数组格式转换为对象格式
-            compensation = convertCompensationArrayToMap((java.util.List<Object>) compensationObj);
-            log.debug("[DeviceToolEventHandler] 转换补偿数组为对象格式: {}", compensation.keySet());
         } else if (compensationObj instanceof String) {
             // 如果补偿数据是JSON字符串，需要先解析
-            // 这通常发生在JSON序列化/反序列化过程中，数组被转换为字符串的情况
-            // 或者TB端发送时，List被序列化为JSON字符串
             try {
                 String jsonStr = ((String) compensationObj).trim();
                 if (jsonStr.isEmpty()) {
@@ -251,23 +288,8 @@ public class DeviceToolEventHandler implements WebhookEventHandler {
                     return compensation;
                 }
                 
-                // 先尝试解析为List（compensations数组格式）
-                // 判断是否以 [ 开头，表示数组格式
-                if (jsonStr.startsWith("[")) {
-                    try {
-                        List<Object> compList = JsonUtils.parseObject(jsonStr, new TypeReference<List<Object>>() {});
-                        if (compList != null && !compList.isEmpty()) {
-                            compensation = convertCompensationArrayToMap(compList);
-                            log.debug("[DeviceToolEventHandler] 从JSON字符串解析补偿数组并转换为对象格式: {}", compensation.keySet());
-                        } else {
-                            log.warn("[DeviceToolEventHandler] 解析补偿数组为空: {}", jsonStr);
-                        }
-                    } catch (Exception e1) {
-                        log.warn("[DeviceToolEventHandler] 解析补偿数组JSON字符串失败: {}, error={}", 
-                                jsonStr, e1.getMessage());
-                    }
-                } else if (jsonStr.startsWith("{")) {
-                    // 判断是否以 { 开头，表示对象格式
+                // 解析为对象格式
+                if (jsonStr.startsWith("{")) {
                     try {
                         Map<String, Object> compMap = JsonUtils.parseObject(jsonStr, new TypeReference<Map<String, Object>>() {});
                         if (compMap != null && !compMap.isEmpty()) {
@@ -276,61 +298,23 @@ public class DeviceToolEventHandler implements WebhookEventHandler {
                         } else {
                             log.warn("[DeviceToolEventHandler] 解析补偿对象为空: {}", jsonStr);
                         }
-                    } catch (Exception e2) {
+                    } catch (Exception e) {
                         log.warn("[DeviceToolEventHandler] 解析补偿对象JSON字符串失败: {}, error={}", 
-                                jsonStr, e2.getMessage());
+                                jsonStr, e.getMessage());
                     }
                 } else {
-                    log.warn("[DeviceToolEventHandler] 补偿数据字符串格式不正确，既不是数组也不是对象: {}", jsonStr);
+                    log.warn("[DeviceToolEventHandler] 补偿数据字符串格式不正确，期望对象格式: {}", jsonStr);
                 }
             } catch (Exception e) {
                 log.warn("[DeviceToolEventHandler] 处理补偿数据字符串时发生异常: {}, error={}", 
                         compensationObj, e.getMessage());
             }
         } else {
-            log.warn("[DeviceToolEventHandler] 补偿数据格式不正确，期望Map、List或String，实际类型: {}", 
+            log.warn("[DeviceToolEventHandler] 补偿数据格式不正确，期望Map或String，实际类型: {}", 
                     compensationObj.getClass().getName());
         }
         
         return compensation;
-    }
-    
-    /**
-     * 将补偿数组转换为对象格式
-     * <p>
-     * 输入：[
-     *   {"type": "shape", "offsetX": 0.5, "offsetY": -0.3},
-     *   {"type": "wear", "compX": 0.1, "compY": 0.2}
-     * ]
-     * 输出：{
-     *   "shape": {"offsetX": 0.5, "offsetY": -0.3},
-     *   "wear": {"compX": 0.1, "compY": 0.2}
-     * }
-     * </p>
-     * 
-     * @param compensationArray 补偿数组
-     * @return 补偿对象
-     */
-    private Map<String, Object> convertCompensationArrayToMap(java.util.List<Object> compensationArray) {
-        Map<String, Object> result = new HashMap<>();
-        for (Object item : compensationArray) {
-            if (item instanceof Map) {
-                @SuppressWarnings("unchecked")
-                Map<String, Object> itemMap = (Map<String, Object>) item;
-                Object typeObj = itemMap.get("type");
-                if (typeObj != null) {
-                    String type = typeObj.toString();
-                    // 移除type字段，保留其他字段
-                    Map<String, Object> compData = new HashMap<>(itemMap);
-                    compData.remove("type");
-                    result.put(type, compData);
-                } else {
-                    // 如果没有type字段，使用默认类型
-                    result.put(DeviceToolEventFields.COMP_TYPE_OFFSET, itemMap);
-                }
-            }
-        }
-        return result;
     }
     
 

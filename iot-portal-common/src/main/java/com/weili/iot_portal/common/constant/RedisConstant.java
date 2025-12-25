@@ -11,6 +11,7 @@ public class RedisConstant {
     public static final String COMMON = "iot_portal:";
     public static final String DEVICE_FACTORY = "iot_portal:device:factory:%s";
     public static final String DEVICE_CODE_IDENTITY = "iot_portal:device:code:%s";
+    public static final String DEVICE_INFO_MATCH = "iot_portal:device:info:%s";
     public static final String UNKNOWN_DEVICE_ALERT = "iot_portal:unknown_device:%s:%s";
 
     /**

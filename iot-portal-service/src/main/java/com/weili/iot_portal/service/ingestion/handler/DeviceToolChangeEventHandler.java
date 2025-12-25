@@ -35,7 +35,7 @@ import static com.weili.iot_portal.service.ingestion.handler.WebhookHandlerUtils
  * 事件数据要求（eventData）：
  * - previousToolNo: 上一个刀号（TB端通过VALUE_CHANGE检测提供）
  * - currentToolNo: 当前刀号（必填，TB端通过VALUE_CHANGE检测提供）
- * - toolHolderNumber/toolMagazineNo（可选）
+ * - toolMagazineNo（可选，用于记录刀套号，如果为空则使用 toolNo）
  * - toolId/toolType/compensationSnapshot（可选）
  * - timestamp 或 dataTimestamp（毫秒）
  * </p>
@@ -93,7 +93,7 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
      * <p>
      * - TB端通过VALUE_CHANGE检测，会提供 previousToolNo/currentToolNo（如果TB端正确设置）
      * - 首次发送时，oldValue为null，newValue有值，TB端可能只设置newValue而不设置currentToolNo
-     * - 容错处理：优先使用currentToolNo，如果为空则从newValue或toolNumber中提取
+     * - 容错处理：优先使用currentToolNo，如果为空则从newValue或toolNo中提取
      * </p>
      */
     private EventData parseEventData(WebhookRequest request) {
@@ -103,17 +103,17 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
         }
 
         // 提取刀具编号（参考DeviceStateEventHandler的逻辑）
-        // 优先使用TB端提供的currentToolNo，如果为空则从newValue或toolNumber中提取
+        // 优先使用TB端提供的currentToolNo，如果为空则从newValue或toolNo中提取
         Object currentToolNoObj = eventDataMap.get(DeviceToolEventFields.CURRENT_TOOL_NO);
         if (currentToolNoObj == null) {
             // 容错处理：首次发送时，TB端可能只设置newValue而不设置currentToolNo
             currentToolNoObj = eventDataMap.get("newValue");
             if (currentToolNoObj == null) {
-                // 尝试从toolNumber字段提取（支持多种命名）
-                currentToolNoObj = eventDataMap.get(DeviceToolEventFields.TOOL_NUMBER);
+                // 尝试从toolNo字段提取（统一使用toolNo，与数据库保持一致）
+                currentToolNoObj = eventDataMap.get(DeviceToolEventFields.TOOL_NO);
                 // 如果还是为空，尝试从telemetryData中提取
                 if (currentToolNoObj == null && request.getTelemetryData() != null) {
-                    currentToolNoObj = request.getTelemetryData().get(DeviceToolEventFields.TOOL_NUMBER);
+                    currentToolNoObj = request.getTelemetryData().get(DeviceToolEventFields.TOOL_NO);
                 }
             }
         }
@@ -145,9 +145,12 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
         }
 
         // 提取其他可选字段
-        String toolHolderNumber = getString(eventDataMap, DeviceToolEventFields.TOOL_HOLDER_NUMBER);
-        if (StringUtils.isBlank(toolHolderNumber)) {
-            toolHolderNumber = getString(eventDataMap, DeviceToolEventFields.TOOL_MAGAZINE_NO);
+        // toolMagazineNo（刀套号）使用 toolNo（刀具编号），因为它们表示同一个概念：刀具在刀库中的位置
+        // 如果业务上需要区分，可以从 eventData 中单独提取 toolMagazineNo 字段
+        String toolMagazineNo = getString(eventDataMap, DeviceToolEventFields.TOOL_MAGAZINE_NO);
+        // 如果 toolMagazineNo 为空，使用 toolNo 作为备选（因为它们通常表示同一个概念）
+        if (StringUtils.isBlank(toolMagazineNo)) {
+            toolMagazineNo = currentToolNo;
         }
         String toolId = getString(eventDataMap, DeviceToolEventFields.TOOL_ID);
         String toolType = getString(eventDataMap, DeviceToolEventFields.TOOL_TYPE);
@@ -164,51 +167,89 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
             }
         }
 
-        // 提取刀补数据（提取所有以 offset/comp/tool/holder 开头的字段）
+        // 提取刀补数据（提取所有以 offset/comp 开头的字段）
         Map<String, Object> compensationSnapshot = extractCompensationSnapshot(eventDataMap, request.getTelemetryData());
 
         return new EventData(previousToolNo, currentToolNo, eventTimestamp,
-                toolHolderNumber, toolId, toolType, programName, compensationSnapshot);
+                toolMagazineNo, toolId, toolType, programName, compensationSnapshot);
     }
 
     /**
      * 提取刀具编号
+     * <p>
      * 支持数字类型和字符串类型
+     * 注意：允许值为0，0表示"未使用刀具"，这是一个有效的状态，需要记录到数据库
+     * </p>
      *
      * @param toolNoObj 刀具编号对象
-     * @return 刀具编号字符串，如果无法识别则返回null
+     * @return 刀具编号字符串（包括"0"），如果无法识别则返回null
      */
     private String extractToolNumber(Object toolNoObj) {
         if (toolNoObj == null) {
             return null;
         }
 
-        // 如果是字符串，直接返回（去除前后空格）
+        String toolNoStr = null;
+
+        // 如果是字符串，直接使用（去除前后空格）
         if (toolNoObj instanceof String) {
-            String toolNoStr = ((String) toolNoObj).trim();
-            return toolNoStr.isEmpty() ? null : toolNoStr;
+            toolNoStr = ((String) toolNoObj).trim();
+            if (toolNoStr.isEmpty()) {
+                return null;
+            }
+        } else if (toolNoObj instanceof Number) {
+            // 如果是数字类型，转换为字符串（包括0）
+            toolNoStr = String.valueOf(((Number) toolNoObj).longValue());
+        } else {
+            // 其他类型，尝试转换为字符串
+            toolNoStr = toolNoObj.toString().trim();
+            if (toolNoStr.isEmpty()) {
+                return null;
+            }
         }
 
-        // 如果是数字类型，转换为字符串
-        if (toolNoObj instanceof Number) {
-            return String.valueOf(((Number) toolNoObj).longValue());
-        }
+        // 注意：不再过滤0值，0是一个有效的刀具状态（表示未使用刀具）
+        return toolNoStr;
+    }
 
-        // 其他类型，尝试转换为字符串
-        String toolNoStr = toolNoObj.toString().trim();
-        return toolNoStr.isEmpty() ? null : toolNoStr;
+    /**
+     * 判断值是否为0（表示未使用）
+     * <p>
+     * 支持字符串"0"和数字0的判断
+     * </p>
+     *
+     * @param value 值（字符串格式）
+     * @return true 如果值为0
+     */
+    private boolean isZeroValue(String value) {
+        if (value == null || value.trim().isEmpty()) {
+            return false;
+        }
+        String trimmed = value.trim();
+        // 判断是否为字符串"0"
+        if ("0".equals(trimmed)) {
+            return true;
+        }
+        // 尝试解析为数字，判断是否为0
+        try {
+            double numValue = Double.parseDouble(trimmed);
+            return numValue == 0.0;
+        } catch (NumberFormatException e) {
+            // 不是数字，返回false
+            return false;
+        }
     }
 
     /**
      * 提取刀补数据快照
      * <p>
      * 提取策略（优先级从高到低）：
-     * 1. 如果存在 compensation 对象，提取 toolNumber、holderNumber 和完整的 compensation 对象（结构化格式）
-     * 2. 否则，提取所有以 offset/comp/tool/holder 开头的字段（扁平化格式）
+     * 1. 如果存在 compensation 对象，提取 toolNo、holderNumber 和完整的 compensation 对象（结构化格式）
+     * 2. 否则，提取所有以 offset/comp 开头的字段（扁平化格式）
      * </p>
      * <p>
      * 存储格式：
-     * - 结构化：{"toolNumber": "2", "holderNumber": "11", "compensation": {"geom": {...}, "wear": {...}}}
+     * - 结构化：{"toolNo": "2", "holderNumber": "11", "compensation": {"geom": {...}, "wear": {...}}}
      * - 扁平化：{"offsetX": 0.5, "offsetY": -0.3, ...}
      * </p>
      *
@@ -227,59 +268,50 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
         // 优先检查是否存在 compensation 对象（结构化格式）
         Object compensationObj = sourceData.get(DeviceToolEventFields.COMPENSATION_FIELD);
         if (compensationObj != null && compensationObj instanceof Map) {
-            // 结构化格式：提取 toolNumber、holderNumber 和 compensation 对象
+            // 结构化格式：提取 toolNo、holderNumber 和 compensation 对象
             @SuppressWarnings("unchecked")
             Map<String, Object> compensationMap = (Map<String, Object>) compensationObj;
 
-            // 提取 toolNumber
-            Object toolNumberObj = sourceData.get(DeviceToolEventFields.TOOL_NUMBER);
-            if (toolNumberObj == null) {
-                toolNumberObj = sourceData.get(DeviceToolEventFields.TOOL_NO);
-            }
-            if (toolNumberObj == null) {
-                toolNumberObj = sourceData.get(DeviceToolEventFields.TOOL_NUM);
-            }
+            // 提取 toolNo（统一使用toolNo，与数据库保持一致）
+            // 注意：允许值为0，0表示"未使用刀具"，这是一个有效的状态
+            Object toolNumberObj = sourceData.get(DeviceToolEventFields.TOOL_NO);
             if (toolNumberObj != null) {
-                snapshot.put(DeviceToolEventFields.TOOL_NUMBER, toolNumberObj);
+                snapshot.put(DeviceToolEventFields.TOOL_NO, toolNumberObj);
             }
 
-            // 提取 holderNumber（按优先级：hNo > toolEdgeNumber > dNo > holderNumber/toolHolder/holder_num）
+            // 提取 holderNumber（按优先级：hNo > toolEdgeNumber > dNo > holderNumber）
+            // 过滤0值：如果值为0，表示未使用刀补，不提取
             Object holderNumberObj = sourceData.get(DeviceToolEventFields.H_NO);
-            if (holderNumberObj == null) {
+            if (holderNumberObj == null || isZeroValue(String.valueOf(holderNumberObj))) {
                 holderNumberObj = sourceData.get(DeviceToolEventFields.TOOL_EDGE_NUMBER);
             }
-            if (holderNumberObj == null) {
+            if (holderNumberObj == null || isZeroValue(String.valueOf(holderNumberObj))) {
                 holderNumberObj = sourceData.get(DeviceToolEventFields.D_NO);
             }
-            if (holderNumberObj == null) {
+            if (holderNumberObj == null || isZeroValue(String.valueOf(holderNumberObj))) {
                 holderNumberObj = sourceData.get(DeviceToolEventFields.HOLDER_NUMBER);
             }
-            if (holderNumberObj == null) {
-                holderNumberObj = sourceData.get(DeviceToolEventFields.TOOL_HOLDER);
-            }
-            if (holderNumberObj == null) {
-                holderNumberObj = sourceData.get(DeviceToolEventFields.HOLDER_NUM);
-            }
-            if (holderNumberObj != null) {
+            // 最终检查：如果值不为null且不为0，才添加到快照
+            if (holderNumberObj != null && !isZeroValue(String.valueOf(holderNumberObj))) {
                 snapshot.put(DeviceToolEventFields.HOLDER_NUMBER, holderNumberObj);
             }
 
             // 提取完整的 compensation 对象
             snapshot.put(DeviceToolEventFields.COMPENSATION_FIELD, compensationMap);
 
-            log.debug("[DeviceToolChangeEventHandler] 提取结构化补偿快照: toolNumber={}, holderNumber={}, compensation keys={}",
+            log.debug("[DeviceToolChangeEventHandler] 提取结构化补偿快照: toolNo={}, holderNumber={}, compensation keys={}",
                     toolNumberObj, holderNumberObj, compensationMap.keySet());
             return snapshot;
         }
 
-        // 降级到扁平化提取：提取所有以 offset/comp/tool/holder 开头的字段
+        // 降级到扁平化提取：提取所有以 offset/comp 开头的字段
         if (eventData != null) {
             eventData.forEach((k, v) -> {
                 if (k == null || v == null) {
                     return;
                 }
                 String key = k.trim();
-                // 提取所有补偿相关字段（offset/comp/tool/holder 开头）
+                // 提取所有补偿相关字段（offset/comp 开头）
                 if (DeviceToolEventFields.isCompensationField(key)) {
                     snapshot.put(key, v);
                 }
@@ -293,7 +325,7 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
                     return;
                 }
                 String key = k.trim();
-                // 提取所有补偿相关字段（offset/comp/tool/holder 开头）
+                // 提取所有补偿相关字段（offset/comp 开头）
                 if (DeviceToolEventFields.isCompensationField(key)) {
                     snapshot.put(key, v);
                 }
@@ -629,7 +661,7 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
         record.setDeviceInfoId(deviceInfoId);
         record.setOrgFactoryId(orgFactoryId);
         record.setToolNo(eventData.currentToolNo());
-        record.setToolMagazineNo(eventData.toolHolderNumber());
+        record.setToolMagazineNo(eventData.toolMagazineNo());
         record.setToolId(eventData.toolId());
         record.setToolType(eventData.toolType());
         // 时间戳使用毫秒级
@@ -704,7 +736,7 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
             String previousToolNo,      // 上一个刀具编号
             String currentToolNo,      // 当前刀具编号
             long eventTimestamp,        // 事件时间戳（毫秒）
-            String toolHolderNumber,   // 刀架编号
+            String toolMagazineNo,     // 刀套号（刀具在刀库中的位置，通常与 toolNo 相同）
             String toolId,             // 刀具ID
             String toolType,           // 刀具类型
             String programName,         // 程序名

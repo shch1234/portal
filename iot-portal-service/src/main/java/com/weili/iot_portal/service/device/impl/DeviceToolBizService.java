@@ -80,6 +80,16 @@ public class DeviceToolBizService implements IDeviceToolBizService {
         return pageResult;
     }
 
+    @Override
+    public DeviceToolRecordRespVO getCurrentToolRecord(Long deviceId) {
+        DeviceInfoDO deviceInfoDO = deviceInfoBizService.getDeviceInfo(deviceId);
+        if (deviceInfoDO == null) {
+            throw new IotPortalException(IotPortalErrorCode.DEVICE_INFO_NOT_FOUND, "设备不存在");
+        }
+
+        Map<String, Object> toolData = deviceToolCacheService.getTool(deviceInfoDO.getOrgFactoryId(), deviceId);
+        return null;
+    }
 
     @Override
     public DeviceToolRecordRespVO getDeviceToolRecords(DeviceToolRecordQueryReqVO queryReqVO) {
