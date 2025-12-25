@@ -58,8 +58,7 @@ public class DeviceToolBizService implements IDeviceToolBizService {
         List<DeviceToolCompensationDO> compensationList = deviceToolCompensationRepository
                 .findActiveByDeviceWithPage(factoryId, String.valueOf(deviceId), offset, pageSize);
 
-        Long total = deviceToolCompensationRepository
-                .countActiveByDevice(factoryId, String.valueOf(deviceId));
+        Long total = deviceToolCompensationRepository.countActiveByDevice(factoryId, String.valueOf(deviceId));
 
         List<DeviceToolCompensationRespVO> items = new ArrayList<>();
         for (DeviceToolCompensationDO compensation : compensationList) {
@@ -117,16 +116,16 @@ public class DeviceToolBizService implements IDeviceToolBizService {
         if (deviceInfoDO == null) {
             throw new IotPortalException(IotPortalErrorCode.DEVICE_INFO_NOT_FOUND, "设备不存在");
         }
-        //TODO "当前刀具号、刀套号、刀补值
-        Map<String, Object> toolData = deviceToolCacheService.getTool(deviceInfoDO.getOrgFactoryId(), deviceId);
-        if(MapUtils.isNotEmpty(toolData)){
-            Object toolNo = toolData.get(DeviceToolEventFields.TOOL_NO);
-            Object holderNo = toolData.get(DeviceToolEventFields.HOLDER_NUMBER);
-            Object compensations = toolData.get(DeviceToolEventFields.COMPENSATION_FIELD);
-
-
-        }
-        ToolRecord current = new ToolRecord();
+        DeviceToolCompensationRespVO current = new DeviceToolCompensationRespVO();
+        String toolNo = deviceToolCacheService.getToolNo(deviceInfoDO.getOrgFactoryId(), deviceId);
+        String holderNo = deviceToolCacheService.getToolHolderNo(deviceInfoDO.getOrgFactoryId(), deviceId);
+        Map<String, Object> compensation = deviceToolCacheService.getActiveCompensation(deviceId, holderNo);
+        GeometryCompensation geometry = extractGeometry(compensation, holderNo);
+        current.setGeometry(geometry);
+        WearCompensation wear = extractWear(compensation, holderNo);
+        current.setWear(wear);
+        current.setToolNo(toolNo);
+        current.setToolHolderNo(holderNo);
         recordRespVO.setCurrent(current);
         return recordRespVO;
     }

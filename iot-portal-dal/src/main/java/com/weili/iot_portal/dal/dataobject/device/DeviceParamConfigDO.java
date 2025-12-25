@@ -43,17 +43,6 @@ public class DeviceParamConfigDO extends BaseDO {
     private BigDecimal parameterValue;
 
     /**
-     * 单位（对应 parameter_unit 列）
-     * 如：HOUR-小时 MINUTE-分钟 SECOND-秒 PIECE-件等
-     */
-    private String parameterUnit;
-
-    /**
-     * 参数值（文本型，对应 parameter_text 列）
-     */
-    private String parameterText;
-
-    /**
      * 生效开始时间戳（秒，Unix时间戳，用于历史修订，对应 effective_start_ts 列）
      */
     private Long effectiveStartTs;
