@@ -35,8 +35,36 @@ public class DeviceAlarmHistoryRepositoryImpl implements DeviceAlarmHistoryRepos
         if (endTs != null) {
             wrapper.le(DeviceAlarmHistoryDO::getStartTs, endTs);
         }
-        wrapper.orderByAsc(DeviceAlarmHistoryDO::getStartTs);
+        wrapper.orderByDesc(DeviceAlarmHistoryDO::getStartTs);
         return mapper.selectList(wrapper);
+    }
+
+    @Override
+    public List<DeviceAlarmHistoryDO> findByRangeWithPage(Long deviceId, Long startTs, Long endTs, Integer offset, Integer limit) {
+        LambdaQueryWrapper<DeviceAlarmHistoryDO> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(DeviceAlarmHistoryDO::getDeviceInfoId, deviceId);
+        if (startTs != null) {
+            wrapper.ge(DeviceAlarmHistoryDO::getStartTs, startTs);
+        }
+        if (endTs != null) {
+            wrapper.le(DeviceAlarmHistoryDO::getStartTs, endTs);
+        }
+        wrapper.orderByDesc(DeviceAlarmHistoryDO::getStartTs)
+                .last("LIMIT " + limit + " OFFSET " + offset);
+        return mapper.selectList(wrapper);
+    }
+
+    @Override
+    public Long countByRange(Long deviceId, Long startTs, Long endTs) {
+        LambdaQueryWrapper<DeviceAlarmHistoryDO> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(DeviceAlarmHistoryDO::getDeviceInfoId, deviceId);
+        if (startTs != null) {
+            wrapper.ge(DeviceAlarmHistoryDO::getStartTs, startTs);
+        }
+        if (endTs != null) {
+            wrapper.le(DeviceAlarmHistoryDO::getStartTs, endTs);
+        }
+        return mapper.selectCount(wrapper);
     }
 
     @Override

@@ -1,6 +1,7 @@
 package com.weili.iot_portal.service.device;
 
 import com.weili.iot_portal.dal.dataobject.device.DeviceStateRecordDO;
+import com.weili.iot_portal.service.model.StateStatistics;
 
 import java.util.List;
 import java.util.Map;
@@ -10,22 +11,6 @@ import java.util.Map;
  * 负责计算设备状态统计数据
  */
 public interface IDeviceStateStatisticsService {
-
-    /**
-     * 状态统计结果
-     */
-    class StateStatistics {
-        public final String stateCode;
-        public long durationSeconds;
-        public int fragmentCount;
-        public java.math.BigDecimal ratio = java.math.BigDecimal.ZERO;
-
-        public StateStatistics(String stateCode, long durationSeconds, int fragmentCount) {
-            this.stateCode = stateCode;
-            this.durationSeconds = durationSeconds;
-            this.fragmentCount = fragmentCount;
-        }
-    }
 
     /**
      * 计算状态统计

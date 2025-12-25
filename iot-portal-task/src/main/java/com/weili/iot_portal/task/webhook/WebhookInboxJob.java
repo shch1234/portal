@@ -1,6 +1,7 @@
 package com.weili.iot_portal.task.webhook;
 
 import com.weili.iot_portal.service.ingestion.WebhookInboxProcessor;
+import com.weili.iot_portal.service.model.ProcessResult;
 import com.weili.iot_portal.task.framework.BaseScheduledJob;
 import com.weili.iot_portal.task.framework.JobExecutionResult;
 import com.xxl.job.core.context.XxlJobHelper;
@@ -32,15 +33,15 @@ public class WebhookInboxJob extends BaseScheduledJob {
 
     @Override
     protected JobExecutionResult executeInternal() throws Exception {
-        WebhookInboxProcessor.ProcessResult result = webhookInboxProcessor.processBatch();
+       ProcessResult result = webhookInboxProcessor.processBatch();
 
         XxlJobHelper.log("Webhook 收件箱处理完成: 成功={}, 跳过={}, 失败={}",
-                result.successCount(), result.skipCount(), result.errorCount());
+                result.getSuccessCount(), result.getSkipCount(), result.getErrorCount());
 
         return JobExecutionResult.of(
-                result.successCount(),
-                result.skipCount(),
-                result.errorCount());
+                result.getSuccessCount(),
+                result.getSkipCount(),
+                result.getErrorCount());
     }
 }
 

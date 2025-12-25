@@ -2,14 +2,17 @@ package com.weili.iot_portal.web.device;
 
 import com.weili.basic.common.model.CommonResult;
 import com.weili.basic.common.model.PageResult;
+import com.weili.iot_portal.domain.device.req.DeviceAlarmHistoryQueryReqVO;
 import com.weili.iot_portal.domain.device.req.DeviceAxisQueryReqVO;
 import com.weili.iot_portal.domain.device.req.DeviceStateSummaryQueryReqVO;
 import com.weili.iot_portal.domain.device.req.DeviceToolCompensationQueryReqVO;
 import com.weili.iot_portal.domain.device.req.DeviceToolRecordQueryReqVO;
+import com.weili.iot_portal.domain.device.resp.DeviceAlarmHistoryRespVO;
 import com.weili.iot_portal.domain.device.resp.DeviceAxisRespVO;
 import com.weili.iot_portal.domain.device.resp.DeviceStateSummaryRespVO;
 import com.weili.iot_portal.domain.device.resp.DeviceToolCompensationRespVO;
 import com.weili.iot_portal.domain.device.resp.DeviceToolRecordRespVO;
+import com.weili.iot_portal.service.device.IDeviceAlarmHistoryBizService;
 import com.weili.iot_portal.service.device.IDeviceAxisBizService;
 import com.weili.iot_portal.service.device.IDeviceStateSummaryBizService;
 import com.weili.iot_portal.service.device.IDeviceToolBizService;
@@ -40,6 +43,8 @@ public class DeviceDetailViewController {
     private IDeviceStateSummaryBizService deviceStateSummaryBizService;
     @Resource
     private IDeviceToolBizService deviceToolBizService;
+    @Resource
+    private IDeviceAlarmHistoryBizService deviceAlarmHistoryBizService;
 
     @GetMapping("/state-summary")
     @Operation(summary = "获取设备状态统计（饼图+时间轴）")
@@ -70,9 +75,16 @@ public class DeviceDetailViewController {
     }
 
     @GetMapping("/tool-current")
-    @Operation(summary = "获取设备刀具实时使用记录", description = "当前刀具号、刀套号、刀补值")
+    @Operation(summary = "当前设备刀具实时使用记录", description = "当前刀具号、刀套号、刀补值")
     public CommonResult<DeviceToolRecordRespVO> getDeviceToolRecords(@RequestParam("deviceId") Long id) {
         DeviceToolRecordRespVO result = deviceToolBizService.getCurrentToolRecord(id);
+        return CommonResult.success(result);
+    }
+
+    @GetMapping("/alarm-history")
+    @Operation(summary = "获取设备告警历史列表")
+    public CommonResult<PageResult<DeviceAlarmHistoryRespVO>> getDeviceAlarmHistory(@Valid DeviceAlarmHistoryQueryReqVO queryReqVO) {
+        PageResult<DeviceAlarmHistoryRespVO> result = deviceAlarmHistoryBizService.getDeviceAlarmHistory(queryReqVO);
         return CommonResult.success(result);
     }
 }

@@ -1,7 +1,10 @@
 package com.weili.iot_portal.service.device;
 
 import com.weili.iot_portal.dal.dataobject.device.DeviceInfoDO;
-import com.weili.iot_portal.service.device.IDeviceStateStatisticsService.StateStatistics;
+import com.weili.iot_portal.service.model.BatchProcessResult;
+import com.weili.iot_portal.service.model.CompensationResult;
+import com.weili.iot_portal.service.model.ProcessResult;
+import com.weili.iot_portal.service.model.StateStatistics;
 import com.weili.iot_portal.service.shift.model.ShiftTimeRange;
 
 import java.time.LocalDate;
@@ -13,77 +16,6 @@ import java.util.Map;
  * 负责班次相关的计算和汇总逻辑
  */
 public interface IDeviceShiftSummaryService {
-
-    /**
-     * 处理结果
-     */
-    class ProcessResult {
-        private final boolean processed;
-        private final String skipReason;
-
-        private ProcessResult(boolean processed, String skipReason) {
-            this.processed = processed;
-            this.skipReason = skipReason;
-        }
-
-        public static ProcessResult processed() {
-            return new ProcessResult(true, null);
-        }
-
-        public static ProcessResult skipped(String reason) {
-            return new ProcessResult(false, reason);
-        }
-
-        public boolean isProcessed() {
-            return processed;
-        }
-
-        public String getSkipReason() {
-            return skipReason;
-        }
-    }
-
-    /**
-     * 批量处理结果
-     */
-    class BatchProcessResult {
-        private final int successCount;
-        private final int skipCount;
-        private final int errorCount;
-        private final boolean completed;
-
-        private BatchProcessResult(int successCount, int skipCount, int errorCount, boolean completed) {
-            this.successCount = successCount;
-            this.skipCount = skipCount;
-            this.errorCount = errorCount;
-            this.completed = completed;
-        }
-
-        public static BatchProcessResult completed(int successCount, int skipCount, int errorCount) {
-            return new BatchProcessResult(successCount, skipCount, errorCount, true);
-        }
-
-        public static BatchProcessResult incomplete(int successCount, int skipCount, int errorCount) {
-            return new BatchProcessResult(successCount, skipCount, errorCount, false);
-        }
-
-        public int getSuccessCount() {
-            return successCount;
-        }
-
-        public int getSkipCount() {
-            return skipCount;
-        }
-
-        public int getErrorCount() {
-            return errorCount;
-        }
-
-        public boolean isCompleted() {
-            return completed;
-        }
-    }
-
 
     /**
      * 检查班次是否应该被统计
@@ -175,32 +107,5 @@ public interface IDeviceShiftSummaryService {
      * @return 处理结果
      */
     CompensationResult compensatePendingSummaries(int compensationDays);
-
-    /**
-     * 补偿结果
-     */
-    class CompensationResult {
-        private final int successCount;
-        private final int skipCount;
-        private final int errorCount;
-
-        public CompensationResult(int successCount, int skipCount, int errorCount) {
-            this.successCount = successCount;
-            this.skipCount = skipCount;
-            this.errorCount = errorCount;
-        }
-
-        public int getSuccessCount() {
-            return successCount;
-        }
-
-        public int getSkipCount() {
-            return skipCount;
-        }
-
-        public int getErrorCount() {
-            return errorCount;
-        }
-    }
 }
 
