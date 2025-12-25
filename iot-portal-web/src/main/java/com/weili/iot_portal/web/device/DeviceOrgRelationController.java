@@ -73,7 +73,7 @@ public class DeviceOrgRelationController {
         return CommonResult.success(BeanUtils.toBean(pageResult, DeviceOrgRelationRespVO.class));
     }
 
-    @GetMapping("/cascade-tree")
+    @GetMapping("/options")
     @Operation(summary = "获取组织单元级联树（工厂-车间-产线）")
     public CommonResult<List<DeviceOrgRelationSubRespVO>> getOrgRelationCascadeTree() {
         List<DeviceOrgRelationSubRespVO> tree = deviceOrgRelationBizService.getOrgRelationCascadeTree();
