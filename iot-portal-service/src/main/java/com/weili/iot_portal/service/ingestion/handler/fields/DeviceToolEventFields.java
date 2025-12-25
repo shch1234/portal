@@ -34,8 +34,37 @@ public final class DeviceToolEventFields {
      * 刀补号（标准字段名）
      * 用于标识刀具所在的刀架位置编号，是刀补补偿的关键标识
      */
-    public static final String HOLDER_NUMBER = "toolMagazineNo";
+    public static final String HOLDER_NUMBER = "holderNumber";
 
+    /**
+     * 刀架号（别名1：驼峰命名）
+     * 兼容不同的命名风格
+     */
+    public static final String TOOL_HOLDER = "toolHolder";
+
+    /**
+     * 刀架号（别名2：下划线命名）
+     * 兼容不同的命名风格
+     */
+    public static final String HOLDER_NUM = "holder_num";
+
+    /**
+     * 刀补号（hNo）：发那科/科德-长度补偿号；西门子-复用为刀沿号（冗余保留）
+     * 优先级：最高
+     */
+    public static final String H_NO = "hNo";
+
+    /**
+     * 刀补号（toolEdgeNumber）：适配西门子-刀沿号（D号）
+     * 优先级：中等
+     */
+    public static final String TOOL_EDGE_NUMBER = "toolEdgeNumber";
+
+    /**
+     * 刀补号（dNo）：发那科/科德-半径补偿号；西门子-复用为刀沿号（冗余保留）
+     * 优先级：最低
+     */
+    public static final String D_NO = "dNo";
 
     // ==================== 刀补值相关字段前缀 ====================
     /**
@@ -213,7 +242,12 @@ public final class DeviceToolEventFields {
             return false;
         }
         String key = fieldName.trim();
-        return HOLDER_NUMBER.equalsIgnoreCase(key);
+        return HOLDER_NUMBER.equalsIgnoreCase(key)
+                || TOOL_HOLDER.equalsIgnoreCase(key)
+                || HOLDER_NUM.equalsIgnoreCase(key)
+                || H_NO.equalsIgnoreCase(key)
+                || TOOL_EDGE_NUMBER.equalsIgnoreCase(key)
+                || D_NO.equalsIgnoreCase(key);
     }
 
     /**

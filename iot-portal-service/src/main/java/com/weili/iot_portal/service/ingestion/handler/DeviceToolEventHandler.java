@@ -136,6 +136,7 @@ public class DeviceToolEventHandler implements WebhookEventHandler {
      * 1. 提取所有以 tool/holder/offset 开头的字段
      * 2. 将刀具编号的多种别名统一映射为 toolNumber
      * 3. 将刀架号的多种别名统一映射为 holderNumber
+     * 4. 刀补号优先级：hNo > toolEdgeNumber > dNo > holderNumber/toolHolder/holder_num
      * </p>
      *
      * @param eventData 事件数据
@@ -143,9 +144,17 @@ public class DeviceToolEventHandler implements WebhookEventHandler {
      */
     private Map<String, String> extractToolFields(Map<String, Object> eventData) {
         Map<String, String> map = new HashMap<>();
-        eventData.forEach((k, v) -> {
+        // 用于存储候选刀补号（按优先级）
+        String hNo = null;
+        String toolEdgeNumber = null;
+        String dNo = null;
+        String holderNumber = null;  // 兼容字段
+
+        for (Map.Entry<String, Object> entry : eventData.entrySet()) {
+            String k = entry.getKey();
+            Object v = entry.getValue();
             if (k == null || v == null) {
-                return;
+                continue;
             }
             String key = k.trim();
 
@@ -159,11 +168,39 @@ public class DeviceToolEventHandler implements WebhookEventHandler {
                 map.put(DeviceToolEventFields.TOOL_NUMBER, String.valueOf(v));
             }
 
-            // 统一刀架号字段名
-            if (DeviceToolEventFields.isHolderNumberField(key)) {
-                map.put(DeviceToolEventFields.HOLDER_NUMBER, String.valueOf(v));
+            // 收集刀补号候选值（按优先级）
+            if (DeviceToolEventFields.H_NO.equalsIgnoreCase(key)) {
+                hNo = String.valueOf(v);
+            } else if (DeviceToolEventFields.TOOL_EDGE_NUMBER.equalsIgnoreCase(key)) {
+                toolEdgeNumber = String.valueOf(v);
+            } else if (DeviceToolEventFields.D_NO.equalsIgnoreCase(key)) {
+                dNo = String.valueOf(v);
+            } else if (DeviceToolEventFields.isHolderNumberField(key) 
+                    && !DeviceToolEventFields.H_NO.equalsIgnoreCase(key)
+                    && !DeviceToolEventFields.TOOL_EDGE_NUMBER.equalsIgnoreCase(key)
+                    && !DeviceToolEventFields.D_NO.equalsIgnoreCase(key)) {
+                // 兼容原有的 holderNumber/toolHolder/holder_num（排除已处理的字段）
+                holderNumber = String.valueOf(v);
             }
-        });
+        }
+
+        // 按优先级选择最终的刀补号
+        String finalHolderNumber = hNo;
+        if (finalHolderNumber == null) {
+            finalHolderNumber = toolEdgeNumber;
+        }
+        if (finalHolderNumber == null) {
+            finalHolderNumber = dNo;
+        }
+        if (finalHolderNumber == null) {
+            finalHolderNumber = holderNumber;
+        }
+
+        // 统一设置刀补号（如果找到）
+        if (finalHolderNumber != null) {
+            map.put(DeviceToolEventFields.HOLDER_NUMBER, finalHolderNumber);
+        }
+
         return map;
     }
 
@@ -174,9 +211,6 @@ public class DeviceToolEventHandler implements WebhookEventHandler {
      * 支持的数据格式（二选一）：
      * 1. 补偿对象：{"compensation": {"shape": {"offsetX": 0.5, "offsetY": -0.3}, "wear": {"compX": 0.1}}}
      * 2. 补偿数组：{"compensations": [{"type": "shape", "offsetX": 0.5, "offsetY": -0.3}, {"type": "wear", "compX": 0.1}]}
-     * </p>
-     * <p>
-     * 注意：不再支持零散的offset/comp字段，必须使用compensation或compensations字段
      * </p>
      *
      * @param eventData 事件数据

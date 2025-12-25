@@ -202,18 +202,77 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
     /**
      * 提取刀补数据快照
      * <p>
-     * 提取所有以 offset/comp/tool/holder 开头的字段，保存为 JSON Map
-     * 参考 DeviceToolEventHandler.extractCompensationValue 的逻辑
+     * 提取策略（优先级从高到低）：
+     * 1. 如果存在 compensation 对象，提取 toolNumber、holderNumber 和完整的 compensation 对象（结构化格式）
+     * 2. 否则，提取所有以 offset/comp/tool/holder 开头的字段（扁平化格式）
+     * </p>
+     * <p>
+     * 存储格式：
+     * - 结构化：{"toolNumber": "2", "holderNumber": "11", "compensation": {"geom": {...}, "wear": {...}}}
+     * - 扁平化：{"offsetX": 0.5, "offsetY": -0.3, ...}
      * </p>
      *
      * @param eventData     事件数据
      * @param telemetryData 遥测数据
-     * @return 刀补数据快照（Map），如果没有则返回空 Map
+     * @return 刀补数据快照（Map），如果没有则返回 null
      */
     private Map<String, Object> extractCompensationSnapshot(Map<String, Object> eventData, Map<String, Object> telemetryData) {
         Map<String, Object> snapshot = new HashMap<>();
+        Map<String, Object> sourceData = eventData != null ? eventData : telemetryData;
 
-        // 从 eventData 中提取
+        if (sourceData == null) {
+            return null;
+        }
+
+        // 优先检查是否存在 compensation 对象（结构化格式）
+        Object compensationObj = sourceData.get(DeviceToolEventFields.COMPENSATION_FIELD);
+        if (compensationObj != null && compensationObj instanceof Map) {
+            // 结构化格式：提取 toolNumber、holderNumber 和 compensation 对象
+            @SuppressWarnings("unchecked")
+            Map<String, Object> compensationMap = (Map<String, Object>) compensationObj;
+
+            // 提取 toolNumber
+            Object toolNumberObj = sourceData.get(DeviceToolEventFields.TOOL_NUMBER);
+            if (toolNumberObj == null) {
+                toolNumberObj = sourceData.get(DeviceToolEventFields.TOOL_NO);
+            }
+            if (toolNumberObj == null) {
+                toolNumberObj = sourceData.get(DeviceToolEventFields.TOOL_NUM);
+            }
+            if (toolNumberObj != null) {
+                snapshot.put(DeviceToolEventFields.TOOL_NUMBER, toolNumberObj);
+            }
+
+            // 提取 holderNumber（按优先级：hNo > toolEdgeNumber > dNo > holderNumber/toolHolder/holder_num）
+            Object holderNumberObj = sourceData.get(DeviceToolEventFields.H_NO);
+            if (holderNumberObj == null) {
+                holderNumberObj = sourceData.get(DeviceToolEventFields.TOOL_EDGE_NUMBER);
+            }
+            if (holderNumberObj == null) {
+                holderNumberObj = sourceData.get(DeviceToolEventFields.D_NO);
+            }
+            if (holderNumberObj == null) {
+                holderNumberObj = sourceData.get(DeviceToolEventFields.HOLDER_NUMBER);
+            }
+            if (holderNumberObj == null) {
+                holderNumberObj = sourceData.get(DeviceToolEventFields.TOOL_HOLDER);
+            }
+            if (holderNumberObj == null) {
+                holderNumberObj = sourceData.get(DeviceToolEventFields.HOLDER_NUM);
+            }
+            if (holderNumberObj != null) {
+                snapshot.put(DeviceToolEventFields.HOLDER_NUMBER, holderNumberObj);
+            }
+
+            // 提取完整的 compensation 对象
+            snapshot.put(DeviceToolEventFields.COMPENSATION_FIELD, compensationMap);
+
+            log.debug("[DeviceToolChangeEventHandler] 提取结构化补偿快照: toolNumber={}, holderNumber={}, compensation keys={}",
+                    toolNumberObj, holderNumberObj, compensationMap.keySet());
+            return snapshot;
+        }
+
+        // 降级到扁平化提取：提取所有以 offset/comp/tool/holder 开头的字段
         if (eventData != null) {
             eventData.forEach((k, v) -> {
                 if (k == null || v == null) {
@@ -239,6 +298,10 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
                     snapshot.put(key, v);
                 }
             });
+        }
+
+        if (!snapshot.isEmpty()) {
+            log.debug("[DeviceToolChangeEventHandler] 提取扁平化补偿快照: keys={}", snapshot.keySet());
         }
 
         return snapshot.isEmpty() ? null : snapshot;
