@@ -124,9 +124,9 @@ public class DeviceOrgRelationBizService implements IDeviceOrgRelationBizService
                 .collect(Collectors.groupingBy(DeviceOrgRelationDO::getUnitTypeValue));
 
         // 获取工厂、车间、产线列表
-        List<DeviceOrgRelationDO> factories = typeMap.getOrDefault("FACTORY", Collections.emptyList());
-        List<DeviceOrgRelationDO> workshops = typeMap.getOrDefault("WORKSHOP", Collections.emptyList());
-        List<DeviceOrgRelationDO> productionLines = typeMap.getOrDefault("PRODUCTION_LINE", Collections.emptyList());
+        List<DeviceOrgRelationDO> factories = typeMap.getOrDefault(UnitTypeEnum.FACTORY.getCode(), Collections.emptyList());
+        List<DeviceOrgRelationDO> workshops = typeMap.getOrDefault(UnitTypeEnum.WORKSHOP.getCode(), Collections.emptyList());
+        List<DeviceOrgRelationDO> productionLines = typeMap.getOrDefault(UnitTypeEnum.PRODUCTION_LINE.getCode(), Collections.emptyList());
 
         // 按父级ID分组车间和产线
         Map<String, List<DeviceOrgRelationDO>> workshopsByFactoryId = workshops.stream()
