@@ -19,6 +19,9 @@ import java.math.BigDecimal;
 @Schema(description = "刀具补偿项")
 public class DeviceToolCompensationRespVO {
 
+    @Schema(description = "刀具编号", example = "T01")
+    private String toolNo;
+
     @Schema(description = "刀补号", example = "T01")
     private String toolHolderNo;
 

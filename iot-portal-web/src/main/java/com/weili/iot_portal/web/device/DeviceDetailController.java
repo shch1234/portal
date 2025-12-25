@@ -45,7 +45,6 @@ public class DeviceDetailController {
     private IDeviceStateSummaryBizService deviceStateSummaryBizService;
     @Resource
     private IDeviceToolBizService deviceToolBizService;
-
     @Resource
     private IDeviceProgramBizService deviceProgramBizService;
 

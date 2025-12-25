@@ -18,7 +18,7 @@ import lombok.NoArgsConstructor;
 public class DeviceToolRecordRespVO {
 
     @Schema(description = "当前刀具使用记录")
-    private ToolRecord current;
+    private DeviceToolCompensationRespVO current;
 
     @Schema(description = "刀具使用记录列表")
     private PageResult<ToolRecord> recordList;

@@ -2,10 +2,13 @@ package com.weili.iot_portal.service.assembler;
 
 import com.weili.iot_portal.dal.dataobject.device.DeviceLocationDO;
 import com.weili.iot_portal.dal.dataobject.device.DeviceNetworkConfigDO;
+import com.weili.iot_portal.dal.dataobject.device.DeviceParamConfigDO;
 import com.weili.iot_portal.domain.device.req.DeviceInfoSaveReqVO;
 import com.weili.iot_portal.domain.device.req.DeviceLocationInfoReq;
 import com.weili.iot_portal.domain.device.req.DeviceNetworkInfoReq;
+import com.weili.iot_portal.domain.device.req.DeviceParamConfigReq;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 
 
@@ -114,5 +117,37 @@ public final class DeviceInfoAssembler {
         deviceNetworkConfig.setEffectiveEnd(networkInfo.getEffectiveEnd());
         deviceNetworkConfig.setDescription(networkInfo.getDescription());
         return deviceNetworkConfig;
+    }
+
+    /**
+     * 创建设备参数配置（首次新增设备时）
+     */
+    public static DeviceParamConfigDO createDeviceParamConfig(Long deviceInfoId, DeviceInfoSaveReqVO createReqVO) {
+        DeviceParamConfigReq paramConfigReq = createReqVO.getParamConfig();
+        DeviceParamConfigDO paramConfig = new DeviceParamConfigDO();
+        paramConfig.setDeviceInfoId(String.valueOf(deviceInfoId));
+        paramConfig.setParameterType(paramConfigReq.getParameterType());
+        paramConfig.setParameterValue(paramConfigReq.getParameterValue());
+        // 首次新增，生效时间设置为当前时间
+        paramConfig.setEffectiveStartTs(Instant.now().getEpochSecond());
+        paramConfig.setEffectiveEndTs(null); // NULL表示当前生效
+        paramConfig.setIsActive(true);
+        return paramConfig;
+    }
+
+    /**
+     * 创建设备参数配置（更新设备时，作为新版本记录）
+     */
+    public static DeviceParamConfigDO createNewVersionParamConfig(Long deviceInfoId,
+                                                                   DeviceParamConfigReq paramConfigReq,
+                                                                   long effectiveStartTs) {
+        DeviceParamConfigDO paramConfig = new DeviceParamConfigDO();
+        paramConfig.setDeviceInfoId(String.valueOf(deviceInfoId));
+        paramConfig.setParameterType(paramConfigReq.getParameterType());
+        paramConfig.setParameterValue(paramConfigReq.getParameterValue());
+        paramConfig.setEffectiveStartTs(effectiveStartTs);
+        paramConfig.setEffectiveEndTs(null); // NULL表示当前生效
+        paramConfig.setIsActive(true);
+        return paramConfig;
     }
 }

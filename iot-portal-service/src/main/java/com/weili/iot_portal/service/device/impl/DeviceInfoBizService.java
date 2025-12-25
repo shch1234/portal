@@ -7,10 +7,7 @@ import com.weili.iot_portal.common.exception.IotPortalErrorCode;
 import com.weili.iot_portal.common.exception.IotPortalException;
 import com.weili.iot_portal.dal.dataobject.device.*;
 import com.weili.iot_portal.dal.ddd.device.DeviceBaseInfoPageQuery;
-import com.weili.iot_portal.dal.repository.device.DeviceInfoRepository;
-import com.weili.iot_portal.dal.repository.device.DeviceLocationRepository;
-import com.weili.iot_portal.dal.repository.device.DeviceModelRepository;
-import com.weili.iot_portal.dal.repository.device.DeviceNetworkConfigRepository;
+import com.weili.iot_portal.dal.repository.device.*;
 import com.weili.iot_portal.domain.device.req.*;
 import com.weili.iot_portal.domain.device.resp.*;
 import com.weili.iot_portal.domain.device.resp.DeviceLocationInfo;
@@ -47,6 +44,9 @@ public class DeviceInfoBizService implements IDeviceInfoBizService {
     private DeviceNetworkConfigRepository deviceNetworkConfigRepository;
 
     @Resource
+    private DeviceParamConfigRepository deviceParamConfigRepository;
+
+    @Resource
     private IDeviceTypeRelationBizService deviceTypeRelationBizService;
 
     @Resource
@@ -54,6 +54,7 @@ public class DeviceInfoBizService implements IDeviceInfoBizService {
 
     @Resource
     private IDeviceModelBizService deviceModelBizService;
+
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -68,17 +69,24 @@ public class DeviceInfoBizService implements IDeviceInfoBizService {
         deviceInfoRepository.insert(deviceInfo);
         Long deviceInfoId = deviceInfo.getId();
 
-        // 创建设备位置信息（如果提供）
+        // 创建设备位置信息
         if (createReqVO.getLocation() != null) {
             DeviceLocationDO deviceLocation = DeviceInfoAssembler.createDeviceLocation(deviceInfoId, createReqVO);
             deviceLocationRepository.insert(deviceLocation);
         }
 
-        // 创建设备网络配置（如果提供）
+        // 创建设备网络配置
         if (createReqVO.getNetwork() != null) {
             DeviceNetworkConfigDO networkConfig = DeviceInfoAssembler.createNetworkConfigDO(deviceInfoId, createReqVO);
             deviceNetworkConfigRepository.insert(networkConfig);
         }
+
+        // 创建设备参数配置（首次新增）
+        if (createReqVO.getParamConfig() != null) {
+            DeviceParamConfigDO paramConfig = DeviceInfoAssembler.createDeviceParamConfig(deviceInfoId, createReqVO);
+            deviceParamConfigRepository.insert(paramConfig);
+        }
+
         return deviceInfoId;
     }
 
@@ -97,7 +105,7 @@ public class DeviceInfoBizService implements IDeviceInfoBizService {
         deviceInfo.setId(existingDevice.getId());
         deviceInfoRepository.update(deviceInfo);
 
-        // 更新设备位置信息（如果提供）
+        // 更新设备位置信息
         if (updateReqVO.getLocation() != null) {
             Optional<DeviceLocationDO> existing = deviceLocationRepository.findByDeviceId(updateReqVO.getId());
             DeviceLocationDO deviceLocation = DeviceInfoAssembler.updateDeviceLocation(updateReqVO.getId(), existing.orElse(null), updateReqVO);
@@ -108,7 +116,7 @@ public class DeviceInfoBizService implements IDeviceInfoBizService {
             }
         }
 
-        // 更新设备网络配置（如果提供）
+        // 更新设备网络配置
         if (updateReqVO.getNetwork() != null) {
             Optional<DeviceNetworkConfigDO> existing = deviceNetworkConfigRepository.findByDeviceInfoId(updateReqVO.getId());
             DeviceNetworkConfigDO deviceNetworkConfig = DeviceInfoAssembler.updateNetworkConfigDO(updateReqVO.getId(),
@@ -118,6 +126,53 @@ public class DeviceInfoBizService implements IDeviceInfoBizService {
             } else {
                 deviceNetworkConfigRepository.insert(deviceNetworkConfig);
             }
+        }
+
+        // 更新设备参数配置（支持历史版本）
+        if (updateReqVO.getParamConfig() != null) {
+            updateDeviceParamConfig(updateReqVO.getId(), updateReqVO.getParamConfig());
+        }
+    }
+
+    /**
+     * 更新设备参数配置（支持历史版本管理）
+     * 如果参数发生变更，则：
+     * 1. 将当前生效的记录的结束时间设置为当前时间
+     * 2. 新增一条记录，生效开始时间为当前时间
+     */
+    private void updateDeviceParamConfig(Long deviceInfoId, DeviceParamConfigReq paramConfigReq) {
+        // 查询当前生效的参数配置
+        List<DeviceParamConfigDO> currentConfigs = deviceParamConfigRepository.selectCurrent(deviceInfoId);
+
+        // 查找当前参数类型的配置
+        Optional<DeviceParamConfigDO> currentConfig = currentConfigs.stream()
+                .filter(config -> config.getParameterType().equals(paramConfigReq.getParameterType()))
+                .findFirst();
+
+        long now = java.time.Instant.now().getEpochSecond();
+
+        if (currentConfig.isPresent()) {
+            DeviceParamConfigDO existing = currentConfig.get();
+            // 检查参数值是否发生变化
+            boolean valueChanged = existing.getParameterValue() == null
+                    || existing.getParameterValue().compareTo(paramConfigReq.getParameterValue()) != 0;
+
+            if (valueChanged) {
+                // 参数值发生变化，需要创建新版本
+                // 1. 将当前记录的生效结束时间设置为当前时间
+                deviceParamConfigRepository.expireCurrent(deviceInfoId, paramConfigReq.getParameterType(), now);
+
+                // 2. 新增一条记录，生效开始时间为当前时间
+                DeviceParamConfigDO newConfig = DeviceInfoAssembler.createNewVersionParamConfig(
+                        deviceInfoId, paramConfigReq, now);
+                deviceParamConfigRepository.insert(newConfig);
+            }
+            // 如果参数值没有变化，则不做任何操作
+        } else {
+            // 当前不存在该参数类型的配置，直接新增
+            DeviceParamConfigDO newConfig = DeviceInfoAssembler.createNewVersionParamConfig(
+                    deviceInfoId, paramConfigReq, now);
+            deviceParamConfigRepository.insert(newConfig);
         }
     }
 

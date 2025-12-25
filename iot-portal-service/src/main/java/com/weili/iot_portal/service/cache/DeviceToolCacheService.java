@@ -129,9 +129,16 @@ public class DeviceToolCacheService {
      * @param deviceId  设备ID
      * @return 刀具编号，如果不存在返回 null
      */
-    public String getToolNumber(Long factoryId, Long deviceId) {
+    public String getToolNo(Long factoryId, Long deviceId) {
         String key = buildToolKey(factoryId, deviceId);
         Object value = redisTemplate.opsForHash().get(key, DeviceToolEventFields.TOOL_NO);
+        return String.valueOf(value);
+    }
+
+
+    public String getToolHolderNo(Long factoryId, Long deviceId) {
+        String key = buildToolKey(factoryId, deviceId);
+        Object value = redisTemplate.opsForHash().get(key, DeviceToolEventFields.HOLDER_NUMBER);
         return String.valueOf(value);
     }
 
@@ -241,6 +248,7 @@ public class DeviceToolCacheService {
         return String.format(RedisConstant.RT_TOOL,
                 factoryId, deviceId);
     }
+
 }
 
 
