@@ -100,8 +100,7 @@ public class DeviceOrgRelationRepositoryImpl implements DeviceOrgRelationReposit
     private void applySort(LambdaQueryWrapper<DeviceOrgRelationDO> wrapper, String sortBy, String sortDirection) {
         // 如果 sortBy 为空，则使用默认排序：先按 sortOrder 升序，再按 createTime 降序
         if (StringUtils.isBlank(sortBy)) {
-            wrapper.orderByAsc(DeviceOrgRelationDO::getSortOrder)
-                    .orderByDesc(DeviceOrgRelationDO::getCreateTime);
+            wrapper.orderByDesc(DeviceOrgRelationDO::getCreateTime);
             return;
         }
 
@@ -145,7 +144,6 @@ public class DeviceOrgRelationRepositoryImpl implements DeviceOrgRelationReposit
                     wrapper.orderByDesc(DeviceOrgRelationDO::getUpdateTime);
                 }
             }
-            default -> wrapper.orderByAsc(DeviceOrgRelationDO::getSortOrder);
         }
     }
 }

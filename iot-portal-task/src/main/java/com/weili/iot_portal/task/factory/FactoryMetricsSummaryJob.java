@@ -1,5 +1,6 @@
 package com.weili.iot_portal.task.factory;
 
+import com.weili.iot_portal.domain.ingestion.BatchProcessResult;
 import com.weili.iot_portal.service.factory.IFactoryMetricsService;
 import com.weili.iot_portal.task.device.config.DeviceMetricsSummaryConfig;
 import com.weili.iot_portal.task.framework.BaseScheduledJob;
@@ -41,7 +42,7 @@ public class FactoryMetricsSummaryJob extends BaseScheduledJob {
         long statisticsTimeSeconds = System.currentTimeMillis() / 1000;
         XxlJobHelper.log("工厂班次指标统计时间点: {}", Instant.ofEpochSecond(statisticsTimeSeconds));
 
-        IFactoryMetricsService.BatchProcessResult result =
+        BatchProcessResult result =
                 factoryMetricsService.processAllFactoriesShiftSummaryWithCheckpoint(
                         statisticsTimeSeconds,
                         config.getBatchSize(),

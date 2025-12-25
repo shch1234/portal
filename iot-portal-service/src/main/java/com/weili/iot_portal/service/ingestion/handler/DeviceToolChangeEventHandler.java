@@ -111,15 +111,9 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
             if (currentToolNoObj == null) {
                 // 尝试从toolNumber字段提取（支持多种命名）
                 currentToolNoObj = eventDataMap.get(DeviceToolEventFields.TOOL_NUMBER);
-                if (currentToolNoObj == null) {
-                    currentToolNoObj = eventDataMap.get(DeviceToolEventFields.TOOL_NO);
-                }
                 // 如果还是为空，尝试从telemetryData中提取
                 if (currentToolNoObj == null && request.getTelemetryData() != null) {
                     currentToolNoObj = request.getTelemetryData().get(DeviceToolEventFields.TOOL_NUMBER);
-                    if (currentToolNoObj == null) {
-                        currentToolNoObj = request.getTelemetryData().get(DeviceToolEventFields.TOOL_NO);
-                    }
                 }
             }
         }
@@ -298,34 +292,23 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
         TransitionType transitionType = determineTransitionType(latestOngoingOpt, eventData);
 
         switch (transitionType) {
-            case FIRST_RECORD:
+            case FIRST_RECORD ->
                 // 数据库无记录（首次记录）
-                handleFirstRecord(deviceInfoId, orgFactoryId, eventData);
-                break;
-
-            case NORMAL_CHANGE:
+                    handleFirstRecord(deviceInfoId, orgFactoryId, eventData);
+            case NORMAL_CHANGE ->
                 // 正常换刀：previousToolNo匹配数据库记录
-                handleNormalToolChange(latestOngoingOpt.get(), orgFactoryId, eventData);
-                break;
-
-            case TOOL_UNCHANGED:
+                    handleNormalToolChange(latestOngoingOpt.get(), orgFactoryId, eventData);
+            case TOOL_UNCHANGED ->
                 // 刀具未变化（重复的相同刀具事件）
-                log.debug("[DeviceToolChangeEventHandler] 刀具未变化，跳过处理: deviceInfoId={}, toolNo={}",
-                        deviceInfoId, currentToolNo);
-                break;
-
-            case TOOL_MISMATCH:
+                    log.debug("[DeviceToolChangeEventHandler] 刀具未变化，跳过处理: deviceInfoId={}, toolNo={}",
+                            deviceInfoId, currentToolNo);
+            case TOOL_MISMATCH ->
                 // 刀具不匹配（异常情况）
-                handleToolMismatch(latestOngoingOpt, eventData, identity, request);
-                break;
-
-            case FIRST_CONNECTION:
+                    handleToolMismatch(latestOngoingOpt, eventData, identity, request);
+            case FIRST_CONNECTION ->
                 // 首次连接（previousToolNo = NULL，但数据库有记录）
-                handleFirstConnection(deviceInfoId, orgFactoryId, eventData);
-                break;
-
-            default:
-                throw new IllegalStateException("未知的换刀转换类型: " + transitionType);
+                    handleFirstConnection(deviceInfoId, orgFactoryId, eventData);
+            default -> throw new IllegalStateException("未知的换刀转换类型: " + transitionType);
         }
     }
 

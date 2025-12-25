@@ -1,5 +1,6 @@
 package com.weili.iot_portal.task.device;
 
+import com.weili.iot_portal.domain.ingestion.BatchProcessResult;
 import com.weili.iot_portal.service.device.IDeviceMetricsSummaryService;
 import com.weili.iot_portal.task.device.config.DeviceMetricsSummaryConfig;
 import com.weili.iot_portal.task.framework.BaseScheduledJob;
@@ -40,7 +41,7 @@ public class DeviceMetricsSummaryJob extends BaseScheduledJob {
 
         XxlJobHelper.log("指标汇总统计时间点: {}", Instant.ofEpochSecond(statisticsTimeSeconds));
 
-        IDeviceMetricsSummaryService.BatchProcessResult result =
+        BatchProcessResult result =
                 metricsSummaryService.processAllDevicesWithCheckpoint(
                         statisticsTimeSeconds,
                         config.getBatchSize(),

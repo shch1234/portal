@@ -10,6 +10,7 @@ import lombok.Data;
 import java.io.Serial;
 import java.io.Serializable;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Map;
 
 /**
@@ -62,7 +63,7 @@ public class DeviceStateRecordDO implements Serializable {
     /**
      * 所属班次日期（对应 shift_date 列）
      */
-    private LocalDate shiftDate;
+    private LocalDateTime shiftDate;
 
     /**
      * 班次编码（对应 shift_code 列，TINYINT UNSIGNED）

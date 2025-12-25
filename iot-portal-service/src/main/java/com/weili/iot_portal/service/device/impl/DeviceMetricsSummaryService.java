@@ -5,6 +5,8 @@ import com.weili.iot_portal.dal.dataobject.device.DeviceMetricSummaryDO;
 import com.weili.iot_portal.dal.dataobject.device.DeviceParamConfigDO;
 import com.weili.iot_portal.dal.dataobject.device.DeviceStateSummaryDO;
 import com.weili.iot_portal.dal.repository.device.*;
+import com.weili.iot_portal.domain.ingestion.BatchProcessResult;
+import com.weili.iot_portal.domain.ingestion.CheckpointData;
 import com.weili.iot_portal.service.device.ICheckpointService;
 import com.weili.iot_portal.service.device.IDeviceMetricsSummaryService;
 import lombok.extern.slf4j.Slf4j;
@@ -33,7 +35,7 @@ public class DeviceMetricsSummaryService implements IDeviceMetricsSummaryService
     private final DeviceParamConfigRepository deviceParamConfigRepository;
     private final DeviceMetricSummaryRepository deviceMetricSummaryRepository;
     private final DeviceProductionRecordRepository deviceProductionRecordRepository;
-    private final ICheckpointService<ICheckpointService.CheckpointData> checkpointService;
+    private final ICheckpointService<CheckpointData> checkpointService;
 
     public DeviceMetricsSummaryService(DeviceInfoRepository deviceInfoRepository,
                                        DeviceStateSummaryRepository deviceStateSummaryRepository,
@@ -41,7 +43,7 @@ public class DeviceMetricsSummaryService implements IDeviceMetricsSummaryService
                                        DeviceMetricSummaryRepository deviceMetricSummaryRepository,
                                        DeviceProductionRecordRepository deviceProductionRecordRepository,
                                        @Qualifier("deviceMetricsSummaryCheckpointService")
-                                       ICheckpointService<ICheckpointService.CheckpointData> checkpointService) {
+                                       ICheckpointService<CheckpointData> checkpointService) {
         this.deviceInfoRepository = deviceInfoRepository;
         this.deviceStateSummaryRepository = deviceStateSummaryRepository;
         this.deviceParamConfigRepository = deviceParamConfigRepository;

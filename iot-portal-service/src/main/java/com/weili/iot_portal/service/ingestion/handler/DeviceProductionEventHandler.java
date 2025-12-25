@@ -16,7 +16,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.Optional;
 
@@ -145,7 +145,7 @@ public class DeviceProductionEventHandler implements WebhookEventHandler {
         return v == null ? null : v.toString();
     }
 
-    private record ShiftInfo(LocalDate shiftDate, Integer shiftCode) {}
+    private record ShiftInfo(LocalDateTime shiftDate, Integer shiftCode) {}
 }
 
 

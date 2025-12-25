@@ -9,13 +9,10 @@ import com.weili.iot_portal.dal.repository.device.DeviceInfoRepository;
 import com.weili.iot_portal.dal.repository.device.DeviceParamConfigRepository;
 import com.weili.iot_portal.dal.repository.device.DeviceProductionRecordRepository;
 import com.weili.iot_portal.dal.repository.device.DeviceStateRecordRepository;
+import com.weili.iot_portal.domain.ingestion.*;
 import com.weili.iot_portal.service.device.ICheckpointService;
 import com.weili.iot_portal.service.device.IDeviceMetricsService;
-import com.weili.iot_portal.domain.ingestion.BatchProcessResult;
-import com.weili.iot_portal.domain.ingestion.MetricsCalculationResult;
-import com.weili.iot_portal.domain.ingestion.RealtimeMetricSnapshot;
 import com.weili.iot_portal.service.shift.IShiftCalculationService;
-import com.weili.iot_portal.domain.ingestion.ShiftTimeRange;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -48,7 +45,7 @@ public class DeviceMetricsService implements IDeviceMetricsService {
     private final DeviceProductionRecordRepository deviceProductionRecordRepository;
     private final IShiftCalculationService shiftCalculationService;
     private final StringRedisTemplate stringRedisTemplate;
-    private final ICheckpointService<ICheckpointService.CheckpointData> checkpointService;
+    private final ICheckpointService<CheckpointData> checkpointService;
 
     @Autowired
     public DeviceMetricsService(DeviceInfoRepository deviceInfoRepository,
@@ -58,7 +55,7 @@ public class DeviceMetricsService implements IDeviceMetricsService {
                                 IShiftCalculationService shiftCalculationService,
                                 StringRedisTemplate stringRedisTemplate,
                                 @Qualifier("deviceMetricsCheckpointService")
-                                ICheckpointService<ICheckpointService.CheckpointData> checkpointService) {
+                                ICheckpointService<CheckpointData> checkpointService) {
         this.deviceInfoRepository = deviceInfoRepository;
         this.deviceStateRecordRepository = deviceStateRecordRepository;
         this.deviceParamConfigRepository = deviceParamConfigRepository;

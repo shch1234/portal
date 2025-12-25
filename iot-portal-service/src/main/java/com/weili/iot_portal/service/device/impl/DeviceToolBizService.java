@@ -85,7 +85,7 @@ public class DeviceToolBizService implements IDeviceToolBizService {
     public DeviceToolRecordRespVO getDeviceToolRecords(DeviceToolRecordQueryReqVO queryReqVO) {
 
         DeviceToolRecordRespVO recordRespVO = new DeviceToolRecordRespVO();
-        Long deviceId = queryReqVO.getDeviceInfoId();
+        Long deviceId = queryReqVO.getDeviceId();
         Integer pageNo = queryReqVO.getPageNo();
         Integer pageSize = queryReqVO.getPageSize();
         Integer offset = (pageNo - 1) * pageSize;

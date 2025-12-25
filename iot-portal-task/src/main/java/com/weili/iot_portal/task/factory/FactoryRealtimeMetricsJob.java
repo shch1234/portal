@@ -1,5 +1,6 @@
 package com.weili.iot_portal.task.factory;
 
+import com.weili.iot_portal.domain.ingestion.BatchProcessResult;
 import com.weili.iot_portal.service.factory.IFactoryMetricsService;
 import com.weili.iot_portal.task.device.config.DeviceMetricsConfig;
 import com.weili.iot_portal.task.framework.BaseScheduledJob;
@@ -41,7 +42,7 @@ public class FactoryRealtimeMetricsJob extends BaseScheduledJob {
         long calculationTimeSeconds = System.currentTimeMillis() / 1000;
         XxlJobHelper.log("工厂实时指标计算时间点: {}", Instant.ofEpochSecond(calculationTimeSeconds));
 
-        IFactoryMetricsService.BatchProcessResult result =
+        BatchProcessResult result =
                 factoryMetricsService.processAllFactoriesRealtimeWithCheckpoint(
                         calculationTimeSeconds,
                         deviceMetricsConfig.getBatchSize(),

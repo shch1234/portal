@@ -1,5 +1,6 @@
 package com.weili.iot_portal.task.device;
 
+import com.weili.iot_portal.domain.ingestion.BatchProcessResult;
 import com.weili.iot_portal.service.device.IDeviceMetricsService;
 import com.weili.iot_portal.task.device.config.DeviceMetricsConfig;
 import com.weili.iot_portal.task.framework.BaseScheduledJob;
@@ -50,7 +51,7 @@ public class DeviceRealtimeMetricsCalcJob extends BaseScheduledJob {
 
         XxlJobHelper.log("计算时间点: {}", Instant.ofEpochSecond(calculationTimeSeconds));
 
-        IDeviceMetricsService.BatchProcessResult result =
+        BatchProcessResult result =
                 deviceMetricsService.processAllDevicesWithCheckpoint(
                         calculationTimeSeconds,
                         config.getBatchSize(),

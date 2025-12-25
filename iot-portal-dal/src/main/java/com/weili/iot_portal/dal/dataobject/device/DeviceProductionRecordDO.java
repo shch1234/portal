@@ -8,6 +8,7 @@ import lombok.Data;
 import java.io.Serial;
 import java.io.Serializable;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 /**
  * 设备产量明细（device_production_record）
@@ -44,7 +45,7 @@ public class DeviceProductionRecordDO implements Serializable {
 
     private String programName;
 
-    private LocalDate shiftDate;
+    private LocalDateTime shiftDate;
 
     /**
      * 班次编码（对应 shift_code 列，TINYINT UNSIGNED）

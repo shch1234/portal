@@ -8,16 +8,12 @@ import com.weili.iot_portal.dal.dataobject.device.DeviceStateSummaryDO;
 import com.weili.iot_portal.dal.repository.device.DeviceInfoRepository;
 import com.weili.iot_portal.dal.repository.device.DeviceStateRecordRepository;
 import com.weili.iot_portal.dal.repository.device.DeviceStateSummaryRepository;
+import com.weili.iot_portal.domain.ingestion.*;
 import com.weili.iot_portal.service.device.ICheckpointService;
 import com.weili.iot_portal.service.device.IDeviceShiftSummaryService;
 import com.weili.iot_portal.service.device.IDeviceStateStatisticsService;
-import com.weili.iot_portal.domain.ingestion.BatchProcessResult;
-import com.weili.iot_portal.domain.ingestion.CompensationResult;
-import com.weili.iot_portal.domain.ingestion.ProcessResult;
-import com.weili.iot_portal.domain.ingestion.StateStatistics;
 import com.weili.iot_portal.service.shift.IShiftCalculationService;
 import com.weili.iot_portal.service.shift.IShiftConfigService;
-import com.weili.iot_portal.domain.ingestion.ShiftTimeRange;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -47,7 +43,7 @@ public class DeviceShiftSummaryService implements IDeviceShiftSummaryService {
     private final IShiftCalculationService shiftCalculationService;
     private final IShiftConfigService shiftConfigService;
     private final IDeviceStateStatisticsService stateStatisticsService;
-    private final ICheckpointService<ICheckpointService.CheckpointData> checkpointService;
+    private final ICheckpointService<CheckpointData> checkpointService;
 
     @Autowired
     public DeviceShiftSummaryService(DeviceStateSummaryRepository stateSummaryRepository,
@@ -57,7 +53,7 @@ public class DeviceShiftSummaryService implements IDeviceShiftSummaryService {
                                      IShiftConfigService shiftConfigService,
                                      IDeviceStateStatisticsService stateStatisticsService,
                                      @Qualifier("deviceStateSummaryCheckpointService")
-                                     ICheckpointService<ICheckpointService.CheckpointData> checkpointService) {
+                                     ICheckpointService<CheckpointData> checkpointService) {
         this.stateSummaryRepository = stateSummaryRepository;
         this.deviceInfoRepository = deviceInfoRepository;
         this.stateRecordRepository = stateRecordRepository;
@@ -424,11 +420,6 @@ public class DeviceShiftSummaryService implements IDeviceShiftSummaryService {
         DeviceInfoDO device = deviceOpt.get();
 
         long shiftStartTs = summary.getShiftStartTs() * 1000L;
-
-        // 查询班次配置（无配置则使用默认配置）
-        DeviceShiftConfigDO shiftConfig = shiftConfigService.getCurrentConfiguration(
-                device.getOrgFactoryId(), summary.getDeviceInfoId(), shiftStartTs);
-
         // 计算班次时间范围
         ShiftTimeRange shiftRange = shiftCalculationService.calculateShiftRange(
                 device.getOrgFactoryId(),

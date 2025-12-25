@@ -1,6 +1,7 @@
 package com.weili.iot_portal.service.config;
 
 import com.weili.basic.redis.client.RedisClient;
+import com.weili.iot_portal.domain.ingestion.CheckpointData;
 import com.weili.iot_portal.service.device.ICheckpointService;
 import com.weili.iot_portal.service.device.impl.GenericCheckpointService;
 import org.springframework.beans.factory.annotation.Value;
@@ -18,7 +19,7 @@ public class CheckpointServiceConfig {
      * 设备状态汇总检查点服务
      */
     @Bean("deviceStateSummaryCheckpointService")
-    public ICheckpointService<ICheckpointService.CheckpointData> deviceStateSummaryCheckpointService(
+    public ICheckpointService<CheckpointData> deviceStateSummaryCheckpointService(
             RedisClient redisClient,
             @Value("${shift.summary.checkpoint-ttl-seconds:86400}") long ttlSeconds) {
         return new GenericCheckpointService(
@@ -32,7 +33,7 @@ public class CheckpointServiceConfig {
      * 设备指标计算检查点服务
      */
     @Bean("deviceMetricsCheckpointService")
-    public ICheckpointService<ICheckpointService.CheckpointData> deviceMetricsCheckpointService(
+    public ICheckpointService<CheckpointData> deviceMetricsCheckpointService(
             RedisClient redisClient,
             @Value("${rt.metrics.checkpoint-ttl-seconds:3600}") long ttlSeconds) {
         return new GenericCheckpointService(
@@ -46,7 +47,7 @@ public class CheckpointServiceConfig {
      * 设备指标汇总检查点服务
      */
     @Bean("deviceMetricsSummaryCheckpointService")
-    public ICheckpointService<ICheckpointService.CheckpointData> deviceMetricsSummaryCheckpointService(
+    public ICheckpointService<CheckpointData> deviceMetricsSummaryCheckpointService(
             RedisClient redisClient,
             @Value("${metrics.summary.checkpoint-ttl-seconds:86400}") long ttlSeconds) {
         return new GenericCheckpointService(
@@ -60,7 +61,7 @@ public class CheckpointServiceConfig {
      * 设备产量汇总检查点服务
      */
     @Bean("deviceProductionSummaryCheckpointService")
-    public ICheckpointService<ICheckpointService.CheckpointData> deviceProductionSummaryCheckpointService(
+    public ICheckpointService<CheckpointData> deviceProductionSummaryCheckpointService(
             RedisClient redisClient,
             @Value("${production.summary.checkpoint-ttl-seconds:86400}") long ttlSeconds) {
         return new GenericCheckpointService(
@@ -74,7 +75,7 @@ public class CheckpointServiceConfig {
      * 工厂实时指标检查点服务
      */
     @Bean("factoryMetricsCheckpointService")
-    public ICheckpointService<ICheckpointService.CheckpointData> factoryMetricsCheckpointService(
+    public ICheckpointService<CheckpointData> factoryMetricsCheckpointService(
             RedisClient redisClient,
             @Value("${factory.metrics.checkpoint-ttl-seconds:3600}") long ttlSeconds) {
         return new GenericCheckpointService(
@@ -88,7 +89,7 @@ public class CheckpointServiceConfig {
      * 工厂班次指标汇总检查点服务
      */
     @Bean("factoryMetricsSummaryCheckpointService")
-    public ICheckpointService<ICheckpointService.CheckpointData> factoryMetricsSummaryCheckpointService(
+    public ICheckpointService<CheckpointData> factoryMetricsSummaryCheckpointService(
             RedisClient redisClient,
             @Value("${factory.metrics.summary.checkpoint-ttl-seconds:86400}") long ttlSeconds) {
         return new GenericCheckpointService(

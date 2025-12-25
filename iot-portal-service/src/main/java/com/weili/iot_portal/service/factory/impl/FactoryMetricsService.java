@@ -8,6 +8,7 @@ import com.weili.iot_portal.dal.repository.device.DeviceInfoRepository;
 import com.weili.iot_portal.dal.repository.device.DeviceMetricSummaryRepository;
 import com.weili.iot_portal.dal.repository.effiency.FactoryMetricsRepository;
 import com.weili.iot_portal.dal.repository.factory.FactoryMetricSummaryRepository;
+import com.weili.iot_portal.domain.ingestion.CheckpointData;
 import com.weili.iot_portal.service.device.ICheckpointService;
 import com.weili.iot_portal.service.device.IDeviceMetricsService;
 import com.weili.iot_portal.service.factory.IFactoryMetricsService;
@@ -37,11 +38,10 @@ import java.util.stream.Collectors;
 public class FactoryMetricsService implements IFactoryMetricsService {
 
     private final DeviceInfoRepository deviceInfoRepository;
-    private final FactoryMetricsRepository factoryMetricsRepository;
     private final FactoryMetricSummaryRepository factoryMetricSummaryRepository;
     private final DeviceMetricSummaryRepository deviceMetricSummaryRepository;
-    private final ICheckpointService<ICheckpointService.CheckpointData> factoryMetricsCheckpointService;
-    private final ICheckpointService<ICheckpointService.CheckpointData> factoryMetricsSummaryCheckpointService;
+    private final ICheckpointService<CheckpointData> factoryMetricsCheckpointService;
+    private final ICheckpointService<CheckpointData> factoryMetricsSummaryCheckpointService;
     private final IShiftCalculationService shiftCalculationService;
     private final IDeviceMetricsService deviceMetricsService;
     private final StringRedisTemplate stringRedisTemplate;
@@ -54,14 +54,13 @@ public class FactoryMetricsService implements IFactoryMetricsService {
                                  FactoryMetricSummaryRepository factoryMetricSummaryRepository,
                                  DeviceMetricSummaryRepository deviceMetricSummaryRepository,
                                  @Qualifier("factoryMetricsCheckpointService")
-                                 ICheckpointService<ICheckpointService.CheckpointData> factoryMetricsCheckpointService,
+                                 ICheckpointService<CheckpointData> factoryMetricsCheckpointService,
                                  @Qualifier("factoryMetricsSummaryCheckpointService")
-                                 ICheckpointService<ICheckpointService.CheckpointData> factoryMetricsSummaryCheckpointService,
+                                 ICheckpointService<CheckpointData> factoryMetricsSummaryCheckpointService,
                                  IShiftCalculationService shiftCalculationService,
                                  IDeviceMetricsService deviceMetricsService,
                                  StringRedisTemplate stringRedisTemplate) {
         this.deviceInfoRepository = deviceInfoRepository;
-        this.factoryMetricsRepository = factoryMetricsRepository;
         this.factoryMetricSummaryRepository = factoryMetricSummaryRepository;
         this.deviceMetricSummaryRepository = deviceMetricSummaryRepository;
         this.factoryMetricsCheckpointService = factoryMetricsCheckpointService;

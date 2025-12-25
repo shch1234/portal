@@ -1,5 +1,6 @@
 package com.weili.iot_portal.task.device;
 
+import com.weili.iot_portal.domain.ingestion.CompensationResult;
 import com.weili.iot_portal.service.device.IDeviceShiftSummaryService;
 import com.weili.iot_portal.task.framework.BaseScheduledJob;
 import com.weili.iot_portal.task.framework.JobExecutionResult;
@@ -41,7 +42,7 @@ public class DeviceStateSummaryCompensationJob extends BaseScheduledJob {
 
     @Override
     protected JobExecutionResult executeInternal() throws Exception {
-        IDeviceShiftSummaryService.CompensationResult result =
+        CompensationResult result =
                 shiftSummaryService.compensatePendingSummaries(compensationDays);
         return JobExecutionResult.of(result.getSuccessCount(), result.getSkipCount(), result.getErrorCount());
     }

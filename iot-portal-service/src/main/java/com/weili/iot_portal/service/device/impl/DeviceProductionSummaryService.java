@@ -5,6 +5,8 @@ import com.weili.iot_portal.dal.dataobject.device.DeviceProductionSummaryDO;
 import com.weili.iot_portal.dal.repository.device.DeviceInfoRepository;
 import com.weili.iot_portal.dal.repository.device.DeviceProductionRecordRepository;
 import com.weili.iot_portal.dal.repository.device.DeviceProductionSummaryRepository;
+import com.weili.iot_portal.domain.ingestion.BatchProcessResult;
+import com.weili.iot_portal.domain.ingestion.CheckpointData;
 import com.weili.iot_portal.service.device.ICheckpointService;
 import com.weili.iot_portal.service.device.IDeviceProductionSummaryService;
 import com.weili.iot_portal.service.shift.IShiftCalculationService;
@@ -33,14 +35,14 @@ public class DeviceProductionSummaryService implements IDeviceProductionSummaryS
     private final DeviceProductionRecordRepository productionRecordRepository;
     private final DeviceProductionSummaryRepository productionSummaryRepository;
     private final IShiftCalculationService shiftCalculationService;
-    private final ICheckpointService<ICheckpointService.CheckpointData> checkpointService;
+    private final ICheckpointService<CheckpointData> checkpointService;
 
     public DeviceProductionSummaryService(DeviceInfoRepository deviceInfoRepository,
                                           DeviceProductionRecordRepository productionRecordRepository,
                                           DeviceProductionSummaryRepository productionSummaryRepository,
                                           IShiftCalculationService shiftCalculationService,
                                           @Qualifier("deviceProductionSummaryCheckpointService")
-                                          ICheckpointService<ICheckpointService.CheckpointData> checkpointService) {
+                                          ICheckpointService<CheckpointData> checkpointService) {
         this.deviceInfoRepository = deviceInfoRepository;
         this.productionRecordRepository = productionRecordRepository;
         this.productionSummaryRepository = productionSummaryRepository;
