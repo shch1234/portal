@@ -15,7 +15,7 @@ import com.weili.iot_portal.service.model.BatchProcessResult;
 import com.weili.iot_portal.service.model.MetricsCalculationResult;
 import com.weili.iot_portal.service.model.RealtimeMetricSnapshot;
 import com.weili.iot_portal.service.shift.IShiftCalculationService;
-import com.weili.iot_portal.service.shift.model.ShiftTimeRange;
+import com.weili.iot_portal.service.model.ShiftTimeRange;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;

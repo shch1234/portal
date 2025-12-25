@@ -10,7 +10,6 @@ import com.weili.iot_portal.service.cache.DeviceToolCacheService;
 import com.weili.iot_portal.service.ingestion.WebhookEventHandler;
 import com.weili.iot_portal.service.ingestion.WebhookProcessingStrategy;
 import com.weili.iot_portal.service.ingestion.handler.fields.DeviceToolEventFields;
-import com.weili.iot_portal.service.ingestion.handler.support.WebhookHandlerUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -22,7 +21,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static com.weili.iot_portal.service.ingestion.handler.support.WebhookHandlerUtils.DeviceIdentity;
+import static com.weili.iot_portal.service.ingestion.handler.WebhookHandlerUtils.DeviceIdentity;
 
 /**
  * 设备刀具事件处理器

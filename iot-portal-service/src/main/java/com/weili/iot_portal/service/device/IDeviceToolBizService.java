@@ -13,12 +13,12 @@ import com.weili.iot_portal.domain.device.resp.DeviceToolRecordRespVO;
 public interface IDeviceToolBizService {
 
     /**
-     * 获取设备的刀具使用记录列表
+     * 获取设备的刀具使用记录列表、当前刀具实时使用记录
      *
      * @param queryReqVO 查询请求参数
      * @return 刀具记录列表
      */
-    PageResult<DeviceToolRecordRespVO> getDeviceToolRecords(DeviceToolRecordQueryReqVO queryReqVO);
+    DeviceToolRecordRespVO getDeviceToolRecords(DeviceToolRecordQueryReqVO queryReqVO);
 
     /**
      * 获取设备的刀具补偿列表
@@ -27,12 +27,4 @@ public interface IDeviceToolBizService {
      * @return 刀具补偿响应VO
      */
     PageResult<DeviceToolCompensationRespVO> getDeviceToolCompensation(DeviceToolCompensationQueryReqVO queryReqVO);
-
-    /**
-     * 获取当前刀具实时使用记录
-     *
-     * @param id 设备ID
-     * @return 刀具使用记录
-     */
-    DeviceToolRecordRespVO getCurrentToolRecord(Long id);
 }

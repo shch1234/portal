@@ -15,8 +15,10 @@ import com.weili.iot_portal.domain.device.resp.DeviceToolRecordRespVO;
 import com.weili.iot_portal.service.cache.DeviceToolCacheService;
 import com.weili.iot_portal.service.device.IDeviceInfoBizService;
 import com.weili.iot_portal.service.device.IDeviceToolBizService;
+import com.weili.iot_portal.service.ingestion.handler.fields.DeviceToolEventFields;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.collections4.MapUtils;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -78,19 +80,11 @@ public class DeviceToolBizService implements IDeviceToolBizService {
         return pageResult;
     }
 
-    @Override
-    public DeviceToolRecordRespVO getCurrentToolRecord(Long deviceId) {
-        DeviceInfoDO deviceInfoDO = deviceInfoBizService.getDeviceInfo(deviceId);
-        if (deviceInfoDO == null) {
-            throw new IotPortalException(IotPortalErrorCode.DEVICE_INFO_NOT_FOUND, "设备不存在");
-        }
-        //TODO "当前刀具号、刀套号、刀补值
-        Map<Object, Object> toolData = deviceToolCacheService.getTool(deviceInfoDO.getOrgFactoryId(), deviceId);
-        return null;
-    }
 
     @Override
-    public PageResult<DeviceToolRecordRespVO> getDeviceToolRecords(DeviceToolRecordQueryReqVO queryReqVO) {
+    public DeviceToolRecordRespVO getDeviceToolRecords(DeviceToolRecordQueryReqVO queryReqVO) {
+
+        DeviceToolRecordRespVO recordRespVO = new DeviceToolRecordRespVO();
         Long deviceId = queryReqVO.getDeviceInfoId();
         Integer pageNo = queryReqVO.getPageNo();
         Integer pageSize = queryReqVO.getPageSize();
@@ -103,22 +97,37 @@ public class DeviceToolBizService implements IDeviceToolBizService {
         Long total = deviceToolRecordRepository.countByDevice(deviceId);
 
         // 构建VO列表
-        List<DeviceToolRecordRespVO> items = new ArrayList<>();
+        List<DeviceToolRecordRespVO.ToolRecord> items = new ArrayList<>();
         for (DeviceToolRecordDO record : recordList) {
-            DeviceToolRecordRespVO vo = buildToolRecordVO(record);
+            DeviceToolRecordRespVO.ToolRecord vo = buildToolRecordVO(record);
             items.add(vo);
         }
 
         // 构建分页结果
-        PageResult<DeviceToolRecordRespVO> pageResult = new PageResult<>();
+        PageResult<DeviceToolRecordRespVO.ToolRecord> pageResult = new PageResult<>();
         pageResult.setTotal(total);
         pageResult.setPageNo(pageNo);
         pageResult.setPageSize(pageSize);
         pageResult.setList(items);
+        recordRespVO.setRecordList(pageResult);
 
-        return pageResult;
+        DeviceInfoDO deviceInfoDO = deviceInfoBizService.getDeviceInfo(deviceId);
+        if (deviceInfoDO == null) {
+            throw new IotPortalException(IotPortalErrorCode.DEVICE_INFO_NOT_FOUND, "设备不存在");
+        }
+        //TODO "当前刀具号、刀套号、刀补值
+        Map<Object, Object> toolData = deviceToolCacheService.getTool(deviceInfoDO.getOrgFactoryId(), deviceId);
+        if(MapUtils.isNotEmpty(toolData)){
+            Object toolNo = toolData.get(DeviceToolEventFields.TOOL_NUMBER);
+            Object holderNo = toolData.get(DeviceToolEventFields.HOLDER_NUMBER);
+            Object compensations = toolData.get(DeviceToolEventFields.COMPENSATIONS_FIELD);
+
+
+        }
+        DeviceToolRecordRespVO.ToolRecord current = new DeviceToolRecordRespVO.ToolRecord();
+        recordRespVO.setCurrent(current);
+        return recordRespVO;
     }
-
 
     /**
      * 构建刀具补偿项
@@ -295,12 +304,12 @@ public class DeviceToolBizService implements IDeviceToolBizService {
     /**
      * 构建刀具记录VO
      */
-    private DeviceToolRecordRespVO buildToolRecordVO(DeviceToolRecordDO record) {
+    private DeviceToolRecordRespVO.ToolRecord buildToolRecordVO(DeviceToolRecordDO record) {
         // 计算持续时长
         Long durationMs = calculateDuration(record);
         String durationStr = formatDuration(durationMs);
 
-        return DeviceToolRecordRespVO.builder()
+        return DeviceToolRecordRespVO.ToolRecord.builder()
                 .toolNo(record.getToolNo())
                 .toolMagazineNo(record.getToolMagazineNo())
                 .startTs(record.getStartTs())

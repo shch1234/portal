@@ -5,7 +5,7 @@ import com.weili.iot_portal.service.model.BatchProcessResult;
 import com.weili.iot_portal.service.model.CompensationResult;
 import com.weili.iot_portal.service.model.ProcessResult;
 import com.weili.iot_portal.service.model.StateStatistics;
-import com.weili.iot_portal.service.shift.model.ShiftTimeRange;
+import com.weili.iot_portal.service.model.ShiftTimeRange;
 
 import java.time.LocalDate;
 import java.util.List;

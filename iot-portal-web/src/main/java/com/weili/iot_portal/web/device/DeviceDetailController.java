@@ -36,7 +36,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/device-mgmt/detail-view")
 @Validated
-public class DeviceDetailViewController {
+public class DeviceDetailController {
     @Resource
     private IDeviceAxisBizService deviceAxisBizService;
     @Resource
@@ -68,23 +68,16 @@ public class DeviceDetailViewController {
     }
 
     @GetMapping("/tool-records")
-    @Operation(summary = "获取设备刀具使用记录列表")
-    public CommonResult<PageResult<DeviceToolRecordRespVO>> getDeviceToolRecords(@Valid DeviceToolRecordQueryReqVO queryReqVO) {
-        PageResult<DeviceToolRecordRespVO> result = deviceToolBizService.getDeviceToolRecords(queryReqVO);
-        return CommonResult.success(result);
-    }
-
-    @GetMapping("/tool-current")
-    @Operation(summary = "当前设备刀具实时使用记录", description = "当前刀具号、刀套号、刀补值")
-    public CommonResult<DeviceToolRecordRespVO> getDeviceToolRecords(@RequestParam("deviceId") Long id) {
-        DeviceToolRecordRespVO result = deviceToolBizService.getCurrentToolRecord(id);
+    @Operation(summary = "获取设备刀具使用记录列表，包括当前的道具记录")
+    public CommonResult<DeviceToolRecordRespVO> getDeviceToolRecords(@Valid DeviceToolRecordQueryReqVO queryReqVO) {
+        DeviceToolRecordRespVO result = deviceToolBizService.getDeviceToolRecords(queryReqVO);
         return CommonResult.success(result);
     }
 
     @GetMapping("/alarm-history")
-    @Operation(summary = "获取设备告警历史列表")
-    public CommonResult<PageResult<DeviceAlarmHistoryRespVO>> getDeviceAlarmHistory(@Valid DeviceAlarmHistoryQueryReqVO queryReqVO) {
-        PageResult<DeviceAlarmHistoryRespVO> result = deviceAlarmHistoryBizService.getDeviceAlarmHistory(queryReqVO);
+    @Operation(summary = "获取设备告警历史列表， 包括当前告警记录")
+    public CommonResult<DeviceAlarmHistoryRespVO> getDeviceAlarmHistory(@Valid DeviceAlarmHistoryQueryReqVO queryReqVO) {
+        DeviceAlarmHistoryRespVO result = deviceAlarmHistoryBizService.getDeviceAlarmHistory(queryReqVO);
         return CommonResult.success(result);
     }
 }

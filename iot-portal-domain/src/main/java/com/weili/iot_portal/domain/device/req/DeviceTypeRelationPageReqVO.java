@@ -30,5 +30,8 @@ public class DeviceTypeRelationPageReqVO extends PageParam {
 
     @Schema(description = "是否启用：true-启用 false-停用", example = "true")
     private Boolean isActive;
+
+    @Schema(description = "描述（模糊匹配）")
+    private String description;
 }
 

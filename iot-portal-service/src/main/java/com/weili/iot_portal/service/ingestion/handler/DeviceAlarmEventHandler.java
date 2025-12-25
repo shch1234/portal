@@ -13,9 +13,8 @@ import com.weili.iot_portal.service.cache.DeviceLockService;
 import com.weili.iot_portal.service.ingestion.WebhookEventHandler;
 import com.weili.iot_portal.service.ingestion.WebhookProcessingStrategy;
 import com.weili.iot_portal.service.ingestion.handler.fields.DeviceAlarmEventFields;
-import com.weili.iot_portal.service.ingestion.handler.support.WebhookHandlerUtils;
 import com.weili.iot_portal.service.shift.IShiftCalculationService;
-import com.weili.iot_portal.service.shift.model.ShiftDateAndCode;
+import com.weili.iot_portal.service.model.ShiftDateAndCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -25,7 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.*;
 import java.util.stream.Collectors;
 
-import static com.weili.iot_portal.service.ingestion.handler.support.WebhookHandlerUtils.DeviceIdentity;
+import static com.weili.iot_portal.service.ingestion.handler.WebhookHandlerUtils.DeviceIdentity;
 
 /**
  * 设备报警事件处理器

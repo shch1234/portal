@@ -8,7 +8,7 @@ import com.weili.iot_portal.dal.repository.device.DeviceProductionSummaryReposit
 import com.weili.iot_portal.service.device.ICheckpointService;
 import com.weili.iot_portal.service.device.IDeviceProductionSummaryService;
 import com.weili.iot_portal.service.shift.IShiftCalculationService;
-import com.weili.iot_portal.service.shift.model.ShiftTimeRange;
+import com.weili.iot_portal.service.model.ShiftTimeRange;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;

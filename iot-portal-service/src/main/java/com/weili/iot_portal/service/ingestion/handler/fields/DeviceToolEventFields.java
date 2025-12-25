@@ -82,24 +82,9 @@ public final class DeviceToolEventFields {
     public static final String COMPENSATIONS_FIELD = "compensations";
 
     /**
-     * 补偿类型：形状补偿
-     */
-    public static final String COMP_TYPE_SHAPE = "shape";
-
-    /**
-     * 补偿类型：磨损补偿
-     */
-    public static final String COMP_TYPE_WEAR = "wear";
-
-    /**
      * 补偿类型：偏移补偿（零散offset字段归类）
      */
     public static final String COMP_TYPE_OFFSET = "offset";
-
-    /**
-     * 补偿类型：补偿值（零散comp字段归类）
-     */
-    public static final String COMP_TYPE_COMP = "comp";
 
     // ==================== 系统元数据字段 ====================
     /**

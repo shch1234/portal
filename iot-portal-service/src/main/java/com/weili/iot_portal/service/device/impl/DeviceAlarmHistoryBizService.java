@@ -25,7 +25,7 @@ public class DeviceAlarmHistoryBizService implements IDeviceAlarmHistoryBizServi
     private final DeviceAlarmHistoryRepository deviceAlarmHistoryRepository;
 
     @Override
-    public PageResult<DeviceAlarmHistoryRespVO> getDeviceAlarmHistory(DeviceAlarmHistoryQueryReqVO queryReqVO) {
+    public DeviceAlarmHistoryRespVO getDeviceAlarmHistory(DeviceAlarmHistoryQueryReqVO queryReqVO) {
         Long deviceId = queryReqVO.getDeviceInfoId();
         Long startTime = queryReqVO.getStartTime();
         Long endTime = queryReqVO.getEndTime();
@@ -33,7 +33,10 @@ public class DeviceAlarmHistoryBizService implements IDeviceAlarmHistoryBizServi
         Integer pageSize = queryReqVO.getPageSize();
         Integer offset = (pageNo - 1) * pageSize;
 
-        // 数据库分页查询
+        // 查询当前告警（isActive=1）
+        DeviceAlarmHistoryRespVO.AlarmHistory currentAlarm = getCurrentAlarm(deviceId);
+
+        // 数据库分页查询历史告警（所有记录，包括已解除的）
         List<DeviceAlarmHistoryDO> alarmList = deviceAlarmHistoryRepository
                 .findByRangeWithPage(deviceId, startTime, endTime, offset, pageSize);
 
@@ -41,32 +44,60 @@ public class DeviceAlarmHistoryBizService implements IDeviceAlarmHistoryBizServi
         Long total = deviceAlarmHistoryRepository
                 .countByRange(deviceId, startTime, endTime);
 
-        // 构建VO列表
-        List<DeviceAlarmHistoryRespVO> items = new ArrayList<>();
+        // 构建历史告警VO列表
+        List<DeviceAlarmHistoryRespVO.AlarmHistory> historyItems = new ArrayList<>();
         for (DeviceAlarmHistoryDO alarm : alarmList) {
-            DeviceAlarmHistoryRespVO vo = buildAlarmHistoryVO(alarm);
-            items.add(vo);
+            DeviceAlarmHistoryRespVO.AlarmHistory vo = buildAlarmHistoryVO(alarm);
+            historyItems.add(vo);
         }
 
-        // 构建分页结果
-        PageResult<DeviceAlarmHistoryRespVO> pageResult = new PageResult<>();
-        pageResult.setTotal(total);
-        pageResult.setPageNo(pageNo);
-        pageResult.setPageSize(pageSize);
-        pageResult.setList(items);
+        // 构建历史告警分页结果
+        PageResult<DeviceAlarmHistoryRespVO.AlarmHistory> historyPageResult = new PageResult<>();
+        historyPageResult.setTotal(total);
+        historyPageResult.setPageNo(pageNo);
+        historyPageResult.setPageSize(pageSize);
+        historyPageResult.setList(historyItems);
 
-        return pageResult;
+        // 构建最终响应
+        return DeviceAlarmHistoryRespVO.builder()
+                .current(currentAlarm)
+                .historyList(historyPageResult)
+                .build();
+    }
+
+    /**
+     * 获取当前告警（isActive=1）
+     */
+    private DeviceAlarmHistoryRespVO.AlarmHistory getCurrentAlarm(Long deviceId) {
+        // 查询当前有效的告警
+        List<DeviceAlarmHistoryDO> activeAlarms = deviceAlarmHistoryRepository
+                .findActiveByDevice(null, deviceId);
+
+        if (activeAlarms == null || activeAlarms.isEmpty()) {
+            return null;
+        }
+
+        // 如果有多个活动告警，取最新的一个
+        DeviceAlarmHistoryDO latestActiveAlarm = activeAlarms.get(0);
+        for (DeviceAlarmHistoryDO alarm : activeAlarms) {
+            if (alarm.getStartTs() != null &&
+                (latestActiveAlarm.getStartTs() == null || alarm.getStartTs() > latestActiveAlarm.getStartTs())) {
+                latestActiveAlarm = alarm;
+            }
+        }
+
+        return buildAlarmHistoryVO(latestActiveAlarm);
     }
 
     /**
      * 构建告警历史VO
      */
-    private DeviceAlarmHistoryRespVO buildAlarmHistoryVO(DeviceAlarmHistoryDO alarm) {
+    private DeviceAlarmHistoryRespVO.AlarmHistory buildAlarmHistoryVO(DeviceAlarmHistoryDO alarm) {
         // 计算持续时长
         Integer durationS = calculateDuration(alarm);
         String durationStr = formatDuration(durationS);
 
-        return DeviceAlarmHistoryRespVO.builder()
+        return DeviceAlarmHistoryRespVO.AlarmHistory.builder()
                 .alarmCode(alarm.getAlarmCode())
                 .alarmText(alarm.getAlarmText())
                 .startTs(alarm.getStartTs())

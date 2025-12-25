@@ -68,13 +68,15 @@ public class DeviceTypeRelationRepositoryImpl implements DeviceTypeRelationRepos
         if (query.getLevelNo() != null) {
             wrapper.eq(DeviceTypeRelationDO::getLevelNo, query.getLevelNo());
         }
-        if (query.getCategories() != null && !query.getCategories().isEmpty()) {
-            wrapper.in(DeviceTypeRelationDO::getCategory, query.getCategories());
+        if (query.getCategory() != null && !query.getCategory().isEmpty()) {
+            wrapper.eq(DeviceTypeRelationDO::getCategory, query.getCategory());
         }
         if (query.getIsActive() != null) {
             wrapper.eq(DeviceTypeRelationDO::getIsActive, query.getIsActive());
         }
-
+        if (query.getDescription() != null && !query.getDescription().isEmpty()) {
+            wrapper.like(DeviceTypeRelationDO::getDescription, query.getDescription());
+        }
         applySort(wrapper, query.getSortBy(), query.getSortDirection());
 
         Page<DeviceTypeRelationDO> page = new Page<>(query.getPageNo(), query.getPageSize());

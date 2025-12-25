@@ -9,9 +9,8 @@ import com.weili.iot_portal.domain.ingestion.WebhookRequest;
 import com.weili.iot_portal.service.ingestion.WebhookEventHandler;
 import com.weili.iot_portal.service.ingestion.WebhookProcessingStrategy;
 import com.weili.iot_portal.service.ingestion.handler.fields.DeviceProductionEventFields;
-import com.weili.iot_portal.service.ingestion.handler.support.WebhookHandlerUtils;
 import com.weili.iot_portal.service.shift.IShiftCalculationService;
-import com.weili.iot_portal.service.shift.model.ShiftDateAndCode;
+import com.weili.iot_portal.service.model.ShiftDateAndCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -21,7 +20,7 @@ import java.time.LocalDate;
 import java.util.Map;
 import java.util.Optional;
 
-import static com.weili.iot_portal.service.ingestion.handler.support.WebhookHandlerUtils.DeviceIdentity;
+import static com.weili.iot_portal.service.ingestion.handler.WebhookHandlerUtils.DeviceIdentity;
 
 /**
  * 设备产量事件处理器（开始/结束）

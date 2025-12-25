@@ -1,8 +1,8 @@
 package com.weili.iot_portal.service.shift;
 
-import com.weili.iot_portal.service.shift.model.ShiftDateAndCode;
-import com.weili.iot_portal.service.shift.model.ShiftInfo;
-import com.weili.iot_portal.service.shift.model.ShiftTimeRange;
+import com.weili.iot_portal.service.model.ShiftDateAndCode;
+import com.weili.iot_portal.service.model.ShiftInfo;
+import com.weili.iot_portal.service.model.ShiftTimeRange;
 
 /**
  * 班次计算服务接口

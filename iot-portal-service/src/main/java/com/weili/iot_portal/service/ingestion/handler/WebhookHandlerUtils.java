@@ -1,4 +1,4 @@
-package com.weili.iot_portal.service.ingestion.handler.support;
+package com.weili.iot_portal.service.ingestion.handler;
 
 import com.weili.iot_portal.domain.ingestion.WebhookRequest;
 import com.weili.iot_portal.service.cache.DeviceIdentityCacheService;

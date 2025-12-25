@@ -17,7 +17,7 @@ public class DeviceTypePageQuery {
 
     private Integer levelNo;
 
-    private List<String> categories;
+    private String category;
 
     private Boolean isActive;
 
@@ -28,5 +28,7 @@ public class DeviceTypePageQuery {
     private String sortBy;
 
     private String sortDirection;
+
+    private String description;
 }
 

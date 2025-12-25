@@ -15,5 +15,5 @@ public interface IDeviceAlarmHistoryBizService {
      * @param queryReqVO 查询请求参数
      * @return 分页结果
      */
-    PageResult<DeviceAlarmHistoryRespVO> getDeviceAlarmHistory(DeviceAlarmHistoryQueryReqVO queryReqVO);
+    DeviceAlarmHistoryRespVO getDeviceAlarmHistory(DeviceAlarmHistoryQueryReqVO queryReqVO);
 }

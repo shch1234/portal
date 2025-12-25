@@ -1,4 +1,4 @@
-package com.weili.iot_portal.service.shift.model;
+package com.weili.iot_portal.service.model;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

@@ -1,6 +1,6 @@
-package com.weili.iot_portal.service.shift.model;
+package com.weili.iot_portal.service.model;
 
-import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 /**
  * 班次日期和编码
@@ -12,6 +12,6 @@ import java.time.LocalDate;
  * - 3: 三班
  * </p>
  */
-public record ShiftDateAndCode(LocalDate shiftDate, Integer shiftCode) {
+public record ShiftDateAndCode(LocalDateTime shiftDate, Integer shiftCode) {
 }
 
