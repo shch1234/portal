@@ -3,6 +3,7 @@ package com.weili.iot_portal.service.device.impl;
 import cn.hutool.core.util.StrUtil;
 import com.weili.basic.common.model.PageResult;
 import com.weili.basic.common.util.BeanUtils;
+import com.weili.iot_portal.common.enums.UnitTypeEnum;
 import com.weili.iot_portal.common.exception.IotPortalErrorCode;
 import com.weili.iot_portal.common.exception.IotPortalException;
 import com.weili.iot_portal.dal.dataobject.device.DeviceInfoDO;
@@ -49,6 +50,7 @@ public class DeviceOrgRelationBizService implements IDeviceOrgRelationBizService
         DeviceOrgRelationDO deviceOrgRelation = BeanUtils.toBean(createReqVO, DeviceOrgRelationDO.class);
         // 构建层级路径
         buildPath(deviceOrgRelation);
+        deviceOrgRelation.setLevelNo(UnitTypeEnum.ofLevelNo(createReqVO.getUnitTypeValue()));
         deviceOrgRelationRepository.insert(deviceOrgRelation);
         return deviceOrgRelation.getId();
     }
@@ -69,6 +71,7 @@ public class DeviceOrgRelationBizService implements IDeviceOrgRelationBizService
         }
 
         DeviceOrgRelationDO deviceOrgRelation = BeanUtils.toBean(updateReqVO, DeviceOrgRelationDO.class);
+        deviceOrgRelation.setLevelNo(UnitTypeEnum.ofLevelNo(updateReqVO.getUnitTypeValue()));
         // 构建层级路径
         buildPath(deviceOrgRelation);
         deviceOrgRelationRepository.update(deviceOrgRelation);

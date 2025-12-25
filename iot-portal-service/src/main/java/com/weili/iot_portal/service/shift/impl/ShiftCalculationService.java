@@ -2,13 +2,12 @@ package com.weili.iot_portal.service.shift.impl;
 
 import com.weili.iot_portal.common.exception.IotPortalException;
 import com.weili.iot_portal.dal.dataobject.device.DeviceShiftConfigDO;
-import com.weili.iot_portal.service.shift.DeviceFactoryValidator;
-import com.weili.iot_portal.service.shift.IShiftCalculationService;
-import com.weili.iot_portal.service.shift.IShiftConfigService;
-import com.weili.iot_portal.service.shift.ShiftConstants;
 import com.weili.iot_portal.domain.ingestion.ShiftDateAndCode;
 import com.weili.iot_portal.domain.ingestion.ShiftInfo;
 import com.weili.iot_portal.domain.ingestion.ShiftTimeRange;
+import com.weili.iot_portal.service.shift.IShiftCalculationService;
+import com.weili.iot_portal.service.shift.IShiftConfigService;
+import com.weili.iot_portal.service.shift.ShiftConstants;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -29,7 +28,6 @@ import static com.weili.iot_portal.common.exception.IotPortalErrorCode.SHIFT_CON
 public class ShiftCalculationService implements IShiftCalculationService {
 
     private final IShiftConfigService shiftConfigService;
-    private final DeviceFactoryValidator deviceFactoryValidator;
 
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern(ShiftConstants.TIME_FORMAT);
 
@@ -120,9 +118,9 @@ public class ShiftCalculationService implements IShiftCalculationService {
     @Override
     public ShiftDateAndCode getShiftDateAndCode(Long factoryId, Long deviceId, long timestamp) {
         ShiftTimeRange range = calculateShiftRange(factoryId, deviceId, timestamp);
-        LocalDate shiftDate = Instant.ofEpochMilli(range.getStartTs())
+        LocalDateTime shiftDate = Instant.ofEpochMilli(range.getStartTs())
                 .atZone(ZoneId.systemDefault())
-                .toLocalDate();
+                .toLocalDate().atStartOfDay();
         return new ShiftDateAndCode(shiftDate, range.getShiftCode());
     }
 
