@@ -7,6 +7,7 @@ import com.weili.iot_portal.dal.dataobject.device.DeviceOrgRelationDO;
 import com.weili.iot_portal.domain.device.req.DeviceOrgRelationPageReqVO;
 import com.weili.iot_portal.domain.device.req.DeviceOrgRelationSaveReqVO;
 import com.weili.iot_portal.domain.device.resp.DeviceOrgRelationRespVO;
+import com.weili.iot_portal.domain.device.resp.DeviceOrgRelationSubRespVO;
 import com.weili.iot_portal.service.device.IDeviceOrgRelationBizService;
 import com.weili.iot_portal.web.annotation.PermRequired;
 import io.swagger.v3.oas.annotations.Operation;
@@ -16,6 +17,9 @@ import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
 
 /**
  * 设备组织单元管理 Controller
@@ -67,6 +71,13 @@ public class DeviceOrgRelationController {
     public CommonResult<PageResult<DeviceOrgRelationRespVO>> getDeviceOrgRelationPage(@Valid DeviceOrgRelationPageReqVO pageReqVO) {
         PageResult<DeviceOrgRelationDO> pageResult = deviceOrgRelationBizService.getDeviceOrgRelationPage(pageReqVO);
         return CommonResult.success(BeanUtils.toBean(pageResult, DeviceOrgRelationRespVO.class));
+    }
+
+    @GetMapping("/cascade-tree")
+    @Operation(summary = "获取组织单元级联树（工厂-车间-产线）")
+    public CommonResult<List<DeviceOrgRelationSubRespVO>> getOrgRelationCascadeTree() {
+        List<DeviceOrgRelationSubRespVO> tree = deviceOrgRelationBizService.getOrgRelationCascadeTree();
+        return CommonResult.success(tree);
     }
 }
 

@@ -4,6 +4,7 @@ import com.weili.basic.common.model.PageResult;
 import com.weili.iot_portal.dal.dataobject.device.DeviceOrgRelationDO;
 import com.weili.iot_portal.domain.device.req.DeviceOrgRelationPageReqVO;
 import com.weili.iot_portal.domain.device.req.DeviceOrgRelationSaveReqVO;
+import com.weili.iot_portal.domain.device.resp.DeviceOrgRelationSubRespVO;
 
 import java.util.List;
 import java.util.Map;
@@ -58,6 +59,13 @@ public interface IDeviceOrgRelationBizService {
      * @return 设备组织单元
      */
     Map<Long, DeviceOrgRelationDO> listByIds(List<Long> ids);
+
+    /**
+     * 获取组织单元级联树（工厂-车间-产线）
+     *
+     * @return 级联树列表
+     */
+    List<DeviceOrgRelationSubRespVO> getOrgRelationCascadeTree();
 }
 
 

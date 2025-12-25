@@ -13,16 +13,14 @@ import com.weili.iot_portal.dal.repository.device.DeviceInfoRepository;
 import com.weili.iot_portal.dal.repository.device.DeviceOrgRelationRepository;
 import com.weili.iot_portal.domain.device.req.DeviceOrgRelationPageReqVO;
 import com.weili.iot_portal.domain.device.req.DeviceOrgRelationSaveReqVO;
+import com.weili.iot_portal.domain.device.resp.DeviceOrgRelationSubRespVO;
 import com.weili.iot_portal.service.device.IDeviceOrgRelationBizService;
 import jakarta.annotation.Resource;
 import org.apache.commons.collections4.CollectionUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -111,6 +109,45 @@ public class DeviceOrgRelationBizService implements IDeviceOrgRelationBizService
             return relationList.stream().collect(Collectors.toMap(DeviceOrgRelationDO::getId, deviceOrgRelationDO -> deviceOrgRelationDO));
         }
         return Collections.emptyMap();
+    }
+
+    @Override
+    public List<DeviceOrgRelationSubRespVO> getOrgRelationCascadeTree() {
+        // 获取所有启用的组织单元
+        List<DeviceOrgRelationDO> allOrgRelations = deviceOrgRelationRepository.findAllActive();
+        if (CollectionUtils.isEmpty(allOrgRelations)) {
+            return Collections.emptyList();
+        }
+
+        // 转换为VO
+        List<DeviceOrgRelationSubRespVO> allVOs = BeanUtils.toBean(allOrgRelations, DeviceOrgRelationSubRespVO.class);
+
+        // 按父级ID分组
+        Map<String, List<DeviceOrgRelationSubRespVO>> parentIdMap = allVOs.stream()
+                .filter(vo -> StrUtil.isNotBlank(vo.getOrgParentId()))
+                .collect(Collectors.groupingBy(DeviceOrgRelationSubRespVO::getOrgParentId));
+
+        // 找出所有根节点（工厂级别）并构建树
+        List<DeviceOrgRelationSubRespVO> rootNodes = allVOs.stream()
+                .filter(vo -> StrUtil.isBlank(vo.getOrgParentId()))
+                .collect(Collectors.toList());
+
+        // 为每个节点设置子节点
+        rootNodes.forEach(root -> buildTree(root, parentIdMap));
+
+        return rootNodes;
+    }
+
+    /**
+     * 递归构建树结构
+     */
+    private void buildTree(DeviceOrgRelationSubRespVO parent, Map<String, List<DeviceOrgRelationSubRespVO>> parentIdMap) {
+        List<DeviceOrgRelationSubRespVO> children = parentIdMap.get(parent.getId());
+        if (CollectionUtils.isNotEmpty(children)) {
+            parent.setChildren(children);
+            // 递归处理子节点
+            children.forEach(child -> buildTree(child, parentIdMap));
+        }
     }
 
     /**

@@ -29,5 +29,7 @@ public interface DeviceOrgRelationRepository {
     boolean deleteById(String id);
 
     List<DeviceOrgRelationDO> listByIds(List<Long> ids);
+
+    List<DeviceOrgRelationDO> findAllActive();
 }
 
