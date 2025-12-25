@@ -5,6 +5,11 @@ import com.weili.iot_portal.common.exception.IotPortalException;
 import com.weili.iot_portal.dal.dataobject.device.DeviceInfoDO;
 import com.weili.iot_portal.domain.device.req.DeviceAxisQueryReqVO;
 import com.weili.iot_portal.domain.device.resp.DeviceAxisRespVO;
+import com.weili.iot_portal.domain.device.CurvePointWithTs;
+import com.weili.iot_portal.domain.device.resp.SpindleInfo;
+import com.weili.iot_portal.domain.device.resp.CurveData;
+import com.weili.iot_portal.domain.device.resp.CurvePoint;
+import com.weili.iot_portal.domain.device.resp.AxisCoordinate;
 import com.weili.iot_portal.service.cache.DeviceAxisCacheService;
 import com.weili.iot_portal.service.device.IDeviceAxisBizService;
 import com.weili.iot_portal.service.device.IDeviceInfoBizService;
@@ -83,10 +88,10 @@ public class DeviceAxisBizService implements IDeviceAxisBizService {
         }
 
         // 2. 解析轴坐标数据
-        List<DeviceAxisRespVO.AxisCoordinate> axisCoordinates = parseAxisCoordinates(axisData);
+        List<AxisCoordinate> axisCoordinates = parseAxisCoordinates(axisData);
 
         // 3. 获取曲线数据（使用指定的聚合类型）
-        DeviceAxisRespVO.SpindleInfo spindleInfo = buildSpindleInfo(orgFactoryId, deviceInfoId, aggregationType);
+        SpindleInfo spindleInfo = buildSpindleInfo(orgFactoryId, deviceInfoId, aggregationType);
         return DeviceAxisRespVO.builder()
                 .spindleInfo(spindleInfo)
                 .axisCoordinates(axisCoordinates)
@@ -98,7 +103,7 @@ public class DeviceAxisBizService implements IDeviceAxisBizService {
      */
     private DeviceAxisRespVO buildEmptyResponse() {
         return DeviceAxisRespVO.builder()
-                .spindleInfo(DeviceAxisRespVO.SpindleInfo.builder().build())
+                .spindleInfo(SpindleInfo.builder().build())
                 .axisCoordinates(Collections.emptyList())
                 .build();
     }
@@ -107,7 +112,7 @@ public class DeviceAxisBizService implements IDeviceAxisBizService {
      * 解析轴坐标数据（适配优化后的字段名）
      * 优化后格式：X.abs, X.rel, X.mach, X.rem
      */
-    private List<DeviceAxisRespVO.AxisCoordinate> parseAxisCoordinates(Map<Object, Object> axisData) {
+    private List<AxisCoordinate> parseAxisCoordinates(Map<Object, Object> axisData) {
         // 按轴名称分组：X.abs -> X
         Map<String, Map<String, BigDecimal>> axisMap = new TreeMap<>();
 
@@ -140,7 +145,7 @@ public class DeviceAxisBizService implements IDeviceAxisBizService {
                 .map(entry -> {
                     String axisName = entry.getKey();
                     Map<String, BigDecimal> coords = entry.getValue();
-                    return DeviceAxisRespVO.AxisCoordinate.builder()
+                    return AxisCoordinate.builder()
                             .axisName(axisName)
                             .absolute(coords.get("absolute"))
                             .relative(coords.get("relative"))
@@ -171,13 +176,13 @@ public class DeviceAxisBizService implements IDeviceAxisBizService {
     /**
      * 构建主轴信息（包含曲线数据）
      */
-    private DeviceAxisRespVO.SpindleInfo buildSpindleInfo(Long orgFactoryId, Long deviceInfoId, AggregationType aggregationType) {
+    private SpindleInfo buildSpindleInfo(Long orgFactoryId, Long deviceInfoId, AggregationType aggregationType) {
         // 获取三条曲线数据，使用指定的聚合类型
-        DeviceAxisRespVO.CurveData loadCurve = getCurveData(orgFactoryId, deviceInfoId, DeviceAxisEventFields.METRIC_LOAD, aggregationType);
-        DeviceAxisRespVO.CurveData rpmCurve = getCurveData(orgFactoryId, deviceInfoId, DeviceAxisEventFields.METRIC_RPM, aggregationType);
-        DeviceAxisRespVO.CurveData feedCurve = getCurveData(orgFactoryId, deviceInfoId, DeviceAxisEventFields.METRIC_FEED, aggregationType);
+        CurveData loadCurve = getCurveData(orgFactoryId, deviceInfoId, DeviceAxisEventFields.METRIC_LOAD, aggregationType);
+        CurveData rpmCurve = getCurveData(orgFactoryId, deviceInfoId, DeviceAxisEventFields.METRIC_RPM, aggregationType);
+        CurveData feedCurve = getCurveData(orgFactoryId, deviceInfoId, DeviceAxisEventFields.METRIC_FEED, aggregationType);
 
-        return DeviceAxisRespVO.SpindleInfo.builder()
+        return SpindleInfo.builder()
                 .loadCurve(loadCurve)
                 .rpmCurve(rpmCurve)
                 .feedCurve(feedCurve)
@@ -187,12 +192,12 @@ public class DeviceAxisBizService implements IDeviceAxisBizService {
     /**
      * 获取曲线数据（带时间聚合）
      */
-    private DeviceAxisRespVO.CurveData getCurveData(Long orgFactoryId, Long deviceInfoId, String metric, AggregationType aggregationType) {
+    private CurveData getCurveData(Long orgFactoryId, Long deviceInfoId, String metric, AggregationType aggregationType) {
         // 从Redis获取曲线点（倒序，最新的在前面）
         List<String> curvePoints = deviceAxisCacheService.getCurvePoints(orgFactoryId, deviceInfoId, metric, 0, -1);
 
         if (curvePoints == null || curvePoints.isEmpty()) {
-            return DeviceAxisRespVO.CurveData.builder()
+            return CurveData.builder()
                     .points(Collections.emptyList())
                     .build();
         }
@@ -204,12 +209,12 @@ public class DeviceAxisBizService implements IDeviceAxisBizService {
                 .collect(Collectors.toList());
 
         // 按时间间隔聚合
-        List<DeviceAxisRespVO.CurvePoint> aggregatedPoints = aggregateCurveByTime(allPoints, aggregationType);
+        List<CurvePoint> aggregatedPoints = aggregateCurveByTime(allPoints, aggregationType);
 
         // 获取当前值（最新值，即第一个点）
         BigDecimal currentValue = allPoints.isEmpty() ? null : allPoints.get(0).value;
 
-        return DeviceAxisRespVO.CurveData.builder()
+        return CurveData.builder()
                 .points(aggregatedPoints)
                 .currentValue(currentValue)
                 .build();
@@ -220,7 +225,7 @@ public class DeviceAxisBizService implements IDeviceAxisBizService {
      * MINUTE: 按分钟聚合，5分钟=5个点
      * TEN_SECONDS: 按10秒聚合，5分钟=30个点
      */
-    private List<DeviceAxisRespVO.CurvePoint> aggregateCurveByTime(List<CurvePointWithTs> points, AggregationType aggregationType) {
+    private List<CurvePoint> aggregateCurveByTime(List<CurvePointWithTs> points, AggregationType aggregationType) {
         if (points == null || points.isEmpty()) {
             return Collections.emptyList();
         }
@@ -235,7 +240,7 @@ public class DeviceAxisBizService implements IDeviceAxisBizService {
         }
 
         // 对每个桶计算平均值，并格式化时间
-        List<DeviceAxisRespVO.CurvePoint> result = new ArrayList<>();
+        List<CurvePoint> result = new ArrayList<>();
         for (Map.Entry<Long, List<CurvePointWithTs>> entry : buckets.entrySet()) {
             Long bucketTs = entry.getKey();
             List<CurvePointWithTs> bucketPoints = entry.getValue();
@@ -249,7 +254,7 @@ public class DeviceAxisBizService implements IDeviceAxisBizService {
             // 格式化时间
             String formattedTime = formatTime(bucketTs, aggregationType);
 
-            result.add(DeviceAxisRespVO.CurvePoint.builder()
+            result.add(CurvePoint.builder()
                     .time(formattedTime)
                     .value(avgValue)
                     .build());
@@ -278,18 +283,6 @@ public class DeviceAxisBizService implements IDeviceAxisBizService {
         }
     }
 
-    /**
-     * 内部类：带时间戳的曲线点
-     */
-    private static class CurvePointWithTs {
-        Long ts;
-        BigDecimal value;
-
-        CurvePointWithTs(Long ts, BigDecimal value) {
-            this.ts = ts;
-            this.value = value;
-        }
-    }
 
     /**
      * 解析曲线点（带时间戳）

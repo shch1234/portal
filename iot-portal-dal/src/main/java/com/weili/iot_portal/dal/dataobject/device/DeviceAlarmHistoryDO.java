@@ -75,7 +75,7 @@ public class DeviceAlarmHistoryDO implements Serializable {
     /**
      * 报警开始班次日期
      */
-    private LocalDateTime startShiftDate;
+    private LocalDate startShiftDate;
 
     /**
      * 报警开始班次编码（对应 start_shift_code 列，TINYINT UNSIGNED）
@@ -86,7 +86,7 @@ public class DeviceAlarmHistoryDO implements Serializable {
     /**
      * 报警结束班次日期
      */
-    private LocalDateTime endShiftDate;
+    private LocalDate endShiftDate;
 
     /**
      * 报警结束班次编码（对应 end_shift_code 列，TINYINT UNSIGNED）

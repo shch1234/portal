@@ -3,9 +3,8 @@ package com.weili.iot_portal.service.ingestion.support;
 import com.weili.basic.common.util.JsonUtils;
 import com.weili.basic.redis.client.RedisClient;
 import com.weili.iot_portal.common.constant.RedisConstant;
+import com.weili.iot_portal.domain.ingestion.UnknownDeviceAlert;
 import jakarta.annotation.Resource;
-import lombok.AllArgsConstructor;
-import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
@@ -41,15 +40,6 @@ public class UnknownDeviceAlertService {
         redisClient.set(key, JsonUtils.toJsonString(alert), DEFAULT_TTL_SECONDS, TimeUnit.SECONDS);
         log.warn("收到未知设备数据，请检查编号或建档: deviceCode={}, tbDeviceId={}, source={}",
                 deviceCode, tbDeviceId, source);
-    }
-
-    @Data
-    @AllArgsConstructor
-    public static class UnknownDeviceAlert {
-        private String deviceCode;
-        private String tbDeviceId;
-        private String source;
-        private long timestamp;
     }
 }
 

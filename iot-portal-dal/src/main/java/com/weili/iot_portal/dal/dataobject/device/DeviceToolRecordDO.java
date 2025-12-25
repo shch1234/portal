@@ -93,7 +93,7 @@ public class DeviceToolRecordDO implements Serializable {
     /**
      * 所属班次日期（对应 shift_date 列）
      */
-    private LocalDateTime shiftDate;
+    private LocalDate shiftDate;
 
     /**
      * 班次编码（对应 shift_code 列，TINYINT UNSIGNED）

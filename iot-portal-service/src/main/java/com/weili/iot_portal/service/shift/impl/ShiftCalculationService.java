@@ -2,6 +2,7 @@ package com.weili.iot_portal.service.shift.impl;
 
 import com.weili.iot_portal.common.exception.IotPortalException;
 import com.weili.iot_portal.dal.dataobject.device.DeviceShiftConfigDO;
+import com.weili.iot_portal.dal.dataobject.device.DeviceShiftDefinition;
 import com.weili.iot_portal.domain.ingestion.ShiftDateAndCode;
 import com.weili.iot_portal.domain.ingestion.ShiftInfo;
 import com.weili.iot_portal.domain.ingestion.ShiftTimeRange;
@@ -228,14 +229,14 @@ public class ShiftCalculationService implements IShiftCalculationService {
                 ZoneId.systemDefault());
         LocalTime currentTime = dateTime.toLocalTime();
 
-        List<DeviceShiftConfigDO.ShiftDefinition> shifts = config.getShifts();
+        List<DeviceShiftDefinition> shifts = config.getShifts();
         // 配置服务应该确保 shifts 已构建，如果为空则抛出异常
         if (shifts == null || shifts.isEmpty()) {
             throw new IotPortalException(SHIFT_CONFIG_EMPTY);
         }
 
         // 遍历所有班次，找到包含当前时间的班次
-        for (DeviceShiftConfigDO.ShiftDefinition shiftDef : shifts) {
+        for (DeviceShiftDefinition shiftDef : shifts) {
             LocalTime startTime = LocalTime.parse(shiftDef.getStartTime(), TIME_FORMATTER);
             LocalTime endTime = LocalTime.parse(shiftDef.getEndTime(), TIME_FORMATTER);
 
@@ -262,7 +263,7 @@ public class ShiftCalculationService implements IShiftCalculationService {
 
         // 如果没有找到，可能是时间点在班次间隙，返回第一个班次（作为默认）
         // 或者抛出异常，根据业务需求决定
-        DeviceShiftConfigDO.ShiftDefinition firstShift = shifts.get(0);
+        DeviceShiftDefinition firstShift = shifts.get(0);
         return ShiftInfo.builder()
                 .code(firstShift.getCode())
                 .name(firstShift.getName())
@@ -332,13 +333,13 @@ public class ShiftCalculationService implements IShiftCalculationService {
             LocalTime endTime = endDateTime.toLocalTime();
 
             // 查找匹配的班次
-            List<DeviceShiftConfigDO.ShiftDefinition> shifts = config.getShifts();
+            List<DeviceShiftDefinition> shifts = config.getShifts();
             if (shifts == null || shifts.isEmpty()) {
                 log.warn("班次配置为空: factoryId={}, deviceId={}", factoryId, deviceId);
                 return null;
             }
 
-            for (DeviceShiftConfigDO.ShiftDefinition shift : shifts) {
+            for (DeviceShiftDefinition shift : shifts) {
                 LocalTime shiftEndTime = LocalTime.parse(shift.getEndTime(), TIME_FORMATTER);
 
                 // 检查是否匹配（考虑跨天情况）

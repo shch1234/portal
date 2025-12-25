@@ -24,7 +24,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 
-import static com.weili.iot_portal.service.ingestion.handler.WebhookHandlerUtils.DeviceIdentity;
+import com.weili.iot_portal.domain.ingestion.DeviceIdentity;
 
 /**
  * 刀具换刀事件处理器

@@ -16,6 +16,7 @@ import com.weili.iot_portal.domain.ingestion.BatchProcessResult;
 import com.weili.iot_portal.domain.ingestion.RealtimeMetricSnapshot;
 import com.weili.iot_portal.service.shift.IShiftCalculationService;
 import com.weili.iot_portal.domain.ingestion.ShiftTimeRange;
+import com.weili.iot_portal.domain.factory.ShiftAggregate;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -500,27 +501,6 @@ public class FactoryMetricsService implements IFactoryMetricsService {
 
         stringRedisTemplate.opsForHash().putAll(key, payload);
         stringRedisTemplate.expire(key, Duration.ofSeconds(factoryTtlSeconds));
-    }
-
-    private static class ShiftAggregate {
-        private final java.time.LocalDate shiftDate;
-        private final String shiftCode;
-        private Long shiftStartTs;
-        private Long shiftEndTs;
-        private BigDecimal sumOee = BigDecimal.ZERO;
-        private BigDecimal sumUptime = BigDecimal.ZERO;
-        private BigDecimal sumPerformance = BigDecimal.ZERO;
-        private BigDecimal sumAvailability = BigDecimal.ZERO;
-        private BigDecimal sumFault = BigDecimal.ZERO;
-        private long sumWeight = 0;
-        private int validDevices = 0;
-
-        ShiftAggregate(java.time.LocalDate shiftDate, String shiftCode, Long shiftStartTs, Long shiftEndTs) {
-            this.shiftDate = shiftDate;
-            this.shiftCode = shiftCode;
-            this.shiftStartTs = shiftStartTs;
-            this.shiftEndTs = shiftEndTs;
-        }
     }
 }
 

@@ -46,7 +46,7 @@ public class DeviceShiftConfigDO extends BaseDO {
      * 班次定义（JSON数组，计算字段，不对应数据库列）
      */
     @TableField(exist = false)
-    private List<ShiftDefinition> shifts;
+    private List<DeviceShiftDefinition> shifts;
 
     /**
      * 班次1编码：1（对应 shift_1_code 列，TINYINT UNSIGNED）
@@ -152,41 +152,5 @@ public class DeviceShiftConfigDO extends BaseDO {
      * 是否启用：1-启用 0-停用（对应 is_active 列）
      */
     private Boolean isActive;
-
-    /**
-     * 班次定义内部类
-     */
-    @Data
-    public static class ShiftDefinition {
-        /**
-         * 班次编码：1、2、3（TINYINT UNSIGNED）
-         */
-        private Integer code;
-
-        /**
-         * 班次名称：早班、中班、晚班
-         */
-        private String name;
-
-        /**
-         * 开始时间：HH:mm:ss
-         */
-        private String startTime;
-
-        /**
-         * 结束时间：HH:mm:ss
-         */
-        private String endTime;
-
-        /**
-         * 持续时长（小时）
-         */
-        private Integer durationHours;
-
-        /**
-         * 是否跨天
-         */
-        private Boolean crossDay;
-    }
 }
 

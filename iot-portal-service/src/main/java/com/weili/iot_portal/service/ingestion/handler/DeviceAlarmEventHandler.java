@@ -24,7 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.*;
 import java.util.stream.Collectors;
 
-import static com.weili.iot_portal.service.ingestion.handler.WebhookHandlerUtils.DeviceIdentity;
+import com.weili.iot_portal.domain.ingestion.DeviceIdentity;
 
 /**
  * 设备报警事件处理器

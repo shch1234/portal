@@ -13,6 +13,8 @@ import com.weili.iot_portal.dal.repository.device.DeviceModelRepository;
 import com.weili.iot_portal.dal.repository.device.DeviceNetworkConfigRepository;
 import com.weili.iot_portal.domain.device.req.*;
 import com.weili.iot_portal.domain.device.resp.*;
+import com.weili.iot_portal.domain.device.resp.DeviceLocationInfo;
+import com.weili.iot_portal.domain.device.resp.DeviceNetworkInfo;
 import com.weili.iot_portal.service.assembler.DeviceInfoAssembler;
 import com.weili.iot_portal.service.device.IDeviceInfoBizService;
 import com.weili.iot_portal.service.device.IDeviceModelBizService;
@@ -139,14 +141,14 @@ public class DeviceInfoBizService implements IDeviceInfoBizService {
         // 查询设备位置信息
         Optional<DeviceLocationDO> deviceLocation = deviceLocationRepository.findByDeviceId(id);
         if (deviceLocation.isPresent()) {
-            DeviceInfoRespVO.DeviceLocationInfo locationInfo = BeanUtils.toBean(deviceLocation.get(), DeviceInfoRespVO.DeviceLocationInfo.class);
+            DeviceLocationInfo locationInfo = BeanUtils.toBean(deviceLocation.get(), DeviceLocationInfo.class);
             respVO.setLocation(locationInfo);
         }
 
         // 查询设备网络配置
         Optional<DeviceNetworkConfigDO> deviceNetworkConfig = deviceNetworkConfigRepository.findByDeviceInfoId(id);
         if (deviceNetworkConfig.isPresent()) {
-            DeviceInfoRespVO.DeviceNetworkInfo networkInfo = BeanUtils.toBean(deviceNetworkConfig.get(), DeviceInfoRespVO.DeviceNetworkInfo.class);
+            DeviceNetworkInfo networkInfo = BeanUtils.toBean(deviceNetworkConfig.get(), DeviceNetworkInfo.class);
             respVO.setNetwork(networkInfo);
         }
 

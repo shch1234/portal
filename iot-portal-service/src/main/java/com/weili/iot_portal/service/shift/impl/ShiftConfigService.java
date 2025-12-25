@@ -1,6 +1,7 @@
 package com.weili.iot_portal.service.shift.impl;
 
 import com.weili.iot_portal.dal.dataobject.device.DeviceShiftConfigDO;
+import com.weili.iot_portal.dal.dataobject.device.DeviceShiftDefinition;
 import com.weili.iot_portal.dal.repository.device.DeviceShiftConfigRepository;
 import com.weili.iot_portal.service.shift.DeviceFactoryValidator;
 import com.weili.iot_portal.service.shift.IShiftConfigService;
@@ -97,11 +98,11 @@ public class ShiftConfigService implements IShiftConfigService {
         DeviceShiftConfigDO config = new DeviceShiftConfigDO();
         config.setShiftMode(mode);
         
-        List<DeviceShiftConfigDO.ShiftDefinition> shifts = new ArrayList<>();
+        List<DeviceShiftDefinition> shifts = new ArrayList<>();
         
         if (mode == ShiftConstants.SHIFT_MODE_2) {
             // 2班制：早班8:00-20:00，晚班20:00-次日8:00
-            DeviceShiftConfigDO.ShiftDefinition shift1 = new DeviceShiftConfigDO.ShiftDefinition();
+            DeviceShiftDefinition shift1 = new DeviceShiftDefinition();
             shift1.setCode(ShiftConstants.SHIFT_CODE_1);
             shift1.setName(ShiftConstants.SHIFT_NAME_2MODE_DAY);
             shift1.setStartTime(ShiftConstants.SHIFT_TIME_2MODE_DAY_START);
@@ -110,7 +111,7 @@ public class ShiftConfigService implements IShiftConfigService {
             shift1.setCrossDay(false);
             shifts.add(shift1);
             
-            DeviceShiftConfigDO.ShiftDefinition shift2 = new DeviceShiftConfigDO.ShiftDefinition();
+            DeviceShiftDefinition shift2 = new DeviceShiftDefinition();
             shift2.setCode(ShiftConstants.SHIFT_CODE_2);
             shift2.setName(ShiftConstants.SHIFT_NAME_2MODE_NIGHT);
             shift2.setStartTime(ShiftConstants.SHIFT_TIME_2MODE_DAY_END);
@@ -133,7 +134,7 @@ public class ShiftConfigService implements IShiftConfigService {
             config.setShift2DurationS(ShiftConstants.SHIFT_DURATION_HOURS_2MODE * ShiftConstants.SECONDS_PER_HOUR);
         } else if (mode == ShiftConstants.SHIFT_MODE_3) {
             // 3班制：第一班8:00-16:00，第二班16:00-00:00，第三班00:00-08:00（每班8小时）
-            DeviceShiftConfigDO.ShiftDefinition shift1 = new DeviceShiftConfigDO.ShiftDefinition();
+            DeviceShiftDefinition shift1 = new DeviceShiftDefinition();
             shift1.setCode(ShiftConstants.SHIFT_CODE_1);
             shift1.setName(ShiftConstants.SHIFT_NAME_3MODE_FIRST);
             shift1.setStartTime(ShiftConstants.SHIFT_TIME_3MODE_FIRST_START);
@@ -142,7 +143,7 @@ public class ShiftConfigService implements IShiftConfigService {
             shift1.setCrossDay(false);
             shifts.add(shift1);
             
-            DeviceShiftConfigDO.ShiftDefinition shift2 = new DeviceShiftConfigDO.ShiftDefinition();
+            DeviceShiftDefinition shift2 = new DeviceShiftDefinition();
             shift2.setCode(ShiftConstants.SHIFT_CODE_2);
             shift2.setName(ShiftConstants.SHIFT_NAME_3MODE_SECOND);
             shift2.setStartTime(ShiftConstants.SHIFT_TIME_3MODE_FIRST_END);
@@ -151,7 +152,7 @@ public class ShiftConfigService implements IShiftConfigService {
             shift2.setCrossDay(true);
             shifts.add(shift2);
             
-            DeviceShiftConfigDO.ShiftDefinition shift3 = new DeviceShiftConfigDO.ShiftDefinition();
+            DeviceShiftDefinition shift3 = new DeviceShiftDefinition();
             shift3.setCode(ShiftConstants.SHIFT_CODE_3);
             shift3.setName(ShiftConstants.SHIFT_NAME_3MODE_THIRD);
             shift3.setStartTime(ShiftConstants.SHIFT_TIME_3MODE_SECOND_END);
@@ -193,8 +194,8 @@ public class ShiftConfigService implements IShiftConfigService {
      * @param config 班次配置
      * @return 班次定义列表
      */
-    private List<DeviceShiftConfigDO.ShiftDefinition> buildShiftsFromFields(DeviceShiftConfigDO config) {
-        List<DeviceShiftConfigDO.ShiftDefinition> shifts = new ArrayList<>();
+    private List<DeviceShiftDefinition> buildShiftsFromFields(DeviceShiftConfigDO config) {
+        List<DeviceShiftDefinition> shifts = new ArrayList<>();
         Integer mode = config.getShiftMode();
         
         if (mode == null) {
@@ -203,7 +204,7 @@ public class ShiftConfigService implements IShiftConfigService {
         
         // 构建班次1
         if (config.getShift1Code() != null) {
-            DeviceShiftConfigDO.ShiftDefinition shift1 = new DeviceShiftConfigDO.ShiftDefinition();
+            DeviceShiftDefinition shift1 = new DeviceShiftDefinition();
             shift1.setCode(config.getShift1Code());
             shift1.setName(config.getShift1Name());
             shift1.setStartTime(config.getShift1StartTime());
@@ -222,7 +223,7 @@ public class ShiftConfigService implements IShiftConfigService {
         
         // 构建班次2
         if (config.getShift2Code() != null) {
-            DeviceShiftConfigDO.ShiftDefinition shift2 = new DeviceShiftConfigDO.ShiftDefinition();
+            DeviceShiftDefinition shift2 = new DeviceShiftDefinition();
             shift2.setCode(config.getShift2Code());
             shift2.setName(config.getShift2Name());
             shift2.setStartTime(config.getShift2StartTime());
@@ -240,7 +241,7 @@ public class ShiftConfigService implements IShiftConfigService {
         
         // 构建班次3（仅3班制）
         if (mode == ShiftConstants.SHIFT_MODE_3 && config.getShift3Code() != null) {
-            DeviceShiftConfigDO.ShiftDefinition shift3 = new DeviceShiftConfigDO.ShiftDefinition();
+            DeviceShiftDefinition shift3 = new DeviceShiftDefinition();
             shift3.setCode(config.getShift3Code());
             shift3.setName(config.getShift3Name());
             shift3.setStartTime(config.getShift3StartTime());

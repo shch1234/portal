@@ -46,7 +46,7 @@ public class WebhookServerConfiguration {
     @Bean
     public WebServerFactoryCustomizer<TomcatServletWebServerFactory> webhookTomcatCustomizer() {
         return factory -> {
-            WebhookServerConfig.TomcatConfig tomcat = webhookServerConfig.getTomcat();
+            WebhookTomcatConfig tomcat = webhookServerConfig.getTomcat();
             
             // 配置连接器
             factory.addConnectorCustomizers(connector -> {
@@ -77,7 +77,7 @@ public class WebhookServerConfiguration {
      */
     @Bean(name = "webhookAsyncExecutor")
     public Executor webhookAsyncExecutor() {
-        WebhookServerConfig.AsyncConfig async = webhookServerConfig.getAsync();
+        WebhookAsyncConfig async = webhookServerConfig.getAsync();
         
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
         executor.setCorePoolSize(async.getCoreSize());

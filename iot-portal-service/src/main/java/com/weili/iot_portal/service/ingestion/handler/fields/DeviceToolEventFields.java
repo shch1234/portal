@@ -49,16 +49,6 @@ public final class DeviceToolEventFields {
      * 刀补号（标准字段名）
      * 用于标识刀具所在的刀架位置编号，是刀补补偿的关键标识
      * 值为0时表示未使用刀补
-     * <p>
-     * 使用场景：
-     * 1. 用于补偿计算（存储到 DeviceToolCompensationDO.toolHolderNo）
-     * 2. 用于补偿快照（存储到 compensationSnapshot 中）
-     * </p>
-     * <p>
-     * 注意：刀补号（holderNumber）和刀套号（toolMagazineNo）是不同的概念：
-     * - holderNumber：用于补偿计算，标识刀具在刀架上的位置
-     * - toolMagazineNo：用于记录刀具在刀库中的物理位置，通常与 toolNo 相同
-     * </p>
      */
     public static final String HOLDER_NUMBER = "holderNumber";
 

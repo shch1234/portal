@@ -30,36 +30,6 @@ public final class DeviceStateUtils {
      */
     public static final String UNKNOWN_STATE = DeviceStateEnum.UNKNOWN.name();
 
-    /**
-     * 状态验证结果
-     * <p>
-     * 用于记录状态验证和转换的信息
-     * </p>
-     */
-    public static class StateValidationResult {
-        private final String validatedState;
-        private final boolean converted;
-        private final String originalState;
-
-        public StateValidationResult(String validatedState, boolean converted, String originalState) {
-            this.validatedState = validatedState;
-            this.converted = converted;
-            this.originalState = originalState;
-        }
-
-        public String getValidatedState() {
-            return validatedState;
-        }
-
-        public boolean isConverted() {
-            return converted;
-        }
-
-        public String getOriginalState() {
-            return originalState;
-        }
-    }
-
     // ==================== 状态编码提取和验证 ====================
 
     /**

@@ -3,6 +3,8 @@ package com.weili.iot_portal.service.assembler;
 import com.weili.iot_portal.dal.dataobject.device.DeviceLocationDO;
 import com.weili.iot_portal.dal.dataobject.device.DeviceNetworkConfigDO;
 import com.weili.iot_portal.domain.device.req.DeviceInfoSaveReqVO;
+import com.weili.iot_portal.domain.device.req.DeviceLocationInfoReq;
+import com.weili.iot_portal.domain.device.req.DeviceNetworkInfoReq;
 
 import java.time.LocalDateTime;
 
@@ -11,7 +13,7 @@ public final class DeviceInfoAssembler {
 
 
     public static DeviceLocationDO createDeviceLocation(Long deviceInfoId, DeviceInfoSaveReqVO createReqVO) {
-        DeviceInfoSaveReqVO.DeviceLocationInfo locationInfo = createReqVO.getLocation();
+        DeviceLocationInfoReq locationInfo = createReqVO.getLocation();
         DeviceLocationDO deviceLocation = new DeviceLocationDO();
         deviceLocation.setDeviceInfoId(deviceInfoId);
         deviceLocation.setOrgFactoryId(createReqVO.getOrgFactoryId());
@@ -34,7 +36,7 @@ public final class DeviceInfoAssembler {
     public static DeviceLocationDO updateDeviceLocation(Long deviceInfoId,
                                                         DeviceLocationDO existing,
                                                         DeviceInfoSaveReqVO updateReqVO) {
-        DeviceInfoSaveReqVO.DeviceLocationInfo locationInfo = updateReqVO.getLocation();
+        DeviceLocationInfoReq locationInfo = updateReqVO.getLocation();
         DeviceLocationDO deviceLocation;
         if (existing != null) {
             // 更新现有位置信息
@@ -64,7 +66,7 @@ public final class DeviceInfoAssembler {
 
 
     public static DeviceNetworkConfigDO createNetworkConfigDO(Long deviceInfoId, DeviceInfoSaveReqVO createReqVO) {
-        DeviceInfoSaveReqVO.DeviceNetworkInfo networkInfo = createReqVO.getNetwork();
+        DeviceNetworkInfoReq networkInfo = createReqVO.getNetwork();
         DeviceNetworkConfigDO deviceNetworkConfig = new DeviceNetworkConfigDO();
         deviceNetworkConfig.setDeviceInfoId(deviceInfoId);
         deviceNetworkConfig.setOrgFactoryId(createReqVO.getOrgFactoryId());
@@ -87,7 +89,7 @@ public final class DeviceInfoAssembler {
     public static DeviceNetworkConfigDO updateNetworkConfigDO(Long deviceInfoId,
                                                               DeviceNetworkConfigDO existing,
                                                               DeviceInfoSaveReqVO updateReqVO) {
-        DeviceInfoSaveReqVO.DeviceNetworkInfo networkInfo = updateReqVO.getNetwork();
+        DeviceNetworkInfoReq networkInfo = updateReqVO.getNetwork();
         DeviceNetworkConfigDO deviceNetworkConfig;
         if (existing != null) {
             // 更新现有网络配置
@@ -113,6 +115,4 @@ public final class DeviceInfoAssembler {
         deviceNetworkConfig.setDescription(networkInfo.getDescription());
         return deviceNetworkConfig;
     }
-
-
 }

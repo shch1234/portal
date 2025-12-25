@@ -1,5 +1,6 @@
 package com.weili.iot_portal.service.ingestion.handler;
 
+import com.weili.iot_portal.domain.ingestion.DeviceIdentity;
 import com.weili.iot_portal.domain.ingestion.WebhookRequest;
 import com.weili.iot_portal.service.cache.DeviceIdentityCacheService;
 import lombok.extern.slf4j.Slf4j;
@@ -31,18 +32,10 @@ public class WebhookHandlerUtils {
      * @return 设备身份信息，包含 deviceInfoId 和 orgFactoryId
      */
     public DeviceIdentity resolveDeviceIdentity(WebhookRequest request) {
-        DeviceIdentityCacheService.DeviceIdentity identity = deviceIdentityCacheService
-                .resolveByDeviceCode(request.getDeviceCode(),
-                        request.getDeviceId(), "WebhookHandler");
-        return new DeviceIdentity(identity.getDeviceId(), identity.getFactoryId());
+        return deviceIdentityCacheService.resolveByDeviceCode(
+                request.getDeviceCode(),
+                request.getDeviceId(),
+                "WebhookHandler");
     }
-
-    /**
-     * 设备身份信息
-     *
-     * @param deviceInfoId 设备信息ID
-     * @param orgFactoryId 工厂ID
-     */
-    public record DeviceIdentity(Long deviceInfoId, Long orgFactoryId) {}
 }
 

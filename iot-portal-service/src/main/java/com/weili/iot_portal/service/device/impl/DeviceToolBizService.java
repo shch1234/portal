@@ -12,6 +12,9 @@ import com.weili.iot_portal.domain.device.req.DeviceToolCompensationQueryReqVO;
 import com.weili.iot_portal.domain.device.req.DeviceToolRecordQueryReqVO;
 import com.weili.iot_portal.domain.device.resp.DeviceToolCompensationRespVO;
 import com.weili.iot_portal.domain.device.resp.DeviceToolRecordRespVO;
+import com.weili.iot_portal.domain.device.resp.ToolRecord;
+import com.weili.iot_portal.domain.device.resp.GeometryCompensation;
+import com.weili.iot_portal.domain.device.resp.WearCompensation;
 import com.weili.iot_portal.service.cache.DeviceToolCacheService;
 import com.weili.iot_portal.service.device.IDeviceInfoBizService;
 import com.weili.iot_portal.service.device.IDeviceToolBizService;
@@ -81,17 +84,6 @@ public class DeviceToolBizService implements IDeviceToolBizService {
     }
 
     @Override
-    public DeviceToolRecordRespVO getCurrentToolRecord(Long deviceId) {
-        DeviceInfoDO deviceInfoDO = deviceInfoBizService.getDeviceInfo(deviceId);
-        if (deviceInfoDO == null) {
-            throw new IotPortalException(IotPortalErrorCode.DEVICE_INFO_NOT_FOUND, "设备不存在");
-        }
-
-        Map<String, Object> toolData = deviceToolCacheService.getTool(deviceInfoDO.getOrgFactoryId(), deviceId);
-        return null;
-    }
-
-    @Override
     public DeviceToolRecordRespVO getDeviceToolRecords(DeviceToolRecordQueryReqVO queryReqVO) {
 
         DeviceToolRecordRespVO recordRespVO = new DeviceToolRecordRespVO();
@@ -107,14 +99,14 @@ public class DeviceToolBizService implements IDeviceToolBizService {
         Long total = deviceToolRecordRepository.countByDevice(deviceId);
 
         // 构建VO列表
-        List<DeviceToolRecordRespVO.ToolRecord> items = new ArrayList<>();
+        List<ToolRecord> items = new ArrayList<>();
         for (DeviceToolRecordDO record : recordList) {
-            DeviceToolRecordRespVO.ToolRecord vo = buildToolRecordVO(record);
+            ToolRecord vo = buildToolRecordVO(record);
             items.add(vo);
         }
 
         // 构建分页结果
-        PageResult<DeviceToolRecordRespVO.ToolRecord> pageResult = new PageResult<>();
+        PageResult<ToolRecord> pageResult = new PageResult<>();
         pageResult.setTotal(total);
         pageResult.setPageNo(pageNo);
         pageResult.setPageSize(pageSize);
@@ -126,15 +118,15 @@ public class DeviceToolBizService implements IDeviceToolBizService {
             throw new IotPortalException(IotPortalErrorCode.DEVICE_INFO_NOT_FOUND, "设备不存在");
         }
         //TODO "当前刀具号、刀套号、刀补值
-        Map<Object, Object> toolData = deviceToolCacheService.getTool(deviceInfoDO.getOrgFactoryId(), deviceId);
+        Map<String, Object> toolData = deviceToolCacheService.getTool(deviceInfoDO.getOrgFactoryId(), deviceId);
         if(MapUtils.isNotEmpty(toolData)){
-            Object toolNo = toolData.get(DeviceToolEventFields.TOOL_NUMBER);
+            Object toolNo = toolData.get(DeviceToolEventFields.TOOL_NO);
             Object holderNo = toolData.get(DeviceToolEventFields.HOLDER_NUMBER);
-            Object compensations = toolData.get(DeviceToolEventFields.COMPENSATIONS_FIELD);
+            Object compensations = toolData.get(DeviceToolEventFields.COMPENSATION_FIELD);
 
 
         }
-        DeviceToolRecordRespVO.ToolRecord current = new DeviceToolRecordRespVO.ToolRecord();
+        ToolRecord current = new ToolRecord();
         recordRespVO.setCurrent(current);
         return recordRespVO;
     }
@@ -155,10 +147,10 @@ public class DeviceToolBizService implements IDeviceToolBizService {
         }
 
         // 提取几何补偿数据（容错处理）
-        DeviceToolCompensationRespVO.GeometryCompensation geometry = extractGeometry(compValueJson, compensation.getToolHolderNo());
+        GeometryCompensation geometry = extractGeometry(compValueJson, compensation.getToolHolderNo());
 
         // 提取磨损补偿数据（容错处理）
-        DeviceToolCompensationRespVO.WearCompensation wear = extractWear(compValueJson, compensation.getToolHolderNo());
+        WearCompensation wear = extractWear(compValueJson, compensation.getToolHolderNo());
 
         return DeviceToolCompensationRespVO.builder()
                 .toolHolderNo(compensation.getToolHolderNo())
@@ -185,7 +177,7 @@ public class DeviceToolBizService implements IDeviceToolBizService {
      * @return 几何补偿对象
      */
     @SuppressWarnings("unchecked")
-    private DeviceToolCompensationRespVO.GeometryCompensation extractGeometry(Map<String, Object> compValueJson, String toolHolderNo) {
+    private GeometryCompensation extractGeometry(Map<String, Object> compValueJson, String toolHolderNo) {
         if (compValueJson == null || !compValueJson.containsKey("geom")) {
             log.debug("刀具补偿JSON缺少geom字段，刀补号: {}, 返回默认值", toolHolderNo);
             return buildDefaultGeometry();
@@ -203,7 +195,7 @@ public class DeviceToolBizService implements IDeviceToolBizService {
 
             Map<String, Object> geom = (Map<String, Object>) geomObj;
 
-            return DeviceToolCompensationRespVO.GeometryCompensation.builder()
+            return GeometryCompensation.builder()
                     .offsetX(parseBigDecimal(geom.get("offsetX")))
                     .offsetY(parseBigDecimal(geom.get("offsetY")))
                     .offsetZ(parseBigDecimal(geom.get("offsetZ")))
@@ -219,8 +211,8 @@ public class DeviceToolBizService implements IDeviceToolBizService {
     /**
      * 构建默认几何补偿对象
      */
-    private DeviceToolCompensationRespVO.GeometryCompensation buildDefaultGeometry() {
-        return DeviceToolCompensationRespVO.GeometryCompensation.builder()
+    private GeometryCompensation buildDefaultGeometry() {
+        return GeometryCompensation.builder()
                 .offsetX(BigDecimal.ZERO)
                 .offsetY(BigDecimal.ZERO)
                 .offsetZ(BigDecimal.ZERO)
@@ -246,7 +238,7 @@ public class DeviceToolBizService implements IDeviceToolBizService {
      * @return 磨损补偿对象
      */
     @SuppressWarnings("unchecked")
-    private DeviceToolCompensationRespVO.WearCompensation extractWear(Map<String, Object> compValueJson, String toolHolderNo) {
+    private WearCompensation extractWear(Map<String, Object> compValueJson, String toolHolderNo) {
         if (compValueJson == null || !compValueJson.containsKey("wear")) {
             log.debug("刀具补偿JSON缺少wear字段，刀补号: {}, 返回默认值", toolHolderNo);
             return buildDefaultWear();
@@ -264,7 +256,7 @@ public class DeviceToolBizService implements IDeviceToolBizService {
 
             Map<String, Object> wear = (Map<String, Object>) wearObj;
 
-            return DeviceToolCompensationRespVO.WearCompensation.builder()
+            return WearCompensation.builder()
                     .compX(parseBigDecimal(wear.get("compX")))
                     .compY(parseBigDecimal(wear.get("compY")))
                     .compZ(parseBigDecimal(wear.get("compZ")))
@@ -280,8 +272,8 @@ public class DeviceToolBizService implements IDeviceToolBizService {
     /**
      * 构建默认磨损补偿对象
      */
-    private DeviceToolCompensationRespVO.WearCompensation buildDefaultWear() {
-        return DeviceToolCompensationRespVO.WearCompensation.builder()
+    private WearCompensation buildDefaultWear() {
+        return WearCompensation.builder()
                 .compX(BigDecimal.ZERO)
                 .compY(BigDecimal.ZERO)
                 .compZ(BigDecimal.ZERO)
@@ -314,12 +306,12 @@ public class DeviceToolBizService implements IDeviceToolBizService {
     /**
      * 构建刀具记录VO
      */
-    private DeviceToolRecordRespVO.ToolRecord buildToolRecordVO(DeviceToolRecordDO record) {
+    private ToolRecord buildToolRecordVO(DeviceToolRecordDO record) {
         // 计算持续时长
         Long durationMs = calculateDuration(record);
         String durationStr = formatDuration(durationMs);
 
-        return DeviceToolRecordRespVO.ToolRecord.builder()
+        return ToolRecord.builder()
                 .toolNo(record.getToolNo())
                 .toolMagazineNo(record.getToolMagazineNo())
                 .startTs(record.getStartTs())

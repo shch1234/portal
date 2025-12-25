@@ -16,11 +16,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
+import java.time.LocalDate;
 import java.util.Map;
 import java.util.Optional;
 
-import static com.weili.iot_portal.service.ingestion.handler.WebhookHandlerUtils.DeviceIdentity;
+import com.weili.iot_portal.domain.ingestion.DeviceIdentity;
 
 /**
  * 设备产量事件处理器（开始/结束）
@@ -106,7 +106,6 @@ public class DeviceProductionEventHandler implements WebhookEventHandler {
         Optional<DeviceProductionRecordDO> ongoingOpt = deviceProductionRecordRepository.findLatestOngoing(deviceInfoId);
         if (ongoingOpt.isEmpty()) {
             // 若没有进行中，补一条仅 end 的记录（起止相同）
-            // 注意：device_production_record 表已删除 tenant_uuid 字段
             DeviceProductionRecordDO record = new DeviceProductionRecordDO();
             record.setDeviceInfoId(deviceInfoId);
             record.setOrgFactoryId(orgFactoryId);
@@ -145,7 +144,7 @@ public class DeviceProductionEventHandler implements WebhookEventHandler {
         return v == null ? null : v.toString();
     }
 
-    private record ShiftInfo(LocalDateTime shiftDate, Integer shiftCode) {}
+    private record ShiftInfo(LocalDate shiftDate, Integer shiftCode) {}
 }
 
 

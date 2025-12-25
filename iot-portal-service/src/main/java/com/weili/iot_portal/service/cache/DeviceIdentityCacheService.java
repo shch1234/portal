@@ -7,9 +7,8 @@ import com.weili.iot_portal.common.exception.IotPortalErrorCode;
 import com.weili.iot_portal.common.exception.IotPortalException;
 import com.weili.iot_portal.dal.dataobject.device.DeviceInfoDO;
 import com.weili.iot_portal.dal.repository.device.DeviceInfoRepository;
+import com.weili.iot_portal.domain.ingestion.DeviceIdentity;
 import com.weili.iot_portal.service.ingestion.support.UnknownDeviceAlertService;
-import lombok.AllArgsConstructor;
-import lombok.Data;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
 
@@ -45,8 +44,8 @@ public class DeviceIdentityCacheService {
         if (StringUtils.isNotBlank(cached)) {
             DeviceIdentity identity = JsonUtils.parseObject(cached, DeviceIdentity.class);
             // 验证缓存中的身份信息是否完整
-            if (identity != null && identity.getDeviceId() != null
-                    && identity.getFactoryId() != null) {
+            if (identity != null && identity.deviceInfoId() != null
+                    && identity.orgFactoryId() != null) {
                 return identity;
             }
             // 缓存数据不完整，清除缓存并重新查询
@@ -127,11 +126,5 @@ public class DeviceIdentityCacheService {
     }
 
 
-    @Data
-    @AllArgsConstructor
-    public static class DeviceIdentity {
-        private Long deviceId;
-        private Long factoryId;
-    }
 }
 

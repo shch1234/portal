@@ -10,6 +10,9 @@ import com.weili.iot_portal.dal.repository.device.DeviceStateRecordRepository;
 import com.weili.iot_portal.dal.repository.device.DeviceStateSummaryRepository;
 import com.weili.iot_portal.domain.device.req.DeviceStateSummaryQueryReqVO;
 import com.weili.iot_portal.domain.device.resp.DeviceStateSummaryRespVO;
+import com.weili.iot_portal.domain.device.resp.StateRatioStatistics;
+import com.weili.iot_portal.domain.device.resp.StateStatItem;
+import com.weili.iot_portal.domain.device.resp.StateTimeSegment;
 import com.weili.iot_portal.service.cache.DeviceStateCacheService;
 import com.weili.iot_portal.service.device.IDeviceInfoBizService;
 import com.weili.iot_portal.service.device.IDeviceStateSummaryBizService;
@@ -73,7 +76,7 @@ public class DeviceStateSummaryBizService implements IDeviceStateSummaryBizServi
     /**
      * 构建状态占比统计（饼图数据）
      */
-    private DeviceStateSummaryRespVO.StateRatioStatistics buildRatioStatistics(List<DeviceStateSummaryDO> summaryList) {
+    private StateRatioStatistics buildRatioStatistics(List<DeviceStateSummaryDO> summaryList) {
         // 汇总各状态的时长
         int totalStandby = 0;
         int totalWorking = 0;
@@ -95,7 +98,7 @@ public class DeviceStateSummaryBizService implements IDeviceStateSummaryBizServi
         BigDecimal shutdownRatio = calculateRatio(totalShutdown, totalDuration);
         BigDecimal faultRatio = calculateRatio(totalFault, totalDuration);
 
-        return DeviceStateSummaryRespVO.StateRatioStatistics.builder()
+        return StateRatioStatistics.builder()
                 .standby(buildStateStatItem(DeviceStateEnum.STANDBY, totalStandby, standbyRatio))
                 .working(buildStateStatItem(DeviceStateEnum.WORKING, totalWorking, workingRatio))
                 .shutdown(buildStateStatItem(DeviceStateEnum.SHUTDOWN, totalShutdown, shutdownRatio))
@@ -107,8 +110,8 @@ public class DeviceStateSummaryBizService implements IDeviceStateSummaryBizServi
     /**
      * 构建状态统计项
      */
-    private DeviceStateSummaryRespVO.StateStatItem buildStateStatItem(DeviceStateEnum stateEnum, int duration, BigDecimal ratio) {
-        return DeviceStateSummaryRespVO.StateStatItem.builder()
+    private StateStatItem buildStateStatItem(DeviceStateEnum stateEnum, int duration, BigDecimal ratio) {
+        return StateStatItem.builder()
                 .stateName(stateEnum.getDescription())
                 .stateCode(stateEnum.name())
                 .duration(duration)
@@ -119,8 +122,8 @@ public class DeviceStateSummaryBizService implements IDeviceStateSummaryBizServi
     /**
      * 构建时间轴数据
      */
-    private List<DeviceStateSummaryRespVO.StateTimeSegment> buildTimelineData(List<DeviceStateRecordDO> stateRecordList) {
-        List<DeviceStateSummaryRespVO.StateTimeSegment> timelineData = new ArrayList<>();
+    private List<StateTimeSegment> buildTimelineData(List<DeviceStateRecordDO> stateRecordList) {
+        List<StateTimeSegment> timelineData = new ArrayList<>();
 
         for (DeviceStateRecordDO record : stateRecordList) {
             // 跳过没有结束时间的记录（进行中的状态）
@@ -131,7 +134,7 @@ public class DeviceStateSummaryBizService implements IDeviceStateSummaryBizServi
             // 从编码转换为枚举
             DeviceStateEnum stateEnum = DeviceStateEnum.fromCode(record.getStateCode());
 
-            DeviceStateSummaryRespVO.StateTimeSegment segment = DeviceStateSummaryRespVO.StateTimeSegment.builder()
+            StateTimeSegment segment = StateTimeSegment.builder()
                     .stateCode(stateEnum.name())
                     .stateName(stateEnum.getDescription())
                     .startTime(record.getStartTs())

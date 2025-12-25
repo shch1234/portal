@@ -15,7 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.HashMap;
 import java.util.Map;
 
-import static com.weili.iot_portal.service.ingestion.handler.WebhookHandlerUtils.DeviceIdentity;
+import com.weili.iot_portal.domain.ingestion.DeviceIdentity;
 
 /**
  * 设备轴信息事件处理器

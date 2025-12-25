@@ -45,7 +45,10 @@ public class DeviceProductionRecordDO implements Serializable {
 
     private String programName;
 
-    private LocalDateTime shiftDate;
+    /**
+     * 所属班次日期（对应 shift_date 列）
+     */
+    private LocalDate shiftDate;
 
     /**
      * 班次编码（对应 shift_code 列，TINYINT UNSIGNED）

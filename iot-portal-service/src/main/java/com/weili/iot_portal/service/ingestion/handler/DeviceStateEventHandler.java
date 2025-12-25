@@ -4,6 +4,7 @@ import com.weili.iot_portal.common.enums.DeviceStateEnum;
 import com.weili.iot_portal.common.exception.IotPortalErrorCode;
 import com.weili.iot_portal.common.exception.IotPortalException;
 import com.weili.iot_portal.common.utils.DeviceStateUtils;
+import com.weili.iot_portal.common.utils.StateValidationResult;
 import com.weili.iot_portal.common.utils.WebhookTimestampUtils;
 import com.weili.iot_portal.dal.dataobject.device.DeviceStateRecordDO;
 import com.weili.iot_portal.dal.dataobject.ingestion.WebhookInboxDO;
@@ -26,7 +27,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 
-import static com.weili.iot_portal.service.ingestion.handler.WebhookHandlerUtils.DeviceIdentity;
+import com.weili.iot_portal.domain.ingestion.DeviceIdentity;
 
 /**
  * 设备状态事件处理器
@@ -141,10 +142,10 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
         String currentState = DeviceStateEnum.fromCode(currentStateCode).name();
 
         // convertStateCodeToName 已经处理了验证和转换，直接使用结果
-        DeviceStateUtils.StateValidationResult currentStateResult = new DeviceStateUtils.StateValidationResult(
+        StateValidationResult currentStateResult = new StateValidationResult(
                 currentState, false, null);
-        DeviceStateUtils.StateValidationResult previousStateResult = previousState != null
-                ? new DeviceStateUtils.StateValidationResult(previousState, false, null)
+        StateValidationResult previousStateResult = previousState != null
+                ? new StateValidationResult(previousState, false, null)
                 : null;
 
         // 提取时间戳
@@ -737,8 +738,8 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
             Integer previousStateCode,      // 数字编码（用于状态比较、数据库存储、缓存）
             Integer currentStateCode,       // 数字编码（用于状态比较、数据库存储、缓存）
             Long eventTimestamp,
-            DeviceStateUtils.StateValidationResult currentStateResult,
-            DeviceStateUtils.StateValidationResult previousStateResult
+            StateValidationResult currentStateResult,
+            StateValidationResult previousStateResult
     ) {}
 
 

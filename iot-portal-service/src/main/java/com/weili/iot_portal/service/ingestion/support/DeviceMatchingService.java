@@ -4,8 +4,8 @@ import com.weili.basic.common.util.JsonUtils;
 import com.weili.basic.redis.client.RedisClient;
 import com.weili.iot_portal.common.constant.RedisConstant;
 import com.weili.iot_portal.dal.dataobject.device.DeviceInfoDO;
+import com.weili.iot_portal.dal.cache.CachedDeviceInfo;
 import com.weili.iot_portal.dal.repository.device.DeviceInfoRepository;
-import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -249,46 +249,5 @@ public class DeviceMatchingService {
         return String.format(RedisConstant.DEVICE_INFO_MATCH, deviceCode);
     }
 
-    /**
-     * 缓存的设备信息（只包含匹配所需的核心字段）
-     */
-    @Data
-    private static class CachedDeviceInfo {
-        private Long id;
-        private String deviceCode;
-        private String tbDeviceId;
-        private Long orgFactoryId;
-
-        /**
-         * 从 DeviceInfoDO 创建 CachedDeviceInfo
-         */
-        static CachedDeviceInfo fromDeviceInfoDO(DeviceInfoDO device) {
-            CachedDeviceInfo cached = new CachedDeviceInfo();
-            cached.setId(device.getId());
-            cached.setDeviceCode(device.getDeviceCode());
-            cached.setTbDeviceId(device.getTbDeviceId());
-            cached.setOrgFactoryId(device.getOrgFactoryId());
-            return cached;
-        }
-
-        /**
-         * 转换为 DeviceInfoDO
-         */
-        DeviceInfoDO toDeviceInfoDO() {
-            DeviceInfoDO device = new DeviceInfoDO();
-            device.setId(this.id);
-            device.setDeviceCode(this.deviceCode);
-            device.setTbDeviceId(this.tbDeviceId);
-            device.setOrgFactoryId(this.orgFactoryId);
-            return device;
-        }
-
-        /**
-         * 验证缓存数据是否有效
-         */
-        boolean isValid() {
-            return id != null && StringUtils.isNotBlank(deviceCode) && orgFactoryId != null;
-        }
-    }
 }
 
