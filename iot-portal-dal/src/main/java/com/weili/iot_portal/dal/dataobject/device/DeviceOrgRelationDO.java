@@ -63,11 +63,5 @@ public class DeviceOrgRelationDO extends BaseDO {
      * 是否启用（对应 is_active 列）
      */
     private Boolean isActive;
-
-    /**
-     * 排序号（越小越靠前，对应 sort_order 列）
-     */
-    private Integer sortOrder;
-
 }
 

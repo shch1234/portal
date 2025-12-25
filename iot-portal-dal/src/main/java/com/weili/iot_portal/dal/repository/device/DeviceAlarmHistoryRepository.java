@@ -1,6 +1,7 @@
 package com.weili.iot_portal.dal.repository.device;
 
 import com.weili.iot_portal.dal.dataobject.device.DeviceAlarmHistoryDO;
+import com.weili.iot_portal.domain.device.resp.AlarmManageRespVO;
 
 import java.util.List;
 
@@ -34,6 +35,17 @@ public interface DeviceAlarmHistoryRepository {
      * @return 记录总数
      */
     Long countByRange(Long deviceId, Long startTs, Long endTs);
+
+    /**
+     * 查询报警管理列表总数
+     */
+    Long countAlarmManageList(String deviceCode, String deviceType, Integer isActive, Long startTime, Long endTime);
+
+    /**
+     * 查询报警管理列表（分页）
+     */
+    List<AlarmManageRespVO> selectAlarmManageList(String deviceCode, String deviceType, Integer isActive,
+                                                   Long startTime, Long endTime, Integer offset, Integer limit);
 
     void insert(DeviceAlarmHistoryDO record);
 

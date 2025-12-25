@@ -3,13 +3,18 @@ package com.weili.iot_portal.service.device.impl;
 import com.weili.basic.common.model.PageResult;
 import com.weili.iot_portal.dal.dataobject.device.DeviceAlarmHistoryDO;
 import com.weili.iot_portal.dal.repository.device.DeviceAlarmHistoryRepository;
+import com.weili.iot_portal.domain.device.req.AlarmManageQueryReqVO;
 import com.weili.iot_portal.domain.device.req.DeviceAlarmHistoryQueryReqVO;
+import com.weili.iot_portal.domain.device.resp.AlarmManageRespVO;
 import com.weili.iot_portal.domain.device.resp.DeviceAlarmHistoryRespVO;
 import com.weili.iot_portal.service.device.IDeviceAlarmHistoryBizService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -25,7 +30,7 @@ public class DeviceAlarmHistoryBizService implements IDeviceAlarmHistoryBizServi
 
     @Override
     public DeviceAlarmHistoryRespVO getDeviceAlarmHistory(DeviceAlarmHistoryQueryReqVO queryReqVO) {
-        Long deviceId = queryReqVO.getDeviceInfoId();
+        Long deviceId = queryReqVO.getDeviceId();
         Long startTime = queryReqVO.getStartTime();
         Long endTime = queryReqVO.getEndTime();
         Integer pageNo = queryReqVO.getPageNo();
@@ -62,6 +67,43 @@ public class DeviceAlarmHistoryBizService implements IDeviceAlarmHistoryBizServi
                 .current(currentAlarm)
                 .historyList(historyPageResult)
                 .build();
+    }
+
+    @Override
+    public PageResult<AlarmManageRespVO> queryAlarmManageList(AlarmManageQueryReqVO queryReqVO) {
+        Integer pageNo = queryReqVO.getPageNo();
+        Integer pageSize = queryReqVO.getPageSize();
+        Integer offset = (pageNo - 1) * pageSize;
+
+        String deviceCode = queryReqVO.getDeviceCode();
+        String deviceType = queryReqVO.getDeviceType();
+        Integer isActive = queryReqVO.getIsActive();
+
+        // 将时间字符串转换为时间戳
+        Long startTime = convertToTimestamp(queryReqVO.getReportTimeStart());
+        Long endTime = convertToTimestamp(queryReqVO.getReportTimeEnd());
+
+        // 查询总数
+        Long total = deviceAlarmHistoryRepository.countAlarmManageList(
+                deviceCode, deviceType, isActive, startTime, endTime);
+
+        // 查询列表
+        List<AlarmManageRespVO> list = deviceAlarmHistoryRepository.selectAlarmManageList(
+                deviceCode, deviceType, isActive, startTime, endTime, offset, pageSize);
+
+        // 设置序号
+        for (int i = 0; i < list.size(); i++) {
+            list.get(i).setRowNum(offset + i + 1);
+        }
+
+        // 构建分页结果
+        PageResult<AlarmManageRespVO> result = new PageResult<>();
+        result.setTotal(total);
+        result.setPageNo(pageNo);
+        result.setPageSize(pageSize);
+        result.setList(list);
+
+        return result;
     }
 
     /**
@@ -166,5 +208,25 @@ public class DeviceAlarmHistoryBizService implements IDeviceAlarmHistoryBizServi
         }
 
         return sb.toString();
+    }
+
+    /**
+     * 将时间字符串转换为时间戳（毫秒）
+     *
+     * @param timeStr 时间字符串（格式：yyyy-MM-dd HH:mm:ss）
+     * @return 时间戳（毫秒），如果转换失败则返回null
+     */
+    private Long convertToTimestamp(String timeStr) {
+        if (!StringUtils.hasText(timeStr)) {
+            return null;
+        }
+
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+        try {
+            return sdf.parse(timeStr).getTime();
+        } catch (ParseException e) {
+            log.error("时间字符串转换失败: {}", timeStr, e);
+            return null;
+        }
     }
 }

@@ -45,11 +45,11 @@ public class DeviceModelRepositoryImpl implements DeviceModelRepository {
     @Override
     public PageResult<DeviceModelDO> selectPage(DeviceModelPageQuery query) {
         LambdaQueryWrapper<DeviceModelDO> wrapper = new LambdaQueryWrapper<>();
-        if (StringUtils.isNotBlank(query.getModelCodeLike())) {
-            wrapper.like(DeviceModelDO::getModelCode, query.getModelCodeLike());
+        if (StringUtils.isNotBlank(query.getModelCode())) {
+            wrapper.like(DeviceModelDO::getModelCode, query.getModelCode());
         }
-        if (StringUtils.isNotBlank(query.getModelNameLike())) {
-            wrapper.like(DeviceModelDO::getModelName, query.getModelNameLike());
+        if (StringUtils.isNotBlank(query.getModelName())) {
+            wrapper.like(DeviceModelDO::getModelName, query.getModelName());
         }
         if (query.getDeviceTypeCodes() != null && !query.getDeviceTypeCodes().isEmpty()) {
             wrapper.in(DeviceModelDO::getDeviceTypeCode, query.getDeviceTypeCodes());

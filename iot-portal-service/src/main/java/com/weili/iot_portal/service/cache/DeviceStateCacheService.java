@@ -18,7 +18,12 @@ import java.util.Map;
  * <p>
  * 设备当前运行的状态和心跳
  * </p>
- *
+ * {
+ *   "state": "0",
+ *   "updatedAt": "1731470400000",
+ *   "source": "TB",
+ *   "traceId": "msg-abc123"
+ * }
  * @author luying
  */
 @Slf4j

@@ -10,9 +10,9 @@ import java.util.List;
 @Data
 public class DeviceModelPageQuery {
 
-    private String modelCodeLike;
+    private String modelCode;
 
-    private String modelNameLike;
+    private String modelName;
 
     private List<String> deviceTypeCodes;
 

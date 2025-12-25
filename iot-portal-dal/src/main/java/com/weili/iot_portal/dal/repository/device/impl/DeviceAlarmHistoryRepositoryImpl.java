@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.weili.iot_portal.dal.dataobject.device.DeviceAlarmHistoryDO;
 import com.weili.iot_portal.dal.mapper.device.DeviceAlarmHistoryMapper;
 import com.weili.iot_portal.dal.repository.device.DeviceAlarmHistoryRepository;
+import com.weili.iot_portal.domain.device.resp.AlarmManageRespVO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
@@ -65,6 +66,17 @@ public class DeviceAlarmHistoryRepositoryImpl implements DeviceAlarmHistoryRepos
             wrapper.le(DeviceAlarmHistoryDO::getStartTs, endTs);
         }
         return mapper.selectCount(wrapper);
+    }
+
+    @Override
+    public Long countAlarmManageList(String deviceCode, String deviceType, Integer isActive, Long startTime, Long endTime) {
+        return mapper.countAlarmManageList(deviceCode, deviceType, isActive, startTime, endTime);
+    }
+
+    @Override
+    public List<AlarmManageRespVO> selectAlarmManageList(String deviceCode, String deviceType, Integer isActive,
+                                                          Long startTime, Long endTime, Integer offset, Integer limit) {
+        return mapper.selectAlarmManageList(deviceCode, deviceType, isActive, startTime, endTime, offset, limit);
     }
 
     @Override

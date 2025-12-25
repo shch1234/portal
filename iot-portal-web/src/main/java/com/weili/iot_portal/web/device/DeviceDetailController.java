@@ -45,8 +45,7 @@ public class DeviceDetailController {
     private IDeviceStateSummaryBizService deviceStateSummaryBizService;
     @Resource
     private IDeviceToolBizService deviceToolBizService;
-    @Resource
-    private IDeviceAlarmHistoryBizService deviceAlarmHistoryBizService;
+
     @Resource
     private IDeviceProgramBizService deviceProgramBizService;
 
@@ -78,12 +77,6 @@ public class DeviceDetailController {
         return CommonResult.success(result);
     }
 
-    @GetMapping("/alarm-history")
-    @Operation(summary = "获取设备告警历史列表， 包括当前告警记录")
-    public CommonResult<DeviceAlarmHistoryRespVO> getDeviceAlarmHistory(@Valid DeviceAlarmHistoryQueryReqVO queryReqVO) {
-        DeviceAlarmHistoryRespVO result = deviceAlarmHistoryBizService.getDeviceAlarmHistory(queryReqVO);
-        return CommonResult.success(result);
-    }
 
     @GetMapping("/program")
     @Operation(summary = "获取设备程序信息")

@@ -18,7 +18,7 @@ public class DeviceAlarmHistoryQueryReqVO extends PageParam {
 
     @NotNull(message = "设备ID不能为空")
     @Schema(description = "设备ID", required = true, example = "1234567890")
-    private Long deviceInfoId;
+    private Long deviceId;
 
     @Schema(description = "开始时间（yyyy-MM-dd HH:mm:ss格式）", example = "2024-11-13 08:00:00")
     @JsonDeserialize(using = TimestampLongDeserializer.class)

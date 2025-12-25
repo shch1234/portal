@@ -1,7 +1,9 @@
 package com.weili.iot_portal.service.device;
 
 import com.weili.basic.common.model.PageResult;
+import com.weili.iot_portal.domain.device.req.AlarmManageQueryReqVO;
 import com.weili.iot_portal.domain.device.req.DeviceAlarmHistoryQueryReqVO;
+import com.weili.iot_portal.domain.device.resp.AlarmManageRespVO;
 import com.weili.iot_portal.domain.device.resp.DeviceAlarmHistoryRespVO;
 
 /**
@@ -16,4 +18,12 @@ public interface IDeviceAlarmHistoryBizService {
      * @return 分页结果
      */
     DeviceAlarmHistoryRespVO getDeviceAlarmHistory(DeviceAlarmHistoryQueryReqVO queryReqVO);
+
+    /**
+     * 查询报警管理列表
+     *
+     * @param queryReqVO 查询请求参数
+     * @return 分页结果
+     */
+    PageResult<AlarmManageRespVO> queryAlarmManageList(AlarmManageQueryReqVO queryReqVO);
 }
