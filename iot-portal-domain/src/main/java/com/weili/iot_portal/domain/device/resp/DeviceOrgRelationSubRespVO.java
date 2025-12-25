@@ -3,47 +3,62 @@ package com.weili.iot_portal.domain.device.resp;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
-import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * 设备组织单元级联 Response VO
+ * 工厂级联 Response VO（工厂-车间-产线三层结构）
  */
-@Schema(description = "设备组织单元级联 Response VO")
+@Schema(description = "工厂级联 Response VO")
 @Data
 public class DeviceOrgRelationSubRespVO {
 
-    @Schema(description = "组织单元ID", requiredMode = Schema.RequiredMode.REQUIRED)
+    @Schema(description = "工厂ID", requiredMode = Schema.RequiredMode.REQUIRED)
     private String id;
 
-    @Schema(description = "组织单元编码", requiredMode = Schema.RequiredMode.REQUIRED)
+    @Schema(description = "工厂编码", requiredMode = Schema.RequiredMode.REQUIRED)
     private String unitCode;
 
-    @Schema(description = "组织单元名称", requiredMode = Schema.RequiredMode.REQUIRED)
+    @Schema(description = "工厂名称", requiredMode = Schema.RequiredMode.REQUIRED)
     private String unitName;
 
-    @Schema(description = "组织单元类型值", requiredMode = Schema.RequiredMode.REQUIRED)
-    private String unitTypeValue;
+    @Schema(description = "车间列表")
+    private List<WorkshopVO> workshops;
 
-    @Schema(description = "父级组织ID")
-    private String orgParentId;
+    /**
+     * 车间 VO
+     */
+    @Schema(description = "车间 VO")
+    @Data
+    public static class WorkshopVO {
 
-    @Schema(description = "层级路径")
-    private String path;
+        @Schema(description = "车间ID", requiredMode = Schema.RequiredMode.REQUIRED)
+        private String id;
 
-    @Schema(description = "描述信息")
-    private String description;
+        @Schema(description = "车间编码", requiredMode = Schema.RequiredMode.REQUIRED)
+        private String unitCode;
 
-    @Schema(description = "是否启用")
-    private Boolean isActive;
+        @Schema(description = "车间名称", requiredMode = Schema.RequiredMode.REQUIRED)
+        private String unitName;
 
-    @Schema(description = "创建时间", requiredMode = Schema.RequiredMode.REQUIRED)
-    private LocalDateTime createTime;
+        @Schema(description = "产线列表")
+        private List<ProductionLineVO> productionLines;
+    }
 
-    @Schema(description = "更新时间", requiredMode = Schema.RequiredMode.REQUIRED)
-    private LocalDateTime updateTime;
+    /**
+     * 产线 VO
+     */
+    @Schema(description = "产线 VO")
+    @Data
+    public static class ProductionLineVO {
 
-    @Schema(description = "子级组织单元列表")
-    private List<DeviceOrgRelationSubRespVO> children;
+        @Schema(description = "产线ID", requiredMode = Schema.RequiredMode.REQUIRED)
+        private String id;
+
+        @Schema(description = "产线编码", requiredMode = Schema.RequiredMode.REQUIRED)
+        private String unitCode;
+
+        @Schema(description = "产线名称", requiredMode = Schema.RequiredMode.REQUIRED)
+        private String unitName;
+    }
 }
 

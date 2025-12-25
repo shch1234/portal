@@ -119,35 +119,63 @@ public class DeviceOrgRelationBizService implements IDeviceOrgRelationBizService
             return Collections.emptyList();
         }
 
-        // 转换为VO
-        List<DeviceOrgRelationSubRespVO> allVOs = BeanUtils.toBean(allOrgRelations, DeviceOrgRelationSubRespVO.class);
+        // 按类型分组
+        Map<String, List<DeviceOrgRelationDO>> typeMap = allOrgRelations.stream()
+                .collect(Collectors.groupingBy(DeviceOrgRelationDO::getUnitTypeValue));
 
-        // 按父级ID分组
-        Map<String, List<DeviceOrgRelationSubRespVO>> parentIdMap = allVOs.stream()
-                .filter(vo -> StrUtil.isNotBlank(vo.getOrgParentId()))
-                .collect(Collectors.groupingBy(DeviceOrgRelationSubRespVO::getOrgParentId));
+        // 获取工厂、车间、产线列表
+        List<DeviceOrgRelationDO> factories = typeMap.getOrDefault("FACTORY", Collections.emptyList());
+        List<DeviceOrgRelationDO> workshops = typeMap.getOrDefault("WORKSHOP", Collections.emptyList());
+        List<DeviceOrgRelationDO> productionLines = typeMap.getOrDefault("PRODUCTION_LINE", Collections.emptyList());
 
-        // 找出所有根节点（工厂级别）并构建树
-        List<DeviceOrgRelationSubRespVO> rootNodes = allVOs.stream()
-                .filter(vo -> StrUtil.isBlank(vo.getOrgParentId()))
-                .collect(Collectors.toList());
+        // 按父级ID分组车间和产线
+        Map<String, List<DeviceOrgRelationDO>> workshopsByFactoryId = workshops.stream()
+                .filter(w -> StrUtil.isNotBlank(w.getOrgParentId()))
+                .collect(Collectors.groupingBy(DeviceOrgRelationDO::getOrgParentId));
 
-        // 为每个节点设置子节点
-        rootNodes.forEach(root -> buildTree(root, parentIdMap));
+        Map<String, List<DeviceOrgRelationDO>> productionLinesByWorkshopId = productionLines.stream()
+                .filter(p -> StrUtil.isNotBlank(p.getOrgParentId()))
+                .collect(Collectors.groupingBy(DeviceOrgRelationDO::getOrgParentId));
 
-        return rootNodes;
-    }
+        // 构建三层结构
+        List<DeviceOrgRelationSubRespVO> result = new ArrayList<>();
+        for (DeviceOrgRelationDO factory : factories) {
+            DeviceOrgRelationSubRespVO factoryVO = new DeviceOrgRelationSubRespVO();
+            factoryVO.setId(String.valueOf(factory.getId()));
+            factoryVO.setUnitCode(factory.getUnitCode());
+            factoryVO.setUnitName(factory.getUnitName());
 
-    /**
-     * 递归构建树结构
-     */
-    private void buildTree(DeviceOrgRelationSubRespVO parent, Map<String, List<DeviceOrgRelationSubRespVO>> parentIdMap) {
-        List<DeviceOrgRelationSubRespVO> children = parentIdMap.get(parent.getId());
-        if (CollectionUtils.isNotEmpty(children)) {
-            parent.setChildren(children);
-            // 递归处理子节点
-            children.forEach(child -> buildTree(child, parentIdMap));
+            // 获取该工厂下的车间列表
+            List<DeviceOrgRelationDO> factoryWorkshops = workshopsByFactoryId.getOrDefault(String.valueOf(factory.getId()), Collections.emptyList());
+            List<DeviceOrgRelationSubRespVO.WorkshopVO> workshopVOs = new ArrayList<>();
+
+            for (DeviceOrgRelationDO workshop : factoryWorkshops) {
+                DeviceOrgRelationSubRespVO.WorkshopVO workshopVO = new DeviceOrgRelationSubRespVO.WorkshopVO();
+                workshopVO.setId(String.valueOf(workshop.getId()));
+                workshopVO.setUnitCode(workshop.getUnitCode());
+                workshopVO.setUnitName(workshop.getUnitName());
+
+                // 获取该车间下的产线列表
+                List<DeviceOrgRelationDO> workshopProductionLines = productionLinesByWorkshopId.getOrDefault(String.valueOf(workshop.getId()), Collections.emptyList());
+                List<DeviceOrgRelationSubRespVO.ProductionLineVO> productionLineVOs = new ArrayList<>();
+
+                for (DeviceOrgRelationDO productionLine : workshopProductionLines) {
+                    DeviceOrgRelationSubRespVO.ProductionLineVO productionLineVO = new DeviceOrgRelationSubRespVO.ProductionLineVO();
+                    productionLineVO.setId(String.valueOf(productionLine.getId()));
+                    productionLineVO.setUnitCode(productionLine.getUnitCode());
+                    productionLineVO.setUnitName(productionLine.getUnitName());
+                    productionLineVOs.add(productionLineVO);
+                }
+
+                workshopVO.setProductionLines(productionLineVOs);
+                workshopVOs.add(workshopVO);
+            }
+
+            factoryVO.setWorkshops(workshopVOs);
+            result.add(factoryVO);
         }
+
+        return result;
     }
 
     /**
