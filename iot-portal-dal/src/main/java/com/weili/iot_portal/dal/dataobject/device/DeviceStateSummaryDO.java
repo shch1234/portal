@@ -112,7 +112,7 @@ public class DeviceStateSummaryDO implements Serializable {
     private Boolean isFinalized;
 
     /**
-     * 计算时间戳（秒，Unix时间戳，对应 calculated_time 列）
+     * 计算时间戳（毫秒，Unix时间戳，对应 calculated_time 列）
      */
     private Long calculatedTime;
 
@@ -128,7 +128,7 @@ public class DeviceStateSummaryDO implements Serializable {
     private BigDecimal dataCompleteness;
 
     /**
-     * 缺失数据时长（秒，对应 missing_data_s 列）
+     * 缺失数据时长（毫秒，对应 missing_data_s 列）
      */
     private Integer missingDataS;
 }

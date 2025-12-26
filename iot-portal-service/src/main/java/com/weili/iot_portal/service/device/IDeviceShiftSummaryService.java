@@ -21,10 +21,10 @@ public interface IDeviceShiftSummaryService {
      * 检查班次是否应该被统计
      *
      * @param shiftRange           班次时间范围
-     * @param statisticsTimeSeconds 统计时间点（秒）
+     * @param statisticsTimeMillis 统计时间点（毫秒）
      * @return true-应该统计，false-跳过
      */
-    boolean shouldProcessShift(ShiftTimeRange shiftRange, long statisticsTimeSeconds);
+    boolean shouldProcessShift(ShiftTimeRange shiftRange, long statisticsTimeMillis);
 
 
     /**
@@ -33,7 +33,7 @@ public interface IDeviceShiftSummaryService {
      *
      * @param factoryId            工厂ID
      * @param devices              设备列表
-     * @param statisticsTimeSeconds 统计时间点（秒）
+     * @param statisticsTimeMillis 统计时间点（毫秒）
      * @param batchSize             批处理大小
      * @param timeoutMillis         超时时间（毫秒）
      * @return 处理结果
@@ -41,7 +41,7 @@ public interface IDeviceShiftSummaryService {
     BatchProcessResult processFactoryDevicesWithCheckpoint(
             Long factoryId,
             List<DeviceInfoDO> devices,
-            long statisticsTimeSeconds,
+            long statisticsTimeMillis,
             int batchSize,
             long timeoutMillis);
 
@@ -49,7 +49,7 @@ public interface IDeviceShiftSummaryService {
      * 处理全部设备的班次汇总（带检查点，内部按工厂分组+分批）
      */
     BatchProcessResult processAllDevicesWithCheckpoint(
-            long statisticsTimeSeconds,
+            long statisticsTimeMillis,
             int batchSize,
             long timeoutMillis);
 
@@ -58,12 +58,12 @@ public interface IDeviceShiftSummaryService {
      * 包含：查询配置、计算班次、查询数据、计算统计、保存汇总
      *
      * @param device                设备信息
-     * @param statisticsTimeSeconds 统计时间点（秒）
+     * @param statisticsTimeMillis 统计时间点（毫秒）
      * @return 处理结果
      */
     ProcessResult processDeviceShiftComplete(
             DeviceInfoDO device,
-            long statisticsTimeSeconds);
+            long statisticsTimeMillis);
 
     /**
      * 处理单个设备的班次统计（仅保存汇总）

@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 import java.time.*;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Optional;
 
 import static com.weili.iot_portal.common.exception.IotPortalErrorCode.SHIFT_CONFIG_EMPTY;
 
@@ -99,9 +100,13 @@ public class ShiftCalculationService implements IShiftCalculationService {
         long startTs = shiftStart.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
         long endTs = shiftEnd.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
 
+        // 计算班次日期：对于跨天班次，使用开始时间所在的日期；对于不跨天班次，使用开始时间所在的日期（与结束时间相同）
+        LocalDate calculatedShiftDate = shiftStart.toLocalDate();
+
         return ShiftTimeRange.builder()
                 .shiftCode(shift.getCode())
                 .shiftName(shift.getName())
+                .shiftDate(calculatedShiftDate)
                 .startTs(startTs)
                 .endTs(endTs)
                 .durationMs(endTs - startTs)
@@ -280,18 +285,18 @@ public class ShiftCalculationService implements IShiftCalculationService {
      *
      * @param factoryId            工厂ID
      * @param deviceId             设备ID
-     * @param statisticsTimeSeconds 统计时间点（秒）
+     * @param statisticsTimeMillis 统计时间点（毫秒）
      * @return 前一个班次的时间范围，如果无法计算则返回null
      */
     @Override
     public ShiftTimeRange calculatePreviousShiftRange(
             Long factoryId,
             Long deviceId,
-            long statisticsTimeSeconds) {
+            long statisticsTimeMillis) {
         try {
             // 获取当前时间点的班次
             ShiftTimeRange currentShift = calculateShiftRange(
-                    factoryId, deviceId, statisticsTimeSeconds * 1000L);
+                    factoryId, deviceId, statisticsTimeMillis);
 
             // 计算前一个班次
             // 前一个班次的结束时间 = 当前班次的开始时间
@@ -356,12 +361,17 @@ public class ShiftCalculationService implements IShiftCalculationService {
                     // 计算开始时间
                     LocalTime shiftStartTime = LocalTime.parse(shift.getStartTime(), TIME_FORMATTER);
                     LocalDateTime shiftStart;
+                    LocalDate calculatedShiftDate;
 
                     if (Boolean.TRUE.equals(shift.getCrossDay())) {
                         // 跨天班次：开始时间是前一天
                         shiftStart = shiftDate.minusDays(1).atTime(shiftStartTime);
+                        // 跨天班次的日期应该是开始时间所在的日期
+                        calculatedShiftDate = shiftStart.toLocalDate();
                     } else {
                         shiftStart = shiftDate.atTime(shiftStartTime);
+                        // 不跨天班次的日期就是结束时间所在的日期（与开始时间相同）
+                        calculatedShiftDate = shiftDate;
                     }
 
                     long startTs = shiftStart.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
@@ -369,6 +379,7 @@ public class ShiftCalculationService implements IShiftCalculationService {
                     return ShiftTimeRange.builder()
                             .shiftCode(shift.getCode())
                             .shiftName(shift.getName())
+                            .shiftDate(calculatedShiftDate)
                             .startTs(startTs)
                             .endTs(endTsMillis)
                             .durationMs(endTsMillis - startTs)
@@ -384,6 +395,51 @@ public class ShiftCalculationService implements IShiftCalculationService {
                     factoryId, deviceId, e.getMessage());
             return null;
         }
+    }
+
+    /**
+     * 计算并验证班次时间范围
+     * 根据参考时间戳计算班次时间范围，并验证是否与预期的班次日期和编码匹配
+     * 
+     * @param factoryId 工厂ID
+     * @param deviceId 设备ID
+     * @param referenceTimeMillis 参考时间戳（毫秒）
+     * @param expectedShiftDate 预期的班次日期
+     * @param expectedShiftCode 预期的班次编码
+     * @return 班次时间范围，如果不匹配则返回empty
+     */
+    @Override
+    public Optional<ShiftTimeRange> calculateAndValidateShiftRange(
+            Long factoryId,
+            Long deviceId,
+            long referenceTimeMillis,
+            LocalDate expectedShiftDate,
+            Integer expectedShiftCode) {
+        
+        // 1. 根据参考时间戳计算班次时间范围
+        ShiftTimeRange shiftRange = calculateShiftRange(factoryId, deviceId, referenceTimeMillis);
+        
+        if (shiftRange == null) {
+            log.warn("无法计算班次时间范围: factoryId={}, deviceId={}, referenceTimeMillis={}",
+                    factoryId, deviceId, referenceTimeMillis);
+            return Optional.empty();
+        }
+        
+        // 2. 验证计算出的班次日期和编码是否与预期匹配
+        LocalDate calculatedShiftDate = shiftRange.getShiftDate();
+        Integer calculatedShiftCode = shiftRange.getShiftCode();
+        
+        if (!expectedShiftDate.equals(calculatedShiftDate) || 
+            !expectedShiftCode.equals(calculatedShiftCode)) {
+            log.warn("班次日期或编码不匹配: factoryId={}, deviceId={}, " +
+                    "expected=({}, {}), calculated=({}, {})",
+                    factoryId, deviceId,
+                    expectedShiftDate, expectedShiftCode,
+                    calculatedShiftDate, calculatedShiftCode);
+            return Optional.empty();
+        }
+        
+        return Optional.of(shiftRange);
     }
 }
 

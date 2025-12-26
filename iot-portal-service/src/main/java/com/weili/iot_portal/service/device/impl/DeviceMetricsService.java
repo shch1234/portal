@@ -224,53 +224,59 @@ public class DeviceMetricsService implements IDeviceMetricsService {
             return;
         }
 
-        long shiftStartSec = shift.getStartTs() / 1000;
-        long shiftEndSec = (shift.getEndTs() != null ? shift.getEndTs() : nowMs) / 1000;
+        long shiftStartMillis = shift.getStartTs();
+        long shiftEndMillis = shift.getEndTs() != null ? shift.getEndTs() : nowMs;
 
-        // 获取计划停机时间
+        // 获取计划停机时间（秒）
         long plannedDowntime = getPlannedDowntimeSeconds(deviceId);
-        long shiftDuration = Math.max(0, shiftEndSec - shiftStartSec);
-        long plannedRuntime = Math.max(0, shiftDuration - plannedDowntime);
+        // 转换为毫秒进行计算
+        long shiftDurationMillis = Math.max(0, shiftEndMillis - shiftStartMillis);
+        long plannedRuntimeMillis = Math.max(0, shiftDurationMillis - plannedDowntime * 1000);
 
-        // 汇总状态持续时间
-        Map<String, Long> stateDurations = sumStateDurations(deviceId, shiftStartSec, shiftEndSec, nowMs / 1000);
-        long workingDuration = stateDurations.getOrDefault(DeviceStateEnum.WORKING.name(), 0L);
-        long faultDuration = stateDurations.getOrDefault(DeviceStateEnum.FAULT.name(), 0L);
-        long unplannedDowntime = stateDurations.getOrDefault(DeviceStateEnum.STANDBY.name(), 0L)
-                + faultDuration
+        // 汇总状态持续时间（使用毫秒）
+        Map<String, Long> stateDurations = sumStateDurations(deviceId, shiftStartMillis, shiftEndMillis, nowMs);
+        long workingDurationMillis = stateDurations.getOrDefault(DeviceStateEnum.WORKING.name(), 0L);
+        long faultDurationMillis = stateDurations.getOrDefault(DeviceStateEnum.FAULT.name(), 0L);
+        long unplannedDowntimeMillis = stateDurations.getOrDefault(DeviceStateEnum.STANDBY.name(), 0L)
+                + faultDurationMillis
                 + stateDurations.getOrDefault(DeviceStateEnum.SHUTDOWN.name(), 0L);
-        long actualRuntime = Math.max(0, plannedRuntime - unplannedDowntime);
+        long actualRuntimeMillis = Math.max(0, plannedRuntimeMillis - unplannedDowntimeMillis);
 
         // 获取实际产量和理论周期
-        long actualOutput = deviceProductionRecordRepository.countCompletedInRange(deviceId, shiftStartSec, shiftEndSec);
+        // countCompletedInRange 方法需要秒单位，所以需要转换
+        long actualOutput = deviceProductionRecordRepository.countCompletedInRange(deviceId, shiftStartMillis / 1000, shiftEndMillis / 1000);
         long theoreticalCycle = getTheoreticalCycleSeconds(deviceId);
 
-        // 计算时间开动率（Uptime Rate）
-        BigDecimal uptimeRate = plannedRuntime == 0
+        // 计算时间开动率（Uptime Rate）- 所有时长都是毫秒，计算时转换为秒
+        long plannedRuntimeSec = plannedRuntimeMillis / 1000;
+        long actualRuntimeSec = actualRuntimeMillis / 1000;
+        BigDecimal uptimeRate = plannedRuntimeSec == 0
                 ? BigDecimal.ZERO
-                : BigDecimal.valueOf(actualRuntime)
-                .divide(BigDecimal.valueOf(plannedRuntime), 4, RoundingMode.HALF_UP)
+                : BigDecimal.valueOf(actualRuntimeSec)
+                .divide(BigDecimal.valueOf(plannedRuntimeSec), 4, RoundingMode.HALF_UP)
                 .multiply(BigDecimal.valueOf(100));
 
         // 计算性能率（Performance Rate）
-        BigDecimal performanceRate = (actualRuntime == 0 || theoreticalCycle <= 0 || actualOutput <= 0)
+        BigDecimal performanceRate = (actualRuntimeSec == 0 || theoreticalCycle <= 0 || actualOutput <= 0)
                 ? BigDecimal.ZERO
                 : BigDecimal.valueOf(actualOutput)
                 .multiply(BigDecimal.valueOf(theoreticalCycle))
-                .divide(BigDecimal.valueOf(actualRuntime), 4, RoundingMode.HALF_UP)
+                .divide(BigDecimal.valueOf(actualRuntimeSec), 4, RoundingMode.HALF_UP)
                 .multiply(BigDecimal.valueOf(100));
 
         // 计算可用率（Availability Rate）
-        long elapsedCalendar = Math.max(1, (nowMs / 1000) - shiftStartSec);
-        BigDecimal availabilityRate = BigDecimal.valueOf(workingDuration)
-                .divide(BigDecimal.valueOf(elapsedCalendar), 4, RoundingMode.HALF_UP)
+        long elapsedCalendarSec = Math.max(1, (nowMs / 1000) - (shiftStartMillis / 1000));
+        long workingDurationSec = workingDurationMillis / 1000;
+        BigDecimal availabilityRate = BigDecimal.valueOf(workingDurationSec)
+                .divide(BigDecimal.valueOf(elapsedCalendarSec), 4, RoundingMode.HALF_UP)
                 .multiply(BigDecimal.valueOf(100));
 
         // 计算故障率（Fault Rate）
-        BigDecimal faultRate = plannedRuntime == 0
+        long faultDurationSec = faultDurationMillis / 1000;
+        BigDecimal faultRate = plannedRuntimeSec == 0
                 ? BigDecimal.ZERO
-                : BigDecimal.valueOf(faultDuration)
-                .divide(BigDecimal.valueOf(plannedRuntime), 4, RoundingMode.HALF_UP)
+                : BigDecimal.valueOf(faultDurationSec)
+                .divide(BigDecimal.valueOf(plannedRuntimeSec), 4, RoundingMode.HALF_UP)
                 .multiply(BigDecimal.valueOf(100));
 
         // 计算OEE（Overall Equipment Effectiveness）
@@ -299,9 +305,15 @@ public class DeviceMetricsService implements IDeviceMetricsService {
 
     /**
      * 汇总状态持续时间
+     * 
+     * @param deviceId 设备ID
+     * @param startMillis 开始时间（毫秒）
+     * @param endMillis 结束时间（毫秒）
+     * @param nowMillis 当前时间（毫秒）
+     * @return 状态持续时长Map，key为状态名称，value为持续时长（毫秒）
      */
-    private Map<String, Long> sumStateDurations(Long deviceId, long startSec, long endSec, long nowSec) {
-        List<DeviceStateRecordDO> timelines = deviceStateRecordRepository.selectByRange(deviceId, startSec, endSec);
+    private Map<String, Long> sumStateDurations(Long deviceId, long startMillis, long endMillis, long nowMillis) {
+        List<DeviceStateRecordDO> timelines = deviceStateRecordRepository.selectByRange(deviceId, startMillis, endMillis);
         Map<String, Long> result = new HashMap<>();
         for (DeviceStateRecordDO t : timelines) {
             Integer stateCode = t.getStateCode();
@@ -311,8 +323,8 @@ public class DeviceMetricsService implements IDeviceMetricsService {
             // 将数字编码转换为状态名称
             DeviceStateEnum stateEnum = DeviceStateEnum.fromCode(stateCode);
             String state = stateEnum.name();
-            long segStart = Math.max(startSec, t.getStartTs());
-            long segEnd = Math.min(endSec, t.getEndTs() != null ? t.getEndTs() : nowSec);
+            long segStart = Math.max(startMillis, t.getStartTs());
+            long segEnd = Math.min(endMillis, t.getEndTs() != null ? t.getEndTs() : nowMillis);
             if (segEnd > segStart) {
                 long dur = segEnd - segStart;
                 result.merge(state.toUpperCase(), dur, Long::sum);

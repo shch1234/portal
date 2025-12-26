@@ -49,13 +49,14 @@ public class DeviceStateSummaryJob extends BaseScheduledJob {
 
     @Override
     protected JobExecutionResult executeInternal() throws Exception {
-        long statisticsTimeSeconds = System.currentTimeMillis() / 1000;
+        // 直接使用毫秒，统一时间单位
+        long statisticsTimeMillis = System.currentTimeMillis();
 
-        XxlJobHelper.log("统计时间点: {}", Instant.ofEpochSecond(statisticsTimeSeconds));
+        XxlJobHelper.log("统计时间点: {}", Instant.ofEpochMilli(statisticsTimeMillis));
 
         BatchProcessResult result =
                 shiftSummaryService.processAllDevicesWithCheckpoint(
-                        statisticsTimeSeconds,
+                        statisticsTimeMillis,
                         config.getBatchSize(),
                         config.getTimeoutMillis());
 

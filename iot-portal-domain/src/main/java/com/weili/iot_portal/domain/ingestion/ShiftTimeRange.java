@@ -5,6 +5,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDate;
+
 /**
  * 班次时间范围
  */
@@ -23,6 +25,13 @@ public class ShiftTimeRange {
      * 班次名称
      */
     private String shiftName;
+
+    /**
+     * 班次日期
+     * 对于跨天班次，使用开始时间所在的日期
+     * 对于不跨天班次，使用结束时间所在的日期（与开始时间相同）
+     */
+    private LocalDate shiftDate;
 
     /**
      * 班次开始时间戳（毫秒）
