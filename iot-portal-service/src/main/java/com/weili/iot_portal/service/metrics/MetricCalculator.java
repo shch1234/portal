@@ -51,8 +51,8 @@ public class MetricCalculator {
         // 2. 性能开动率（Performance Rate）
         BigDecimal performance = calculatePerformance(context);
         
-        // 3. 设备开动率（设备利用率）
-        BigDecimal utilizationRate = calculateUtilizationRate(context);
+        // 3. 设备开动率（设备利用率/可用率）
+        BigDecimal utilizationRate = calculateAvailabilityRate(context);
         
         // 4. 故障率
         BigDecimal faultRatePercent = calculateFaultRate(context);
@@ -168,11 +168,41 @@ public class MetricCalculator {
      * @return 设备开动率（0-1之间的小数），如果班次时长为0则返回0
      */
     public static BigDecimal calculateUtilizationRate(MetricCalculationContext context) {
-        if (context.getShiftDurationMillis() == 0) {
+        return calculateAvailabilityRate(context);
+    }
+    
+    /**
+     * 计算可用率（Availability Rate）
+     * <p>
+     * 公式：可用率 = 加工时长 / 分母时长
+     * <p>
+     * 说明：
+     * <ul>
+     *   <li>如果 context.getAvailabilityDenominatorMillis() > 0，使用自定义分母</li>
+     *   <li>否则，使用班次时长作为分母</li>
+     *   <li>衡量设备在指定时长内，实际用于加工的时间比例</li>
+     * </ul>
+     * <p>
+     * 使用场景：
+     * <ul>
+     *   <li>班次指标汇总：使用班次时长（默认）</li>
+     *   <li>实时指标计算：使用已过日历时长（通过 availabilityDenominatorMillis 参数传递）</li>
+     * </ul>
+     *
+     * @param context 计算上下文
+     * @return 可用率（0-1之间的小数），如果分母时长为0则返回0
+     */
+    public static BigDecimal calculateAvailabilityRate(MetricCalculationContext context) {
+        // 如果设置了自定义分母，使用自定义分母；否则使用班次时长
+        long denominatorMillis = context.getAvailabilityDenominatorMillis() > 0 
+                ? context.getAvailabilityDenominatorMillis() 
+                : context.getShiftDurationMillis();
+        
+        if (denominatorMillis == 0) {
             return BigDecimal.ZERO;
         }
         return BigDecimal.valueOf(context.getWorkingMillis())
-                .divide(BigDecimal.valueOf(context.getShiftDurationMillis()), 4, RoundingMode.HALF_UP);
+                .divide(BigDecimal.valueOf(denominatorMillis), 4, RoundingMode.HALF_UP);
     }
     
     /**

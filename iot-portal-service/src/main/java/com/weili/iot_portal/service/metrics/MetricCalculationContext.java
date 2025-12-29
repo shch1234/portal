@@ -82,12 +82,37 @@ public class MetricCalculationContext {
      */
     private final long theoreticalCycleSeconds;
     
+    /**
+     * 可用率计算的分母（毫秒），可选参数
+     * <p>
+     * 如果为0或未设置，默认使用班次时长（shiftDurationMillis）
+     * <p>
+     * 使用场景：
+     * <ul>
+     *   <li>班次指标汇总：使用班次时长（默认）</li>
+     *   <li>实时指标计算：使用已过日历时长</li>
+     * </ul>
+     */
+    private final long availabilityDenominatorMillis;
+    
     public MetricCalculationContext(long shiftDurationMillis, long plannedDowntimeSeconds,
                                    long plannedDowntimeMillis, long plannedRuntimeMillis,
                                    long standbyMillis, long faultMillis, long shutdownMillis,
                                    long workingMillis, long unplannedDowntimeMillis,
                                    long actualRuntimeMillis, long actualOutput,
                                    long qualifiedOutput, long theoreticalCycleSeconds) {
+        this(shiftDurationMillis, plannedDowntimeSeconds, plannedDowntimeMillis, plannedRuntimeMillis,
+                standbyMillis, faultMillis, shutdownMillis, workingMillis, unplannedDowntimeMillis,
+                actualRuntimeMillis, actualOutput, qualifiedOutput, theoreticalCycleSeconds, 0L);
+    }
+    
+    public MetricCalculationContext(long shiftDurationMillis, long plannedDowntimeSeconds,
+                                   long plannedDowntimeMillis, long plannedRuntimeMillis,
+                                   long standbyMillis, long faultMillis, long shutdownMillis,
+                                   long workingMillis, long unplannedDowntimeMillis,
+                                   long actualRuntimeMillis, long actualOutput,
+                                   long qualifiedOutput, long theoreticalCycleSeconds,
+                                   long availabilityDenominatorMillis) {
         this.shiftDurationMillis = shiftDurationMillis;
         this.plannedDowntimeSeconds = plannedDowntimeSeconds;
         this.plannedDowntimeMillis = plannedDowntimeMillis;
@@ -101,6 +126,7 @@ public class MetricCalculationContext {
         this.actualOutput = actualOutput;
         this.qualifiedOutput = qualifiedOutput;
         this.theoreticalCycleSeconds = theoreticalCycleSeconds;
+        this.availabilityDenominatorMillis = availabilityDenominatorMillis;
     }
     
     // Getters
@@ -117,5 +143,6 @@ public class MetricCalculationContext {
     public long getActualOutput() { return actualOutput; }
     public long getQualifiedOutput() { return qualifiedOutput; }
     public long getTheoreticalCycleSeconds() { return theoreticalCycleSeconds; }
+    public long getAvailabilityDenominatorMillis() { return availabilityDenominatorMillis; }
 }
 

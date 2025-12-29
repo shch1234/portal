@@ -62,6 +62,19 @@ public class DeviceProductionRecordRepositoryImpl implements DeviceProductionRec
         }
         return mapper.selectCount(wrapper);
     }
+
+    @Override
+    public List<Long> findDistinctDeviceIdsWithProductionRecords(long startTsSeconds, long endTsSeconds) {
+        LambdaQueryWrapper<DeviceProductionRecordDO> wrapper = new LambdaQueryWrapper<>();
+        wrapper.select(DeviceProductionRecordDO::getDeviceInfoId)
+                .isNotNull(DeviceProductionRecordDO::getEndTs)
+                .ge(DeviceProductionRecordDO::getEndTs, startTsSeconds)
+                .le(DeviceProductionRecordDO::getEndTs, endTsSeconds);
+        return mapper.selectList(wrapper).stream()
+                .map(DeviceProductionRecordDO::getDeviceInfoId)
+                .distinct()
+                .collect(java.util.stream.Collectors.toList());
+    }
 }
 
 

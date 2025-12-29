@@ -63,10 +63,75 @@ public class DeviceMetricSummaryRepositoryImpl implements DeviceMetricSummaryRep
         wrapper.eq(DeviceMetricSummaryDO::getDeviceInfoId, deviceId)
                 .eq(DeviceMetricSummaryDO::getIsFinalized, Boolean.TRUE);
         if (endTs != null) {
-            wrapper.le(DeviceMetricSummaryDO::getShiftEndTs, endTs);
+            long endTsMillis = endTs * 1000L;
+            wrapper.le(DeviceMetricSummaryDO::getShiftEndTs, endTsMillis);
         }
         wrapper.orderByAsc(DeviceMetricSummaryDO::getShiftEndTs);
         return mapper.selectList(wrapper);
+    }
+
+    @Override
+    public java.util.List<DeviceMetricSummaryDO> selectFinalizedInRange(Long deviceId, Long startTs, Long endTs) {
+        LambdaQueryWrapper<DeviceMetricSummaryDO> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(DeviceMetricSummaryDO::getDeviceInfoId, deviceId)
+                .eq(DeviceMetricSummaryDO::getIsFinalized, Boolean.TRUE);
+        if (startTs != null) {
+            long startTsMillis = startTs * 1000L;
+            wrapper.ge(DeviceMetricSummaryDO::getShiftEndTs, startTsMillis);
+        }
+        if (endTs != null) {
+            long endTsMillis = endTs * 1000L;
+            wrapper.le(DeviceMetricSummaryDO::getShiftEndTs, endTsMillis);
+        }
+        wrapper.orderByAsc(DeviceMetricSummaryDO::getShiftEndTs);
+        return mapper.selectList(wrapper);
+    }
+
+    @Override
+    public java.util.List<Long> findDistinctDeviceIdsWithFinalizedSummaries(Long startTs, Long endTs) {
+        LambdaQueryWrapper<DeviceMetricSummaryDO> wrapper = new LambdaQueryWrapper<>();
+        wrapper.select(DeviceMetricSummaryDO::getDeviceInfoId)
+                .eq(DeviceMetricSummaryDO::getIsFinalized, Boolean.TRUE);
+        if (startTs != null) {
+            long startTsMillis = startTs * 1000L;
+            wrapper.ge(DeviceMetricSummaryDO::getShiftEndTs, startTsMillis);
+        }
+        if (endTs != null) {
+            long endTsMillis = endTs * 1000L;
+            wrapper.le(DeviceMetricSummaryDO::getShiftEndTs, endTsMillis);
+        }
+        return mapper.selectList(wrapper).stream()
+                .map(DeviceMetricSummaryDO::getDeviceInfoId)
+                .distinct()
+                .collect(java.util.stream.Collectors.toList());
+    }
+
+    @Override
+    public java.util.Map<Long, java.util.List<DeviceMetricSummaryDO>> selectFinalizedInRangeBatch(
+            java.util.List<Long> deviceIds, Long startTs, Long endTs) {
+        if (deviceIds == null || deviceIds.isEmpty()) {
+            return new java.util.HashMap<>();
+        }
+        
+        LambdaQueryWrapper<DeviceMetricSummaryDO> wrapper = new LambdaQueryWrapper<>();
+        wrapper.in(DeviceMetricSummaryDO::getDeviceInfoId, deviceIds)
+                .eq(DeviceMetricSummaryDO::getIsFinalized, Boolean.TRUE);
+        if (startTs != null) {
+            long startTsMillis = startTs * 1000L;
+            wrapper.ge(DeviceMetricSummaryDO::getShiftEndTs, startTsMillis);
+        }
+        if (endTs != null) {
+            long endTsMillis = endTs * 1000L;
+            wrapper.le(DeviceMetricSummaryDO::getShiftEndTs, endTsMillis);
+        }
+        wrapper.orderByAsc(DeviceMetricSummaryDO::getDeviceInfoId)
+                .orderByAsc(DeviceMetricSummaryDO::getShiftEndTs);
+        
+        java.util.List<DeviceMetricSummaryDO> allRecords = mapper.selectList(wrapper);
+        
+        // 按设备ID分组
+        return allRecords.stream()
+                .collect(java.util.stream.Collectors.groupingBy(DeviceMetricSummaryDO::getDeviceInfoId));
     }
 
     @Override
