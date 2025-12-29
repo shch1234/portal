@@ -90,8 +90,6 @@ public class DeviceProductionSummaryDO implements Serializable {
      * 计算时间戳（秒，Unix时间戳，对应 calculated_time 列）
      */
     private Long calculatedTime;
-
-    public LocalDateTime createTime;
 }
 
 

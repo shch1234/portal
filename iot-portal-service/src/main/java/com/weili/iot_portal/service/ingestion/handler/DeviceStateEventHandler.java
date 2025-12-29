@@ -358,7 +358,7 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
 
         Long oldStartTs = latestState.getStartTs();
         Long newEndTs = eventData.eventTimestamp();
-
+        
         // 检查更新后是否跨班次
         boolean crossesShift = shiftCalculationService.checkIfCrossesShift(
                 orgFactoryId, latestState.getDeviceInfoId(), oldStartTs, newEndTs);
@@ -392,13 +392,13 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
             latestState.setEndTs(newEndTs);
             if (oldStartTs != null) {
                 latestState.setDurationS(newEndTs - oldStartTs);
-            }
-            latestState.setIsComplete(true);
-            fillShiftInfoIfMissing(latestState, orgFactoryId);
-
-            stateTimelineRepository.update(latestState);
-            log.debug("[DeviceStateEventHandler] 更新旧状态记录: 状态={}({}), endTs={}, durationS={}",
-                    latestStateEnum.name(), latestState.getStateCode(), latestState.getEndTs(), latestState.getDurationS());
+        }
+        latestState.setIsComplete(true);
+        fillShiftInfoIfMissing(latestState, orgFactoryId);
+        
+        stateTimelineRepository.update(latestState);
+        log.debug("[DeviceStateEventHandler] 更新旧状态记录: 状态={}({}), endTs={}, durationS={}",
+                latestStateEnum.name(), latestState.getStateCode(), latestState.getEndTs(), latestState.getDurationS());
         }
 
         // 插入新状态记录
@@ -701,9 +701,9 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
                         orgFactoryId, deviceInfoId, currentStartTs);
 
                 // 4. 创建记录
-                DeviceStateRecordDO record = new DeviceStateRecordDO();
-                record.setDeviceInfoId(deviceInfoId);
-                record.setOrgFactoryId(orgFactoryId);
+        DeviceStateRecordDO record = new DeviceStateRecordDO();
+        record.setDeviceInfoId(deviceInfoId);
+        record.setOrgFactoryId(orgFactoryId);
                 record.setStateCode(stateCode);
                 record.setStartTs(currentStartTs);
                 record.setEndTs(recordEndTs);
@@ -756,7 +756,7 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
         if (endTs != null && startTs != null) {
             record.setDurationS(endTs - startTs);
         }
-
+        
         // 计算 is_complete 字段
         if (endTs == null) {
             record.setIsComplete(false);
@@ -764,9 +764,9 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
             // 不跨班次的情况下，is_complete 由业务逻辑决定
             record.setIsComplete(isComplete);
         }
-
+        
         record.setProperties(properties);
-
+        
         // 设置班次信息
         if (startTs != null) {
             try {
@@ -778,7 +778,7 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
                         deviceInfoId, startTs, e.getMessage());
             }
         }
-
+        
         return record;
     }
 

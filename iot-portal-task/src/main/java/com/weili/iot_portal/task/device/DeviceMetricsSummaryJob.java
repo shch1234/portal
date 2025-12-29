@@ -37,15 +37,18 @@ public class DeviceMetricsSummaryJob extends BaseScheduledJob {
 
     @Override
     protected JobExecutionResult executeInternal() throws Exception {
-        long statisticsTimeSeconds = System.currentTimeMillis() / 1000;
+        long statisticsTimeMillis = System.currentTimeMillis();
 
-        XxlJobHelper.log("指标汇总统计时间点: {}", Instant.ofEpochSecond(statisticsTimeSeconds));
+        XxlJobHelper.log("指标汇总统计时间点: {}, 处理时间范围: {} 天, 数据就绪延迟: {} 小时", 
+                Instant.ofEpochMilli(statisticsTimeMillis), config.getLookbackDays(), config.getDataReadyDelayHours());
 
         BatchProcessResult result =
                 metricsSummaryService.processAllDevicesWithCheckpoint(
-                        statisticsTimeSeconds,
+                        statisticsTimeMillis,
                         config.getBatchSize(),
-                        config.getTimeoutMillis());
+                        config.getTimeoutMillis(),
+                        config.getLookbackDays(),
+                        config.getDataReadyDelayHours());
 
         return JobExecutionResult.of(
                 result.getSuccessCount(),

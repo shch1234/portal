@@ -377,8 +377,8 @@ public class DeviceShiftSummaryService implements IDeviceShiftSummaryService {
         // 兼容性处理：如果班次维度查询结果为空，回退到时间范围查询
         // 这可能发生在历史数据没有班次信息的情况下
         if (stateRecords.isEmpty() && shiftRange != null) {
-            log.warn("班次维度查询结果为空，回退到时间范围查询: deviceId={}, shiftDate={}, shiftCode={}",
-                    deviceId, shiftDate, shiftCode);
+            log.warn("班次维度查询结果为空，回退到时间范围查询: deviceId={}, shiftDate={}, shiftCode={}, shiftStartTs={}, shiftEndTs={}",
+                    deviceId, shiftDate, shiftCode, shiftRange.getStartTs(), shiftRange.getEndTs());
             stateRecords = stateRecordRepository.selectByRange(
                     deviceId,
                     shiftRange.getStartTs(),
@@ -388,6 +388,20 @@ public class DeviceShiftSummaryService implements IDeviceShiftSummaryService {
             if (stateRecords.isEmpty()) {
                 log.warn("时间范围查询结果也为空: deviceId={}, startTs={}, endTs={}",
                         deviceId, shiftRange.getStartTs(), shiftRange.getEndTs());
+            } else {
+                // 检查查询到的记录是否有异常（跨班次或时间范围过大）
+                long shiftDurationMillis = shiftRange.getEndTs() - shiftRange.getStartTs();
+                for (DeviceStateRecordDO record : stateRecords) {
+                    long recordStartTs = record.getStartTs() != null ? record.getStartTs() : shiftRange.getStartTs();
+                    long recordEndTs = record.getEndTs() != null ? record.getEndTs() : shiftRange.getEndTs();
+                    long recordDurationMillis = recordEndTs - recordStartTs;
+                    
+                    // 如果单条记录的时间范围远超过班次时长（超过2倍），记录警告
+                    if (recordDurationMillis > shiftDurationMillis * 2) {
+                        log.warn("查询到异常的状态记录（时间范围过大）: deviceId={}, recordId={}, recordStartTs={}, recordEndTs={}, recordDuration={}, shiftDuration={}, shiftDate={}, shiftCode={}",
+                                deviceId, record.getId(), recordStartTs, recordEndTs, recordDurationMillis, shiftDurationMillis, shiftDate, shiftCode);
+                    }
+                }
             }
         }
         
@@ -410,6 +424,16 @@ public class DeviceShiftSummaryService implements IDeviceShiftSummaryService {
             LocalDate shiftDate,
             List<DeviceStateRecordDO> stateRecords) {
         
+        // 检查状态记录是否为空
+        if (stateRecords == null || stateRecords.isEmpty()) {
+            log.warn("设备班次汇总: 状态记录为空，跳过处理: deviceId={}, shiftDate={}, shiftCode={}, startTs={}, endTs={}",
+                    device.getId(), shiftDate, shiftRange.getShiftCode(), shiftRange.getStartTs(), shiftRange.getEndTs());
+            return false;
+        }
+        
+        log.debug("设备班次汇总: 开始处理，deviceId={}, shiftDate={}, shiftCode={}, 状态记录数={}",
+                device.getId(), shiftDate, shiftRange.getShiftCode(), stateRecords.size());
+        
         // 1. 计算状态统计
         Map<String, StateStatistics> stateStats = stateStatisticsService.calculateStatistics(
                 stateRecords,
@@ -422,6 +446,11 @@ public class DeviceShiftSummaryService implements IDeviceShiftSummaryService {
 
         // 3. 保存或更新汇总记录
         ProcessResult result = processDeviceShift(device, shiftConfig, shiftRange, shiftDate, stateStats);
+        
+        if (!result.isProcessed()) {
+            log.debug("设备班次汇总: 处理失败，deviceId={}, shiftDate={}, shiftCode={}, reason={}",
+                    device.getId(), shiftDate, shiftRange.getShiftCode(), result.getSkipReason());
+        }
         
         return result.isProcessed();
     }
@@ -472,7 +501,7 @@ public class DeviceShiftSummaryService implements IDeviceShiftSummaryService {
                         processedDeviceIds.add(device.getId());
                     } else {
                         skipCount++;
-                        log.debug("跳过设备: factoryId={}, deviceId={}, reason={}",
+                        log.info("跳过设备: factoryId={}, deviceId={}, reason={}",
                                 factoryId, device.getId(), result.getSkipReason());
                     }
                 } catch (Exception e) {
@@ -666,10 +695,30 @@ public class DeviceShiftSummaryService implements IDeviceShiftSummaryService {
         summary.setShutdownDurationS((int) shutdown.durationSeconds);
         summary.setMissingDataS((int) missing.durationSeconds);
 
-        summary.setWorkingRatio(working.ratio);
-        summary.setStandbyRatio(standby.ratio);
-        summary.setFaultRatio(fault.ratio);
-        summary.setShutdownRatio(shutdown.ratio);
+        // 确保比例值在 0-1 范围内，防止数据库溢出
+        summary.setWorkingRatio(clampRatio(working.ratio));
+        summary.setStandbyRatio(clampRatio(standby.ratio));
+        summary.setFaultRatio(clampRatio(fault.ratio));
+        summary.setShutdownRatio(clampRatio(shutdown.ratio));
+    }
+
+    /**
+     * 限制比例值在 0-1 范围内
+     */
+    private BigDecimal clampRatio(BigDecimal ratio) {
+        if (ratio == null) {
+            return BigDecimal.ZERO;
+        }
+        // 如果比例值超过 1，限制为 1；如果小于 0，限制为 0
+        if (ratio.compareTo(BigDecimal.ONE) > 0) {
+            log.warn("比例值超过1，已限制为1: ratio={}", ratio);
+            return BigDecimal.ONE;
+        }
+        if (ratio.compareTo(BigDecimal.ZERO) < 0) {
+            log.warn("比例值小于0，已限制为0: ratio={}", ratio);
+            return BigDecimal.ZERO;
+        }
+        return ratio;
     }
 
     /**
@@ -693,6 +742,7 @@ public class DeviceShiftSummaryService implements IDeviceShiftSummaryService {
         
         long shiftDurationMillis = shiftRange.getEndTs() - shiftRange.getStartTs();
         if (shiftDurationMillis <= 0) {
+            summary.setDataCompleteness(BigDecimal.ZERO);
             return;
         }
         
@@ -704,10 +754,18 @@ public class DeviceShiftSummaryService implements IDeviceShiftSummaryService {
         long totalRecordedDurationMillis = working.durationSeconds + standby.durationSeconds
                 + fault.durationSeconds + shutdown.durationSeconds;
         
+        // 如果记录的总时长超过班次时长，限制为班次时长（防止数据异常导致完整度超过1）
+        if (totalRecordedDurationMillis > shiftDurationMillis) {
+            log.warn("记录总时长超过班次时长，已限制: deviceId={}, totalRecorded={}, shiftDuration={}",
+                    summary.getDeviceInfoId(), totalRecordedDurationMillis, shiftDurationMillis);
+            totalRecordedDurationMillis = shiftDurationMillis;
+        }
+        
         BigDecimal completeness = BigDecimal.valueOf(totalRecordedDurationMillis)
                 .divide(BigDecimal.valueOf(shiftDurationMillis), 4, RoundingMode.HALF_UP);
         
-        summary.setDataCompleteness(completeness);
+        // 确保完整度在 0-1 范围内
+        summary.setDataCompleteness(clampRatio(completeness));
     }
 
     /**

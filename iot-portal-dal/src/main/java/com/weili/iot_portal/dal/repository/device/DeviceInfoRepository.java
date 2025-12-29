@@ -34,6 +34,14 @@ public interface DeviceInfoRepository {
      */
     List<DeviceInfoDO> findActiveWithFactory();
 
+    /**
+     * 批量查询设备信息（根据ID列表）
+     *
+     * @param ids 设备ID列表
+     * @return 设备信息列表
+     */
+    List<DeviceInfoDO> selectByIds(List<Long> ids);
+
     void insert(DeviceInfoDO entity);
 
     void update(DeviceInfoDO entity);

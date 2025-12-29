@@ -6,7 +6,6 @@ import com.weili.iot_portal.dal.dataobject.device.DeviceMetricSummaryDO;
 import com.weili.iot_portal.dal.dataobject.factory.FactoryMetricSummaryDO;
 import com.weili.iot_portal.dal.repository.device.DeviceInfoRepository;
 import com.weili.iot_portal.dal.repository.device.DeviceMetricSummaryRepository;
-import com.weili.iot_portal.dal.repository.effiency.FactoryMetricsRepository;
 import com.weili.iot_portal.dal.repository.factory.FactoryMetricSummaryRepository;
 import com.weili.iot_portal.domain.ingestion.CheckpointData;
 import com.weili.iot_portal.service.device.ICheckpointService;
@@ -51,7 +50,6 @@ public class FactoryMetricsService implements IFactoryMetricsService {
     private long factoryTtlSeconds;
 
     public FactoryMetricsService(DeviceInfoRepository deviceInfoRepository,
-                                 FactoryMetricsRepository factoryMetricsRepository,
                                  FactoryMetricSummaryRepository factoryMetricSummaryRepository,
                                  DeviceMetricSummaryRepository deviceMetricSummaryRepository,
                                  @Qualifier("factoryMetricsCheckpointService")
