@@ -68,7 +68,7 @@ public class DeviceProductionSummaryRepositoryImpl implements DeviceProductionSu
         } else if ("shiftEndTs".equalsIgnoreCase(query.getSortBy())) {
             wrapper.orderBy(true, asc, DeviceProductionSummaryDO::getShiftEndTs);
         } else {
-            wrapper.orderBy(true, false, DeviceProductionSummaryDO::getCreateTime);
+            wrapper.orderBy(true, false, DeviceProductionSummaryDO::getShiftStartTs);
         }
 
         Page<DeviceProductionSummaryDO> page = new Page<>(query.getPageNo(), query.getPageSize());

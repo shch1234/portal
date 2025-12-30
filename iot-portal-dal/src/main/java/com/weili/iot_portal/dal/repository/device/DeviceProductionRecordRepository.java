@@ -22,6 +22,15 @@ public interface DeviceProductionRecordRepository {
     long countCompletedInRange(Long deviceId, Long startTs, Long endTs);
 
     /**
+     * 查询在时间范围内有产量记录的不同设备ID列表
+     *
+     * @param startTsSeconds 开始时间戳（秒）
+     * @param endTsSeconds 结束时间戳（秒）
+     * @return 设备ID列表
+     */
+    List<Long> findDistinctDeviceIdsWithProductionRecords(long startTsSeconds, long endTsSeconds);
+
+    /**
      * 统计当天的加工数量
      */
     long countByDate(Long deviceInfoId, LocalDate shiftDate, Integer shiftCode);

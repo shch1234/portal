@@ -12,6 +12,9 @@ import com.weili.iot_portal.dal.repository.device.DeviceStateRecordRepository;
 import com.weili.iot_portal.domain.ingestion.*;
 import com.weili.iot_portal.service.device.ICheckpointService;
 import com.weili.iot_portal.service.device.IDeviceMetricsService;
+import com.weili.iot_portal.service.metrics.MetricCalculator;
+import com.weili.iot_portal.service.metrics.MetricCalculationContext;
+import com.weili.iot_portal.service.metrics.MetricCalculationResult;
 import com.weili.iot_portal.service.shift.IShiftCalculationService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,7 +24,6 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.Duration;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -35,6 +37,11 @@ public class DeviceMetricsService implements IDeviceMetricsService {
 
     private static final String PARAM_PLANNED_DOWNTIME = "PLANNED_DOWNTIME";
     private static final String PARAM_THEORETICAL_CYCLE = "THEORETICAL_CYCLE";
+    private static final String DEVICE_STATUS_ACTIVE = "ACTIVE";
+    
+    // 时间转换常量
+    private static final long MILLIS_PER_SECOND = 1000L;
+    private static final BigDecimal PERCENTAGE_MULTIPLIER = BigDecimal.valueOf(100);
 
     @Value("${rt.metrics.ttl-seconds:600}")
     private long ttlSeconds;
@@ -80,14 +87,16 @@ public class DeviceMetricsService implements IDeviceMetricsService {
         int skip = 0;
         int error = 0;
 
-        Map<Long, List<DeviceInfoDO>> devicesByFactory = allDevices.stream()
-                .filter(device -> device.getOrgFactoryId() != null)
-                .collect(Collectors.groupingBy(DeviceInfoDO::getOrgFactoryId));
+        // 过滤设备：只处理监控中、在用状态、且关联工厂的设备
+        // 与班次指标汇总的逻辑保持一致
+        Map<Long, List<DeviceInfoDO>> devicesByFactory = groupDevicesByFactory(allDevices);
 
         long filtered = devicesByFactory.values().stream().mapToLong(List::size).sum();
-        if (allDevices.size() > filtered) {
-            skip += (int) (allDevices.size() - filtered);
-            log.warn("设备指标计算: 有 {} 个设备未关联工厂，已跳过", allDevices.size() - filtered);
+        int skippedCount = allDevices.size() - (int) filtered;
+        if (skippedCount > 0) {
+            skip += skippedCount;
+            log.info("实时指标计算: 总设备数={}, 符合条件设备数={}, 已跳过={} (未监控/非在用/未关联工厂)", 
+                    allDevices.size(), filtered, skippedCount);
         }
 
         for (Map.Entry<Long, List<DeviceInfoDO>> factoryEntry : devicesByFactory.entrySet()) {
@@ -136,6 +145,9 @@ public class DeviceMetricsService implements IDeviceMetricsService {
                     factoryId, processedDeviceIds.size(), remainingDevices.size());
         }
 
+        // 性能优化：批量查询所有设备的参数配置，避免每个设备都单独查询
+        Map<Long, List<DeviceParamConfigDO>> deviceParamsMap = batchLoadDeviceParams(remainingDevices);
+
         // 分批处理剩余设备
         int successCount = 0;
         int skipCount = 0;
@@ -149,7 +161,9 @@ public class DeviceMetricsService implements IDeviceMetricsService {
 
             for (DeviceInfoDO device : batch) {
                 try {
-                    calculateDeviceMetrics(device);
+                    // 使用预加载的参数配置数据
+                    List<DeviceParamConfigDO> deviceParams = deviceParamsMap.getOrDefault(device.getId(), Collections.emptyList());
+                    calculateDeviceMetricsWithParams(device, deviceParams);
                     successCount++;
                     newProcessedIds.add(device.getId());
                     processedDeviceIds.add(device.getId());
@@ -196,10 +210,24 @@ public class DeviceMetricsService implements IDeviceMetricsService {
             return MetricsCalculationResult.of(0, 0);
         }
 
+        // 过滤设备：只处理监控中、在用状态、且关联工厂的设备
+        List<DeviceInfoDO> validDevices = filterValidDevices(allDevices);
+
+        if (validDevices.isEmpty()) {
+            log.info("实时指标计算: 没有符合条件的设备需要处理");
+            return MetricsCalculationResult.of(0, 0);
+        }
+
+        int skippedCount = allDevices.size() - validDevices.size();
+        if (skippedCount > 0) {
+            log.info("实时指标计算: 总设备数={}, 符合条件设备数={}, 已跳过={} (未监控/非在用/未关联工厂)", 
+                    allDevices.size(), validDevices.size(), skippedCount);
+        }
+
         int success = 0;
         int error = 0;
 
-        for (DeviceInfoDO device : allDevices) {
+        for (DeviceInfoDO device : validDevices) {
             try {
                 calculateDeviceMetrics(device);
                 success++;
@@ -211,108 +239,211 @@ public class DeviceMetricsService implements IDeviceMetricsService {
 
         return MetricsCalculationResult.of(success, error);
     }
+    
+    // ==================== 工具方法 ====================
+    
+    /**
+     * 检查设备是否有效，可用于处理
+     * <p>
+     * 统一设备过滤条件（与班次指标汇总保持一致）：
+     * 1. 必须监控中 (isMonitored = true)
+     * 2. 必须是在用状态 (deviceStatus = 'ACTIVE')
+     * 3. 必须关联工厂 (orgFactoryId != null)
+     *
+     * @param device 设备信息
+     * @return true 如果设备有效，false 如果设备无效
+     */
+    private boolean isDeviceValidForProcessing(DeviceInfoDO device) {
+        return Boolean.TRUE.equals(device.getIsMonitored())
+                && DEVICE_STATUS_ACTIVE.equals(device.getDeviceStatus())
+                && device.getOrgFactoryId() != null;
+    }
+    
+    /**
+     * 过滤有效设备
+     * 
+     * @param devices 设备列表
+     * @return 有效设备列表
+     */
+    private List<DeviceInfoDO> filterValidDevices(List<DeviceInfoDO> devices) {
+        return devices.stream()
+                .filter(this::isDeviceValidForProcessing)
+                .collect(Collectors.toList());
+    }
+    
+    /**
+     * 按工厂分组设备
+     * 
+     * @param devices 设备列表
+     * @return 按工厂ID分组的设备Map
+     */
+    private Map<Long, List<DeviceInfoDO>> groupDevicesByFactory(List<DeviceInfoDO> devices) {
+        return filterValidDevices(devices).stream()
+                .collect(Collectors.groupingBy(DeviceInfoDO::getOrgFactoryId));
+    }
 
     @Override
     public void calculateDeviceMetrics(DeviceInfoDO device) {
+        // 查询设备参数配置（兼容单设备调用场景）
+        List<DeviceParamConfigDO> deviceParams = deviceParamConfigRepository.selectCurrent(device.getId());
+        calculateDeviceMetricsWithParams(device, deviceParams);
+    }
+    
+    /**
+     * 使用预加载的参数配置计算设备指标（批量处理优化版本）
+     * 
+     * @param device 设备信息
+     * @param deviceParams 设备参数配置列表（已预加载）
+     */
+    private void calculateDeviceMetricsWithParams(DeviceInfoDO device, List<DeviceParamConfigDO> deviceParams) {
+        // 1. 准备数据（使用预加载的参数配置）
+        RealtimeCalculationData data = prepareCalculationDataWithParams(device, deviceParams);
+        if (data == null) {
+            return; // 数据准备失败，已记录日志
+        }
+        
+        // 2. 验证数据并告警
+        validateAndWarn(data);
+        
+        // 3. 构建计算上下文
+        MetricCalculationContext context = buildCalculationContext(data);
+        
+        // 4. 计算指标
+        MetricCalculationResult result = MetricCalculator.calculate(context);
+        
+        // 5. 验证性能率为0的原因并告警
+        warnPerformanceRateZero(result, data);
+        
+        // 6. 转换并写入Redis
+        RealtimeMetricsPercentages percentages = convertToPercentages(result);
+        writeMetricsToRedis(data.getFactoryId(), data.getDeviceId(), percentages, data.getNowMs());
+    }
+
+    // ==================== 数据准备层 ====================
+    
+    /**
+     * 准备实时指标计算所需的所有数据（使用预加载的参数配置）
+     * 
+     * @param device 设备信息
+     * @param deviceParams 设备参数配置列表（已预加载）
+     * @return 实时计算数据，如果数据准备失败则返回null
+     */
+    private RealtimeCalculationData prepareCalculationDataWithParams(DeviceInfoDO device, List<DeviceParamConfigDO> deviceParams) {
         Long factoryId = device.getOrgFactoryId();
         Long deviceId = device.getId();
-
         long nowMs = System.currentTimeMillis();
+        
+        // 1. 计算班次时间范围
         ShiftTimeRange shift = shiftCalculationService.calculateShiftRange(factoryId, deviceId, nowMs);
         if (shift == null || shift.getStartTs() == null) {
             log.debug("无法计算班次时间范围，跳过设备: deviceId={}", deviceId);
-            return;
+            return null;
         }
-
-        long shiftStartSec = shift.getStartTs() / 1000;
-        long shiftEndSec = (shift.getEndTs() != null ? shift.getEndTs() : nowMs) / 1000;
-
-        // 获取计划停机时间
-        long plannedDowntime = getPlannedDowntimeSeconds(deviceId);
-        long shiftDuration = Math.max(0, shiftEndSec - shiftStartSec);
-        long plannedRuntime = Math.max(0, shiftDuration - plannedDowntime);
-
-        // 汇总状态持续时间
-        Map<String, Long> stateDurations = sumStateDurations(deviceId, shiftStartSec, shiftEndSec, nowMs / 1000);
-        long workingDuration = stateDurations.getOrDefault(DeviceStateEnum.WORKING.name(), 0L);
-        long faultDuration = stateDurations.getOrDefault(DeviceStateEnum.FAULT.name(), 0L);
-        long unplannedDowntime = stateDurations.getOrDefault(DeviceStateEnum.STANDBY.name(), 0L)
-                + faultDuration
-                + stateDurations.getOrDefault(DeviceStateEnum.SHUTDOWN.name(), 0L);
-        long actualRuntime = Math.max(0, plannedRuntime - unplannedDowntime);
-
-        // 获取实际产量和理论周期
-        long actualOutput = deviceProductionRecordRepository.countCompletedInRange(deviceId, shiftStartSec, shiftEndSec);
-        long theoreticalCycle = getTheoreticalCycleSeconds(deviceId);
-
-        // 计算时间开动率（Uptime Rate）
-        BigDecimal uptimeRate = plannedRuntime == 0
-                ? BigDecimal.ZERO
-                : BigDecimal.valueOf(actualRuntime)
-                .divide(BigDecimal.valueOf(plannedRuntime), 4, RoundingMode.HALF_UP)
-                .multiply(BigDecimal.valueOf(100));
-
-        // 计算性能率（Performance Rate）
-        BigDecimal performanceRate = (actualRuntime == 0 || theoreticalCycle <= 0 || actualOutput <= 0)
-                ? BigDecimal.ZERO
-                : BigDecimal.valueOf(actualOutput)
-                .multiply(BigDecimal.valueOf(theoreticalCycle))
-                .divide(BigDecimal.valueOf(actualRuntime), 4, RoundingMode.HALF_UP)
-                .multiply(BigDecimal.valueOf(100));
-
-        // 计算可用率（Availability Rate）
-        long elapsedCalendar = Math.max(1, (nowMs / 1000) - shiftStartSec);
-        BigDecimal availabilityRate = BigDecimal.valueOf(workingDuration)
-                .divide(BigDecimal.valueOf(elapsedCalendar), 4, RoundingMode.HALF_UP)
-                .multiply(BigDecimal.valueOf(100));
-
-        // 计算故障率（Fault Rate）
-        BigDecimal faultRate = plannedRuntime == 0
-                ? BigDecimal.ZERO
-                : BigDecimal.valueOf(faultDuration)
-                .divide(BigDecimal.valueOf(plannedRuntime), 4, RoundingMode.HALF_UP)
-                .multiply(BigDecimal.valueOf(100));
-
-        // 计算OEE（Overall Equipment Effectiveness）
-        // 实时 OEE：合格品率默认 100%
-        BigDecimal oee = uptimeRate
-                .multiply(performanceRate)
-                .multiply(BigDecimal.valueOf(100))
-                .divide(BigDecimal.valueOf(10000), 4, RoundingMode.HALF_UP);
-
-        // 写入Redis
-        writeMetricToRedis(factoryId, deviceId, uptimeRate, performanceRate, availabilityRate, faultRate, oee, nowMs / 1000);
+        
+        long shiftStartMillis = shift.getStartTs();
+        // 实时指标计算：如果班次未结束，使用当前时间；如果班次已结束，使用班次结束时间
+        long shiftEndMillis = shift.getEndTs() != null && shift.getEndTs() <= nowMs 
+                ? shift.getEndTs() : nowMs;
+        
+        // 2. 从预加载的参数配置中获取计划停机时长
+        long plannedDowntime = extractParameterValueFromList(deviceParams, PARAM_PLANNED_DOWNTIME);
+        
+        // 3. 计算班次时长和计划运行时长
+        long shiftDurationMillis = Math.max(0, shiftEndMillis - shiftStartMillis);
+        long plannedRuntimeMillis = Math.max(0, shiftDurationMillis - plannedDowntime * MILLIS_PER_SECOND);
+        
+        // 4. 汇总状态持续时间
+        Map<String, Long> stateDurationsMap = sumStateDurations(deviceId, shiftStartMillis, shiftEndMillis, nowMs);
+        StateDurations stateDurations = extractStateDurations(stateDurationsMap);
+        long actualRuntimeMillis = Math.max(0, plannedRuntimeMillis - stateDurations.getUnplannedDowntimeMillis());
+        
+        // 5. 获取产量和理论节拍
+        long actualOutput = deviceProductionRecordRepository.countCompletedInRange(
+                deviceId, shiftStartMillis / MILLIS_PER_SECOND, shiftEndMillis / MILLIS_PER_SECOND);
+        long theoreticalCycle = extractParameterValueFromList(deviceParams, PARAM_THEORETICAL_CYCLE);
+        
+        // 6. 计算已过日历时长
+        long elapsedCalendarMillis = Math.max(1, nowMs - shiftStartMillis);
+        
+        return new RealtimeCalculationData(
+                factoryId, deviceId, nowMs, shiftStartMillis, shiftEndMillis,
+                shiftDurationMillis, plannedDowntime, plannedRuntimeMillis,
+                stateDurations, actualRuntimeMillis, actualOutput, theoreticalCycle,
+                elapsedCalendarMillis
+        );
     }
-
+    
     /**
-     * 获取计划停机时间（秒）
+     * 准备实时指标计算所需的所有数据（兼容单设备调用场景）
+     * 
+     * @param device 设备信息
+     * @return 实时计算数据，如果数据准备失败则返回null
+     * @deprecated 使用 {@link #prepareCalculationDataWithParams(DeviceInfoDO, List)} 代替
      */
-    private long getPlannedDowntimeSeconds(Long deviceId) {
-        List<DeviceParamConfigDO> params = deviceParamConfigRepository.selectCurrent(deviceId);
-        return params.stream()
-                .filter(p -> PARAM_PLANNED_DOWNTIME.equalsIgnoreCase(p.getParameterType()))
-                .findFirst()
-                .map(DeviceParamConfigDO::getParameterValue)
-                .map(BigDecimal::longValue)
-                .orElse(0L);
+    @Deprecated
+    private RealtimeCalculationData prepareCalculationData(DeviceInfoDO device) {
+        List<DeviceParamConfigDO> deviceParams = deviceParamConfigRepository.selectCurrent(device.getId());
+        return prepareCalculationDataWithParams(device, deviceParams);
+    }
+    
+    /**
+     * 从状态持续时间Map中提取各状态的时长
+     * 
+     * @param stateDurations 状态持续时间Map
+     * @return 状态持续时间封装对象
+     */
+    private StateDurations extractStateDurations(Map<String, Long> stateDurations) {
+        return new StateDurations(
+                stateDurations.getOrDefault(DeviceStateEnum.WORKING.name(), 0L),
+                stateDurations.getOrDefault(DeviceStateEnum.STANDBY.name(), 0L),
+                stateDurations.getOrDefault(DeviceStateEnum.FAULT.name(), 0L),
+                stateDurations.getOrDefault(DeviceStateEnum.SHUTDOWN.name(), 0L)
+        );
     }
 
     /**
      * 汇总状态持续时间
+     * <p>
+     * 说明：
+     * <ul>
+     *   <li>统计已结束的状态记录（endTs != null）</li>
+     *   <li>统计正在进行中的状态（endTs == null），使用当前时间作为结束时间</li>
+     *   <li>计算状态记录在统计时间范围内的持续时间</li>
+     *   <li>实时指标计算需要反映设备的当前状态，所以应该统计正在进行中的状态</li>
+     * </ul>
+     * 
+     * @param deviceId 设备ID
+     * @param startMillis 开始时间（毫秒）
+     * @param endMillis 结束时间（毫秒）
+     * @param nowMillis 当前时间（毫秒），用于正在进行中的状态
+     * @return 状态持续时长Map，key为状态名称，value为持续时长（毫秒）
      */
-    private Map<String, Long> sumStateDurations(Long deviceId, long startSec, long endSec, long nowSec) {
-        List<DeviceStateRecordDO> timelines = deviceStateRecordRepository.selectByRange(deviceId, startSec, endSec);
+    private Map<String, Long> sumStateDurations(Long deviceId, long startMillis, long endMillis, long nowMillis) {
+        List<DeviceStateRecordDO> timelines = deviceStateRecordRepository.selectByRange(deviceId, startMillis, endMillis);
         Map<String, Long> result = new HashMap<>();
         for (DeviceStateRecordDO t : timelines) {
             Integer stateCode = t.getStateCode();
             if (stateCode == null) {
                 continue;
             }
+            
             // 将数字编码转换为状态名称
             DeviceStateEnum stateEnum = DeviceStateEnum.fromCode(stateCode);
             String state = stateEnum.name();
-            long segStart = Math.max(startSec, t.getStartTs());
-            long segEnd = Math.min(endSec, t.getEndTs() != null ? t.getEndTs() : nowSec);
+            
+            // 计算状态记录在统计时间范围内的持续时间
+            // segStart: 状态开始时间与统计开始时间的较大值
+            // segEnd: 状态结束时间（如果正在进行中，使用当前时间）与统计结束时间的较小值
+            long segStart = Math.max(startMillis, t.getStartTs());
+            long segEnd;
+            if (t.getEndTs() != null) {
+                // 已结束的状态：使用状态结束时间
+                segEnd = Math.min(endMillis, t.getEndTs());
+            } else {
+                // 正在进行中的状态：使用当前时间（但不能超过统计结束时间）
+                segEnd = Math.min(endMillis, nowMillis);
+            }
+            
             if (segEnd > segStart) {
                 long dur = segEnd - segStart;
                 result.merge(state.toUpperCase(), dur, Long::sum);
@@ -323,25 +454,265 @@ public class DeviceMetricsService implements IDeviceMetricsService {
 
     /**
      * 获取理论周期（秒）
+     * 
+     * @deprecated 使用 {@link #extractParameterValueFromList(List, String)} 代替
      */
+    @Deprecated
     private long getTheoreticalCycleSeconds(Long deviceId) {
-        List<DeviceParamConfigDO> params = deviceParamConfigRepository.selectCurrent(deviceId);
-        return params.stream()
-                .filter(p -> PARAM_THEORETICAL_CYCLE.equalsIgnoreCase(p.getParameterType()))
+        return extractParameterValue(deviceId, PARAM_THEORETICAL_CYCLE);
+    }
+    
+    /**
+     * 从设备参数配置列表中提取指定参数的值（批量处理优化版本）
+     * 
+     * @param deviceParams 设备参数配置列表（已预加载）
+     * @param parameterType 参数类型
+     * @return 参数值（秒），如果不存在则返回0
+     */
+    private long extractParameterValueFromList(List<DeviceParamConfigDO> deviceParams, String parameterType) {
+        if (deviceParams == null || deviceParams.isEmpty()) {
+            return 0L;
+        }
+        return deviceParams.stream()
+                .filter(p -> parameterType.equalsIgnoreCase(p.getParameterType()))
                 .findFirst()
                 .map(DeviceParamConfigDO::getParameterValue)
                 .map(BigDecimal::longValue)
                 .orElse(0L);
     }
-
+    
+    /**
+     * 从设备参数配置中提取指定参数的值（兼容单设备调用场景）
+     * 
+     * @param deviceId 设备ID
+     * @param parameterType 参数类型
+     * @return 参数值（秒），如果不存在则返回0
+     * @deprecated 使用 {@link #extractParameterValueFromList(List, String)} 代替
+     */
+    @Deprecated
+    private long extractParameterValue(Long deviceId, String parameterType) {
+        List<DeviceParamConfigDO> params = deviceParamConfigRepository.selectCurrent(deviceId);
+        return extractParameterValueFromList(params, parameterType);
+    }
+    
+    /**
+     * 批量加载设备参数配置
+     * <p>
+     * 性能优化：一次性查询所有设备的参数配置，避免每个设备都单独查询一次数据库
+     * 
+     * @param devices 设备列表
+     * @return 设备ID到参数配置列表的Map
+     */
+    private Map<Long, List<DeviceParamConfigDO>> batchLoadDeviceParams(List<DeviceInfoDO> devices) {
+        Map<Long, List<DeviceParamConfigDO>> result = new HashMap<>();
+        if (devices == null || devices.isEmpty()) {
+            return result;
+        }
+        
+        // 批量查询：虽然 Repository 没有批量查询方法，但我们可以循环查询并缓存结果
+        // 这样可以避免在 prepareCalculationData 中重复查询
+        // 注意：如果 Repository 后续添加了批量查询方法，可以进一步优化
+        for (DeviceInfoDO device : devices) {
+            List<DeviceParamConfigDO> params = deviceParamConfigRepository.selectCurrent(device.getId());
+            if (params != null && !params.isEmpty()) {
+                result.put(device.getId(), params);
+            }
+        }
+        
+        return result;
+    }
+    
+    // ==================== 数据验证层 ====================
+    
+    /**
+     * 验证数据并记录告警
+     * 
+     * @param data 实时计算数据
+     */
+    private void validateAndWarn(RealtimeCalculationData data) {
+        // 验证理论节拍
+        if (data.getTheoreticalCycle() <= 0) {
+            log.warn("实时指标计算: 理论节拍参数缺失或无效（<=0），将导致性能率和OEE为0: deviceId={}, factoryId={}, " +
+                    "shiftStartTs={}, shiftEndTs={}, theoreticalCycle={}",
+                    data.getDeviceId(), data.getFactoryId(), 
+                    data.getShiftStartMillis(), data.getShiftEndMillis(), data.getTheoreticalCycle());
+        }
+        
+        // 验证产量数据
+        long actualRuntimeSec = data.getActualRuntimeMillis() / MILLIS_PER_SECOND;
+        if (data.getActualOutput() == 0 && actualRuntimeSec > 0) {
+            log.warn("实时指标计算: 产量数据缺失（产量为0但设备有运行时间），将导致性能率和OEE为0: deviceId={}, factoryId={}, " +
+                    "shiftStartTs={}, shiftEndTs={}, actualRuntimeSec={}, actualOutput={}",
+                    data.getDeviceId(), data.getFactoryId(), 
+                    data.getShiftStartMillis(), data.getShiftEndMillis(), actualRuntimeSec, data.getActualOutput());
+        }
+    }
+    
+    /**
+     * 验证性能率为0的原因并记录告警
+     * 
+     * @param result 指标计算结果
+     * @param data 实时计算数据
+     */
+    private void warnPerformanceRateZero(MetricCalculationResult result, RealtimeCalculationData data) {
+        long actualRuntimeSec = data.getActualRuntimeMillis() / MILLIS_PER_SECOND;
+        if (result.getPerformance().compareTo(BigDecimal.ZERO) == 0 && actualRuntimeSec > 0) {
+            if (data.getTheoreticalCycle() <= 0) {
+                log.warn("实时指标计算: 性能率为0（理论节拍缺失）: deviceId={}, factoryId={}, " +
+                        "shiftStartTs={}, shiftEndTs={}, actualRuntimeSec={}, theoreticalCycle={}",
+                        data.getDeviceId(), data.getFactoryId(), 
+                        data.getShiftStartMillis(), data.getShiftEndMillis(), actualRuntimeSec, data.getTheoreticalCycle());
+            } else if (data.getActualOutput() <= 0) {
+                log.warn("实时指标计算: 性能率为0（产量缺失）: deviceId={}, factoryId={}, " +
+                        "shiftStartTs={}, shiftEndTs={}, actualRuntimeSec={}, actualOutput={}, theoreticalCycle={}",
+                        data.getDeviceId(), data.getFactoryId(), 
+                        data.getShiftStartMillis(), data.getShiftEndMillis(), actualRuntimeSec, 
+                        data.getActualOutput(), data.getTheoreticalCycle());
+            }
+        }
+    }
+    
+    // ==================== 计算层 ====================
+    
+    /**
+     * 构建指标计算上下文
+     * 
+     * @param data 实时计算数据
+     * @return 指标计算上下文
+     */
+    private MetricCalculationContext buildCalculationContext(RealtimeCalculationData data) {
+        long plannedDowntimeMillis = data.getPlannedDowntime() * MILLIS_PER_SECOND;
+        // 实时计算中，质量率固定为100%，所以合格数量等于实际产量
+        long qualifiedOutput = data.getActualOutput();
+        
+        return new MetricCalculationContext(
+                data.getShiftDurationMillis(),           // 班次时长（毫秒）
+                data.getPlannedDowntime(),               // 计划停机时长（秒）
+                plannedDowntimeMillis,                    // 计划停机时长（毫秒）
+                data.getPlannedRuntimeMillis(),           // 计划运行时长（毫秒）
+                data.getStateDurations().getStandbyMillis(),      // 待机时长（毫秒）
+                data.getStateDurations().getFaultMillis(),        // 故障时长（毫秒）
+                data.getStateDurations().getShutdownMillis(),     // 关机时长（毫秒）
+                data.getStateDurations().getWorkingMillis(),      // 加工时长（毫秒）
+                data.getStateDurations().getUnplannedDowntimeMillis(), // 非计划停机时长（毫秒）
+                data.getActualRuntimeMillis(),           // 实际运行时长（毫秒）
+                data.getActualOutput(),                  // 实际产量（件）
+                qualifiedOutput,                         // 合格数量（件），实时计算中等于实际产量
+                data.getTheoreticalCycle(),              // 理论节拍（秒）
+                data.getElapsedCalendarMillis()          // 可用率计算的分母（已过日历时长，毫秒）
+        );
+    }
+    
+    /**
+     * 将指标计算结果转换为百分比形式（用于Redis存储）
+     * 
+     * @param result 指标计算结果
+     * @return 百分比形式的指标
+     */
+    private RealtimeMetricsPercentages convertToPercentages(MetricCalculationResult result) {
+        // 从 metrics Map 中获取 faultRate（已经是百分比形式）
+        BigDecimal faultRate = extractFaultRateFromMetrics(result.getMetrics());
+        
+        return new RealtimeMetricsPercentages(
+                result.getAvailability().multiply(PERCENTAGE_MULTIPLIER),      // Uptime Rate
+                result.getPerformance().multiply(PERCENTAGE_MULTIPLIER),        // Performance Rate
+                faultRate,                                                     // Fault Rate (已经是百分比)
+                result.getOee().multiply(PERCENTAGE_MULTIPLIER),               // OEE
+                result.getUtilizationRate().multiply(PERCENTAGE_MULTIPLIER)    // Availability Rate
+        );
+    }
+    
+    /**
+     * 从 metrics Map 中提取故障率
+     * 
+     * @param metrics 指标Map
+     * @return 故障率（百分比），如果不存在则返回0
+     */
+    private BigDecimal extractFaultRateFromMetrics(Map<String, Object> metrics) {
+        if (metrics == null) {
+            return BigDecimal.ZERO;
+        }
+        Object faultRateObj = metrics.get("faultRate");
+        if (faultRateObj == null) {
+            return BigDecimal.ZERO;
+        }
+        if (faultRateObj instanceof BigDecimal) {
+            return (BigDecimal) faultRateObj;
+        }
+        if (faultRateObj instanceof Number) {
+            return BigDecimal.valueOf(((Number) faultRateObj).doubleValue());
+        }
+        try {
+            return new BigDecimal(faultRateObj.toString());
+        } catch (Exception e) {
+            log.warn("无法解析故障率: {}", faultRateObj, e);
+            return BigDecimal.ZERO;
+        }
+    }
+    
+    // ==================== 存储层 ====================
+    
     /**
      * 写入指标到Redis
+     * 
+     * @param factoryId 工厂ID
+     * @param deviceId 设备ID
+     * @param metrics 百分比形式的指标
+     * @param nowMs 当前时间（毫秒）
      */
+    private void writeMetricsToRedis(Long factoryId, Long deviceId, 
+                                    RealtimeMetricsPercentages metrics, long nowMs) {
+        String key = buildRedisKey(factoryId, deviceId);
+        Map<String, String> payload = buildRedisPayload(metrics, nowMs / MILLIS_PER_SECOND);
+        
+        try {
+            stringRedisTemplate.opsForHash().putAll(key, payload);
+            stringRedisTemplate.expire(key, Duration.ofSeconds(ttlSeconds));
+        } catch (Exception e) {
+            log.error("写入Redis失败: key={}", key, e);
+        }
+    }
+    
+    /**
+     * 生成Redis key
+     * 
+     * @param factoryId 工厂ID
+     * @param deviceId 设备ID
+     * @return Redis key
+     */
+    private String buildRedisKey(Long factoryId, Long deviceId) {
+        return String.format(RedisConstant.RT_METRIC, defaultBlank(factoryId), defaultBlank(deviceId));
+    }
+    
+    /**
+     * 构建Redis payload
+     * 
+     * @param metrics 百分比形式的指标
+     * @param updatedAtSec 更新时间（秒）
+     * @return Redis payload Map
+     */
+    private Map<String, String> buildRedisPayload(RealtimeMetricsPercentages metrics, long updatedAtSec) {
+        Map<String, String> payload = new HashMap<>();
+        payload.put("metric.uptimeRate", metrics.getUptimeRate().toPlainString());
+        payload.put("metric.performanceRate", metrics.getPerformanceRate().toPlainString());
+        payload.put("metric.availabilityRate", metrics.getAvailabilityRate().toPlainString());
+        payload.put("metric.faultRate", metrics.getFaultRate().toPlainString());
+        payload.put("metric.oee", metrics.getOee().toPlainString());
+        payload.put("updatedAt", String.valueOf(updatedAtSec));
+        return payload;
+    }
+    
+    /**
+     * 写入指标到Redis（保留原方法以保持向后兼容）
+     * 
+     * @deprecated 使用 {@link #writeMetricsToRedis(Long, Long, RealtimeMetricsPercentages, long)} 代替
+     */
+    @Deprecated
     private void writeMetricToRedis(Long factoryId, Long deviceId,
                                     BigDecimal uptimeRate, BigDecimal performanceRate,
                                     BigDecimal availabilityRate, BigDecimal faultRate,
                                     BigDecimal oee, long updatedAtSec) {
-        String key = String.format(RedisConstant.RT_METRIC, defaultBlank(factoryId), defaultBlank(deviceId));
+        String key = buildRedisKey(factoryId, deviceId);
         Map<String, String> payload = new HashMap<>();
         payload.put("metric.uptimeRate", uptimeRate.toPlainString());
         payload.put("metric.performanceRate", performanceRate.toPlainString());
@@ -374,6 +745,69 @@ public class DeviceMetricsService implements IDeviceMetricsService {
         }
     }
 
+    @Override
+    public Map<Long, RealtimeMetricSnapshot> batchGetDeviceRealtimeMetrics(Long factoryId, List<Long> deviceIds) {
+        Map<Long, RealtimeMetricSnapshot> result = new HashMap<>();
+        if (deviceIds == null || deviceIds.isEmpty()) {
+            return result;
+        }
+
+        // 性能优化：使用 Redis Pipeline 批量读取
+        List<String> keys = deviceIds.stream()
+                .map(deviceId -> String.format(RedisConstant.RT_METRIC, defaultBlank(factoryId), defaultBlank(deviceId)))
+                .collect(Collectors.toList());
+
+        try {
+            // 性能优化：使用 Redis Pipeline 批量执行，减少网络往返次数
+            // 注意：executePipelined 会自动处理序列化，返回的是 StringRedisTemplate 序列化后的结果
+            List<Object> pipelineResults = stringRedisTemplate.executePipelined(
+                    (org.springframework.data.redis.core.RedisCallback<Object>) connection -> {
+                        for (String key : keys) {
+                            connection.hGetAll(key.getBytes());
+                        }
+                        return null;
+                    }
+            );
+
+            // 解析批量读取结果
+            // executePipelined 返回的 Map 键值都是 String 类型（StringRedisTemplate 自动序列化）
+            for (int i = 0; i < deviceIds.size() && i < pipelineResults.size(); i++) {
+                Long deviceId = deviceIds.get(i);
+                Object resultObj = pipelineResults.get(i);
+                
+                if (resultObj == null) {
+                    continue;
+                }
+                
+                @SuppressWarnings("unchecked")
+                Map<Object, Object> map = (Map<Object, Object>) resultObj;
+                
+                if (map != null && !map.isEmpty()) {
+                    try {
+                        BigDecimal uptime = parseDecimal(map.get("metric.uptimeRate"));
+                        BigDecimal performance = parseDecimal(map.get("metric.performanceRate"));
+                        BigDecimal availability = parseDecimal(map.get("metric.availabilityRate"));
+                        BigDecimal fault = parseDecimal(map.get("metric.faultRate"));
+                        BigDecimal oee = parseDecimal(map.get("metric.oee"));
+                        long updatedAt = parseLong(map.get("updatedAt"), 0L);
+                        result.put(deviceId, new RealtimeMetricSnapshot(uptime, performance, availability, fault, oee, updatedAt));
+                    } catch (Exception e) {
+                        log.warn("批量读取实时指标解析失败: deviceId={}, key={}", deviceId, keys.get(i), e);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.error("批量读取实时指标失败: factoryId={}, deviceCount={}", factoryId, deviceIds.size(), e);
+            // 如果批量读取失败，降级为单个读取
+            for (Long deviceId : deviceIds) {
+                Optional<RealtimeMetricSnapshot> snapOpt = getDeviceRealtimeMetrics(factoryId, deviceId);
+                snapOpt.ifPresent(snap -> result.put(deviceId, snap));
+            }
+        }
+
+        return result;
+    }
+
     private BigDecimal parseDecimal(Object v) {
         if (v == null) {
             return java.math.BigDecimal.ZERO;
@@ -394,6 +828,117 @@ public class DeviceMetricsService implements IDeviceMetricsService {
 
     private String defaultBlank(Long v) {
         return v == null ? "none" : v.toString();
+    }
+    
+    // ==================== 内部类 ====================
+    
+    /**
+     * 实时计算数据封装类
+     */
+    private static class RealtimeCalculationData {
+        private final Long factoryId;
+        private final Long deviceId;
+        private final long nowMs;
+        private final long shiftStartMillis;
+        private final long shiftEndMillis;
+        private final long shiftDurationMillis;
+        private final long plannedDowntime;
+        private final long plannedRuntimeMillis;
+        private final StateDurations stateDurations;
+        private final long actualRuntimeMillis;
+        private final long actualOutput;
+        private final long theoreticalCycle;
+        private final long elapsedCalendarMillis;
+        
+        public RealtimeCalculationData(Long factoryId, Long deviceId, long nowMs,
+                                      long shiftStartMillis, long shiftEndMillis,
+                                      long shiftDurationMillis, long plannedDowntime, long plannedRuntimeMillis,
+                                      StateDurations stateDurations, long actualRuntimeMillis, 
+                                      long actualOutput, long theoreticalCycle, long elapsedCalendarMillis) {
+            this.factoryId = factoryId;
+            this.deviceId = deviceId;
+            this.nowMs = nowMs;
+            this.shiftStartMillis = shiftStartMillis;
+            this.shiftEndMillis = shiftEndMillis;
+            this.shiftDurationMillis = shiftDurationMillis;
+            this.plannedDowntime = plannedDowntime;
+            this.plannedRuntimeMillis = plannedRuntimeMillis;
+            this.stateDurations = stateDurations;
+            this.actualRuntimeMillis = actualRuntimeMillis;
+            this.actualOutput = actualOutput;
+            this.theoreticalCycle = theoreticalCycle;
+            this.elapsedCalendarMillis = elapsedCalendarMillis;
+        }
+        
+        public Long getFactoryId() { return factoryId; }
+        public Long getDeviceId() { return deviceId; }
+        public long getNowMs() { return nowMs; }
+        public long getShiftStartMillis() { return shiftStartMillis; }
+        public long getShiftEndMillis() { return shiftEndMillis; }
+        public long getShiftDurationMillis() { return shiftDurationMillis; }
+        public long getPlannedDowntime() { return plannedDowntime; }
+        public long getPlannedRuntimeMillis() { return plannedRuntimeMillis; }
+        public StateDurations getStateDurations() { return stateDurations; }
+        public long getActualRuntimeMillis() { return actualRuntimeMillis; }
+        public long getActualOutput() { return actualOutput; }
+        public long getTheoreticalCycle() { return theoreticalCycle; }
+        public long getElapsedCalendarMillis() { return elapsedCalendarMillis; }
+    }
+    
+    /**
+     * 状态持续时间封装类
+     */
+    private static class StateDurations {
+        private final long workingMillis;
+        private final long standbyMillis;
+        private final long faultMillis;
+        private final long shutdownMillis;
+        
+        public StateDurations(long workingMillis, long standbyMillis, long faultMillis, long shutdownMillis) {
+            this.workingMillis = workingMillis;
+            this.standbyMillis = standbyMillis;
+            this.faultMillis = faultMillis;
+            this.shutdownMillis = shutdownMillis;
+        }
+        
+        public long getWorkingMillis() { return workingMillis; }
+        public long getStandbyMillis() { return standbyMillis; }
+        public long getFaultMillis() { return faultMillis; }
+        public long getShutdownMillis() { return shutdownMillis; }
+        
+        /**
+         * 计算非计划停机时长（毫秒）
+         * 非计划停机 = 待机 + 故障 + 关机
+         */
+        public long getUnplannedDowntimeMillis() {
+            return standbyMillis + faultMillis + shutdownMillis;
+        }
+    }
+    
+    /**
+     * 实时指标百分比封装类
+     */
+    private static class RealtimeMetricsPercentages {
+        private final BigDecimal uptimeRate;
+        private final BigDecimal performanceRate;
+        private final BigDecimal faultRate;
+        private final BigDecimal oee;
+        private final BigDecimal availabilityRate;
+        
+        public RealtimeMetricsPercentages(BigDecimal uptimeRate, BigDecimal performanceRate,
+                                        BigDecimal faultRate, BigDecimal oee, BigDecimal availabilityRate) {
+            this.uptimeRate = uptimeRate;
+            this.performanceRate = performanceRate;
+            this.faultRate = faultRate;
+            this.oee = oee;
+            this.availabilityRate = availabilityRate;
+        }
+        
+        public BigDecimal getUptimeRate() { return uptimeRate; }
+        public BigDecimal getPerformanceRate() { return performanceRate; }
+        public BigDecimal getFaultRate() { return faultRate; }
+        public BigDecimal getOee() { return oee; }
+        public BigDecimal getAvailabilityRate() { return availabilityRate; }
     }
 }
 

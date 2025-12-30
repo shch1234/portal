@@ -87,6 +87,23 @@ public class DeviceStateSummaryRepositoryImpl implements DeviceStateSummaryRepos
     public void update(DeviceStateSummaryDO entity) {
         mapper.updateById(entity);
     }
+
+    @Override
+    public List<Long> findDistinctDeviceIdsWithFinalizedSummaries(Long startTs, Long endTs) {
+        LambdaQueryWrapper<DeviceStateSummaryDO> wrapper = new LambdaQueryWrapper<>();
+        wrapper.select(DeviceStateSummaryDO::getDeviceInfoId)
+                .eq(DeviceStateSummaryDO::getIsFinalized, true);
+        if (startTs != null) {
+            wrapper.ge(DeviceStateSummaryDO::getShiftEndTs, startTs);
+        }
+        if (endTs != null) {
+            wrapper.le(DeviceStateSummaryDO::getShiftEndTs, endTs);
+        }
+        return mapper.selectList(wrapper).stream()
+                .map(DeviceStateSummaryDO::getDeviceInfoId)
+                .distinct()
+                .collect(java.util.stream.Collectors.toList());
+    }
 }
 
 

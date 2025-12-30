@@ -181,12 +181,14 @@ public class DeviceMatchingService {
                 device.getDeviceCode(), currentTbDeviceId, tbDeviceId);
 
         device.setTbDeviceId(tbDeviceId);
+        // 匹配完成并更新tb_device_id时，同时将is_monitored设置为1（监控中）
+        device.setIsMonitored(true);
         deviceInfoRepository.update(device);
 
         // 清除缓存，确保下次查询获取最新数据
         evictCache(device.getDeviceCode());
 
-        log.debug("[DeviceMatching] tb_device_id同步成功，缓存已清除");
+        log.info("[DeviceMatching] tb_device_id同步成功，is_monitored已更新为1，缓存已清除");
     }
 
     /**

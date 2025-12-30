@@ -30,6 +30,23 @@ public class FactoryMetricSummaryRepositoryImpl implements FactoryMetricSummaryR
     }
 
     @Override
+    public List<FactoryMetricSummaryDO> selectFinalizedInRange(Long factoryId, Long startTs, Long endTs) {
+        LambdaQueryWrapper<FactoryMetricSummaryDO> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(FactoryMetricSummaryDO::getOrgFactoryId, factoryId)
+                .eq(FactoryMetricSummaryDO::getIsFinalized, Boolean.TRUE);
+        if (startTs != null) {
+            long startTsMillis = startTs * 1000L;
+            wrapper.ge(FactoryMetricSummaryDO::getShiftEndTs, startTsMillis);
+        }
+        if (endTs != null) {
+            long endTsMillis = endTs * 1000L;
+            wrapper.le(FactoryMetricSummaryDO::getShiftEndTs, endTsMillis);
+        }
+        wrapper.orderByAsc(FactoryMetricSummaryDO::getShiftEndTs);
+        return mapper.selectList(wrapper);
+    }
+
+    @Override
     public void insert(FactoryMetricSummaryDO record) {
         mapper.insert(record);
     }

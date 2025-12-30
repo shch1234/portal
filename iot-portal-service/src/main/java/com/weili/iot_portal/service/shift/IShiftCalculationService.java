@@ -4,6 +4,9 @@ import com.weili.iot_portal.domain.ingestion.ShiftDateAndCode;
 import com.weili.iot_portal.domain.ingestion.ShiftInfo;
 import com.weili.iot_portal.domain.ingestion.ShiftTimeRange;
 
+import java.time.LocalDate;
+import java.util.Optional;
+
 /**
  * 班次计算服务接口
  * 负责班次相关的计算逻辑，如根据时间点计算班次信息、时间范围等
@@ -57,13 +60,13 @@ public interface IShiftCalculationService {
      *
      * @param factoryId            工厂ID
      * @param deviceId             设备ID
-     * @param statisticsTimeSeconds 统计时间点（秒）
+     * @param statisticsTimeMillis 统计时间点（毫秒）
      * @return 前一个班次的时间范围，如果无法计算则返回null
      */
     ShiftTimeRange calculatePreviousShiftRange(
             Long factoryId,
             Long deviceId,
-            long statisticsTimeSeconds);
+            long statisticsTimeMillis);
 
     /**
      * 根据结束时间计算班次时间范围
@@ -78,5 +81,23 @@ public interface IShiftCalculationService {
             Long factoryId,
             Long deviceId,
             long endTsMillis);
+
+    /**
+     * 计算并验证班次时间范围
+     * 根据参考时间戳计算班次时间范围，并验证是否与预期的班次日期和编码匹配
+     * 
+     * @param factoryId 工厂ID
+     * @param deviceId 设备ID
+     * @param referenceTimeMillis 参考时间戳（毫秒）
+     * @param expectedShiftDate 预期的班次日期
+     * @param expectedShiftCode 预期的班次编码
+     * @return 班次时间范围，如果不匹配则返回empty
+     */
+    Optional<ShiftTimeRange> calculateAndValidateShiftRange(
+            Long factoryId,
+            Long deviceId,
+            long referenceTimeMillis,
+            LocalDate expectedShiftDate,
+            Integer expectedShiftCode);
 }
 

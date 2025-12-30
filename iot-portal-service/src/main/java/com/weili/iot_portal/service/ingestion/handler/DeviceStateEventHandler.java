@@ -24,9 +24,15 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+
+import com.weili.iot_portal.domain.ingestion.DeviceIdentity;
+import com.weili.iot_portal.domain.ingestion.ShiftTimeRange;
 
 /**
  * 设备状态事件处理器
@@ -335,9 +341,11 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
     private void handleFirstConnection(Long deviceInfoId, Long orgFactoryId, EventData eventData) {
         Map<String, Object> properties = DeviceStateUtils.createPropertiesWithOriginalState(
                 eventData.currentStateResult(), null, eventData.eventTimestamp());
-        DeviceStateRecordDO newRecord = createStateRecord(deviceInfoId, orgFactoryId,
+        List<DeviceStateRecordDO> records = createStateRecords(deviceInfoId, orgFactoryId,
                 eventData.currentStateCode(), eventData.eventTimestamp(), null, true, properties);
-        stateTimelineRepository.insert(newRecord);
+        for (DeviceStateRecordDO record : records) {
+            stateTimelineRepository.insert(record);
+        }
     }
 
     /**
@@ -347,12 +355,44 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
         DeviceStateEnum latestStateEnum = DeviceStateEnum.fromCode(latestState.getStateCode());
         log.debug("[DeviceStateEventHandler] 处理正常状态转换: 结束状态={}({}), startTs={}, endTs={}, 新状态={}, 新startTs={}",
                 latestStateEnum.name(), latestState.getStateCode(), latestState.getStartTs(), eventData.eventTimestamp(),
-                eventData.currentState(), eventData.eventTimestamp());
+                eventData.currentState(), eventData.currentState());
+
+        Long oldStartTs = latestState.getStartTs();
+        Long newEndTs = eventData.eventTimestamp();
         
-        // 更新旧状态记录
-        latestState.setEndTs(eventData.eventTimestamp());
-        if (latestState.getStartTs() != null) {
-            latestState.setDurationS(eventData.eventTimestamp() - latestState.getStartTs());
+        // 检查更新后是否跨班次
+        boolean crossesShift = shiftCalculationService.checkIfCrossesShift(
+                orgFactoryId, latestState.getDeviceInfoId(), oldStartTs, newEndTs);
+
+        if (crossesShift) {
+            // 跨班次：删除旧记录，插入截断后的多条记录
+            log.debug("[DeviceStateEventHandler] 旧状态记录跨班次，进行截断: deviceInfoId={}, stateCode={}, startTs={}, endTs={}",
+                    latestState.getDeviceInfoId(), latestState.getStateCode(), oldStartTs, newEndTs);
+
+            // 删除旧记录
+            stateTimelineRepository.deleteById(latestState.getId());
+
+            // 创建截断后的记录（使用旧记录的属性）
+            Map<String, Object> oldProperties = latestState.getProperties();
+            if (oldProperties == null) {
+                oldProperties = new HashMap<>();
+            }
+            List<DeviceStateRecordDO> splitRecords = splitByShift(
+                    latestState.getDeviceInfoId(), orgFactoryId, latestState.getStateCode(),
+                    oldStartTs, newEndTs, oldProperties);
+
+            // 插入截断后的记录
+            for (DeviceStateRecordDO record : splitRecords) {
+                stateTimelineRepository.insert(record);
+                log.debug("[DeviceStateEventHandler] 插入截断后的旧状态记录: 状态={}({}), shiftDate={}, shiftCode={}, startTs={}, endTs={}",
+                        latestStateEnum.name(), record.getStateCode(), record.getShiftDate(), record.getShiftCode(),
+                        record.getStartTs(), record.getEndTs());
+            }
+        } else {
+            // 不跨班次：直接更新旧记录
+            latestState.setEndTs(newEndTs);
+            if (oldStartTs != null) {
+                latestState.setDurationS(newEndTs - oldStartTs);
         }
         latestState.setIsComplete(true);
         fillShiftInfoIfMissing(latestState, orgFactoryId);
@@ -360,18 +400,21 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
         stateTimelineRepository.update(latestState);
         log.debug("[DeviceStateEventHandler] 更新旧状态记录: 状态={}({}), endTs={}, durationS={}",
                 latestStateEnum.name(), latestState.getStateCode(), latestState.getEndTs(), latestState.getDurationS());
+        }
 
         // 插入新状态记录
         Map<String, Object> properties = DeviceStateUtils.createPropertiesWithOriginalState(
                 eventData.currentStateResult(), null, eventData.eventTimestamp());
-        DeviceStateRecordDO newRecord = createStateRecord(
+        List<DeviceStateRecordDO> newRecords = createStateRecords(
                 latestState.getDeviceInfoId(), orgFactoryId, eventData.currentStateCode(),
                 eventData.eventTimestamp(), null, true, properties);
-        stateTimelineRepository.insert(newRecord);
-        
-        DeviceStateEnum newStateEnum = DeviceStateEnum.fromCode(newRecord.getStateCode());
-        log.debug("[DeviceStateEventHandler] 插入新状态记录: 状态={}({}), startTs={}, endTs={}",
-                newStateEnum.name(), newRecord.getStateCode(), newRecord.getStartTs(), newRecord.getEndTs());
+        for (DeviceStateRecordDO record : newRecords) {
+            stateTimelineRepository.insert(record);
+            DeviceStateEnum newStateEnum = DeviceStateEnum.fromCode(record.getStateCode());
+            log.debug("[DeviceStateEventHandler] 插入新状态记录: 状态={}({}), shiftDate={}, shiftCode={}, startTs={}, endTs={}",
+                    newStateEnum.name(), record.getStateCode(), record.getShiftDate(), record.getShiftCode(),
+                    record.getStartTs(), record.getEndTs());
+        }
     }
 
     /**
@@ -415,17 +458,21 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
             DeviceStateEnum dbStateEnum = DeviceStateEnum.fromCode(latestState.getStateCode());
             gapProperties.put(DeviceStateEventFields.ACTUAL_DB_STATE, dbStateEnum.name());
 
-            DeviceStateRecordDO unknownRecord = createStateRecord(deviceInfoId, orgFactoryId,
+            List<DeviceStateRecordDO> unknownRecords = createStateRecords(deviceInfoId, orgFactoryId,
                     DeviceStateEnum.UNKNOWN.getCode(), latestEndTs, eventData.eventTimestamp(), false, gapProperties);
-            stateTimelineRepository.insert(unknownRecord);
+            for (DeviceStateRecordDO record : unknownRecords) {
+                stateTimelineRepository.insert(record);
+            }
         }
 
         // 插入新状态记录
         Map<String, Object> properties = DeviceStateUtils.createPropertiesWithOriginalState(
                 eventData.currentStateResult(), null, eventData.eventTimestamp());
-        DeviceStateRecordDO newRecord = createStateRecord(deviceInfoId, orgFactoryId, eventData.currentStateCode(),
+        List<DeviceStateRecordDO> newRecords = createStateRecords(deviceInfoId, orgFactoryId, eventData.currentStateCode(),
                 eventData.eventTimestamp(), null, true, properties);
-        stateTimelineRepository.insert(newRecord);
+        for (DeviceStateRecordDO record : newRecords) {
+            stateTimelineRepository.insert(record);
+        }
 
         // 记录异常日志（可以自动修复，不需要人工处理）
         String errorMessage = String.format("状态不匹配（已结束）: DB状态=%s, 事件previousState=%s, 间隙=%d毫秒",
@@ -475,17 +522,21 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
             recoveryProperties = DeviceStateUtils.createPropertiesWithOriginalState(
                     eventData.previousStateResult(), recoveryProperties, eventData.eventTimestamp());
 
-            DeviceStateRecordDO previousRecord = createStateRecord(deviceInfoId, orgFactoryId, eventData.previousStateCode(),
+            List<DeviceStateRecordDO> previousRecords = createStateRecords(deviceInfoId, orgFactoryId, eventData.previousStateCode(),
                     eventData.eventTimestamp(), eventData.eventTimestamp(), false, recoveryProperties);
-            stateTimelineRepository.insert(previousRecord);
+            for (DeviceStateRecordDO record : previousRecords) {
+                stateTimelineRepository.insert(record);
+            }
         }
 
         // 插入新状态记录
         Map<String, Object> properties = DeviceStateUtils.createPropertiesWithOriginalState(
                 eventData.currentStateResult(), null, eventData.eventTimestamp());
-        DeviceStateRecordDO newRecord = createStateRecord(deviceInfoId, orgFactoryId, eventData.currentStateCode(),
+        List<DeviceStateRecordDO> newRecords = createStateRecords(deviceInfoId, orgFactoryId, eventData.currentStateCode(),
                 eventData.eventTimestamp(), null, true, properties);
-        stateTimelineRepository.insert(newRecord);
+        for (DeviceStateRecordDO record : newRecords) {
+            stateTimelineRepository.insert(record);
+        }
 
         // 记录异常日志（需要人工审核）
         DeviceStateEnum dbStateEnumForLog = DeviceStateEnum.fromCode(latestState.getStateCode());
@@ -543,9 +594,11 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
         anomalyProperties = DeviceStateUtils.createPropertiesWithOriginalState(
                 eventData.currentStateResult(), anomalyProperties, eventData.eventTimestamp());
 
-        DeviceStateRecordDO newRecord = createStateRecord(deviceInfoId, orgFactoryId, eventData.currentStateCode(),
+        List<DeviceStateRecordDO> newRecords = createStateRecords(deviceInfoId, orgFactoryId, eventData.currentStateCode(),
                 eventData.eventTimestamp(), null, false, anomalyProperties);
-        stateTimelineRepository.insert(newRecord);
+        for (DeviceStateRecordDO record : newRecords) {
+            stateTimelineRepository.insert(record);
+        }
 
         // 记录异常日志（需要人工审核）
         String errorMessage = String.format("时间戳异常: 事件时间=%d, DB状态开始时间=%d, 差距=%d秒 (已使用设备时间戳插入新记录)",
@@ -564,26 +617,141 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
 
         Map<String, Object> properties = DeviceStateUtils.createPropertiesWithOriginalState(
                 eventData.currentStateResult(), null, eventData.eventTimestamp());
-        DeviceStateRecordDO newRecord = createStateRecord(deviceInfoId, orgFactoryId, eventData.currentStateCode(),
+        List<DeviceStateRecordDO> newRecords = createStateRecords(deviceInfoId, orgFactoryId, eventData.currentStateCode(),
                 eventData.eventTimestamp(), null, true, properties);
-        stateTimelineRepository.insert(newRecord);
+        for (DeviceStateRecordDO record : newRecords) {
+            stateTimelineRepository.insert(record);
+        }
     }
 
     // ==================== 记录创建方法 ====================
 
     /**
-     * 创建状态记录
+     * 创建状态记录（支持跨班次截断）
+     * 如果状态跨班次，会自动按班次截断为多条记录
+     *
+     * @param deviceInfoId 设备ID
+     * @param orgFactoryId 工厂ID
+     * @param stateCode 状态编码
+     * @param startTs 开始时间（毫秒）
+     * @param endTs 结束时间（毫秒，可为null表示进行中）
+     * @param isComplete 是否完整（业务层面的完整性，跨班次截断后每条记录都是完整的）
+     * @param properties 扩展属性
+     * @return 记录列表（如果跨班次则多条，否则一条）
      */
-    private DeviceStateRecordDO createStateRecord(Long deviceInfoId, Long orgFactoryId,
-                                                   Integer stateCode, Long startTs, Long endTs, boolean isComplete,
-                                                   Map<String, Object> properties) {
-        // 直接使用数字编码（无需转换）
-        Integer stateCodeInt = stateCode;
-        
+    private List<DeviceStateRecordDO> createStateRecords(Long deviceInfoId, Long orgFactoryId,
+                                                           Integer stateCode, Long startTs, Long endTs,
+                                                           boolean isComplete, Map<String, Object> properties) {
+        // 如果结束时间为null（进行中的状态），不进行截断
+        if (endTs == null) {
+            DeviceStateRecordDO record = createSingleStateRecord(deviceInfoId, orgFactoryId, stateCode,
+                    startTs, null, false, properties);
+            return Collections.singletonList(record);
+        }
+
+        // 检查是否跨班次
+        boolean crossesShift = shiftCalculationService.checkIfCrossesShift(orgFactoryId, deviceInfoId, startTs, endTs);
+        if (!crossesShift) {
+            // 不跨班次：创建单条记录
+            DeviceStateRecordDO record = createSingleStateRecord(deviceInfoId, orgFactoryId, stateCode,
+                    startTs, endTs, isComplete, properties);
+            return Collections.singletonList(record);
+        }
+
+        // 跨班次：按班次截断
+        return splitByShift(deviceInfoId, orgFactoryId, stateCode, startTs, endTs, properties);
+    }
+
+    /**
+     * 按班次截断状态记录
+     * 如果记录跨班次，拆分为多条记录，每条记录属于一个班次
+     *
+     * @param deviceInfoId 设备ID
+     * @param orgFactoryId 工厂ID
+     * @param stateCode 状态编码
+     * @param startTs 开始时间（毫秒）
+     * @param endTs 结束时间（毫秒）
+     * @param properties 扩展属性
+     * @return 拆分后的记录列表
+     */
+    private List<DeviceStateRecordDO> splitByShift(Long deviceInfoId, Long orgFactoryId, Integer stateCode,
+                                                    Long startTs, Long endTs, Map<String, Object> properties) {
+        List<DeviceStateRecordDO> records = new ArrayList<>();
+        Long currentStartTs = startTs;
+
+        log.debug("[DeviceStateEventHandler] 开始按班次截断: deviceInfoId={}, stateCode={}, startTs={}, endTs={}",
+                deviceInfoId, stateCode, startTs, endTs);
+
+        while (currentStartTs != null && currentStartTs < endTs) {
+            try {
+                // 1. 计算当前开始时间所在的班次
+                ShiftTimeRange currentShift = shiftCalculationService.calculateShiftRange(
+                        orgFactoryId, deviceInfoId, currentStartTs);
+
+                if (currentShift == null || currentShift.getEndTs() == null) {
+                    log.warn("[DeviceStateEventHandler] 无法计算班次范围，停止截断: deviceInfoId={}, currentStartTs={}",
+                            deviceInfoId, currentStartTs);
+                    break;
+                }
+
+                // 2. 确定当前记录的结束时间：取 min(班次结束时间, 状态结束时间)
+                Long recordEndTs = Math.min(currentShift.getEndTs(), endTs);
+
+                // 3. 获取班次日期和编码
+                ShiftDateAndCode shiftInfo = shiftCalculationService.getShiftDateAndCode(
+                        orgFactoryId, deviceInfoId, currentStartTs);
+
+                // 4. 创建记录
         DeviceStateRecordDO record = new DeviceStateRecordDO();
         record.setDeviceInfoId(deviceInfoId);
         record.setOrgFactoryId(orgFactoryId);
-        record.setStateCode(stateCodeInt);
+                record.setStateCode(stateCode);
+                record.setStartTs(currentStartTs);
+                record.setEndTs(recordEndTs);
+                record.setDurationS(recordEndTs - currentStartTs);
+                record.setShiftDate(shiftInfo.shiftDate());
+                record.setShiftCode(shiftInfo.shiftCode());
+                record.setIsComplete(true);  // 截断后的记录不跨班次，标记为完整
+                record.setProperties(properties);
+
+                records.add(record);
+
+                log.debug("[DeviceStateEventHandler] 截断片段: deviceInfoId={}, stateCode={}, shiftDate={}, shiftCode={}, " +
+                                "startTs={}, endTs={}, duration={}ms",
+                        deviceInfoId, stateCode, shiftInfo.shiftDate(), shiftInfo.shiftCode(),
+                        currentStartTs, recordEndTs, record.getDurationS());
+
+                // 5. 如果记录结束时间等于班次结束时间，且状态还未结束，继续下一班次
+                if (recordEndTs.equals(currentShift.getEndTs()) && recordEndTs < endTs) {
+                    // 下一段从班次结束时间开始（精确到毫秒，避免重复）
+                    currentStartTs = recordEndTs;
+                } else {
+                    // 已完成截断
+                    break;
+                }
+            } catch (Exception e) {
+                log.error("[DeviceStateEventHandler] 截断班次时发生异常，停止截断: deviceInfoId={}, currentStartTs={}, error={}",
+                        deviceInfoId, currentStartTs, e.getMessage(), e);
+                break;
+            }
+        }
+
+        log.info("[DeviceStateEventHandler] 按班次截断完成: deviceInfoId={}, stateCode={}, 原始记录1条, 截断后{}条",
+                deviceInfoId, stateCode, records.size());
+
+        return records;
+    }
+
+    /**
+     * 创建单条状态记录（不跨班次）
+     */
+    private DeviceStateRecordDO createSingleStateRecord(Long deviceInfoId, Long orgFactoryId,
+                                                         Integer stateCode, Long startTs, Long endTs,
+                                                         boolean isComplete, Map<String, Object> properties) {
+        DeviceStateRecordDO record = new DeviceStateRecordDO();
+        record.setDeviceInfoId(deviceInfoId);
+        record.setOrgFactoryId(orgFactoryId);
+        record.setStateCode(stateCode);
         record.setStartTs(startTs);
         record.setEndTs(endTs);
         if (endTs != null && startTs != null) {
@@ -594,8 +762,8 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
         if (endTs == null) {
             record.setIsComplete(false);
         } else {
-            boolean crossesShift = shiftCalculationService.checkIfCrossesShift(orgFactoryId, deviceInfoId, startTs, endTs);
-            record.setIsComplete(!crossesShift && isComplete);
+            // 不跨班次的情况下，is_complete 由业务逻辑决定
+            record.setIsComplete(isComplete);
         }
         
         record.setProperties(properties);
@@ -613,6 +781,24 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
         }
         
         return record;
+    }
+
+    /**
+     * 创建状态记录（兼容旧接口，返回单条记录）
+     * @deprecated 请使用 createStateRecords 方法，支持跨班次截断
+     */
+    @Deprecated
+    private DeviceStateRecordDO createStateRecord(Long deviceInfoId, Long orgFactoryId,
+                                                   Integer stateCode, Long startTs, Long endTs, boolean isComplete,
+                                                   Map<String, Object> properties) {
+        List<DeviceStateRecordDO> records = createStateRecords(deviceInfoId, orgFactoryId, stateCode,
+                startTs, endTs, isComplete, properties);
+        // 如果跨班次截断后有多条记录，只返回第一条（兼容旧代码）
+        if (records.size() > 1) {
+            log.warn("[DeviceStateEventHandler] createStateRecord返回多条记录，只返回第一条: deviceInfoId={}, recordsCount={}",
+                    deviceInfoId, records.size());
+        }
+        return records.get(0);
     }
 
     /**

@@ -14,14 +14,26 @@ import java.util.List;
 public interface IDeviceProductionSummaryService {
     /**
      * 处理所有设备（带检查点）
+     * 
+     * @param statisticsTimeSeconds 统计时间点（秒）
+     * @param batchSize 每批处理设备数
+     * @param timeoutMillis 超时时间（毫秒）
+     * @param lookbackDays 处理时间范围（天），只处理当前时间往前推N天内的数据
      */
     BatchProcessResult processAllDevicesWithCheckpoint(
             long statisticsTimeSeconds,
             int batchSize,
-            long timeoutMillis);
+            long timeoutMillis,
+            int lookbackDays);
 
     /**
      * 处理指定工厂的设备（带检查点）
+     * 
+     * @param factoryId 工厂ID
+     * @param devices 设备列表
+     * @param statisticsTimeSeconds 统计时间点（秒）
+     * @param batchSize 每批处理设备数
+     * @param timeoutMillis 超时时间（毫秒）
      */
     BatchProcessResult processFactoryDevicesWithCheckpoint(
             Long factoryId,

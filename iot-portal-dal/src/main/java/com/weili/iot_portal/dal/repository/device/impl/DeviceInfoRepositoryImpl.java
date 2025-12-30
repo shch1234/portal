@@ -76,6 +76,15 @@ public class DeviceInfoRepositoryImpl implements DeviceInfoRepository {
     }
 
     @Override
+    public List<DeviceInfoDO> selectByIds(List<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return List.of();
+        }
+        return mapper.selectList(new LambdaQueryWrapper<DeviceInfoDO>()
+                .in(DeviceInfoDO::getId, ids));
+    }
+
+    @Override
     public PageResult<DeviceInfoDO> selectPage(DeviceBaseInfoPageQuery query) {
         Page<DeviceInfoDO> page = new Page<>(query.getPageNo(), query.getPageSize());
         LambdaQueryWrapper<DeviceInfoDO> wrapper = new LambdaQueryWrapper<>();

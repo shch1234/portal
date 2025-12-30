@@ -5,11 +5,11 @@ import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
-import com.weili.basic.framework.mybatis.domain.BaseSimpleDO;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
 import java.io.Serial;
+import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Map;
@@ -19,9 +19,9 @@ import java.util.Map;
  * 按班次存储设备OEE、开动率等核心指标
  */
 @Data
-@EqualsAndHashCode(callSuper = true)
+@EqualsAndHashCode
 @TableName(value = "device_metrics_summary", autoResultMap = true)
-public class DeviceMetricSummaryDO extends BaseSimpleDO {
+public class DeviceMetricSummaryDO implements Serializable {
 
     @Serial
     private static final long serialVersionUID = -1760139988580895094L;
@@ -55,6 +55,71 @@ public class DeviceMetricSummaryDO extends BaseSimpleDO {
      * 班次结束时间戳（秒，Unix时间戳，对应 shift_end_ts 列）
      */
     private Long shiftEndTs;
+
+    /**
+     * 所属厂区ID（对应 org_factory_id 列，冗余字段，优化查询性能）
+     */
+    private Long orgFactoryId;
+
+    /**
+     * OEE（整体设备效率，对应 oee 列，DECIMAL(5,4)，范围0-1）
+     */
+    private BigDecimal oee;
+
+    /**
+     * 可用率（对应 availability 列，DECIMAL(5,4)，范围0-1）
+     */
+    private BigDecimal availability;
+
+    /**
+     * 性能率（对应 performance 列，DECIMAL(5,4)，范围0-1）
+     */
+    private BigDecimal performance;
+
+    /**
+     * 质量率（对应 quality 列，DECIMAL(5,4)，范围0-1）
+     */
+    private BigDecimal quality;
+
+    /**
+     * 设备利用率（对应 utilization_rate 列，DECIMAL(5,4)，范围0-1）
+     */
+    private BigDecimal utilizationRate;
+
+    /**
+     * 加工时长（小时，对应 working_hours 列，DECIMAL(10,2)）
+     */
+    private BigDecimal workingHours;
+
+    /**
+     * 计划停机时长（秒，对应 planned_downtime_s 列）
+     */
+    private Integer plannedDowntimeS;
+
+    /**
+     * 非计划停机时长（秒，对应 unplanned_downtime_s 列）
+     */
+    private Integer unplannedDowntimeS;
+
+    /**
+     * 理论节拍（秒，对应 theoretical_cycle_s 列）
+     */
+    private Integer theoreticalCycleS;
+
+    /**
+     * 实际节拍（秒，对应 actual_cycle_s 列，DECIMAL(10,2)）
+     */
+    private BigDecimal actualCycleS;
+
+    /**
+     * 加工数量（对应 production_count 列）
+     */
+    private Integer productionCount;
+
+    /**
+     * 合格数量（对应 qualified_count 列）
+     */
+    private Integer qualifiedCount;
 
     /**
      * 班次时长（毫秒，计算字段，不对应数据库列）

@@ -9,6 +9,7 @@ import com.weili.iot_portal.dal.repository.device.DeviceInfoRepository;
 import com.weili.iot_portal.dal.repository.device.DeviceStateRecordRepository;
 import com.weili.iot_portal.dal.repository.device.DeviceStateSummaryRepository;
 import com.weili.iot_portal.domain.ingestion.*;
+import com.weili.iot_portal.domain.ingestion.ShiftDateAndCode;
 import com.weili.iot_portal.service.device.ICheckpointService;
 import com.weili.iot_portal.service.device.IDeviceShiftSummaryService;
 import com.weili.iot_portal.service.device.IDeviceStateStatisticsService;
@@ -36,6 +37,13 @@ import java.util.stream.Collectors;
 public class DeviceShiftSummaryService implements IDeviceShiftSummaryService {
 
     private static final String CALCULATION_SOURCE_SCHEDULED = "SCHEDULED";
+    private static final String CALCULATION_SOURCE_COMPENSATION_SKIP = "COMPENSATION_SKIP";
+    
+    // 设备状态常量
+    private static final String DEVICE_STATUS_ACTIVE = "ACTIVE";
+    
+    // 状态名称常量
+    private static final String STATE_MISSING = "MISSING";
 
     private final DeviceStateSummaryRepository stateSummaryRepository;
     private final DeviceInfoRepository deviceInfoRepository;
@@ -64,17 +72,18 @@ public class DeviceShiftSummaryService implements IDeviceShiftSummaryService {
     }
 
     @Override
-    public boolean shouldProcessShift(ShiftTimeRange shiftRange, long statisticsTimeSeconds) {
-        long shiftEndTimeSeconds = shiftRange.getEndTs() / 1000;
-        return statisticsTimeSeconds >= shiftEndTimeSeconds;
+    public boolean shouldProcessShift(ShiftTimeRange shiftRange, long statisticsTimeMillis) {
+        // 直接使用毫秒进行比较
+        return statisticsTimeMillis >= shiftRange.getEndTs();
     }
 
     @Override
     public BatchProcessResult processAllDevicesWithCheckpoint(
-            long statisticsTimeSeconds,
+            long statisticsTimeMillis,
             int batchSize,
             long timeoutMillis) {
 
+        // 获取所有活跃设备
         List<DeviceInfoDO> allDevices = deviceInfoRepository.findAllActive();
         if (allDevices == null || allDevices.isEmpty()) {
             return BatchProcessResult.completed(0, 0, 0);
@@ -85,21 +94,31 @@ public class DeviceShiftSummaryService implements IDeviceShiftSummaryService {
         int error = 0;
 
         Map<Long, List<DeviceInfoDO>> devicesByFactory = allDevices.stream()
-                .filter(device -> device.getOrgFactoryId() != null)
+                .filter(this::isDeviceValidForProcessing)
                 .collect(Collectors.groupingBy(DeviceInfoDO::getOrgFactoryId));
 
         long filtered = devicesByFactory.values().stream().mapToLong(List::size).sum();
-        if (allDevices.size() > filtered) {
-            skip += (int) (allDevices.size() - filtered);
-            log.warn("设备状态汇总: 有 {} 个设备未关联工厂，已跳过", allDevices.size() - filtered);
+        long skippedCount = allDevices.size() - filtered;
+        if (skippedCount > 0) {
+            skip += (int) skippedCount;
+            log.info("设备状态汇总: 总设备数={}, 符合条件设备数={}, 已跳过={} (未监控/非在用/未关联工厂)", 
+                    allDevices.size(), filtered, skippedCount);
         }
+
+        if (filtered == 0) {
+            log.info("设备状态汇总: 没有符合条件的设备需要处理");
+            return BatchProcessResult.completed(0, skip, 0);
+        }
+
+        log.info("设备状态汇总: 开始处理 {} 台符合条件的设备，按工厂分组: {}", 
+                filtered, devicesByFactory.keySet());
 
         for (Map.Entry<Long, List<DeviceInfoDO>> factoryEntry : devicesByFactory.entrySet()) {
             Long factoryId = factoryEntry.getKey();
             List<DeviceInfoDO> devices = factoryEntry.getValue();
             try {
                 BatchProcessResult factoryResult = processFactoryDevicesWithCheckpoint(
-                        factoryId, devices, statisticsTimeSeconds, batchSize, timeoutMillis);
+                        factoryId, devices, statisticsTimeMillis, batchSize, timeoutMillis);
                 success += factoryResult.getSuccessCount();
                 skip += factoryResult.getSkipCount();
                 error += factoryResult.getErrorCount();
@@ -114,48 +133,339 @@ public class DeviceShiftSummaryService implements IDeviceShiftSummaryService {
 
     @Override
     public CompensationResult compensatePendingSummaries(int compensationDays) {
+        // 日期范围：从今天往前推N天（包含今天）
+        // 例如：compensationDays=7，则扫描今天及之前6天，共7天
         LocalDate endDate = LocalDate.now();
-        LocalDate startDate = endDate.minusDays(compensationDays);
+        LocalDate startDate = endDate.minusDays(compensationDays - 1);
+        
+        log.info("补偿任务: 开始处理，日期范围 {} - {} (补偿天数={})", startDate, endDate, compensationDays);
 
+        // 阶段1：处理已存在的未完成汇总记录
+        CompensationResult result1 = compensateExistingPendingSummaries(startDate, endDate);
+        
+        // 阶段2：扫描缺失的汇总记录并补齐
+        CompensationResult result2 = compensateMissingSummaries(startDate, endDate);
+        
+        // 合并结果
+        int totalSuccess = result1.getSuccessCount() + result2.getSuccessCount();
+        int totalSkip = result1.getSkipCount() + result2.getSkipCount();
+        int totalError = result1.getErrorCount() + result2.getErrorCount();
+        
+        log.info("补偿任务完成: 阶段1(未完成记录)={}, 阶段2(缺失记录)={}, 总计: 成功={}, 跳过={}, 失败={}", 
+                result1.getSuccessCount() + result1.getSkipCount() + result1.getErrorCount(),
+                result2.getSuccessCount() + result2.getSkipCount() + result2.getErrorCount(),
+                totalSuccess, totalSkip, totalError);
+        
+        return new CompensationResult(totalSuccess, totalSkip, totalError);
+    }
+
+    /**
+     * 阶段1：处理已存在的未完成汇总记录
+     */
+    private CompensationResult compensateExistingPendingSummaries(LocalDate startDate, LocalDate endDate) {
         List<DeviceStateSummaryDO> pending = stateSummaryRepository.selectPending(startDate, endDate);
-        if (pending != null && !pending.isEmpty()) {
-            log.info("补偿任务: 发现未完成汇总 {} 条，窗口 {} - {}", pending.size(), startDate, endDate);
-        }
-
+        
         int success = 0;
         int skip = 0;
         int error = 0;
 
-        if (pending != null) {
-            for (DeviceStateSummaryDO summary : pending) {
-                try {
-                    boolean processed = recalculateSummary(summary);
+        if (pending == null || pending.isEmpty()) {
+            log.debug("补偿任务阶段1: 未发现未完成汇总记录，窗口 {} - {}", startDate, endDate);
+            return new CompensationResult(success, skip, error);
+        }
+
+        log.debug("补偿任务阶段1: 发现未完成汇总 {} 条，窗口 {} - {}", pending.size(), startDate, endDate);
+
+        for (DeviceStateSummaryDO summary : pending) {
+            try {
+                boolean processed = recalculateSummary(summary);
+                if (processed) {
+                    success++;
+                } else {
+                    skip++;
+                }
+            } catch (Exception e) {
+                error++;
+                log.error("补偿处理失败: summaryId={}, deviceId={}, shiftDate={}, shiftCode={}",
+                        summary.getId(), summary.getDeviceInfoId(),
+                        summary.getSummaryDate(), summary.getShiftCode(), e);
+            }
+        }
+
+        log.debug("补偿任务阶段1完成: 成功={}, 跳过={}, 失败={}, 总计={}", 
+                success, skip, error, pending.size());
+
+        return new CompensationResult(success, skip, error);
+    }
+
+    /**
+     * 阶段2：扫描缺失的汇总记录并补齐
+     * 扫描 device_state_record 表，找出有状态记录但缺少汇总记录的情况
+     */
+    private CompensationResult compensateMissingSummaries(LocalDate startDate, LocalDate endDate) {
+        log.debug("补偿任务阶段2: 开始扫描缺失的汇总记录，窗口 {} - {}", startDate, endDate);
+        
+        // 1. 查询有状态记录的所有设备+班次组合
+        List<DeviceStateRecordRepository.DeviceShiftKey> recordsWithData = 
+                stateRecordRepository.findDistinctDeviceShifts(startDate, endDate);
+        
+        if (recordsWithData == null || recordsWithData.isEmpty()) {
+            log.debug("补偿任务阶段2: 未发现状态记录，窗口 {} - {}", startDate, endDate);
+            return new CompensationResult(0, 0, 0);
+        }
+        
+        log.debug("补偿任务阶段2: 发现 {} 个设备+班次组合有状态记录", recordsWithData.size());
+        
+        int success = 0;
+        int skip = 0;
+        int error = 0;
+        
+        // 2. 检查是否有对应的汇总记录
+        for (DeviceStateRecordRepository.DeviceShiftKey key : recordsWithData) {
+            try {
+                // 检查汇总记录是否存在
+                DeviceStateSummaryDO existing = stateSummaryRepository.findByShift(
+                        key.deviceInfoId(), key.shiftDate(), key.shiftCode());
+                
+                if (existing == null) {
+                    // 缺失汇总记录，创建并计算
+                    boolean processed = createAndCalculateMissingSummary(key);
                     if (processed) {
                         success++;
                     } else {
                         skip++;
                     }
-                } catch (Exception e) {
-                    error++;
-                    log.error("补偿处理失败: summaryId={}, deviceId={}, shiftDate={}, shiftCode={}",
-                            summary.getId(), summary.getDeviceInfoId(),
-                            summary.getSummaryDate(), summary.getShiftCode(), e);
+                } else if (Boolean.TRUE.equals(existing.getIsFinalized())) {
+                    // 汇总记录已存在且已完成，跳过（避免重复处理）
+                    // 这种情况表示主任务已经处理过，不需要补偿任务再处理
+                    skip++;
+                    log.debug("补偿任务阶段2: 跳过已完成的汇总记录: deviceId={}, shiftDate={}, shiftCode={}",
+                            key.deviceInfoId(), key.shiftDate(), key.shiftCode());
+                } else {
+                    // 汇总记录已存在但未完成（is_finalized = false），跳过
+                    // 这种情况由阶段1处理，避免重复处理
+                    skip++;
+                    log.debug("补偿任务阶段2: 跳过未完成的汇总记录（由阶段1处理）: deviceId={}, shiftDate={}, shiftCode={}",
+                            key.deviceInfoId(), key.shiftDate(), key.shiftCode());
+                }
+            } catch (Exception e) {
+                error++;
+                log.error("补偿任务阶段2处理失败: deviceId={}, shiftDate={}, shiftCode={}",
+                        key.deviceInfoId(), key.shiftDate(), key.shiftCode(), e);
+            }
+        }
+        
+        log.debug("补偿任务阶段2完成: 成功={}, 跳过={}, 失败={}, 总计={}", 
+                success, skip, error, recordsWithData.size());
+        
+        return new CompensationResult(success, skip, error);
+    }
+
+    /**
+     * 创建并计算缺失的汇总记录
+     * 复用主任务的逻辑，减少代码重复
+     */
+    @Transactional(rollbackFor = Exception.class)
+    private boolean createAndCalculateMissingSummary(DeviceStateRecordRepository.DeviceShiftKey key) {
+        // 1. 查询并验证设备
+        Optional<DeviceInfoDO> deviceOpt = findAndValidateDevice(key.deviceInfoId(), "补偿任务阶段2");
+        if (deviceOpt.isEmpty()) {
+            return false;
+        }
+        DeviceInfoDO device = deviceOpt.get();
+
+        // 2. 查询班次状态数据
+        LocalDate shiftDate = key.shiftDate();
+        Integer shiftCode = key.shiftCode();
+        
+        List<DeviceStateRecordDO> stateRecords = queryStateRecords(
+                key.deviceInfoId(), shiftDate, shiftCode, null);
+
+        if (stateRecords.isEmpty()) {
+            return false;
+        }
+
+        // 4. 计算并验证班次时间范围
+        DeviceStateRecordDO firstRecord = stateRecords.get(0);
+        long referenceTimeMillis = firstRecord.getStartTs();
+        
+        Optional<ShiftTimeRange> shiftRangeOpt = shiftCalculationService.calculateAndValidateShiftRange(
+                device.getOrgFactoryId(),
+                device.getId(),
+                referenceTimeMillis,
+                shiftDate,
+                shiftCode);
+        
+        if (shiftRangeOpt.isEmpty()) {
+            return false;
+        }
+        ShiftTimeRange shiftRange = shiftRangeOpt.get();
+
+        // 5. 复用主任务的核心处理逻辑
+        return processDeviceShiftWithData(device, shiftRange, shiftDate, stateRecords);
+    }
+
+    /**
+     * 检查设备是否有效（可用于处理）
+     * 统一设备过滤条件：
+     * 1. 必须监控中 (isMonitored = true)
+     * 2. 必须是在用状态 (deviceStatus = 'ACTIVE')
+     * 3. 必须关联工厂 (orgFactoryId != null)
+     */
+    private boolean isDeviceValidForProcessing(DeviceInfoDO device) {
+        return Boolean.TRUE.equals(device.getIsMonitored())
+                && DEVICE_STATUS_ACTIVE.equals(device.getDeviceStatus())
+                && device.getOrgFactoryId() != null;
+    }
+
+    /**
+     * 获取设备无效的原因（用于日志记录）
+     */
+    private String getDeviceInvalidReason(DeviceInfoDO device) {
+        if (!Boolean.TRUE.equals(device.getIsMonitored())) {
+            return "设备未监控";
+        }
+        if (!DEVICE_STATUS_ACTIVE.equals(device.getDeviceStatus())) {
+            return "设备非在用状态";
+        }
+        if (device.getOrgFactoryId() == null) {
+            return "设备未关联工厂";
+        }
+        return "未知原因";
+    }
+
+    /**
+     * 查询并验证设备
+     * @param deviceId 设备ID
+     * @param context 上下文信息（用于日志）
+     * @return Optional<DeviceInfoDO> 设备信息，如果无效则返回 empty
+     */
+    private Optional<DeviceInfoDO> findAndValidateDevice(Long deviceId, String context) {
+        Optional<DeviceInfoDO> deviceOpt = deviceInfoRepository.findById(deviceId);
+        if (deviceOpt.isEmpty() || Boolean.TRUE.equals(deviceOpt.get().getDeleted())) {
+            log.debug("{}: 设备不存在或已删除: deviceId={}", context, deviceId);
+            return Optional.empty();
+        }
+        DeviceInfoDO device = deviceOpt.get();
+        if (!isDeviceValidForProcessing(device)) {
+            log.debug("{}: 跳过设备: deviceId={}, reason={}", context, deviceId, getDeviceInvalidReason(device));
+            return Optional.empty();
+        }
+        return Optional.of(device);
+    }
+
+    /**
+     * 查询班次状态记录（带兼容性处理）
+     * 优先使用班次维度查询，如果结果为空则回退到时间范围查询
+     * 
+     * @param deviceId 设备ID
+     * @param shiftDate 班次日期
+     * @param shiftCode 班次编码
+     * @param shiftRange 班次时间范围（用于兼容性回退查询，可为null）
+     * @return 状态记录列表
+     */
+    private List<DeviceStateRecordDO> queryStateRecords(
+            Long deviceId,
+            LocalDate shiftDate,
+            Integer shiftCode,
+            ShiftTimeRange shiftRange) {
+        
+        // 优先使用班次维度查询，性能更优
+        List<DeviceStateRecordDO> stateRecords = stateRecordRepository.selectByShift(
+                deviceId, shiftDate, shiftCode);
+
+        // 兼容性处理：如果班次维度查询结果为空，回退到时间范围查询
+        // 这可能发生在历史数据没有班次信息的情况下
+        if (stateRecords.isEmpty() && shiftRange != null) {
+            log.warn("班次维度查询结果为空，回退到时间范围查询: deviceId={}, shiftDate={}, shiftCode={}, shiftStartTs={}, shiftEndTs={}",
+                    deviceId, shiftDate, shiftCode, shiftRange.getStartTs(), shiftRange.getEndTs());
+            stateRecords = stateRecordRepository.selectByRange(
+                    deviceId,
+                    shiftRange.getStartTs(),
+                    shiftRange.getEndTs());
+            
+            // 如果时间范围查询也为空，记录警告
+            if (stateRecords.isEmpty()) {
+                log.warn("时间范围查询结果也为空: deviceId={}, startTs={}, endTs={}",
+                        deviceId, shiftRange.getStartTs(), shiftRange.getEndTs());
+            } else {
+                // 检查查询到的记录是否有异常（跨班次或时间范围过大）
+                long shiftDurationMillis = shiftRange.getEndTs() - shiftRange.getStartTs();
+                for (DeviceStateRecordDO record : stateRecords) {
+                    long recordStartTs = record.getStartTs() != null ? record.getStartTs() : shiftRange.getStartTs();
+                    long recordEndTs = record.getEndTs() != null ? record.getEndTs() : shiftRange.getEndTs();
+                    long recordDurationMillis = recordEndTs - recordStartTs;
+                    
+                    // 如果单条记录的时间范围远超过班次时长（超过2倍），记录警告
+                    if (recordDurationMillis > shiftDurationMillis * 2) {
+                        log.warn("查询到异常的状态记录（时间范围过大）: deviceId={}, recordId={}, recordStartTs={}, recordEndTs={}, recordDuration={}, shiftDuration={}, shiftDate={}, shiftCode={}",
+                                deviceId, record.getId(), recordStartTs, recordEndTs, recordDurationMillis, shiftDurationMillis, shiftDate, shiftCode);
+                    }
                 }
             }
         }
+        
+        return stateRecords;
+    }
 
-        return new CompensationResult(success, skip, error);
+    /**
+     * 处理设备班次汇总的核心逻辑（提取的公共方法）
+     * 用于主任务和补偿任务复用
+     * 
+     * @param device 设备信息
+     * @param shiftRange 班次时间范围
+     * @param shiftDate 班次日期
+     * @param stateRecords 状态记录列表
+     * @return 是否处理成功
+     */
+    private boolean processDeviceShiftWithData(
+            DeviceInfoDO device,
+            ShiftTimeRange shiftRange,
+            LocalDate shiftDate,
+            List<DeviceStateRecordDO> stateRecords) {
+        
+        // 检查状态记录是否为空
+        if (stateRecords == null || stateRecords.isEmpty()) {
+            log.warn("设备班次汇总: 状态记录为空，跳过处理: deviceId={}, shiftDate={}, shiftCode={}, startTs={}, endTs={}",
+                    device.getId(), shiftDate, shiftRange.getShiftCode(), shiftRange.getStartTs(), shiftRange.getEndTs());
+            return false;
+        }
+        
+        log.debug("设备班次汇总: 开始处理，deviceId={}, shiftDate={}, shiftCode={}, 状态记录数={}",
+                device.getId(), shiftDate, shiftRange.getShiftCode(), stateRecords.size());
+        
+        // 1. 计算状态统计
+        Map<String, StateStatistics> stateStats = stateStatisticsService.calculateStatistics(
+                stateRecords,
+                shiftRange.getStartTs(),
+                shiftRange.getEndTs());
+
+        // 2. 获取班次配置
+        var shiftConfig = shiftConfigService.getCurrentConfiguration(
+                device.getOrgFactoryId(), device.getId(), shiftRange.getStartTs());
+
+        // 3. 保存或更新汇总记录
+        ProcessResult result = processDeviceShift(device, shiftConfig, shiftRange, shiftDate, stateStats);
+        
+        if (!result.isProcessed()) {
+            log.debug("设备班次汇总: 处理失败，deviceId={}, shiftDate={}, shiftCode={}, reason={}",
+                    device.getId(), shiftDate, shiftRange.getShiftCode(), result.getSkipReason());
+        }
+        
+        return result.isProcessed();
     }
 
     @Override
     public BatchProcessResult processFactoryDevicesWithCheckpoint(
             Long factoryId,
             List<DeviceInfoDO> devices,
-            long statisticsTimeSeconds,
+            long statisticsTimeMillis,
             int batchSize,
             long timeoutMillis) {
 
         // 加载检查点，获取已处理的设备ID
+        // 检查点服务使用秒，需要转换
+        long statisticsTimeSeconds = statisticsTimeMillis / 1000;
         Set<Long> processedDeviceIds = checkpointService.getProcessedDeviceIds(
                 factoryId, statisticsTimeSeconds);
 
@@ -184,14 +494,14 @@ public class DeviceShiftSummaryService implements IDeviceShiftSummaryService {
             for (DeviceInfoDO device : batch) {
                 try {
                     ProcessResult result = processDeviceShiftComplete(
-                            device, statisticsTimeSeconds);
+                            device, statisticsTimeMillis);
                     if (result.isProcessed()) {
                         successCount++;
                         newProcessedIds.add(device.getId());
                         processedDeviceIds.add(device.getId());
                     } else {
                         skipCount++;
-                        log.debug("跳过设备: factoryId={}, deviceId={}, reason={}",
+                        log.info("跳过设备: factoryId={}, deviceId={}, reason={}",
                                 factoryId, device.getId(), result.getSkipReason());
                     }
                 } catch (Exception e) {
@@ -234,16 +544,16 @@ public class DeviceShiftSummaryService implements IDeviceShiftSummaryService {
     @Transactional(rollbackFor = Exception.class)
     public ProcessResult processDeviceShiftComplete(
             DeviceInfoDO device,
-            long statisticsTimeSeconds) {
+            long statisticsTimeMillis) {
 
         // 1. 查询设备在当前时间的班次配置（无配置则使用默认配置）
         var shiftConfig = shiftConfigService.getCurrentConfiguration(
-                device.getOrgFactoryId(), device.getId(), statisticsTimeSeconds * 1000L);
+                device.getOrgFactoryId(), device.getId(), statisticsTimeMillis);
 
         // 2. 计算已结束的班次
         // 统计时间点应该落在刚结束的班次内，所以需要找到前一个班次
         ShiftTimeRange previousShiftRange = shiftCalculationService.calculatePreviousShiftRange(
-                device.getOrgFactoryId(), device.getId(), statisticsTimeSeconds);
+                device.getOrgFactoryId(), device.getId(), statisticsTimeMillis);
 
         if (previousShiftRange == null) {
             // 无法计算前一个班次，跳过
@@ -251,31 +561,22 @@ public class DeviceShiftSummaryService implements IDeviceShiftSummaryService {
         }
 
         // 3. 检查班次是否已经结束
-        if (!shouldProcessShift(previousShiftRange, statisticsTimeSeconds)) {
+        if (!shouldProcessShift(previousShiftRange, statisticsTimeMillis)) {
             // 班次还未到统计时间，跳过
             return ProcessResult.skipped("班次未到统计时间");
         }
 
-        // 4. 查询班次状态数据
-        List<DeviceStateRecordDO> stateRecords = stateRecordRepository.selectByRange(
-                device.getId(),
-                previousShiftRange.getStartTs() / 1000,
-                previousShiftRange.getEndTs() / 1000);
+        // 4. 获取班次日期和编码（直接从 previousShiftRange 获取）
+        LocalDate shiftDate = previousShiftRange.getShiftDate();
+        Integer shiftCode = previousShiftRange.getShiftCode();
 
-        // 5. 计算状态统计
-        Map<String, StateStatistics> stateStats = stateStatisticsService.calculateStatistics(
-                stateRecords,
-                previousShiftRange.getStartTs() / 1000,
-                previousShiftRange.getEndTs() / 1000);
+        // 5. 查询班次状态数据（带兼容性处理）
+        List<DeviceStateRecordDO> stateRecords = queryStateRecords(
+                device.getId(), shiftDate, shiftCode, previousShiftRange);
 
-        // 6. 计算班次日期
-        long shiftEndTimeSeconds = previousShiftRange.getEndTs() / 1000;
-        LocalDate shiftDate = LocalDate.ofInstant(
-                Instant.ofEpochSecond(shiftEndTimeSeconds),
-                ZoneId.systemDefault());
-
-        // 7. 保存或更新汇总记录
-        return processDeviceShift(device, shiftConfig, previousShiftRange, shiftDate, stateStats);
+        // 6. 复用核心处理逻辑
+        boolean processed = processDeviceShiftWithData(device, previousShiftRange, shiftDate, stateRecords);
+        return processed ? ProcessResult.processed() : ProcessResult.skipped("处理失败");
     }
 
 
@@ -325,11 +626,27 @@ public class DeviceShiftSummaryService implements IDeviceShiftSummaryService {
             ShiftTimeRange shiftRange,
             Map<String, StateStatistics> stateStats) {
 
+        DeviceStateSummaryDO summary = findOrCreateSummary(deviceId, orgFactoryId, shiftDate, shiftRange);
+        populateSummaryFields(summary, shiftRange);
+        populateStateStatisticsFields(summary, stateStats);
+        calculateAndSetCompleteness(summary, shiftRange, stateStats);
+        buildAndSetStateStatisticsJson(summary, stateStats);
+        persistSummary(summary);
+    }
+
+    /**
+     * 查找或创建汇总记录
+     */
+    private DeviceStateSummaryDO findOrCreateSummary(
+            Long deviceId,
+            Long orgFactoryId,
+            LocalDate shiftDate,
+            ShiftTimeRange shiftRange) {
+        
         DeviceStateSummaryDO summary = stateSummaryRepository.findByShift(
                 deviceId, shiftDate, shiftRange != null ? shiftRange.getShiftCode() : null);
 
-        boolean exists = summary != null;
-        if (!exists) {
+        if (summary == null) {
             summary = new DeviceStateSummaryDO();
             summary.setDeviceInfoId(deviceId);
             summary.setOrgFactoryId(orgFactoryId);
@@ -341,28 +658,36 @@ public class DeviceShiftSummaryService implements IDeviceShiftSummaryService {
             // 更新时也更新orgFactoryId（防止设备迁移到其他工厂）
             summary.setOrgFactoryId(orgFactoryId);
         }
+        
+        return summary;
+    }
 
+    /**
+     * 填充汇总记录的基础字段
+     */
+    private void populateSummaryFields(DeviceStateSummaryDO summary, ShiftTimeRange shiftRange) {
         if (shiftRange != null) {
-            // 更新字段
-            summary.setShiftStartTs(shiftRange.getStartTs() / 1000);
-            summary.setShiftEndTs(shiftRange.getEndTs() / 1000);
+            summary.setShiftStartTs(shiftRange.getStartTs());
+            summary.setShiftEndTs(shiftRange.getEndTs());
         }
 
         summary.setIsFinalized(true);
-        summary.setCalculatedTime(System.currentTimeMillis() / 1000);
+        summary.setCalculatedTime(System.currentTimeMillis());
         summary.setCalculationSource(CALCULATION_SOURCE_SCHEDULED);
+    }
 
-        // 设置状态统计
-        StateStatistics working = stateStats.getOrDefault(DeviceStateEnum.WORKING.name(),
-                new StateStatistics(DeviceStateEnum.WORKING.name(), 0, 0));
-        StateStatistics standby = stateStats.getOrDefault(DeviceStateEnum.STANDBY.name(),
-                new StateStatistics(DeviceStateEnum.STANDBY.name(), 0, 0));
-        StateStatistics fault = stateStats.getOrDefault(DeviceStateEnum.FAULT.name(),
-                new StateStatistics(DeviceStateEnum.FAULT.name(), 0, 0));
-        StateStatistics shutdown = stateStats.getOrDefault(DeviceStateEnum.SHUTDOWN.name(),
-                new StateStatistics(DeviceStateEnum.SHUTDOWN.name(), 0, 0));
-        StateStatistics missing = stateStats.getOrDefault("MISSING",
-                new StateStatistics("MISSING", 0, 0));
+    /**
+     * 填充状态统计字段
+     */
+    private void populateStateStatisticsFields(
+            DeviceStateSummaryDO summary,
+            Map<String, StateStatistics> stateStats) {
+        
+        StateStatistics working = getStateStatistics(stateStats, DeviceStateEnum.WORKING.name());
+        StateStatistics standby = getStateStatistics(stateStats, DeviceStateEnum.STANDBY.name());
+        StateStatistics fault = getStateStatistics(stateStats, DeviceStateEnum.FAULT.name());
+        StateStatistics shutdown = getStateStatistics(stateStats, DeviceStateEnum.SHUTDOWN.name());
+        StateStatistics missing = getStateStatistics(stateStats, STATE_MISSING);
 
         summary.setWorkingDurationS((int) working.durationSeconds);
         summary.setStandbyDurationS((int) standby.durationSeconds);
@@ -370,24 +695,86 @@ public class DeviceShiftSummaryService implements IDeviceShiftSummaryService {
         summary.setShutdownDurationS((int) shutdown.durationSeconds);
         summary.setMissingDataS((int) missing.durationSeconds);
 
-        summary.setWorkingRatio(working.ratio);
-        summary.setStandbyRatio(standby.ratio);
-        summary.setFaultRatio(fault.ratio);
-        summary.setShutdownRatio(shutdown.ratio);
+        // 确保比例值在 0-1 范围内，防止数据库溢出
+        summary.setWorkingRatio(clampRatio(working.ratio));
+        summary.setStandbyRatio(clampRatio(standby.ratio));
+        summary.setFaultRatio(clampRatio(fault.ratio));
+        summary.setShutdownRatio(clampRatio(shutdown.ratio));
+    }
 
-        // 计算数据完整度
-        if (shiftRange != null) {
-            long shiftDurationSeconds = (shiftRange.getEndTs() - shiftRange.getStartTs()) / 1000;
-            if (shiftDurationSeconds > 0) {
-                long totalRecordedDuration = working.durationSeconds + standby.durationSeconds
-                        + fault.durationSeconds + shutdown.durationSeconds;
-                BigDecimal completeness = BigDecimal.valueOf(totalRecordedDuration)
-                        .divide(BigDecimal.valueOf(shiftDurationSeconds), 4, RoundingMode.HALF_UP);
-                summary.setDataCompleteness(completeness);
-            }
+    /**
+     * 限制比例值在 0-1 范围内
+     */
+    private BigDecimal clampRatio(BigDecimal ratio) {
+        if (ratio == null) {
+            return BigDecimal.ZERO;
         }
+        // 如果比例值超过 1，限制为 1；如果小于 0，限制为 0
+        if (ratio.compareTo(BigDecimal.ONE) > 0) {
+            log.warn("比例值超过1，已限制为1: ratio={}", ratio);
+            return BigDecimal.ONE;
+        }
+        if (ratio.compareTo(BigDecimal.ZERO) < 0) {
+            log.warn("比例值小于0，已限制为0: ratio={}", ratio);
+            return BigDecimal.ZERO;
+        }
+        return ratio;
+    }
 
-        // 构建状态统计JSON
+    /**
+     * 获取状态统计（带默认值）
+     */
+    private StateStatistics getStateStatistics(Map<String, StateStatistics> stateStats, String stateName) {
+        return stateStats.getOrDefault(stateName, new StateStatistics(stateName, 0, 0));
+    }
+
+    /**
+     * 计算并设置数据完整度
+     */
+    private void calculateAndSetCompleteness(
+            DeviceStateSummaryDO summary,
+            ShiftTimeRange shiftRange,
+            Map<String, StateStatistics> stateStats) {
+        
+        if (shiftRange == null) {
+            return;
+        }
+        
+        long shiftDurationMillis = shiftRange.getEndTs() - shiftRange.getStartTs();
+        if (shiftDurationMillis <= 0) {
+            summary.setDataCompleteness(BigDecimal.ZERO);
+            return;
+        }
+        
+        StateStatistics working = getStateStatistics(stateStats, DeviceStateEnum.WORKING.name());
+        StateStatistics standby = getStateStatistics(stateStats, DeviceStateEnum.STANDBY.name());
+        StateStatistics fault = getStateStatistics(stateStats, DeviceStateEnum.FAULT.name());
+        StateStatistics shutdown = getStateStatistics(stateStats, DeviceStateEnum.SHUTDOWN.name());
+        
+        long totalRecordedDurationMillis = working.durationSeconds + standby.durationSeconds
+                + fault.durationSeconds + shutdown.durationSeconds;
+        
+        // 如果记录的总时长超过班次时长，限制为班次时长（防止数据异常导致完整度超过1）
+        if (totalRecordedDurationMillis > shiftDurationMillis) {
+            log.warn("记录总时长超过班次时长，已限制: deviceId={}, totalRecorded={}, shiftDuration={}",
+                    summary.getDeviceInfoId(), totalRecordedDurationMillis, shiftDurationMillis);
+            totalRecordedDurationMillis = shiftDurationMillis;
+        }
+        
+        BigDecimal completeness = BigDecimal.valueOf(totalRecordedDurationMillis)
+                .divide(BigDecimal.valueOf(shiftDurationMillis), 4, RoundingMode.HALF_UP);
+        
+        // 确保完整度在 0-1 范围内
+        summary.setDataCompleteness(clampRatio(completeness));
+    }
+
+    /**
+     * 构建并设置状态统计JSON
+     */
+    private void buildAndSetStateStatisticsJson(
+            DeviceStateSummaryDO summary,
+            Map<String, StateStatistics> stateStats) {
+        
         Map<String, Object> stateStatisticsJson = new HashMap<>();
         for (Map.Entry<String, StateStatistics> entry : stateStats.entrySet()) {
             Map<String, Object> stateInfo = new HashMap<>();
@@ -397,9 +784,13 @@ public class DeviceShiftSummaryService implements IDeviceShiftSummaryService {
             stateStatisticsJson.put(entry.getKey(), stateInfo);
         }
         summary.setStateStatistics(stateStatisticsJson);
+    }
 
-        // 保存或更新
-        if (exists) {
+    /**
+     * 持久化汇总记录
+     */
+    private void persistSummary(DeviceStateSummaryDO summary) {
+        if (summary.getId() != null) {
             stateSummaryRepository.update(summary);
         } else {
             stateSummaryRepository.insert(summary);
@@ -411,40 +802,50 @@ public class DeviceShiftSummaryService implements IDeviceShiftSummaryService {
      */
     @Transactional(rollbackFor = Exception.class)
     protected boolean recalculateSummary(DeviceStateSummaryDO summary) {
-        // 查询设备信息
-        Optional<DeviceInfoDO> deviceOpt = deviceInfoRepository.findById(summary.getDeviceInfoId());
-        if (deviceOpt.isEmpty() || Boolean.TRUE.equals(deviceOpt.get().getDeleted())) {
-            log.warn("设备不存在或已删除: deviceId={}", summary.getDeviceInfoId());
+        // 查询并验证设备
+        Optional<DeviceInfoDO> deviceOpt = findAndValidateDevice(summary.getDeviceInfoId(), "补偿任务");
+        if (deviceOpt.isEmpty()) {
+            markSummaryAsFinalized(summary, "设备无效");
             return false;
         }
         DeviceInfoDO device = deviceOpt.get();
 
-        long shiftStartTs = summary.getShiftStartTs() * 1000L;
-        // 计算班次时间范围
-        ShiftTimeRange shiftRange = shiftCalculationService.calculateShiftRange(
+        // 获取班次日期和编码（优先使用 summary 中的数据，这是历史数据，更准确）
+        LocalDate shiftDate = summary.getSummaryDate();
+        Integer shiftCode = summary.getShiftCode();
+        
+        // 计算班次时间范围（用于统计计算）
+        long shiftStartTs = summary.getShiftStartTs();
+        Optional<ShiftTimeRange> shiftRangeOpt = shiftCalculationService.calculateAndValidateShiftRange(
                 device.getOrgFactoryId(),
                 summary.getDeviceInfoId(),
-                shiftStartTs);
-
-        if (shiftRange == null) {
-            log.warn("无法计算班次时间范围: deviceId={}, shiftDate={}, shiftCode={}",
-                    summary.getDeviceInfoId(), summary.getSummaryDate(), summary.getShiftCode());
+                shiftStartTs,
+                shiftDate,
+                shiftCode);
+        
+        if (shiftRangeOpt.isEmpty()) {
             return false;
         }
+        ShiftTimeRange shiftRange = shiftRangeOpt.get();
 
-        // 查询班次内的状态记录
-        List<DeviceStateRecordDO> stateRecords =
-                stateRecordRepository.selectByRange(
-                        summary.getDeviceInfoId(),
-                        shiftRange.getStartTs() / 1000,
-                        shiftRange.getEndTs() / 1000);
+        // 查询班次状态数据（带兼容性处理）
+        List<DeviceStateRecordDO> stateRecords = queryStateRecords(
+                summary.getDeviceInfoId(), shiftDate, shiftCode, shiftRange);
+
+        // 如果状态记录为空，标记为已完成（表示确实没有数据）
+        if (stateRecords.isEmpty()) {
+            log.debug("补偿任务：设备没有状态记录，标记为已完成: deviceId={}, shiftDate={}, shiftCode={}",
+                    summary.getDeviceInfoId(), shiftDate, shiftCode);
+            markSummaryAsFinalized(summary, "设备无状态记录");
+            return false;
+        }
 
         // 重新计算状态统计
         Map<String, StateStatistics> stateStats =
                 stateStatisticsService.calculateStatistics(
                         stateRecords,
-                        shiftRange.getStartTs() / 1000,
-                        shiftRange.getEndTs() / 1000);
+                        shiftRange.getStartTs(),
+                        shiftRange.getEndTs());
 
         // 强制更新汇总记录（补偿任务需要强制更新，即使已统计过）
         forceUpdateSummary(
@@ -455,6 +856,18 @@ public class DeviceShiftSummaryService implements IDeviceShiftSummaryService {
                 stateStats);
 
         return true;
+    }
+
+    /**
+     * 标记汇总记录为已完成（用于补偿任务）
+     */
+    private void markSummaryAsFinalized(DeviceStateSummaryDO summary, String reason) {
+        summary.setIsFinalized(true);
+        summary.setCalculatedTime(System.currentTimeMillis());
+        summary.setCalculationSource(CALCULATION_SOURCE_COMPENSATION_SKIP);
+        stateSummaryRepository.update(summary);
+        log.debug("补偿任务：标记汇总记录为已完成: summaryId={}, deviceId={}, shiftDate={}, shiftCode={}, reason={}",
+                summary.getId(), summary.getDeviceInfoId(), summary.getSummaryDate(), summary.getShiftCode(), reason);
     }
 }
 

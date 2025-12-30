@@ -39,13 +39,19 @@ public class DeviceProductionSummaryJob extends BaseScheduledJob {
     @Override
     protected JobExecutionResult executeInternal() throws Exception {
         long statisticsTimeSeconds = System.currentTimeMillis() / 1000;
-        XxlJobHelper.log("产量汇总统计时间: {}", Instant.ofEpochSecond(statisticsTimeSeconds));
+        
+        XxlJobHelper.log("产量汇总统计时间点: {}, 批量大小: {}, 超时时间: {} 毫秒, 处理时间范围: {} 天", 
+                Instant.ofEpochSecond(statisticsTimeSeconds),
+                config.getBatchSize(),
+                config.getTimeoutMillis(),
+                config.getLookbackDays());
 
         BatchProcessResult result =
                 productionSummaryService.processAllDevicesWithCheckpoint(
                         statisticsTimeSeconds,
                         config.getBatchSize(),
-                        config.getTimeoutMillis());
+                        config.getTimeoutMillis(),
+                        config.getLookbackDays());
 
         return JobExecutionResult.of(
                 result.getSuccessCount(),

@@ -16,8 +16,8 @@ public interface IDeviceStateStatisticsService {
      * 计算状态统计
      *
      * @param stateRecords  状态记录列表
-     * @param shiftStartTs 班次开始时间（秒）
-     * @param shiftEndTs   班次结束时间（秒）
+     * @param shiftStartTs 班次开始时间（毫秒，Unix时间戳）
+     * @param shiftEndTs   班次结束时间（毫秒，Unix时间戳）
      * @return 状态统计Map，key为状态名称（如WORKING、STANDBY等），value为统计结果
      */
     Map<String, StateStatistics> calculateStatistics(

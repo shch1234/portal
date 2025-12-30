@@ -62,5 +62,17 @@ public interface IDeviceMetricsService {
      * @return 指标快照，可为空（缓存不存在）
      */
     Optional<RealtimeMetricSnapshot> getDeviceRealtimeMetrics(Long factoryId, Long deviceId);
+
+    /**
+     * 批量获取设备实时指标快照（从Redis批量读取）
+     * <p>
+     * 性能优化：使用批量读取减少 Redis 网络往返次数
+     *
+     * @param factoryId 工厂ID（可为空，用于key维度）
+     * @param deviceIds 设备ID列表
+     * @return 设备ID到指标快照的Map，只包含存在数据的设备
+     */
+    java.util.Map<Long, RealtimeMetricSnapshot> batchGetDeviceRealtimeMetrics(
+            Long factoryId, List<Long> deviceIds);
 }
 

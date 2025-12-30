@@ -7,6 +7,7 @@ import com.weili.iot_portal.dal.repository.device.DeviceStateRecordRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -23,21 +24,33 @@ public class DeviceStateRecordRepositoryImpl implements DeviceStateRecordReposit
     @Override
     public List<DeviceStateRecordDO> selectByRange(Long deviceId, Long startTs, Long endTs) {
         LambdaQueryWrapper<DeviceStateRecordDO> wrapper = baseQuery(deviceId);
-        if (!Objects.isNull(startTs)) {
+        
+        if (startTs != null && endTs != null) {
+            // 查询与时间范围 [startTs, endTs] 有交集的记录
+            // 交集条件：记录的开始时间 < 查询范围结束时间 且 (记录未结束 或 记录结束时间 > 查询范围开始时间)
+            // SQL: start_ts < endTs AND (end_ts IS NULL OR end_ts > startTs)
+            wrapper.lt(DeviceStateRecordDO::getStartTs, endTs)
+                   .and(w -> w.isNull(DeviceStateRecordDO::getEndTs)
+                           .or(wr -> wr.gt(DeviceStateRecordDO::getEndTs, startTs)));
+        } else if (startTs != null) {
+            // 查询开始时间 >= startTs 的所有记录
             wrapper.ge(DeviceStateRecordDO::getStartTs, startTs);
+        } else if (endTs != null) {
+            // 查询开始时间 < endTs 的所有记录
+            wrapper.lt(DeviceStateRecordDO::getStartTs, endTs);
         }
-        if (endTs != null) {
-            wrapper.le(DeviceStateRecordDO::getStartTs, endTs);
-        }
+        
         wrapper.orderByAsc(DeviceStateRecordDO::getStartTs);
         return deviceStateRecordMapper.selectList(wrapper);
     }
 
     @Override
     public List<DeviceStateRecordDO> selectRecent(Long deviceId, Long startTs, int limit) {
-        LambdaQueryWrapper<DeviceStateRecordDO> wrapper = baseQuery(deviceId)
-                .ge(startTs != null, DeviceStateRecordDO::getStartTs, startTs)
-                .orderByDesc(DeviceStateRecordDO::getStartTs)
+        LambdaQueryWrapper<DeviceStateRecordDO> wrapper = baseQuery(deviceId);
+        if (startTs != null) {
+            wrapper.ge(DeviceStateRecordDO::getStartTs, startTs);
+        }
+        wrapper.orderByDesc(DeviceStateRecordDO::getStartTs)
                 .last("limit " + limit);
         List<DeviceStateRecordDO> records = deviceStateRecordMapper.selectList(wrapper);
         records.sort((o1, o2) -> Long.compare(o1.getStartTs(), o2.getStartTs()));
@@ -76,6 +89,68 @@ public class DeviceStateRecordRepositoryImpl implements DeviceStateRecordReposit
     @Override
     public void update(DeviceStateRecordDO record) {
         deviceStateRecordMapper.updateById(record);
+    }
+
+    @Override
+    public void deleteById(Long id) {
+        deviceStateRecordMapper.deleteById(id);
+    }
+
+    @Override
+    public List<DeviceStateRecordDO> selectByShift(Long deviceId, LocalDate shiftDate, Integer shiftCode) {
+        LambdaQueryWrapper<DeviceStateRecordDO> wrapper = baseQuery(deviceId);
+        
+        // 使用班次维度查询，可以利用 (device_info_id, shift_date, shift_code) 索引
+        if (shiftDate != null) {
+            wrapper.eq(DeviceStateRecordDO::getShiftDate, shiftDate);
+        }
+        if (shiftCode != null) {
+            wrapper.eq(DeviceStateRecordDO::getShiftCode, shiftCode);
+        }
+        
+        wrapper.orderByAsc(DeviceStateRecordDO::getStartTs);
+        return deviceStateRecordMapper.selectList(wrapper);
+    }
+
+    @Override
+    public List<DeviceStateRecordRepository.DeviceShiftKey> findDistinctDeviceShifts(LocalDate startDate, LocalDate endDate) {
+        // 查询指定日期范围内有状态记录的所有设备+班次组合
+        // 使用 DISTINCT 去重，只返回唯一的 (device_info_id, org_factory_id, shift_date, shift_code) 组合
+        LambdaQueryWrapper<DeviceStateRecordDO> wrapper = new LambdaQueryWrapper<>();
+        wrapper.select(
+                DeviceStateRecordDO::getDeviceInfoId,
+                DeviceStateRecordDO::getOrgFactoryId,
+                DeviceStateRecordDO::getShiftDate,
+                DeviceStateRecordDO::getShiftCode
+        );
+        
+        if (startDate != null) {
+            wrapper.ge(DeviceStateRecordDO::getShiftDate, startDate);
+        }
+        if (endDate != null) {
+            wrapper.le(DeviceStateRecordDO::getShiftDate, endDate);
+        }
+        
+        // 过滤掉 shift_date 或 shift_code 为 null 的记录（这些记录可能来自历史数据）
+        wrapper.isNotNull(DeviceStateRecordDO::getShiftDate)
+                .isNotNull(DeviceStateRecordDO::getShiftCode)
+                .isNotNull(DeviceStateRecordDO::getDeviceInfoId);
+        
+        // 使用 DISTINCT 去重
+        wrapper.last("GROUP BY device_info_id, org_factory_id, shift_date, shift_code");
+        
+        List<DeviceStateRecordDO> records = deviceStateRecordMapper.selectList(wrapper);
+        
+        // 转换为 DeviceShiftKey 列表
+        return records.stream()
+                .map(r -> new DeviceStateRecordRepository.DeviceShiftKey(
+                        r.getDeviceInfoId(),
+                        r.getOrgFactoryId(),
+                        r.getShiftDate(),
+                        r.getShiftCode()
+                ))
+                .distinct()
+                .toList();
     }
 
     /**
