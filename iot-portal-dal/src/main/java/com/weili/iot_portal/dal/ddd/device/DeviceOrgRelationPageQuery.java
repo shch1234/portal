@@ -2,8 +2,6 @@ package com.weili.iot_portal.dal.ddd.device;
 
 import lombok.Data;
 
-import java.util.List;
-
 /**
  * 组织单元分页查询条件（对应 device_org_relation 表）
  */
@@ -13,17 +11,17 @@ public class DeviceOrgRelationPageQuery {
     /**
      * 单元编码模糊查询（对应 unit_code）
      */
-    private String unitCodeLike;
+    private String unitCode;
 
     /**
      * 单元名称模糊查询（对应 unit_name）
      */
-    private String unitNameLike;
+    private String unitName;
 
     /**
      * 单元类型值列表（对应 unit_type_value）
      */
-    private List<String> unitTypeValues;
+    private String unitTypeValue;
 
     /**
      * 父级组织ID（对应 org_parent_id）

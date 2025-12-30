@@ -51,7 +51,7 @@ public class DeviceOrgRelationController {
 
     @DeleteMapping("/delete")
     @Operation(summary = "删除设备组织单元")
-    @Parameter(name = "id", description = "设备组织单元ID", required = true, example = "123456789")
+    @Parameter(name = "id", description = "设备组织单元ID", required = true)
     @PermRequired(permission = "device-mgmt:device-org-relation:delete")
     public CommonResult<Boolean> deleteDeviceOrgRelation(@RequestParam("id") String id) {
         deviceOrgRelationBizService.deleteDeviceOrgRelation(id);
@@ -60,10 +60,18 @@ public class DeviceOrgRelationController {
 
     @GetMapping("/get")
     @Operation(summary = "获取设备组织单元详情")
-    @Parameter(name = "id", description = "设备组织单元ID", required = true, example = "123456789")
+    @Parameter(name = "id", description = "设备组织单元ID", required = true)
     public CommonResult<DeviceOrgRelationRespVO> getDeviceOrgRelation(@RequestParam("id") String id) {
         DeviceOrgRelationDO deviceOrgRelation = deviceOrgRelationBizService.getDeviceOrgRelation(id);
-        return CommonResult.success(BeanUtils.toBean(deviceOrgRelation, DeviceOrgRelationRespVO.class));
+        DeviceOrgRelationRespVO respVO = BeanUtils.toBean(deviceOrgRelation, DeviceOrgRelationRespVO.class);
+        //补充父id
+        if (deviceOrgRelation.getLevelNo() == 3) {
+            DeviceOrgRelationDO parentOrgRelation = deviceOrgRelationBizService.getDeviceOrgRelation(deviceOrgRelation.getOrgParentId());
+            if (parentOrgRelation != null) {
+                respVO.setOrgParentId(parentOrgRelation.getId() + "," + respVO.getOrgParentId());
+            }
+        }
+        return CommonResult.success(respVO);
     }
 
     @GetMapping("/page")

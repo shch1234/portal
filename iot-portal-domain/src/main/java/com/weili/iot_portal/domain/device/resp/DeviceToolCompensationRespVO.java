@@ -6,8 +6,6 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.math.BigDecimal;
-
 
 /**
  * 刀具补偿项（每一行代表一个刀补号的数据）

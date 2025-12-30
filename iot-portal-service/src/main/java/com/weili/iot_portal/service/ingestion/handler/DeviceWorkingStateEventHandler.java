@@ -6,6 +6,8 @@ import com.weili.iot_portal.common.utils.WebhookTimestampUtils;
 import com.weili.iot_portal.dal.dataobject.device.DeviceProductionRecordDO;
 import com.weili.iot_portal.dal.dataobject.ingestion.WebhookInboxDO;
 import com.weili.iot_portal.dal.repository.device.DeviceProductionRecordRepository;
+import com.weili.iot_portal.domain.ingestion.DeviceIdentity;
+import com.weili.iot_portal.domain.ingestion.ShiftDateAndCode;
 import com.weili.iot_portal.domain.ingestion.WebhookRequest;
 import com.weili.iot_portal.service.cache.DeviceLockService;
 import com.weili.iot_portal.service.ingestion.WebhookEventHandler;
@@ -13,7 +15,6 @@ import com.weili.iot_portal.service.ingestion.WebhookFailLogService;
 import com.weili.iot_portal.service.ingestion.WebhookProcessingStrategy;
 import com.weili.iot_portal.service.ingestion.handler.fields.DeviceWorkingStateEventFields;
 import com.weili.iot_portal.service.shift.IShiftCalculationService;
-import com.weili.iot_portal.domain.ingestion.ShiftDateAndCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -21,8 +22,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Map;
 import java.util.Optional;
-
-import com.weili.iot_portal.domain.ingestion.DeviceIdentity;
 
 /**
  * 设备加工状态事件处理器

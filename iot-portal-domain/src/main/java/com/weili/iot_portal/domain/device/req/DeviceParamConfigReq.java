@@ -1,11 +1,9 @@
 package com.weili.iot_portal.domain.device.req;
 
 import io.swagger.v3.oas.annotations.media.Schema;
-import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
 
 /**
  * 设备位置信息（嵌套对象）

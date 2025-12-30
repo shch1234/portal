@@ -1,14 +1,11 @@
 package com.weili.iot_portal.domain.device.resp;
 
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import com.weili.iot_portal.common.serializer.TimestampLongSerializer;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.math.BigDecimal;
 import java.util.List;
 
 /**

@@ -1,8 +1,6 @@
 package com.weili.iot_portal.domain.device.req;
 
 import com.weili.basic.common.model.PageParam;
-import com.weili.iot_portal.common.serializer.TimestampLongDeserializer;
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;

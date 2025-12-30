@@ -2,8 +2,8 @@ package com.weili.iot_portal.service.device.impl;
 
 import com.weili.basic.common.util.JsonUtils;
 import com.weili.basic.redis.client.RedisClient;
-import com.weili.iot_portal.service.device.ICheckpointService;
 import com.weili.iot_portal.domain.ingestion.CheckpointData;
+import com.weili.iot_portal.service.device.ICheckpointService;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 

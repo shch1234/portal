@@ -2,8 +2,6 @@ package com.weili.iot_portal.dal.ddd.device;
 
 import lombok.Data;
 
-import java.util.List;
-
 /**
  * 设备类型分页查询条件
  */

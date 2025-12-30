@@ -30,7 +30,7 @@ public class DeviceOrgRelationSaveReqVO {
     @Size(max = 100, message = "组织单元类型值长度不能超过100个字符")
     private String unitTypeValue;
 
-    @Schema(description = "父级组织ID", example = "123456789")
+    @Schema(description = "父级组织ID集合")
     private String orgParentId;
 
     @Schema(description = "描述信息")

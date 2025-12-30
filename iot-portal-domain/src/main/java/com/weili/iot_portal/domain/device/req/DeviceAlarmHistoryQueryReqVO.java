@@ -1,10 +1,9 @@
 package com.weili.iot_portal.domain.device.req;
 
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.weili.basic.common.model.PageParam;
 import com.weili.iot_portal.common.serializer.TimestampLongDeserializer;
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import io.swagger.v3.oas.annotations.media.Schema;
-import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
@@ -16,8 +15,7 @@ import lombok.EqualsAndHashCode;
 @Schema(description = "设备告警查询请求")
 public class DeviceAlarmHistoryQueryReqVO extends PageParam {
 
-    @NotNull(message = "设备ID不能为空")
-    @Schema(description = "设备ID", required = true)
+    @Schema(description = "设备ID")
     private Long deviceId;
 
     @Schema(description = "设备编码")

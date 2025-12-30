@@ -38,6 +38,26 @@ public class DeviceStateSummaryRepositoryImpl implements DeviceStateSummaryRepos
         return mapper.selectList(wrapper);
     }
 
+    /**
+     * 按班次日期范围查询设备状态汇总
+     */
+    @Override
+    public List<DeviceStateSummaryDO> selectByShiftDateRange(Long deviceId, LocalDate startDate, LocalDate endDate) {
+        LambdaQueryWrapper<DeviceStateSummaryDO> wrapper = new LambdaQueryWrapper<>();
+        if (deviceId != null) {
+            wrapper.eq(DeviceStateSummaryDO::getDeviceInfoId, deviceId);
+        }
+        if (startDate != null) {
+            wrapper.ge(DeviceStateSummaryDO::getSummaryDate, startDate);
+        }
+        if (endDate != null) {
+            wrapper.le(DeviceStateSummaryDO::getSummaryDate, endDate);
+        }
+        wrapper.orderByAsc(DeviceStateSummaryDO::getSummaryDate)
+                .orderByAsc(DeviceStateSummaryDO::getShiftCode);
+        return mapper.selectList(wrapper);
+    }
+
     @Override
     public List<DeviceStateSummaryDO> selectPending(LocalDate startDate, LocalDate endDate) {
         LambdaQueryWrapper<DeviceStateSummaryDO> wrapper = new LambdaQueryWrapper<>();

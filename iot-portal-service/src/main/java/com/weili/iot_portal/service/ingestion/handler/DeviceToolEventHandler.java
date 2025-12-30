@@ -5,6 +5,7 @@ import com.weili.basic.common.util.JsonUtils;
 import com.weili.iot_portal.dal.dataobject.device.DeviceToolCompensationDO;
 import com.weili.iot_portal.dal.dataobject.ingestion.WebhookInboxDO;
 import com.weili.iot_portal.dal.repository.device.DeviceToolCompensationRepository;
+import com.weili.iot_portal.domain.ingestion.DeviceIdentity;
 import com.weili.iot_portal.domain.ingestion.WebhookRequest;
 import com.weili.iot_portal.service.cache.DeviceToolCacheService;
 import com.weili.iot_portal.service.ingestion.WebhookEventHandler;
@@ -17,11 +18,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-
-import com.weili.iot_portal.domain.ingestion.DeviceIdentity;
 
 /**
  * 设备刀具事件处理器

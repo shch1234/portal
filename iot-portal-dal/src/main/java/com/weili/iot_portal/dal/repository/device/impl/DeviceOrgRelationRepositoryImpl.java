@@ -51,14 +51,14 @@ public class DeviceOrgRelationRepositoryImpl implements DeviceOrgRelationReposit
     @Override
     public PageResult<DeviceOrgRelationDO> selectPage(DeviceOrgRelationPageQuery query) {
         LambdaQueryWrapper<DeviceOrgRelationDO> wrapper = new LambdaQueryWrapper<>();
-        if (StringUtils.isNotBlank(query.getUnitCodeLike())) {
-            wrapper.like(DeviceOrgRelationDO::getUnitCode, query.getUnitCodeLike());
+        if (StringUtils.isNotBlank(query.getUnitCode())) {
+            wrapper.like(DeviceOrgRelationDO::getUnitCode, query.getUnitCode());
         }
-        if (StringUtils.isNotBlank(query.getUnitNameLike())) {
-            wrapper.like(DeviceOrgRelationDO::getUnitName, query.getUnitNameLike());
+        if (StringUtils.isNotBlank(query.getUnitName())) {
+            wrapper.like(DeviceOrgRelationDO::getUnitName, query.getUnitName());
         }
-        if (query.getUnitTypeValues() != null && !query.getUnitTypeValues().isEmpty()) {
-            wrapper.in(DeviceOrgRelationDO::getUnitTypeValue, query.getUnitTypeValues());
+        if (StringUtils.isNotBlank(query.getUnitTypeValue())) {
+            wrapper.in(DeviceOrgRelationDO::getUnitTypeValue, query.getUnitTypeValue());
         }
         if (StringUtils.isNotBlank(query.getOrgParentId())) {
             wrapper.eq(DeviceOrgRelationDO::getOrgParentId, query.getOrgParentId());

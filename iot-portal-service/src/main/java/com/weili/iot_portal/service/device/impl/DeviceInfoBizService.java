@@ -10,8 +10,6 @@ import com.weili.iot_portal.dal.ddd.device.DeviceBaseInfoPageQuery;
 import com.weili.iot_portal.dal.repository.device.*;
 import com.weili.iot_portal.domain.device.req.*;
 import com.weili.iot_portal.domain.device.resp.*;
-import com.weili.iot_portal.domain.device.resp.DeviceLocationInfo;
-import com.weili.iot_portal.domain.device.resp.DeviceNetworkInfo;
 import com.weili.iot_portal.service.assembler.DeviceInfoAssembler;
 import com.weili.iot_portal.service.device.IDeviceInfoBizService;
 import com.weili.iot_portal.service.device.IDeviceModelBizService;

@@ -13,6 +13,11 @@ public interface DeviceStateSummaryRepository {
     List<DeviceStateSummaryDO> selectByRange(Long deviceId, Long startTs, Long endTs);
 
     /**
+     * 按班次日期范围查询设备状态汇总
+     */
+    List<DeviceStateSummaryDO> selectByShiftDateRange(Long deviceId, LocalDate startDate, LocalDate endDate);
+
+    /**
      * 查询指定日期范围内未完成汇总的记录
      */
     List<DeviceStateSummaryDO> selectPending(LocalDate startDate, LocalDate endDate);

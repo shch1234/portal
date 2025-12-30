@@ -5,6 +5,7 @@ import com.weili.iot_portal.dal.dataobject.device.DeviceProductionSummaryDO;
 import com.weili.iot_portal.dal.ddd.device.ProductionCounterPageQuery;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -21,6 +22,11 @@ public interface DeviceProductionSummaryRepository {
     void insert(DeviceProductionSummaryDO entity);
 
     void update(DeviceProductionSummaryDO entity);
+
+    /**
+     * 查询日期范围内的产量汇总数据
+     */
+    List<DeviceProductionSummaryDO> findByDateRange(Long deviceInfoId, Integer shiftCode, LocalDate startDate, LocalDate endDate);
 }
 
 

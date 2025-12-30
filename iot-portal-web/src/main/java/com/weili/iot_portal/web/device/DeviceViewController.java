@@ -2,22 +2,9 @@ package com.weili.iot_portal.web.device;
 
 import com.weili.basic.common.model.CommonResult;
 import com.weili.basic.common.model.PageResult;
-import com.weili.iot_portal.domain.device.req.DeviceAlarmHistoryQueryReqVO;
-import com.weili.iot_portal.domain.device.req.DeviceAxisQueryReqVO;
-import com.weili.iot_portal.domain.device.req.DeviceStateSummaryQueryReqVO;
-import com.weili.iot_portal.domain.device.req.DeviceToolCompensationQueryReqVO;
-import com.weili.iot_portal.domain.device.req.DeviceToolRecordQueryReqVO;
-import com.weili.iot_portal.domain.device.resp.DeviceAlarmHistoryRespVO;
-import com.weili.iot_portal.domain.device.resp.DeviceAxisRespVO;
-import com.weili.iot_portal.domain.device.resp.DeviceProgramRespVO;
-import com.weili.iot_portal.domain.device.resp.DeviceStateSummaryRespVO;
-import com.weili.iot_portal.domain.device.resp.DeviceToolCompensationRespVO;
-import com.weili.iot_portal.domain.device.resp.DeviceToolRecordRespVO;
-import com.weili.iot_portal.service.device.IDeviceAlarmHistoryBizService;
-import com.weili.iot_portal.service.device.IDeviceAxisBizService;
-import com.weili.iot_portal.service.device.IDeviceProgramBizService;
-import com.weili.iot_portal.service.device.IDeviceStateSummaryBizService;
-import com.weili.iot_portal.service.device.IDeviceToolBizService;
+import com.weili.iot_portal.domain.device.req.*;
+import com.weili.iot_portal.domain.device.resp.*;
+import com.weili.iot_portal.service.device.*;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.Resource;
@@ -30,7 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * @author luying
- * @className DeviceDetailViewController
+ * @className DeviceViewController
  * @description
  * @date 2025-12-23 13:39
  **/
@@ -38,7 +25,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/device-mgmt/detail-view")
 @Validated
-public class DeviceDetailController {
+public class DeviceViewController {
     @Resource
     private IDeviceAxisBizService deviceAxisBizService;
     @Resource
@@ -47,6 +34,8 @@ public class DeviceDetailController {
     private IDeviceToolBizService deviceToolBizService;
     @Resource
     private IDeviceProgramBizService deviceProgramBizService;
+    @Resource
+    private IDeviceProductionSummaryService deviceProductionSummaryService;
 
     @GetMapping("/state-summary")
     @Operation(summary = "获取设备状态统计（饼图+时间轴）")
@@ -82,5 +71,15 @@ public class DeviceDetailController {
     public CommonResult<DeviceProgramRespVO> getDeviceProgram(@RequestParam("deviceId") Long deviceId) {
         DeviceProgramRespVO result = deviceProgramBizService.getDeviceProgram(deviceId);
         return CommonResult.success(result);
+    }
+
+
+    @GetMapping("/production-statistics")
+    @Operation(summary = "查询设备产量统计",
+            description = "查询设备当日加工数量和近一周/近一个月的产量趋势图数据")
+    public CommonResult<DeviceProductionStatisticsRespVO> getProductionStatistics(@Valid DeviceProductionStatisticsReqVO reqVO) {
+        DeviceProductionStatisticsRespVO statistics =
+                deviceProductionSummaryService.getDeviceProductionStatistics(reqVO);
+        return CommonResult.success(statistics);
     }
 }

@@ -1,6 +1,7 @@
 package com.weili.iot_portal.service.ingestion.handler;
 
 import com.weili.iot_portal.dal.dataobject.ingestion.WebhookInboxDO;
+import com.weili.iot_portal.domain.ingestion.DeviceIdentity;
 import com.weili.iot_portal.domain.ingestion.WebhookRequest;
 import com.weili.iot_portal.service.cache.DeviceProgramCacheService;
 import com.weili.iot_portal.service.ingestion.WebhookEventHandler;
@@ -13,8 +14,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashMap;
 import java.util.Map;
-
-import com.weili.iot_portal.domain.ingestion.DeviceIdentity;
 
 /**
  * 设备程序信息事件处理器

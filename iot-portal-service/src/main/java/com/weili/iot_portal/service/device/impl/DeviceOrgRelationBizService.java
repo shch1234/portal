@@ -41,14 +41,21 @@ public class DeviceOrgRelationBizService implements IDeviceOrgRelationBizService
         // 验证组织单元编码唯一性
         validateUnitCodeUnique(null, createReqVO.getUnitCode());
         // 如果存在父级，验证父级存在
+        String orgParentId = createReqVO.getOrgParentId();
         if (StrUtil.isNotBlank(createReqVO.getOrgParentId())) {
-            validateDeviceOrgRelationExists(createReqVO.getOrgParentId());
+            List<String> ids = Arrays.stream(createReqVO.getOrgParentId().split(",")).toList();
+            ids.forEach(this::validateDeviceOrgRelationExists);
+            if (ids.size() == 2) {
+                createReqVO.setOrgParentId(ids.get(1));
+            } else {
+                createReqVO.setOrgParentId(ids.get(0));
+            }
         }
-
         DeviceOrgRelationDO deviceOrgRelation = BeanUtils.toBean(createReqVO, DeviceOrgRelationDO.class);
         // 构建层级路径
         buildPath(deviceOrgRelation);
         deviceOrgRelation.setLevelNo(UnitTypeEnum.ofLevelNo(createReqVO.getUnitTypeValue()));
+        deviceOrgRelation.setOrgParentId(orgParentId);
         deviceOrgRelationRepository.insert(deviceOrgRelation);
         return deviceOrgRelation.getId();
     }
@@ -65,7 +72,13 @@ public class DeviceOrgRelationBizService implements IDeviceOrgRelationBizService
             if (updateReqVO.getOrgParentId().equals(updateReqVO.getId())) {
                 throw new IotPortalException(IotPortalErrorCode.DEFAULT_ERROR, "父级组织不能是自己");
             }
-            validateDeviceOrgRelationExists(updateReqVO.getOrgParentId());
+            List<String> ids = Arrays.stream(updateReqVO.getOrgParentId().split(",")).toList();
+            ids.forEach(this::validateDeviceOrgRelationExists);
+            if (ids.size() == 2) {
+                updateReqVO.setOrgParentId(ids.get(1));
+            } else {
+                updateReqVO.setOrgParentId(ids.get(0));
+            }
         }
 
         DeviceOrgRelationDO deviceOrgRelation = BeanUtils.toBean(updateReqVO, DeviceOrgRelationDO.class);

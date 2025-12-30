@@ -3,8 +3,8 @@ package com.weili.iot_portal.service.device.impl;
 import com.weili.iot_portal.common.enums.DeviceStateEnum;
 import com.weili.iot_portal.common.utils.DeviceStateUtils;
 import com.weili.iot_portal.dal.dataobject.device.DeviceStateRecordDO;
-import com.weili.iot_portal.service.device.IDeviceStateStatisticsService;
 import com.weili.iot_portal.domain.ingestion.StateStatistics;
+import com.weili.iot_portal.service.device.IDeviceStateStatisticsService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 

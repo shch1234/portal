@@ -31,6 +31,7 @@ public class DeviceInfoController {
     @Resource
     private IDeviceInfoBizService deviceInfoBizService;
 
+
     @GetMapping("/page")
     @Operation(summary = "分页查询设备信息")
     public CommonResult<PageResult<DeviceInfoRespVO>> getDeviceInfoPage(@Valid DeviceInfoBasePageReqVO pageReqVO) {
@@ -82,8 +83,8 @@ public class DeviceInfoController {
 
 
     @GetMapping("/options")
-    @Operation(summary = "获取设备信息选项数据（用于新增/编辑页面）", 
-               description = "一次性返回设备类型、组织关系（厂区/车间/产线）、设备型号等下拉选项数据，减少前端接口调用")
+    @Operation(summary = "获取设备信息选项数据（用于新增/编辑页面）",
+               description = "一次性返回设备类型、组织关系（厂区/车间/产线）、设备型号等下拉选项数据")
     public CommonResult<DeviceInfoOptionsRespVO> getDeviceInfoOptions() {
         DeviceInfoOptionsRespVO options = deviceInfoBizService.getDeviceInfoOptions();
         return CommonResult.success(options);

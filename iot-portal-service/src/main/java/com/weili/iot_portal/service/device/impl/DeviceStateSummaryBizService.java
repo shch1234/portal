@@ -13,9 +13,11 @@ import com.weili.iot_portal.domain.device.resp.DeviceStateSummaryRespVO;
 import com.weili.iot_portal.domain.device.resp.StateRatioStatistics;
 import com.weili.iot_portal.domain.device.resp.StateStatItem;
 import com.weili.iot_portal.domain.device.resp.StateTimeSegment;
+import com.weili.iot_portal.domain.ingestion.ShiftDateAndCode;
 import com.weili.iot_portal.service.cache.DeviceStateCacheService;
 import com.weili.iot_portal.service.device.IDeviceInfoBizService;
 import com.weili.iot_portal.service.device.IDeviceStateSummaryBizService;
+import com.weili.iot_portal.service.shift.IShiftCalculationService;
 import jakarta.annotation.Resource;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
@@ -39,6 +41,8 @@ public class DeviceStateSummaryBizService implements IDeviceStateSummaryBizServi
     private DeviceStateSummaryRepository deviceStateSummaryRepository;
     @Resource
     private DeviceStateRecordRepository deviceStateRecordRepository;
+    @Resource
+    private IShiftCalculationService shiftCalculationService;
 
 
     @Override
@@ -51,11 +55,26 @@ public class DeviceStateSummaryBizService implements IDeviceStateSummaryBizServi
         String stateValue = deviceStateCacheService.getStateValue(deviceInfo.getOrgFactoryId(), deviceInfo.getId());
         String heartbeat = deviceStateCacheService.getHeartbeat(deviceInfo.getOrgFactoryId(), deviceInfo.getId());
 
-        // 1. 查询汇总数据（用于饼图）
-        List<DeviceStateSummaryDO> summaryList = deviceStateSummaryRepository.selectByRange(
+        // 将传入的时间戳（毫秒）转换为秒
+        long startTimeSeconds = queryReqVO.getStartTime() / 1000;
+        long endTimeSeconds = queryReqVO.getEndTime() / 1000;
+
+        // 根据开始时间和结束时间获取对应的班次信息
+        ShiftDateAndCode startShiftInfo = shiftCalculationService.getShiftDateAndCode(
+                deviceInfo.getOrgFactoryId(),
+                deviceInfo.getId(),
+                startTimeSeconds);
+
+        ShiftDateAndCode endShiftInfo = shiftCalculationService.getShiftDateAndCode(
+                deviceInfo.getOrgFactoryId(),
+                deviceInfo.getId(),
+                endTimeSeconds);
+
+        // 1. 使用班次日期范围查询汇总数据（用于饼图）
+        List<DeviceStateSummaryDO> summaryList = deviceStateSummaryRepository.selectByShiftDateRange(
                 queryReqVO.getDeviceId(),
-                queryReqVO.getStartTime(),
-                queryReqVO.getEndTime()
+                startShiftInfo.shiftDate(),
+                endShiftInfo.shiftDate()
         );
 
         // 2. 查询状态记录数据（用于时间轴）

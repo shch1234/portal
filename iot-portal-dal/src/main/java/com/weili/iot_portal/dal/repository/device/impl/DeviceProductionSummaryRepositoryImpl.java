@@ -12,6 +12,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -93,6 +94,21 @@ public class DeviceProductionSummaryRepositoryImpl implements DeviceProductionSu
     @Override
     public void update(DeviceProductionSummaryDO entity) {
         deviceProductionSummaryMapper.updateById(entity);
+    }
+
+    @Override
+    public List<DeviceProductionSummaryDO> findByDateRange(Long deviceInfoId,
+                                                           Integer shiftCode,
+                                                           LocalDate startDate,
+                                                           LocalDate endDate) {
+        LambdaQueryWrapper<DeviceProductionSummaryDO> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(DeviceProductionSummaryDO::getDeviceInfoId, deviceInfoId)
+                .ge(DeviceProductionSummaryDO::getShiftDate, startDate)
+                .eq(DeviceProductionSummaryDO::getShiftCode, shiftCode)
+                .le(DeviceProductionSummaryDO::getShiftDate, endDate)
+                .orderByAsc(DeviceProductionSummaryDO::getShiftDate)
+                .orderByAsc(DeviceProductionSummaryDO::getShiftCode);
+        return deviceProductionSummaryMapper.selectList(wrapper);
     }
 }
 

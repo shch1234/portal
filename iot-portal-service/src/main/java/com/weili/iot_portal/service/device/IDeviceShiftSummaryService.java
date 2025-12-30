@@ -1,11 +1,7 @@
 package com.weili.iot_portal.service.device;
 
 import com.weili.iot_portal.dal.dataobject.device.DeviceInfoDO;
-import com.weili.iot_portal.domain.ingestion.BatchProcessResult;
-import com.weili.iot_portal.domain.ingestion.CompensationResult;
-import com.weili.iot_portal.domain.ingestion.ProcessResult;
-import com.weili.iot_portal.domain.ingestion.StateStatistics;
-import com.weili.iot_portal.domain.ingestion.ShiftTimeRange;
+import com.weili.iot_portal.domain.ingestion.*;
 
 import java.time.LocalDate;
 import java.util.List;

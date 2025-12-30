@@ -1,10 +1,10 @@
 package com.weili.iot_portal.service.ingestion.impl;
 
 import com.weili.iot_portal.dal.dataobject.ingestion.WebhookInboxDO;
+import com.weili.iot_portal.domain.ingestion.ProcessResult;
 import com.weili.iot_portal.service.ingestion.WebhookInboxProcessor;
 import com.weili.iot_portal.service.ingestion.support.WebhookInboxService;
 import com.weili.iot_portal.service.ingestion.support.WebhookProcessService;
-import com.weili.iot_portal.domain.ingestion.ProcessResult;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;

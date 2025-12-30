@@ -1,16 +1,21 @@
 package com.weili.iot_portal.service.device.impl;
 
+import com.weili.iot_portal.common.exception.IotPortalErrorCode;
+import com.weili.iot_portal.common.exception.IotPortalException;
 import com.weili.iot_portal.dal.dataobject.device.DeviceInfoDO;
 import com.weili.iot_portal.dal.dataobject.device.DeviceProductionSummaryDO;
 import com.weili.iot_portal.dal.repository.device.DeviceInfoRepository;
 import com.weili.iot_portal.dal.repository.device.DeviceProductionRecordRepository;
 import com.weili.iot_portal.dal.repository.device.DeviceProductionSummaryRepository;
+import com.weili.iot_portal.domain.device.req.DeviceProductionStatisticsReqVO;
+import com.weili.iot_portal.domain.device.resp.DeviceProductionStatisticsRespVO;
 import com.weili.iot_portal.domain.ingestion.BatchProcessResult;
 import com.weili.iot_portal.domain.ingestion.CheckpointData;
+import com.weili.iot_portal.domain.ingestion.ShiftDateAndCode;
+import com.weili.iot_portal.domain.ingestion.ShiftTimeRange;
 import com.weili.iot_portal.service.device.ICheckpointService;
 import com.weili.iot_portal.service.device.IDeviceProductionSummaryService;
 import com.weili.iot_portal.service.shift.IShiftCalculationService;
-import com.weili.iot_portal.domain.ingestion.ShiftTimeRange;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
@@ -18,10 +23,8 @@ import org.springframework.stereotype.Service;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.time.format.DateTimeFormatter;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -211,6 +214,91 @@ public class DeviceProductionSummaryService implements IDeviceProductionSummaryS
             existing.setCalculatedTime(calculatedTimeSec);
             productionSummaryRepository.update(existing);
         }
+    }
+
+    @Override
+    public DeviceProductionStatisticsRespVO getDeviceProductionStatistics(DeviceProductionStatisticsReqVO reqVO) {
+        DeviceProductionStatisticsRespVO respVO = new DeviceProductionStatisticsRespVO();
+
+        Long deviceInfoId = reqVO.getDeviceInfoId();
+        Optional<DeviceInfoDO> optional = deviceInfoRepository.findById(deviceInfoId);
+        if (optional.isEmpty()) {
+            throw new IotPortalException(IotPortalErrorCode.DEVICE_INFO_NOT_FOUND);
+        }
+        DeviceInfoDO deviceInfoDO = optional.get();
+
+        // 获取当前时间（包括时分秒），用于获取当前所在的班次信息
+        Instant now = Instant.now();
+        long nowSeconds = now.getEpochSecond();
+
+        // 根据当前时间获取所在的班次信息
+        ShiftDateAndCode currentShiftInfo = shiftCalculationService.getShiftDateAndCode(
+                deviceInfoDO.getOrgFactoryId(),
+                deviceInfoId,
+                nowSeconds);
+
+        // 使用班次的 shiftDate 作为查询的结束日期
+        LocalDate endDate = currentShiftInfo.shiftDate();
+        Integer currentShiftCode = currentShiftInfo.shiftCode();
+
+        // 1. 查询当前班次的加工数量（从 device_production_record 表汇总）
+        long todayCount = productionRecordRepository.countByDate(deviceInfoId, endDate, currentShiftCode);
+        respVO.setTodayProductionCount((int) todayCount);
+
+        // 2. 根据时间范围确定查询的起止日期
+        LocalDate startDate;
+        if ("WEEK".equalsIgnoreCase(reqVO.getTimeRange())) {
+            // 近一周：今天往前推6天，共7天
+            startDate = endDate.minusDays(6);
+        } else if ("MONTH".equalsIgnoreCase(reqVO.getTimeRange())) {
+            // 近一个月：今天往前推29天，共30天（但图表只显示15个点）
+            startDate = endDate.minusDays(29);
+        } else {
+            throw new IllegalArgumentException("不支持的时间范围: " + reqVO.getTimeRange());
+        }
+
+        // 获取起始时间对应的班次信息
+        ShiftDateAndCode startShiftDateAndCode = shiftCalculationService.getShiftDateAndCode(
+                deviceInfoDO.getOrgFactoryId(),
+                deviceInfoId,
+                startDate.atStartOfDay(ZoneId.systemDefault()).toInstant().getEpochSecond());
+
+        // 3. 从 device_production_summary 查询日期范围内的汇总数据
+        List<DeviceProductionSummaryDO> summaryList = productionSummaryRepository.findByDateRange(
+                deviceInfoId,
+                startShiftDateAndCode.shiftCode(),
+                startShiftDateAndCode.shiftDate(),
+                endDate);
+
+        // 4. 按日期分组汇总（一天可能有多个班次）
+        Map<LocalDate, Integer> dailyProductionMap = summaryList.stream()
+                .collect(Collectors.groupingBy(
+                        DeviceProductionSummaryDO::getShiftDate,
+                        Collectors.summingInt(s -> s.getPartCount() != null ? s.getPartCount() : 0)
+                ));
+
+        // 5. 构建图表数据（按日期排序）
+        List<DeviceProductionStatisticsRespVO.ProductionDetailVO> detailList = new ArrayList<>();
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("MM-dd");
+
+        int index = 1;
+        for (LocalDate date = startDate; !date.isAfter(endDate); date = date.plusDays(1)) {
+            DeviceProductionStatisticsRespVO.ProductionDetailVO detail =
+                    new DeviceProductionStatisticsRespVO.ProductionDetailVO();
+            detail.setIndex(index++);
+            detail.setDateLabel(date.format(formatter));
+
+            Integer productionCount = dailyProductionMap.getOrDefault(date, 0);
+            detail.setProductionCount(productionCount);
+            detail.setQualifiedCount(productionCount); // 默认合格数量等于加工数量
+            detail.setDefectCount(0);
+
+            detailList.add(detail);
+        }
+
+        respVO.setProductionDetails(detailList);
+
+        return respVO;
     }
 }
 
