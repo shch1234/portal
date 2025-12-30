@@ -27,22 +27,93 @@ public class WebhookInboxService {
 
     private final WebhookInboxRepository inboxRepository;
 
+    /**
+     * 默认批量大小（原始配置值）
+     * 支持 Apollo 配置，默认值：100
+     */
     @Value("${webhook.inbox.batch-size:100}")
-    private int batchSize;
+    private int batchSizeRaw;
     
     /**
-     * 失败消息的最大处理比例（0.0-1.0）
+     * 失败消息的最大处理比例（0.0-1.0）（原始配置值）
      * 例如：0.3 表示每次批量处理时，最多30%是失败重试的消息，70%是新消息
      * 这样可以确保新消息优先处理，避免被旧失败消息阻塞
+     * 支持 Apollo 配置，默认值：0.3
      */
     @Value("${webhook.inbox.failed-message-ratio:0.3}")
-    private double failedMessageRatio;
+    private double failedMessageRatioRaw;
 
+    /**
+     * 最大重试次数（原始配置值）
+     * 支持 Apollo 配置，默认值：5
+     */
     @Value("${webhook.inbox.max-retry-count:5}")
-    private int maxRetryCount;
+    private int maxRetryCountRaw;
 
+    /**
+     * 重试间隔基数（秒），用于指数退避计算（原始配置值）
+     * 支持 Apollo 配置，默认值：60
+     */
     @Value("${webhook.inbox.retry-interval-base-seconds:60}")
+    private long retryIntervalBaseSecondsRaw;
+    
+    /**
+     * 验证后的配置值（经过验证和修正，防止 Apollo 配置错误导致报错）
+     */
+    private int batchSize;
+    private double failedMessageRatio;
+    private int maxRetryCount;
     private long retryIntervalBaseSeconds;
+    
+    /**
+     * 初始化配置验证（确保配置值合理，防止 Apollo 配置错误导致报错）
+     */
+    @javax.annotation.PostConstruct
+    private void validateConfig() {
+        // 验证并修正批量大小
+        if (batchSizeRaw <= 0) {
+            log.warn("[Webhook-Inbox] batch-size 配置无效: {}，使用默认值: 100", batchSizeRaw);
+            batchSize = 100;
+        } else if (batchSizeRaw > 1000) {
+            log.warn("[Webhook-Inbox] batch-size 配置过大: {}，限制为: 1000", batchSizeRaw);
+            batchSize = 1000;
+        } else {
+            batchSize = batchSizeRaw;
+        }
+        
+        // 验证并修正失败消息比例
+        if (failedMessageRatioRaw < 0 || failedMessageRatioRaw > 1) {
+            log.warn("[Webhook-Inbox] failed-message-ratio 配置无效: {}，使用默认值: 0.3", failedMessageRatioRaw);
+            failedMessageRatio = 0.3;
+        } else {
+            failedMessageRatio = failedMessageRatioRaw;
+        }
+        
+        // 验证并修正最大重试次数
+        if (maxRetryCountRaw < 0) {
+            log.warn("[Webhook-Inbox] max-retry-count 配置无效: {}，使用默认值: 5", maxRetryCountRaw);
+            maxRetryCount = 5;
+        } else if (maxRetryCountRaw > 20) {
+            log.warn("[Webhook-Inbox] max-retry-count 配置过大: {}，限制为: 20", maxRetryCountRaw);
+            maxRetryCount = 20;
+        } else {
+            maxRetryCount = maxRetryCountRaw;
+        }
+        
+        // 验证并修正重试间隔基数
+        if (retryIntervalBaseSecondsRaw <= 0) {
+            log.warn("[Webhook-Inbox] retry-interval-base-seconds 配置无效: {}，使用默认值: 60", retryIntervalBaseSecondsRaw);
+            retryIntervalBaseSeconds = 60;
+        } else if (retryIntervalBaseSecondsRaw > 3600) {
+            log.warn("[Webhook-Inbox] retry-interval-base-seconds 配置过大: {}，限制为: 3600", retryIntervalBaseSecondsRaw);
+            retryIntervalBaseSeconds = 3600;
+        } else {
+            retryIntervalBaseSeconds = retryIntervalBaseSecondsRaw;
+        }
+        
+        log.info("[Webhook-Inbox] 配置验证完成: batchSize={}, failedMessageRatio={}, maxRetryCount={}, retryIntervalBaseSeconds={}",
+                batchSize, failedMessageRatio, maxRetryCount, retryIntervalBaseSeconds);
+    }
 
     public void saveToInbox(WebhookRequest request) {
         log.debug("[Webhook-Inbox] ====== 保存消息到收件箱 ======");
@@ -119,25 +190,35 @@ public class WebhookInboxService {
      * @return 待处理的消息列表（新消息优先，失败消息按比例限制）
      */
     public List<WebhookInboxDO> fetchDue() {
+        return fetchDue(batchSize);
+    }
+    
+    /**
+     * 查询待处理/可重试的记录（支持动态批量大小）
+     * 
+     * @param dynamicBatchSize 动态批量大小
+     * @return 待处理的消息列表
+     */
+    public List<WebhookInboxDO> fetchDue(int dynamicBatchSize) {
         LocalDateTime now = LocalDateTime.now();
         List<WebhookInboxDO> result = new java.util.ArrayList<>();
         
         // 1. 优先查询新消息（PENDING状态），按接收时间升序
-        int pendingLimit = (int) (batchSize * (1 - failedMessageRatio));
+        int pendingLimit = (int) (dynamicBatchSize * (1 - failedMessageRatio));
         List<WebhookInboxDO> pendingMessages = inboxRepository.fetchPendingMessages(pendingLimit);
         result.addAll(pendingMessages);
         log.debug("[Webhook-Inbox] 查询到新消息数: {}", pendingMessages.size());
         
         // 2. 查询失败消息（FAILED状态），按重试时间升序，限制数量
-        int failedLimit = batchSize - result.size();
+        int failedLimit = dynamicBatchSize - result.size();
         if (failedLimit > 0) {
             List<WebhookInboxDO> failedMessages = inboxRepository.fetchFailedMessages(failedLimit, now);
             result.addAll(failedMessages);
             log.debug("[Webhook-Inbox] 查询到失败重试消息数: {}", failedMessages.size());
         }
         
-        log.debug("[Webhook-Inbox] 总计查询到待处理消息数: {} (新消息: {}, 失败重试: {})", 
-            result.size(), pendingMessages.size(), result.size() - pendingMessages.size());
+        log.debug("[Webhook-Inbox] 总计查询到待处理消息数: {} (新消息: {}, 失败重试: {}, 批量大小: {})", 
+            result.size(), pendingMessages.size(), result.size() - pendingMessages.size(), dynamicBatchSize);
         return result;
     }
     
@@ -399,6 +480,15 @@ public class WebhookInboxService {
         return totalDeleted;
     }
     
+    /**
+     * 获取批量大小（验证后的配置值）
+     * 
+     * @return 批量大小
+     */
+    public int getBatchSize() {
+        return batchSize;
+    }
+
     /**
      * 统计收件箱消息数量（用于监控）
      * 

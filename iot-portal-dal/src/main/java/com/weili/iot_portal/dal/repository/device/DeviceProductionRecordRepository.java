@@ -31,6 +31,22 @@ public interface DeviceProductionRecordRepository {
     List<Long> findDistinctDeviceIdsWithProductionRecords(long startTsSeconds, long endTsSeconds);
 
     /**
+     * 查询设备最新一条已完成记录的 duration_s（用于理论节拍默认值）
+     * <p>
+     * 查询条件：
+     * <ul>
+     *   <li>设备ID匹配</li>
+     *   <li>记录已完成（end_ts 不为空）</li>
+     *   <li>duration_s 不为空且大于0</li>
+     *   <li>按 end_ts 降序排列，取第一条</li>
+     * </ul>
+     * 
+     * @param deviceId 设备ID
+     * @return duration_s（秒），如果不存在则返回 Optional.empty()
+     */
+    Optional<Integer> findLatestCompletedDurationS(Long deviceId);
+
+    /**
      * 统计当天的加工数量
      */
     long countByDate(Long deviceInfoId, LocalDate shiftDate, Integer shiftCode);

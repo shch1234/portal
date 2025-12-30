@@ -346,7 +346,7 @@ public class DeviceMetricsService implements IDeviceMetricsService {
                 ? shift.getEndTs() : nowMs;
         
         // 2. 从预加载的参数配置中获取计划停机时长
-        long plannedDowntime = extractParameterValueFromList(deviceParams, PARAM_PLANNED_DOWNTIME);
+        long plannedDowntime = extractParameterValueFromList(deviceParams, PARAM_PLANNED_DOWNTIME, deviceId);
         
         // 3. 计算班次时长和计划运行时长
         long shiftDurationMillis = Math.max(0, shiftEndMillis - shiftStartMillis);
@@ -357,10 +357,10 @@ public class DeviceMetricsService implements IDeviceMetricsService {
         StateDurations stateDurations = extractStateDurations(stateDurationsMap);
         long actualRuntimeMillis = Math.max(0, plannedRuntimeMillis - stateDurations.getUnplannedDowntimeMillis());
         
-        // 5. 获取产量和理论节拍
+        // 5. 获取产量和理论节拍（如果未配置，会从 device_production_record 获取默认值）
         long actualOutput = deviceProductionRecordRepository.countCompletedInRange(
                 deviceId, shiftStartMillis / MILLIS_PER_SECOND, shiftEndMillis / MILLIS_PER_SECOND);
-        long theoreticalCycle = extractParameterValueFromList(deviceParams, PARAM_THEORETICAL_CYCLE);
+        long theoreticalCycle = extractParameterValueFromList(deviceParams, PARAM_THEORETICAL_CYCLE, deviceId);
         
         // 6. 计算已过日历时长
         long elapsedCalendarMillis = Math.max(1, nowMs - shiftStartMillis);
@@ -464,20 +464,47 @@ public class DeviceMetricsService implements IDeviceMetricsService {
     
     /**
      * 从设备参数配置列表中提取指定参数的值（批量处理优化版本）
+     * <p>
+     * 对于理论节拍（THEORETICAL_CYCLE），如果参数未配置或值为0，会尝试从 device_production_record 获取最新已完成记录的 duration_s 作为默认值
      * 
      * @param deviceParams 设备参数配置列表（已预加载）
      * @param parameterType 参数类型
+     * @param deviceId 设备ID（用于获取默认值，仅当 parameterType 为 THEORETICAL_CYCLE 时使用）
      * @return 参数值（秒），如果不存在则返回0
      */
-    private long extractParameterValueFromList(List<DeviceParamConfigDO> deviceParams, String parameterType) {
+    private long extractParameterValueFromList(List<DeviceParamConfigDO> deviceParams, String parameterType, Long deviceId) {
         if (deviceParams == null || deviceParams.isEmpty()) {
+            // 如果是理论节拍且未配置，尝试获取默认值
+            if (PARAM_THEORETICAL_CYCLE.equalsIgnoreCase(parameterType) && deviceId != null) {
+                return getTheoreticalCycleDefaultValue(deviceId);
+            }
             return 0L;
         }
-        return deviceParams.stream()
+        
+        long value = deviceParams.stream()
                 .filter(p -> parameterType.equalsIgnoreCase(p.getParameterType()))
                 .findFirst()
                 .map(DeviceParamConfigDO::getParameterValue)
                 .map(BigDecimal::longValue)
+                .orElse(0L);
+        
+        // 如果是理论节拍且值为0，尝试获取默认值
+        if (PARAM_THEORETICAL_CYCLE.equalsIgnoreCase(parameterType) && value <= 0 && deviceId != null) {
+            return getTheoreticalCycleDefaultValue(deviceId);
+        }
+        
+        return value;
+    }
+    
+    /**
+     * 获取理论节拍默认值（从 device_production_record 获取最新已完成记录的 duration_s）
+     * 
+     * @param deviceId 设备ID
+     * @return 理论节拍默认值（秒），如果不存在则返回0
+     */
+    private long getTheoreticalCycleDefaultValue(Long deviceId) {
+        return deviceProductionRecordRepository.findLatestCompletedDurationS(deviceId)
+                .map(Integer::longValue)
                 .orElse(0L);
     }
     
@@ -487,12 +514,12 @@ public class DeviceMetricsService implements IDeviceMetricsService {
      * @param deviceId 设备ID
      * @param parameterType 参数类型
      * @return 参数值（秒），如果不存在则返回0
-     * @deprecated 使用 {@link #extractParameterValueFromList(List, String)} 代替
+     * @deprecated 使用 {@link #extractParameterValueFromList(List, String, Long)} 代替
      */
     @Deprecated
     private long extractParameterValue(Long deviceId, String parameterType) {
         List<DeviceParamConfigDO> params = deviceParamConfigRepository.selectCurrent(deviceId);
-        return extractParameterValueFromList(params, parameterType);
+        return extractParameterValueFromList(params, parameterType, deviceId);
     }
     
     /**

@@ -1,6 +1,7 @@
 package com.weili.iot_portal.dal.dataobject.ingestion;
 
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
@@ -8,6 +9,7 @@ import lombok.EqualsAndHashCode;
 
 import java.io.Serial;
 import java.io.Serializable;
+import java.time.LocalDateTime;
 
 /**
  * Webhook 监控记录（对应 webhook_monitor_record 表）
@@ -53,6 +55,16 @@ public class WebhookMonitorRecordDO implements Serializable {
      * 失败时是否会重试
      */
     private Boolean willRetry;
+
+    /**
+     * 创建时间（用于查询和清理）
+     */
+    private LocalDateTime createTime;
+
+    /**
+     * 更新时间
+     */
+    private LocalDateTime updateTime;
 }
 
 

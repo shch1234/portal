@@ -215,11 +215,19 @@ public class WebhookReceiveService {
     /**
      * 处理 REALTIME 类别的事件
      * <p>
-     * REALTIME 类别的事件根据Handler的处理策略决定处理方式：
-     * - REALTIME_DIRECT: 直接调用Handler，不持久化
-     * - REALTIME_WITH_PERSISTENCE: 直接调用Handler，Handler内部有事务保证
-     * - BUSINESS_PERSISTENT: 特殊情况，走收件箱流程（保持兼容性）
+     * REALTIME 类别的事件统一直接处理，不经过收件箱（优化：解决收件箱数据膨胀问题）
+     * <p>
+     * 处理策略：
+     * - REALTIME_DIRECT: 直接调用Handler，只写Redis，不持久化
+     * - REALTIME_WITH_PERSISTENCE: 直接调用Handler，Handler内部有事务保证，直接写数据库
+     * - BUSINESS_PERSISTENT: 降级为直接处理，Handler内部有事务保证，直接写数据库（不再经过收件箱）
      * - 无Handler: 仅缓存原始数据
+     * </p>
+     * <p>
+     * 优化说明：
+     * - REALTIME 数据高频、低价值、可丢失，不需要持久化到收件箱
+     * - Handler 内部直接写业务表，保证数据持久化
+     * - 失败只记录日志，不重试（符合实时数据特性）
      * </p>
      *
      * @param request Webhook请求
@@ -230,7 +238,7 @@ public class WebhookReceiveService {
         Optional<WebhookEventHandler> handlerOpt = handlerRegistry.resolve(finalEventType);
 
         if (handlerOpt.isPresent()) {
-            // 有 Handler，根据策略决定处理方式
+            // 有 Handler，统一直接处理，不经过收件箱
             WebhookEventHandler handler = handlerOpt.get();
             WebhookProcessingStrategy strategy = handler.getProcessingStrategy();
 
@@ -240,22 +248,14 @@ public class WebhookReceiveService {
             }
 
             switch (strategy) {
-                case REALTIME_DIRECT ->
-                    // 实时直接处理：只写Redis，不持久化
-                        handleRealtimeHandler(handler, request, finalEventType, strategy);
-                case REALTIME_WITH_PERSISTENCE ->
-                    // 实时但需持久化：直接处理，Handler内部有事务保证
-                        handleRealtimeHandler(handler, request, finalEventType, strategy);
-                case BUSINESS_PERSISTENT -> {
-                    // 特殊情况：REALTIME类别但需要持久化保证（保持兼容性）
-                    if (log.isDebugEnabled()) {
-                        log.debug("[Webhook-处理] [步骤3] 实时数据（策略=BUSINESS_PERSISTENT），走收件箱流程: messageId={}, eventType={}",
+                case REALTIME_DIRECT, REALTIME_WITH_PERSISTENCE, BUSINESS_PERSISTENT -> {
+                    // 统一处理：所有 REALTIME 类别的事件都直接处理，不经过收件箱
+                    // BUSINESS_PERSISTENT 策略降级为直接处理，Handler 内部有事务保证
+                    if (strategy == WebhookProcessingStrategy.BUSINESS_PERSISTENT) {
+                        log.debug("[Webhook-处理] [步骤3] 实时数据（策略=BUSINESS_PERSISTENT），降级为直接处理，不经过收件箱: messageId={}, eventType={}",
                                 request.getMessageId(), finalEventType);
                     }
-                    webhookInboxService.saveToInbox(request);
-                    if (asyncProcessEnabled) {
-                        processMessageAsync(request.getMessageId());
-                    }
+                    handleRealtimeHandler(handler, request, finalEventType, strategy);
                 }
                 default -> {
                     // 未知策略，降级为仅缓存
@@ -275,11 +275,18 @@ public class WebhookReceiveService {
     }
 
     /**
-     * 实时处理 Handler（统一处理 REALTIME_DIRECT 和 REALTIME_WITH_PERSISTENCE）
+     * 实时处理 Handler（统一处理所有 REALTIME 类别的事件）
      * <p>
      * 适用于：
      * - REALTIME_DIRECT: 只写Redis缓存的事件（DEVICE_PROGRAM, DEVICE_AXIS等）
      * - REALTIME_WITH_PERSISTENCE: REALTIME类别但需要写数据库（如DEVICE_TOOL需要写device_tool_compensation表）
+     * - BUSINESS_PERSISTENT: 降级为直接处理，Handler内部有事务保证（如DEVICE_ALARM, DEVICE_TOOL_CHANGE等）
+     * </p>
+     * <p>
+     * 注意：
+     * - REALTIME事件处理失败不影响主流程，只记录日志
+     * - 这是REALTIME事件的低可靠性策略：允许丢失，不重试
+     * - Handler内部有@Transactional保证数据一致性（对于需要持久化的Handler）
      * </p>
      *
      * @param handler   事件处理器
@@ -297,8 +304,12 @@ public class WebhookReceiveService {
             handler.handleRealtime(request);
 
             if (log.isDebugEnabled()) {
-                String strategyName = strategy == WebhookProcessingStrategy.REALTIME_DIRECT
-                        ? "实时直接处理" : "实时持久化处理";
+                String strategyName = switch (strategy) {
+                    case REALTIME_DIRECT -> "实时直接处理";
+                    case REALTIME_WITH_PERSISTENCE -> "实时持久化处理";
+                    case BUSINESS_PERSISTENT -> "实时直接处理（降级）";
+                    default -> "实时处理";
+                };
                 log.debug("[Webhook-处理] [步骤3] {}完成: messageId={}, eventType={}",
                         strategyName, request.getMessageId(), eventType);
             }

@@ -22,6 +22,18 @@ public interface DeviceInfoRepository {
 
     List<DeviceInfoDO> findByFactoryId(String factoryId);
 
+    /**
+     * 根据设备编号查询活跃设备（用于设备匹配）
+     * <p>
+     * 匹配条件：
+     * 1. device_code 匹配
+     * 2. deleted = 0（未删除）
+     * 3. device_status = 'ACTIVE'（状态为ACTIVE）
+     * </p>
+     *
+     * @param deviceCode 设备编号
+     * @return 设备信息，如果未匹配则返回空
+     */
     Optional<DeviceInfoDO> findActiveMonitoredByDeviceCode(String deviceCode);
 
     /**
