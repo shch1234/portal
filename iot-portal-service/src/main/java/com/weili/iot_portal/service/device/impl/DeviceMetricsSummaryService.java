@@ -49,6 +49,7 @@ public class DeviceMetricsSummaryService implements IDeviceMetricsSummaryService
     private final DeviceParamConfigRepository deviceParamConfigRepository;
     private final DeviceMetricSummaryRepository deviceMetricSummaryRepository;
     private final DeviceProductionSummaryRepository deviceProductionSummaryRepository;
+    private final DeviceProductionRecordRepository deviceProductionRecordRepository;
     private final ICheckpointService<CheckpointData> checkpointService;
 
     public DeviceMetricsSummaryService(DeviceInfoRepository deviceInfoRepository,
@@ -56,6 +57,7 @@ public class DeviceMetricsSummaryService implements IDeviceMetricsSummaryService
                                        DeviceParamConfigRepository deviceParamConfigRepository,
                                        DeviceMetricSummaryRepository deviceMetricSummaryRepository,
                                        DeviceProductionSummaryRepository deviceProductionSummaryRepository,
+                                       DeviceProductionRecordRepository deviceProductionRecordRepository,
                                        @Qualifier("deviceMetricsSummaryCheckpointService")
                                        ICheckpointService<CheckpointData> checkpointService) {
         this.deviceInfoRepository = deviceInfoRepository;
@@ -63,6 +65,7 @@ public class DeviceMetricsSummaryService implements IDeviceMetricsSummaryService
         this.deviceParamConfigRepository = deviceParamConfigRepository;
         this.deviceMetricSummaryRepository = deviceMetricSummaryRepository;
         this.deviceProductionSummaryRepository = deviceProductionSummaryRepository;
+        this.deviceProductionRecordRepository = deviceProductionRecordRepository;
         this.checkpointService = checkpointService;
     }
 
@@ -300,7 +303,8 @@ public class DeviceMetricsSummaryService implements IDeviceMetricsSummaryService
                     summary, productionSummary, deviceParams, device);
             
             // 提取理论节拍（即使缺失也要提取，用于记录）
-            long theoreticalCycleSeconds = extractTheoreticalCycle(deviceParams, 
+            // 如果参数未配置或值为0，会尝试从 device_production_record 获取默认值
+            long theoreticalCycleSeconds = extractTheoreticalCycle(deviceParams, device.getId(),
                     summary.getSummaryDate(), summary.getShiftCode());
             
             // 即使数据不完整，也要插入/更新记录，但标记为待重算状态
@@ -456,25 +460,53 @@ public class DeviceMetricsSummaryService implements IDeviceMetricsSummaryService
     
     /**
      * 从参数列表中提取理论节拍
+     * <p>
+     * 如果参数未配置或值为0，会尝试从 device_production_record 获取最新已完成记录的 duration_s 作为默认值
+     * 
+     * @param params 设备参数配置列表
+     * @param deviceId 设备ID（用于获取默认值）
+     * @param shiftDate 班次日期（用于日志）
+     * @param shiftCode 班次编码（用于日志）
+     * @return 理论节拍（秒），如果不存在则返回0
      */
-    private long extractTheoreticalCycle(List<DeviceParamConfigDO> params, LocalDate shiftDate, Integer shiftCode) {
+    private long extractTheoreticalCycle(List<DeviceParamConfigDO> params, Long deviceId, LocalDate shiftDate, Integer shiftCode) {
         Optional<DeviceParamConfigDO> theoreticalCycleParam = params.stream()
                 .filter(p -> PARAM_THEORETICAL_CYCLE.equalsIgnoreCase(p.getParameterType()))
                 .findFirst();
         
-        if (theoreticalCycleParam.isEmpty()) {
-            log.warn("指标汇总: 理论节拍参数不存在，将导致性能开动率和OEE为0: shiftDate={}, shiftCode={}, " +
-                    "请在 device_param_config 表中配置 THEORETICAL_CYCLE 参数",
-                    shiftDate, shiftCode);
-            return 0L;
+        long theoreticalCycleSeconds = 0L;
+        boolean fromConfig = false;
+        
+        if (theoreticalCycleParam.isPresent()) {
+            theoreticalCycleSeconds = theoreticalCycleParam.get().getParameterValue().longValue();
+            fromConfig = true;
         }
         
-        long theoreticalCycleSeconds = theoreticalCycleParam.get().getParameterValue().longValue();
-        if (theoreticalCycleSeconds <= 0) {
-            log.warn("指标汇总: 理论节拍参数值无效（<=0），将导致性能开动率和OEE为0: shiftDate={}, shiftCode={}, " +
-                    "theoreticalCycleSeconds={}, 请检查 device_param_config 表中的 THEORETICAL_CYCLE 参数值",
-                    shiftDate, shiftCode, theoreticalCycleSeconds);
-            return 0L;
+        // 如果参数未配置或值为0，尝试从 device_production_record 获取默认值
+        if (theoreticalCycleSeconds <= 0 && deviceId != null) {
+            Optional<Integer> defaultDurationS = deviceProductionRecordRepository.findLatestCompletedDurationS(deviceId);
+            if (defaultDurationS.isPresent() && defaultDurationS.get() > 0) {
+                theoreticalCycleSeconds = defaultDurationS.get().longValue();
+                if (fromConfig) {
+                    log.info("指标汇总: 理论节拍参数值为0，使用默认值（最新已完成记录的duration_s）: deviceId={}, shiftDate={}, shiftCode={}, " +
+                            "defaultTheoreticalCycleSeconds={}",
+                            deviceId, shiftDate, shiftCode, theoreticalCycleSeconds);
+                } else {
+                    log.info("指标汇总: 理论节拍参数未配置，使用默认值（最新已完成记录的duration_s）: deviceId={}, shiftDate={}, shiftCode={}, " +
+                            "defaultTheoreticalCycleSeconds={}",
+                            deviceId, shiftDate, shiftCode, theoreticalCycleSeconds);
+                }
+            } else {
+                if (fromConfig) {
+                    log.warn("指标汇总: 理论节拍参数值无效（<=0），且无法获取默认值，将导致性能开动率和OEE为0: deviceId={}, shiftDate={}, shiftCode={}, " +
+                            "theoreticalCycleSeconds={}, 请检查 device_param_config 表中的 THEORETICAL_CYCLE 参数值或确保 device_production_record 中有已完成记录",
+                            deviceId, shiftDate, shiftCode, theoreticalCycleSeconds);
+                } else {
+                    log.warn("指标汇总: 理论节拍参数不存在，且无法获取默认值，将导致性能开动率和OEE为0: deviceId={}, shiftDate={}, shiftCode={}, " +
+                            "请在 device_param_config 表中配置 THEORETICAL_CYCLE 参数或确保 device_production_record 中有已完成记录",
+                            deviceId, shiftDate, shiftCode);
+                }
+            }
         }
         
         return theoreticalCycleSeconds;

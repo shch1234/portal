@@ -34,6 +34,15 @@ public interface DeviceToolRecordRepository {
     DeviceToolRecordDO findLatestOngoing(Long deviceId);
 
     /**
+     * 查询设备所有未结束的相同刀具号记录（用于修复数据不一致问题）
+     *
+     * @param deviceId 设备ID
+     * @param toolNo 刀具号
+     * @return 未结束的刀具记录列表
+     */
+    List<DeviceToolRecordDO> findAllOngoingByToolNo(Long deviceId, String toolNo);
+
+    /**
      * 插入单条记录
      */
     void insert(DeviceToolRecordDO record);

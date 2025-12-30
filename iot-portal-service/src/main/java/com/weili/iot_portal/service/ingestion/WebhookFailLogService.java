@@ -44,5 +44,15 @@ public interface WebhookFailLogService {
      * @return 失败日志，如果不存在返回null
      */
     WebhookFailLogDO getByMessageId(String messageId);
+
+    /**
+     * 清理历史失败日志
+     * 
+     * @param beforeDays 清理多少天前的数据
+     * @param recovered 是否已恢复（null 表示不限制）
+     * @param needManual 是否需要人工处理（null 表示不限制）
+     * @return 清理的记录数
+     */
+    int cleanup(int beforeDays, Boolean recovered, Boolean needManual);
 }
 

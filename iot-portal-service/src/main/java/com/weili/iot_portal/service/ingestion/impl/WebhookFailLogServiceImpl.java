@@ -112,5 +112,28 @@ public class WebhookFailLogServiceImpl implements WebhookFailLogService {
             return null;
         }
     }
+
+    @Override
+    public int cleanup(int beforeDays, Boolean recovered, Boolean needManual) {
+        if (beforeDays <= 0) {
+            log.warn("[Webhook-FailLog-Cleanup] beforeDays 配置无效: {}，跳过清理", beforeDays);
+            return 0;
+        }
+        
+        try {
+            java.time.LocalDateTime cutoffTime = java.time.LocalDateTime.now().minusDays(beforeDays);
+            log.info("[Webhook-FailLog-Cleanup] 开始清理失败日志: 清理{}天前的数据（失败时间 < {}），recovered={}, needManual={}", 
+                    beforeDays, cutoffTime, recovered, needManual);
+            
+            int deletedCount = failLogRepository.deleteBefore(cutoffTime, recovered, needManual);
+            
+            log.info("[Webhook-FailLog-Cleanup] 清理完成: deletedCount={}", deletedCount);
+            return deletedCount;
+        } catch (Exception ex) {
+            log.error("[Webhook-FailLog-Cleanup] 清理失败日志异常: beforeDays={}, recovered={}, needManual={}", 
+                    beforeDays, recovered, needManual, ex);
+            return 0;
+        }
+    }
 }
 

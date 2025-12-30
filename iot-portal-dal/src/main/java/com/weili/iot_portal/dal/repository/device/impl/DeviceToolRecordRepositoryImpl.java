@@ -85,5 +85,15 @@ public class DeviceToolRecordRepositoryImpl implements DeviceToolRecordRepositor
                 .last("LIMIT 1");
         return mapper.selectOne(wrapper);
     }
+
+    @Override
+    public List<DeviceToolRecordDO> findAllOngoingByToolNo(Long deviceId, String toolNo) {
+        LambdaQueryWrapper<DeviceToolRecordDO> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(DeviceToolRecordDO::getDeviceInfoId, deviceId)
+                .eq(DeviceToolRecordDO::getToolNo, toolNo)
+                .isNull(DeviceToolRecordDO::getEndTs)
+                .orderByDesc(DeviceToolRecordDO::getStartTs);
+        return mapper.selectList(wrapper);
+    }
 }
 

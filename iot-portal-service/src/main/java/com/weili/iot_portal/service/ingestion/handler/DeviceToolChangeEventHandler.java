@@ -22,6 +22,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -401,7 +402,8 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
                     handleToolMismatch(latestOngoingOpt, eventData, identity, request);
             case FIRST_CONNECTION ->
                 // 首次连接（previousToolNo = NULL，但数据库有记录）
-                    handleFirstConnection(deviceInfoId, orgFactoryId, eventData);
+                // 修复：使用锁内已查询的结果，避免重复查询导致的并发问题
+                    handleFirstConnection(latestOngoingOpt, deviceInfoId, orgFactoryId, eventData);
             default -> throw new IllegalStateException("未知的换刀转换类型: " + transitionType);
         }
     }
@@ -521,8 +523,12 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
 
     /**
      * 首次连接处理
+     * <p>
+     * 修复并发问题：使用锁内已查询的结果，避免重复查询导致的竞态条件
+     * </p>
      */
-    private void handleFirstConnection(Long deviceInfoId, Long orgFactoryId,
+    private void handleFirstConnection(Optional<DeviceToolRecordDO> latestOngoingOpt,
+                                       Long deviceInfoId, Long orgFactoryId,
                                        EventData eventData) {
         String currentToolNo = eventData.currentToolNo();
         long eventTimestamp = eventData.eventTimestamp();
@@ -530,11 +536,12 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
         log.info("[DeviceToolChangeEventHandler] 首次连接，开始使用刀具: deviceInfoId={}, toolNo={}, timestamp={}",
                 deviceInfoId, currentToolNo, eventTimestamp);
 
-        // 检查是否有未结束的记录（异常情况）
-        DeviceToolRecordDO latestOngoing = deviceToolRecordRepository.findLatestOngoing(deviceInfoId);
-        if (latestOngoing != null) {
+        // 使用锁内已查询的结果，避免重复查询导致的并发问题
+        if (latestOngoingOpt.isPresent()) {
+            DeviceToolRecordDO latestOngoing = latestOngoingOpt.get();
             log.warn("[DeviceToolChangeEventHandler] 首次连接但存在未结束的记录: deviceInfoId={}, 将先结束该记录, toolNo={}, startTs={}",
                     deviceInfoId, latestOngoing.getToolNo(), latestOngoing.getStartTs());
+            
             // 先结束未完成的记录（时间戳使用毫秒级）
             latestOngoing.setEndTs(eventTimestamp);
             if (latestOngoing.getStartTs() != null) {
@@ -545,6 +552,23 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
             // 补充班次信息（如果缺失）
             fillShiftInfoIfMissing(latestOngoing, orgFactoryId);
             deviceToolRecordRepository.updateById(latestOngoing);
+        } else {
+            // 防御性检查：如果锁内查询为空，但可能存在其他未结束的记录（异常情况）
+            // 查询所有未结束的相同刀具号记录，防止数据不一致
+            List<DeviceToolRecordDO> allOngoing = deviceToolRecordRepository.findAllOngoingByToolNo(deviceInfoId, currentToolNo);
+            if (!allOngoing.isEmpty()) {
+                log.warn("[DeviceToolChangeEventHandler] 首次连接但发现{}条未结束的相同刀具记录（异常情况），将全部结束: deviceInfoId={}, toolNo={}",
+                        allOngoing.size(), deviceInfoId, currentToolNo);
+                for (DeviceToolRecordDO record : allOngoing) {
+                    record.setEndTs(eventTimestamp);
+                    if (record.getStartTs() != null) {
+                        long durationMs = eventTimestamp - record.getStartTs();
+                        record.setDurationS(durationMs < 0 ? 0L : durationMs);
+                    }
+                    fillShiftInfoIfMissing(record, orgFactoryId);
+                    deviceToolRecordRepository.updateById(record);
+                }
+            }
         }
 
         // 插入新记录
