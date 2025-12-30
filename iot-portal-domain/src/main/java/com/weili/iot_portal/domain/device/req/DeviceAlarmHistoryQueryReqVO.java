@@ -1,10 +1,8 @@
 package com.weili.iot_portal.domain.device.req;
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.weili.basic.common.model.PageParam;
 import com.weili.iot_portal.common.serializer.TimestampLongDeserializer;
-import com.weili.iot_portal.common.serializer.TimestampLongSerializer;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
