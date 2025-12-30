@@ -20,8 +20,14 @@ import java.io.Serializable;
 @Schema(description = "报警响应")
 public class AlarmHistoryRespVO implements Serializable {
 
+    @Schema(description = "设备ID", example = "1")
+    private Long deviceId;
+
     @Schema(description = "设备编号", example = "sb-001")
     private String deviceCode;
+
+    @Schema(description = "设备名称", example = "WL-S01-JQ193 五轴铣车中心")
+    private String deviceName;
 
     @Schema(description = "设备类型", example = "机床-扁丝机")
     private String deviceType;

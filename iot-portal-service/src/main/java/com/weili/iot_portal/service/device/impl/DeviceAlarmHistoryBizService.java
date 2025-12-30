@@ -4,9 +4,11 @@ import com.weili.basic.common.model.PageResult;
 import com.weili.basic.common.util.BeanUtils;
 import com.weili.iot_portal.dal.dataobject.device.DeviceAlarmHistoryDO;
 import com.weili.iot_portal.dal.dataobject.device.DeviceInfoDO;
+import com.weili.iot_portal.dal.dataobject.device.DeviceTypeRelationDO;
 import com.weili.iot_portal.dal.ddd.device.DeviceAlarmHistoryQuery;
 import com.weili.iot_portal.dal.repository.device.DeviceAlarmHistoryRepository;
 import com.weili.iot_portal.dal.repository.device.DeviceInfoRepository;
+import com.weili.iot_portal.dal.repository.device.DeviceTypeRelationRepository;
 import com.weili.iot_portal.domain.device.req.DeviceAlarmHistoryQueryReqVO;
 import com.weili.iot_portal.domain.device.resp.AlarmHistoryRespVO;
 import com.weili.iot_portal.domain.device.resp.DeviceAlarmHistoryRespVO;
@@ -18,7 +20,9 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 /**
  * 设备告警历史业务实现
@@ -30,6 +34,8 @@ public class DeviceAlarmHistoryBizService implements IDeviceAlarmHistoryBizServi
 
     private final DeviceInfoRepository deviceInfoRepository;
     private final DeviceAlarmHistoryRepository deviceAlarmHistoryRepository;
+    private final DeviceTypeRelationRepository deviceTypeRelationRepository;
+
 
     @Override
     public DeviceAlarmHistoryRespVO getDeviceAlarmHistory(DeviceAlarmHistoryQueryReqVO queryReqVO) {
@@ -48,10 +54,27 @@ public class DeviceAlarmHistoryBizService implements IDeviceAlarmHistoryBizServi
             Optional<DeviceInfoDO> optional = deviceInfoRepository.findByDeviceCode(queryReqVO.getDeviceCode());
             optional.ifPresent(deviceInfoDO -> historyQuery.setDeviceId(deviceInfoDO.getId()));
         }
-        List<AlarmHistoryRespVO> historyItems = new ArrayList<>();
         PageResult<DeviceAlarmHistoryDO> pageResult = deviceAlarmHistoryRepository.selectPage(historyQuery);
+
+        List<Long> deviceIds = pageResult.getList().stream().map(DeviceAlarmHistoryDO::getDeviceInfoId).distinct().toList();
+        List<DeviceInfoDO> deviceInfoList = deviceInfoRepository.selectByIds(deviceIds);
+        Map<Long, DeviceInfoDO> deviceInfoMap = deviceInfoList.stream().collect(Collectors.toMap(DeviceInfoDO::getId, d -> d));
+
+        List<String> deviceTypeCodes = deviceInfoList.stream().map(DeviceInfoDO::getDeviceTypeCode).distinct().collect(Collectors.toList());
+        List<DeviceTypeRelationDO> typeRelationList = deviceTypeRelationRepository.selectByCodes(deviceTypeCodes);
+        Map<String, DeviceTypeRelationDO> typeRelationMap = typeRelationList.stream().collect(Collectors.toMap(DeviceTypeRelationDO::getTypeCode, d -> d));
+        List<AlarmHistoryRespVO> historyItems = new ArrayList<>();
         for (DeviceAlarmHistoryDO alarm : pageResult.getList()) {
+            if (!deviceInfoMap.containsKey(alarm.getDeviceInfoId())) {
+                continue;
+            }
+            DeviceInfoDO deviceInfoDO = deviceInfoMap.get(alarm.getDeviceInfoId());
             AlarmHistoryRespVO vo = buildAlarmHistoryVO(alarm);
+            vo.setDeviceCode(deviceInfoDO.getDeviceCode());
+            vo.setDeviceName(deviceInfoDO.getDeviceName());
+            vo.setDeviceType(typeRelationMap.get(deviceInfoDO.getDeviceTypeCode()) == null ?
+                    deviceInfoDO.getDeviceTypeCode() :
+                    typeRelationMap.get(deviceInfoDO.getDeviceTypeCode()).getDescription());
             historyItems.add(vo);
         }
         PageResult<AlarmHistoryRespVO> historyPageResult = new PageResult<>();
@@ -92,6 +115,7 @@ public class DeviceAlarmHistoryBizService implements IDeviceAlarmHistoryBizServi
         // 计算持续时长
         Integer durationS = calculateDuration(alarm);
         return AlarmHistoryRespVO.builder()
+                .deviceId(alarm.getDeviceInfoId())
                 .alarmCode(alarm.getAlarmCode())
                 .alarmText(alarm.getAlarmText())
                 .startTime(alarm.getStartTs())
