@@ -262,7 +262,6 @@ public class DeviceShiftSummaryService implements IDeviceShiftSummaryService {
      * 创建并计算缺失的汇总记录
      * 复用主任务的逻辑，减少代码重复
      */
-    @Transactional(rollbackFor = Exception.class)
     public boolean createAndCalculateMissingSummary(DeviceStateRecordRepository.DeviceShiftKey key) {
         // 1. 查询并验证设备
         Optional<DeviceInfoDO> deviceOpt = findAndValidateDevice(key.deviceInfoId(), "补偿任务阶段2");
