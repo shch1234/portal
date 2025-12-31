@@ -57,7 +57,6 @@ public class DeviceInfoRepositoryImpl implements DeviceInfoRepository {
         LambdaQueryWrapper<DeviceInfoDO> wrapper = new LambdaQueryWrapper<DeviceInfoDO>()
                 .eq(DeviceInfoDO::getDeviceCode, deviceCode)
                 .eq(DeviceInfoDO::getDeleted, 0)
-                .eq(DeviceInfoDO::getIsMonitored, Boolean.TRUE)
                 .eq(DeviceInfoDO::getDeviceStatus, "ACTIVE");
         return Optional.ofNullable(mapper.selectOne(wrapper));
     }

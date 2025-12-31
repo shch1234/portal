@@ -30,5 +30,7 @@ public interface DeviceTypeRelationRepository {
     void update(DeviceTypeRelationDO entity);
 
     boolean deleteById(Long id);
+
+    List<DeviceTypeRelationDO> selectByCodes(List<String> deviceTypeCodes);
 }
 

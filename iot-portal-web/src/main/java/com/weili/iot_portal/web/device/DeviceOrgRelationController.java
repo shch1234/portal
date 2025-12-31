@@ -68,7 +68,7 @@ public class DeviceOrgRelationController {
         if (deviceOrgRelation.getLevelNo() == 3) {
             DeviceOrgRelationDO parentOrgRelation = deviceOrgRelationBizService.getDeviceOrgRelation(deviceOrgRelation.getOrgParentId());
             if (parentOrgRelation != null) {
-                respVO.setOrgParentId(parentOrgRelation.getId() + "," + respVO.getOrgParentId());
+                respVO.setOrgParentId(parentOrgRelation.getOrgParentId() + "," + deviceOrgRelation.getOrgParentId());
             }
         }
         return CommonResult.success(respVO);

@@ -84,6 +84,21 @@ public class DeviceProductionRecordRepositoryImpl implements DeviceProductionRec
                 .distinct()
                 .collect(java.util.stream.Collectors.toList());
     }
+
+    @Override
+    public Optional<Integer> findLatestCompletedDurationS(Long deviceId) {
+        LambdaQueryWrapper<DeviceProductionRecordDO> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(DeviceProductionRecordDO::getDeviceInfoId, deviceId)
+                .isNotNull(DeviceProductionRecordDO::getEndTs)  // 必须是已完成的记录
+                .isNotNull(DeviceProductionRecordDO::getDurationS)  // duration_s 不能为空
+                .gt(DeviceProductionRecordDO::getDurationS, 0)  // duration_s 必须大于0
+                .orderByDesc(DeviceProductionRecordDO::getEndTs)  // 按结束时间降序
+                .last("LIMIT 1");
+        DeviceProductionRecordDO record = mapper.selectOne(wrapper);
+        return record != null && record.getDurationS() != null && record.getDurationS() > 0
+                ? Optional.of(record.getDurationS())
+                : Optional.empty();
+    }
 }
 
 

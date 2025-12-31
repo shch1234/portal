@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
 import lombok.Data;
+import org.apache.ibatis.type.JdbcType;
 
 import java.io.Serial;
 import java.io.Serializable;
@@ -74,6 +75,7 @@ public class DeviceAlarmHistoryDO implements Serializable {
     /**
      * 报警开始班次日期
      */
+    @TableField(jdbcType = JdbcType.DATE)
     private LocalDate startShiftDate;
 
     /**
@@ -85,6 +87,7 @@ public class DeviceAlarmHistoryDO implements Serializable {
     /**
      * 报警结束班次日期
      */
+    @TableField(jdbcType = JdbcType.DATE)
     private LocalDate endShiftDate;
 
     /**

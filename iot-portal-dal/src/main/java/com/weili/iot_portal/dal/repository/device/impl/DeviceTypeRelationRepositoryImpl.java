@@ -59,8 +59,8 @@ public class DeviceTypeRelationRepositoryImpl implements DeviceTypeRelationRepos
     @Override
     public PageResult<DeviceTypeRelationDO> selectPage(DeviceTypePageQuery query) {
         LambdaQueryWrapper<DeviceTypeRelationDO> wrapper = new LambdaQueryWrapper<>();
-        if (StringUtils.isNotBlank(query.getTypeCodeLike())) {
-            wrapper.like(DeviceTypeRelationDO::getTypeCode, query.getTypeCodeLike());
+        if (StringUtils.isNotBlank(query.getTypeCode())) {
+            wrapper.like(DeviceTypeRelationDO::getTypeCode, query.getTypeCode());
         }
         if (StringUtils.isNotBlank(query.getParentTypeId())) {
             wrapper.eq(DeviceTypeRelationDO::getParentTypeId, query.getParentTypeId());
@@ -97,6 +97,11 @@ public class DeviceTypeRelationRepositoryImpl implements DeviceTypeRelationRepos
     @Override
     public boolean deleteById(Long id) {
         return mapper.delete(new LambdaQueryWrapper<DeviceTypeRelationDO>().eq(DeviceTypeRelationDO::getId, id)) > 0;
+    }
+
+    @Override
+    public List<DeviceTypeRelationDO> selectByCodes(List<String> deviceTypeCodes) {
+        return mapper.selectList(new LambdaQueryWrapper<DeviceTypeRelationDO>().in(DeviceTypeRelationDO::getTypeCode, deviceTypeCodes));
     }
 
     private void applySort(LambdaQueryWrapper<DeviceTypeRelationDO> wrapper, String sortBy, String sortDirection) {

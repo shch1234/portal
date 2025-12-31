@@ -9,7 +9,7 @@ import lombok.Data;
 public class DeviceTypePageQuery {
 
 
-    private String typeCodeLike;
+    private String typeCode;
 
     private String parentTypeId;
 

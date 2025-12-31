@@ -41,65 +41,84 @@ public class WebhookProcessService {
      * @param inbox 收件箱消息（状态应为 PROCESSING）
      */
     public void processSingle(WebhookInboxDO inbox) {
+        processSingle(inbox, false);
+    }
+    
+    /**
+     * 处理单条收件箱消息（核心处理逻辑）
+     * 
+     * @param inbox 收件箱消息（状态应为 PROCESSING）
+     * @param forceRefresh 是否强制重新查询最新状态（true：重新查询，false：使用传入的对象）
+     */
+    public void processSingle(WebhookInboxDO inbox, boolean forceRefresh) {
         long start = System.currentTimeMillis();
         WebhookRequest request = null;
+        WebhookInboxDO processingInbox = inbox;
+        WebhookEventHandler handler = null; // 在外部声明，以便在 catch 块中使用
+        String handlerName = null; // 保存 handler 名称，以便在异常处理时使用
+        
         try {
             log.debug("[Webhook-Process] ====== 开始处理消息 ======");
-            log.debug("[Webhook-Process] messageId={}, eventType={}, deviceCode={}, status={}, processCount={}", 
+            log.debug("[Webhook-Process] messageId={}, eventType={}, deviceCode={}, status={}, processCount={}, forceRefresh={}", 
                 inbox.getMessageId(), inbox.getEventType(), inbox.getDeviceCode(), 
-                inbox.getStatus(), inbox.getProcessCount());
+                inbox.getStatus(), inbox.getProcessCount(), forceRefresh);
             
-            // 重新查询最新状态，确保状态正确
-            WebhookInboxDO latestInbox = inboxService.findByMessageId(inbox.getMessageId());
-            if (latestInbox == null) {
-                log.warn("[Webhook-Process] 消息不存在: messageId={}", inbox.getMessageId());
-                return;
+            // 优化：如果不需要强制刷新，直接使用传入的对象，避免重复查询
+            if (forceRefresh) {
+                processingInbox = inboxService.findByMessageId(inbox.getMessageId());
+                if (processingInbox == null) {
+                    log.warn("[Webhook-Process] 消息不存在: messageId={}", inbox.getMessageId());
+                    return;
+                }
             }
             
             // 检查状态：只有 PROCESSING 状态才处理（避免重复处理）
-            if (!InboxStatusEnum.PROCESSING.name().equals(latestInbox.getStatus())) {
+            if (!InboxStatusEnum.PROCESSING.name().equals(processingInbox.getStatus())) {
                 log.debug("[Webhook-Process] 消息状态不是PROCESSING，跳过处理: messageId={}, status={}", 
-                    inbox.getMessageId(), latestInbox.getStatus());
+                    inbox.getMessageId(), processingInbox.getStatus());
                 return;
             }
             
             // 构建 WebhookRequest
-            request = buildWebhookRequest(latestInbox);
+            request = buildWebhookRequest(processingInbox);
             
             // 查找 Handler
-            log.debug("[Webhook-Process] 查找Handler: eventType={}", latestInbox.getEventType());
-            Optional<WebhookEventHandler> handlerOpt = handlerRegistry.resolve(latestInbox.getEventType());
+            log.debug("[Webhook-Process] 查找Handler: eventType={}", processingInbox.getEventType());
+            Optional<WebhookEventHandler> handlerOpt = handlerRegistry.resolve(processingInbox.getEventType());
             if (handlerOpt.isEmpty()) {
-                handleUnmatchedHandler(latestInbox, request);
+                handleUnmatchedHandler(processingInbox, request);
                 return;
             }
             
-            WebhookEventHandler handler = handlerOpt.get();
+            handler = handlerOpt.get();
+            handlerName = handler.getClass().getSimpleName();
             log.debug("[Webhook-Process] 找到Handler: eventType={}, handlerClass={}", 
-                latestInbox.getEventType(), handler.getClass().getSimpleName());
+                processingInbox.getEventType(), handlerName);
             
-            monitorService.recordMatched(latestInbox.getEventType(), handler.getClass().getSimpleName());
+            // 优化：移除 recordMatched 调用，减少数据冗余（从 2条/消息 减少到 1条/消息）
+            // handlerName 信息将在 recordSuccess 或 recordFailure 中记录
             
             // 调用 Handler 处理
             log.debug("[Webhook-Process] 调用Handler处理: handler={}, messageId={}", 
-                handler.getClass().getSimpleName(), latestInbox.getMessageId());
-            handler.handle(latestInbox, request);
+                handlerName, processingInbox.getMessageId());
+            handler.handle(processingInbox, request);
             log.debug("[Webhook-Process] Handler处理完成: handler={}, messageId={}", 
-                handler.getClass().getSimpleName(), latestInbox.getMessageId());
+                handlerName, processingInbox.getMessageId());
             
             // 标记为成功
-            boolean marked = inboxService.markSuccess(latestInbox);
+            boolean marked = inboxService.markSuccess(processingInbox);
             if (!marked) {
-                log.warn("[Webhook-Process] 标记成功失败，消息可能已被其他线程处理: messageId={}", latestInbox.getMessageId());
+                log.warn("[Webhook-Process] 标记成功失败，消息可能已被其他线程处理: messageId={}", processingInbox.getMessageId());
             }
             
             long cost = System.currentTimeMillis() - start;
-            monitorService.recordSuccess(latestInbox.getEventType(), cost);
+            // 优化：合并记录，同时记录 handlerName
+            monitorService.recordSuccess(processingInbox.getEventType(), handlerName, cost);
             log.info("[Webhook-Process] ====== 消息处理成功 ====== messageId={}, 耗时: {}ms", 
-                latestInbox.getMessageId(), cost);
+                processingInbox.getMessageId(), cost);
                 
         } catch (Exception ex) {
-            handleProcessException(inbox, request, ex, start);
+            handleProcessException(processingInbox, request, handlerName, ex, start);
         }
     }
     
@@ -164,29 +183,47 @@ public class WebhookProcessService {
     }
     
     /**
-     * 处理处理过程中的异常
+     * 处理处理过程中的异常（优化：细化错误分类，减少重复查询）
+     * 
+     * @param inbox 收件箱消息
+     * @param request 请求对象
+     * @param handlerName 处理器名称（可为空，如果异常发生在获取 handler 之前）
+     * @param ex 异常
+     * @param start 开始时间戳
      */
-    private void handleProcessException(WebhookInboxDO inbox, WebhookRequest request, Exception ex, long start) {
+    private void handleProcessException(WebhookInboxDO inbox, WebhookRequest request, String handlerName, Exception ex, long start) {
         long cost = System.currentTimeMillis() - start;
-        log.error("[Webhook-Process] ====== 消息处理失败 ====== messageId={}, eventType={}, 耗时: {}ms", 
-            inbox.getMessageId(), inbox.getEventType(), cost, ex);
         
-        // 重新查询最新状态
-        WebhookInboxDO latestInbox = inboxService.findByMessageId(inbox.getMessageId());
+        // 错误分类：区分业务异常和系统异常
+        String errorType = ex instanceof IotPortalException ? "BUSINESS" : "SYSTEM";
+        String errorCode = ex instanceof IotPortalException 
+            ? ((IotPortalException) ex).getCode() 
+            : ex.getClass().getSimpleName();
+        
+        log.error("[Webhook-Process] ====== 消息处理失败 ====== messageId={}, eventType={}, handler={}, errorType={}, errorCode={}, 耗时: {}ms", 
+            inbox.getMessageId(), inbox.getEventType(), handlerName, errorType, errorCode, cost, ex);
+        
+        // 优化：如果 inbox 状态已经是 PROCESSING，直接使用，避免重复查询
+        WebhookInboxDO latestInbox = inbox;
+        if (!"PROCESSING".equals(inbox.getStatus())) {
+            // 防御性检查：如果状态不是 PROCESSING，重新查询
+            latestInbox = inboxService.findByMessageId(inbox.getMessageId());
+        }
+        
         if (latestInbox != null) {
             // 使用乐观锁标记为失败，如果失败说明已被其他线程处理
             boolean marked = inboxService.markFailed(latestInbox, ex.getMessage());
             if (!marked) {
                 log.warn("[Webhook-Process] 标记失败失败，消息可能已被其他线程处理: messageId={}", latestInbox.getMessageId());
             } else {
-                log.debug("[Webhook-Process] 已标记为失败状态: messageId={}, error={}, processCount={}", 
-                    latestInbox.getMessageId(), ex.getMessage(), latestInbox.getProcessCount());
+                log.debug("[Webhook-Process] 已标记为失败状态: messageId={}, error={}, processCount={}, errorType={}", 
+                    latestInbox.getMessageId(), ex.getMessage(), latestInbox.getProcessCount(), errorType);
             }
             
             // 如果超过最大重试次数，记录到失败日志表
             if (inboxService.reachMaxRetry(latestInbox)) {
-                log.warn("[Webhook-Process] 达到最大重试次数: messageId={}, processCount={}", 
-                    latestInbox.getMessageId(), latestInbox.getProcessCount());
+                log.warn("[Webhook-Process] 达到最大重试次数: messageId={}, processCount={}, errorType={}", 
+                    latestInbox.getMessageId(), latestInbox.getProcessCount(), errorType);
                 
                 // 如果 request 为 null，重新构建
                 if (request == null) {
@@ -200,13 +237,14 @@ public class WebhookProcessService {
                 
                 // 判断是否需要人工处理
                 boolean needManual = determineNeedManual(ex);
-                log.debug("[Webhook-Process] 保存失败日志: messageId={}, needManual={}, errorType={}", 
-                    latestInbox.getMessageId(), needManual, ex.getClass().getSimpleName());
-                webhookFailLogService.saveFailLog(request, "PROCESS", ex.getMessage(), needManual);
+                log.debug("[Webhook-Process] 保存失败日志: messageId={}, needManual={}, errorType={}, errorCode={}", 
+                    latestInbox.getMessageId(), needManual, errorType, errorCode);
+                webhookFailLogService.saveFailLog(request, errorType, ex.getMessage(), needManual);
             }
         }
         
-        monitorService.recordFailure(inbox.getEventType(), ex.getMessage(), cost, true);
+        // 优化：合并记录，同时记录 handlerName
+        monitorService.recordFailure(inbox.getEventType(), handlerName, ex.getMessage(), cost, true);
     }
     
     /**

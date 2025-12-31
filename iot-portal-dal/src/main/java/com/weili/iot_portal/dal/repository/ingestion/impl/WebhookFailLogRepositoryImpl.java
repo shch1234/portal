@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
@@ -56,6 +57,22 @@ public class WebhookFailLogRepositoryImpl implements WebhookFailLogRepository {
                 .orderByDesc(WebhookFailLogDO::getFailedTime)
                 .last("LIMIT 1");
         return Optional.ofNullable(failLogMapper.selectOne(wrapper));
+    }
+
+    @Override
+    public int deleteBefore(LocalDateTime beforeTime, Boolean recovered, Boolean needManual) {
+        LambdaQueryWrapper<WebhookFailLogDO> wrapper = new LambdaQueryWrapper<>();
+        wrapper.lt(WebhookFailLogDO::getFailedTime, beforeTime);
+        
+        if (recovered != null) {
+            wrapper.eq(WebhookFailLogDO::getRecovered, recovered);
+        }
+        if (needManual != null) {
+            wrapper.eq(WebhookFailLogDO::getNeedManual, needManual);
+        }
+        
+        int deletedCount = failLogMapper.delete(wrapper);
+        return deletedCount;
     }
 }
 
