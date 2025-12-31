@@ -11,7 +11,6 @@ import com.weili.iot_portal.dal.repository.device.DeviceStateSummaryRepository;
 import com.weili.iot_portal.domain.device.req.DeviceStateSummaryQueryReqVO;
 import com.weili.iot_portal.domain.device.resp.DeviceStateSummaryRespVO;
 import com.weili.iot_portal.domain.device.resp.StateRatioStatistics;
-import com.weili.iot_portal.domain.device.resp.StateStatItem;
 import com.weili.iot_portal.domain.device.resp.StateTimeSegment;
 import com.weili.iot_portal.domain.ingestion.ShiftDateAndCode;
 import com.weili.iot_portal.service.cache.DeviceStateCacheService;
@@ -22,10 +21,9 @@ import jakarta.annotation.Resource;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
 
-import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
 /**
@@ -120,32 +118,11 @@ public class DeviceStateSummaryBizService implements IDeviceStateSummaryBizServi
             totalFault += (summary.getFaultDurationS() != null ? summary.getFaultDurationS() : 0);
         }
 
-        int totalDuration = totalStandby + totalWorking + totalShutdown + totalFault;
-
-        // 计算占比（保留4位小数）
-        BigDecimal standbyRatio = calculateRatio(totalStandby, totalDuration);
-        BigDecimal workingRatio = calculateRatio(totalWorking, totalDuration);
-        BigDecimal shutdownRatio = calculateRatio(totalShutdown, totalDuration);
-        BigDecimal faultRatio = calculateRatio(totalFault, totalDuration);
-
         return StateRatioStatistics.builder()
-                .standby(buildStateStatItem(DeviceStateEnum.STANDBY, totalStandby, standbyRatio))
-                .working(buildStateStatItem(DeviceStateEnum.WORKING, totalWorking, workingRatio))
-                .shutdown(buildStateStatItem(DeviceStateEnum.SHUTDOWN, totalShutdown, shutdownRatio))
-                .fault(buildStateStatItem(DeviceStateEnum.FAULT, totalFault, faultRatio))
-                .totalDuration(totalDuration)
-                .build();
-    }
-
-    /**
-     * 构建状态统计项
-     */
-    private StateStatItem buildStateStatItem(DeviceStateEnum stateEnum, int duration, BigDecimal ratio) {
-        return StateStatItem.builder()
-                .stateName(stateEnum.getDescription())
-                .stateCode(stateEnum.name())
-                .duration(duration)
-                .ratio(ratio)
+                .standbyDur(totalStandby)
+                .workingDur(totalWorking)
+                .shutdownDur(totalShutdown)
+                .faultDur(totalFault)
                 .build();
     }
 
@@ -180,19 +157,8 @@ public class DeviceStateSummaryBizService implements IDeviceStateSummaryBizServi
         }
 
         // 额外排序保障：确保按开始时间升序，即使数据库查询未正确排序
-        timelineData.sort((o1, o2) -> Long.compare(o1.getStartTime(), o2.getStartTime()));
+        timelineData.sort(Comparator.comparingLong(StateTimeSegment::getStartTime));
 
         return timelineData;
-    }
-
-    /**
-     * 计算占比
-     */
-    private BigDecimal calculateRatio(int duration, int totalDuration) {
-        if (totalDuration == 0) {
-            return BigDecimal.ZERO;
-        }
-        return BigDecimal.valueOf(duration)
-                .divide(BigDecimal.valueOf(totalDuration), 4, RoundingMode.HALF_UP);
     }
 }

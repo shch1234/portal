@@ -17,18 +17,15 @@ import lombok.NoArgsConstructor;
 public class StateRatioStatistics {
 
     @Schema(description = "待机状态统计")
-    private StateStatItem standby;
+    private Integer standbyDur;
 
     @Schema(description = "加工状态统计")
-    private StateStatItem working;
+    private Integer workingDur;
 
     @Schema(description = "关机状态统计")
-    private StateStatItem shutdown;
+    private Integer shutdownDur;
 
     @Schema(description = "故障状态统计")
-    private StateStatItem fault;
-
-    @Schema(description = "总时长（秒）")
-    private Integer totalDuration;
+    private Integer faultDur;
 }
 
