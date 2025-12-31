@@ -16,6 +16,5 @@ public class DeviceProductionStatisticsReqVO {
     private Long deviceInfoId;
 
     @Schema(description = "统计时间范围：WEEK-近一周 MONTH-近一个月", requiredMode = Schema.RequiredMode.REQUIRED, example = "WEEK")
-    @NotNull(message = "统计时间范围不能为空")
     private String timeRange;
 }
