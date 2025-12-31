@@ -74,6 +74,17 @@ public interface DeviceStateRecordRepository {
      */
     List<DeviceShiftKey> findDistinctDeviceShifts(LocalDate startDate, LocalDate endDate);
 
+    /**
+     * 按班次日期范围查询设备状态记录
+     * <p>
+     * 用于甘特图展示，返回数据按开始时间升序排列，确保时间轴正确显示
+     * </p>
+     *
+     * @param deviceId 设备ID
+     * @param startDate 开始班次日期（包含）
+     * @param endDate 结束班次日期（包含）
+     * @return 班次日期范围内的所有状态记录，按开始时间（start_ts）升序排列
+     */
     List<DeviceStateRecordDO> selectByShiftDateRange(Long deviceId, LocalDate startDate, LocalDate endDate);
 
     /**

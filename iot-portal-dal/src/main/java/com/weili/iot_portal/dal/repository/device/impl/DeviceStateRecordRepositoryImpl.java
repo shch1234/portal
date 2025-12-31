@@ -164,8 +164,8 @@ public class DeviceStateRecordRepositoryImpl implements DeviceStateRecordReposit
         if (endDate != null) {
             wrapper.le(DeviceStateRecordDO::getShiftDate, endDate);
         }
-        wrapper.orderByAsc(DeviceStateRecordDO::getShiftDate)
-                .orderByAsc(DeviceStateRecordDO::getShiftCode);
+        // 重要：甘特图需要按实际时间顺序排序，确保状态段按时间先后正确显示
+        wrapper.orderByAsc(DeviceStateRecordDO::getStartTs);
         return deviceStateRecordMapper.selectList(wrapper);
     }
 

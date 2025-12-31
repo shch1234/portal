@@ -150,9 +150,14 @@ public class DeviceStateSummaryBizService implements IDeviceStateSummaryBizServi
     }
 
     /**
-     * 构建时间轴数据
+     * 构建时间轴数据（甘特图）
+     * 注意：必须保证按时间顺序返回，确保前端甘特图正确渲染
      */
     private List<StateTimeSegment> buildTimelineData(List<DeviceStateRecordDO> stateRecordList) {
+        if (stateRecordList == null || stateRecordList.isEmpty()) {
+            return new ArrayList<>();
+        }
+
         List<StateTimeSegment> timelineData = new ArrayList<>();
 
         for (DeviceStateRecordDO record : stateRecordList) {
@@ -173,6 +178,9 @@ public class DeviceStateSummaryBizService implements IDeviceStateSummaryBizServi
 
             timelineData.add(segment);
         }
+
+        // 额外排序保障：确保按开始时间升序，即使数据库查询未正确排序
+        timelineData.sort((o1, o2) -> Long.compare(o1.getStartTime(), o2.getStartTime()));
 
         return timelineData;
     }
