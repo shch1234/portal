@@ -17,13 +17,11 @@ public class DeviceStateSummaryQueryReqVO {
     @NotNull(message = "设备ID不能为空")
     private Long deviceId;
 
-    @Schema(description = "开始时间（前端传 yyyy-MM-dd HH:mm:ss，后端自动转为毫秒时间戳）", requiredMode = Schema.RequiredMode.REQUIRED, example = "2024-11-13 08:00:00")
-    @NotNull(message = "开始时间不能为空")
+    @Schema(description = "开始时间（前端传 yyyy-MM-dd；非必传，不传则使用当前班次的开始时间）", requiredMode = Schema.RequiredMode.NOT_REQUIRED, example = "2024-11-13 08:00:00")
     @JsonDeserialize(using = TimestampLongDeserializer.class)
     private Long startTime;
 
-    @Schema(description = "结束时间（前端传 yyyy-MM-dd HH:mm:ss，后端自动转为毫秒时间戳）", requiredMode = Schema.RequiredMode.REQUIRED, example = "2024-11-13 20:00:00")
-    @NotNull(message = "结束时间不能为空")
+    @Schema(description = "结束时间（前端传 yyyy-MM-dd；非必传，不传则使用当前班次的结束时间）", requiredMode = Schema.RequiredMode.NOT_REQUIRED, example = "2024-11-13 20:00:00")
     @JsonDeserialize(using = TimestampLongDeserializer.class)
     private Long endTime;
 }

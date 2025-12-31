@@ -78,8 +78,7 @@ public class DeviceViewController {
     @Operation(summary = "查询设备产量统计",
             description = "查询设备当日加工数量和近一周/近一个月的产量趋势图数据")
     public CommonResult<DeviceProductionStatisticsRespVO> getProductionStatistics(@Valid DeviceProductionStatisticsReqVO reqVO) {
-        DeviceProductionStatisticsRespVO statistics =
-                deviceProductionSummaryService.getDeviceProductionStatistics(reqVO);
+        DeviceProductionStatisticsRespVO statistics = deviceProductionSummaryService.getDeviceProductionStatistics(reqVO);
         return CommonResult.success(statistics);
     }
 }

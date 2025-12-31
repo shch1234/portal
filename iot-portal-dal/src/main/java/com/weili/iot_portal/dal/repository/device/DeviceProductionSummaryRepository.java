@@ -27,6 +27,10 @@ public interface DeviceProductionSummaryRepository {
      * 查询日期范围内的产量汇总数据
      */
     List<DeviceProductionSummaryDO> findByDateRange(Long deviceInfoId, Integer shiftCode, LocalDate startDate, LocalDate endDate);
-}
 
+    /**
+     * 查询班次日期范围内的产量汇总数据（不限制班次编码）
+     */
+    List<DeviceProductionSummaryDO> findByShiftDateRange(Long deviceInfoId, LocalDate startDate, LocalDate endDate);
+}
 

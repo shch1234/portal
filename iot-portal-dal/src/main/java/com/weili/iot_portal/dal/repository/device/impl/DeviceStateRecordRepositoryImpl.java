@@ -9,7 +9,6 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
 import java.util.List;
-import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -151,6 +150,23 @@ public class DeviceStateRecordRepositoryImpl implements DeviceStateRecordReposit
                 ))
                 .distinct()
                 .toList();
+    }
+
+    @Override
+    public List<DeviceStateRecordDO> selectByShiftDateRange(Long deviceId, LocalDate startDate, LocalDate endDate) {
+        LambdaQueryWrapper<DeviceStateRecordDO> wrapper = new LambdaQueryWrapper<>();
+        if (deviceId != null) {
+            wrapper.eq(DeviceStateRecordDO::getDeviceInfoId, deviceId);
+        }
+        if (startDate != null) {
+            wrapper.ge(DeviceStateRecordDO::getShiftDate, startDate);
+        }
+        if (endDate != null) {
+            wrapper.le(DeviceStateRecordDO::getShiftDate, endDate);
+        }
+        wrapper.orderByAsc(DeviceStateRecordDO::getShiftDate)
+                .orderByAsc(DeviceStateRecordDO::getShiftCode);
+        return deviceStateRecordMapper.selectList(wrapper);
     }
 
     /**

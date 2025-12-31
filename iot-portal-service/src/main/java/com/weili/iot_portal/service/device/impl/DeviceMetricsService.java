@@ -12,9 +12,9 @@ import com.weili.iot_portal.dal.repository.device.DeviceStateRecordRepository;
 import com.weili.iot_portal.domain.ingestion.*;
 import com.weili.iot_portal.service.device.ICheckpointService;
 import com.weili.iot_portal.service.device.IDeviceMetricsService;
-import com.weili.iot_portal.service.metrics.MetricCalculator;
 import com.weili.iot_portal.service.metrics.MetricCalculationContext;
 import com.weili.iot_portal.service.metrics.MetricCalculationResult;
+import com.weili.iot_portal.service.metrics.MetricCalculator;
 import com.weili.iot_portal.service.shift.IShiftCalculationService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -455,7 +455,6 @@ public class DeviceMetricsService implements IDeviceMetricsService {
     /**
      * 获取理论周期（秒）
      * 
-     * @deprecated 使用 {@link #extractParameterValueFromList(List, String)} 代替
      */
     @Deprecated
     private long getTheoreticalCycleSeconds(Long deviceId) {

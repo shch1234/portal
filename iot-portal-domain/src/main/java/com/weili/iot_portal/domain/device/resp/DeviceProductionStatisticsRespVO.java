@@ -25,9 +25,6 @@ public class DeviceProductionStatisticsRespVO {
     @Data
     public static class ProductionDetailVO {
 
-        @Schema(description = "序号（1-15，用于图表X轴）", example = "1")
-        private Integer index;
-
         @Schema(description = "日期标识（格式：MM-DD）", example = "12-23")
         private String dateLabel;
 

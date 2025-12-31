@@ -1,10 +1,6 @@
 package com.weili.iot_portal.service.device.impl;
 
-import com.weili.iot_portal.dal.dataobject.device.DeviceInfoDO;
-import com.weili.iot_portal.dal.dataobject.device.DeviceMetricSummaryDO;
-import com.weili.iot_portal.dal.dataobject.device.DeviceParamConfigDO;
-import com.weili.iot_portal.dal.dataobject.device.DeviceProductionSummaryDO;
-import com.weili.iot_portal.dal.dataobject.device.DeviceStateSummaryDO;
+import com.weili.iot_portal.dal.dataobject.device.*;
 import com.weili.iot_portal.dal.repository.device.*;
 import com.weili.iot_portal.domain.ingestion.BatchProcessResult;
 import com.weili.iot_portal.domain.ingestion.CheckpointData;
@@ -18,11 +14,8 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.*;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**

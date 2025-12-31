@@ -9,7 +9,6 @@ import com.weili.iot_portal.dal.repository.device.DeviceInfoRepository;
 import com.weili.iot_portal.dal.repository.device.DeviceStateRecordRepository;
 import com.weili.iot_portal.dal.repository.device.DeviceStateSummaryRepository;
 import com.weili.iot_portal.domain.ingestion.*;
-import com.weili.iot_portal.domain.ingestion.ShiftDateAndCode;
 import com.weili.iot_portal.service.device.ICheckpointService;
 import com.weili.iot_portal.service.device.IDeviceShiftSummaryService;
 import com.weili.iot_portal.service.device.IDeviceStateStatisticsService;
@@ -23,9 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.time.Instant;
 import java.time.LocalDate;
-import java.time.ZoneId;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -266,7 +263,7 @@ public class DeviceShiftSummaryService implements IDeviceShiftSummaryService {
      * 复用主任务的逻辑，减少代码重复
      */
     @Transactional(rollbackFor = Exception.class)
-    private boolean createAndCalculateMissingSummary(DeviceStateRecordRepository.DeviceShiftKey key) {
+    public boolean createAndCalculateMissingSummary(DeviceStateRecordRepository.DeviceShiftKey key) {
         // 1. 查询并验证设备
         Optional<DeviceInfoDO> deviceOpt = findAndValidateDevice(key.deviceInfoId(), "补偿任务阶段2");
         if (deviceOpt.isEmpty()) {

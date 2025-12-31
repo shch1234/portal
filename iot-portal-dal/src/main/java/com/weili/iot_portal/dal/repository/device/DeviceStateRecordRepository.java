@@ -74,6 +74,8 @@ public interface DeviceStateRecordRepository {
      */
     List<DeviceShiftKey> findDistinctDeviceShifts(LocalDate startDate, LocalDate endDate);
 
+    List<DeviceStateRecordDO> selectByShiftDateRange(Long deviceId, LocalDate startDate, LocalDate endDate);
+
     /**
      * 设备+班次组合（用于缺失记录扫描）
      */

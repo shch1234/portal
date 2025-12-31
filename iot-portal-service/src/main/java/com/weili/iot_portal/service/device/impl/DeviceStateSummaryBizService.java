@@ -24,6 +24,7 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -55,33 +56,43 @@ public class DeviceStateSummaryBizService implements IDeviceStateSummaryBizServi
         String stateValue = deviceStateCacheService.getStateValue(deviceInfo.getOrgFactoryId(), deviceInfo.getId());
         String heartbeat = deviceStateCacheService.getHeartbeat(deviceInfo.getOrgFactoryId(), deviceInfo.getId());
 
-        // 将传入的时间戳（毫秒）转换为秒
-        long startTimeSeconds = queryReqVO.getStartTime() / 1000;
-        long endTimeSeconds = queryReqVO.getEndTime() / 1000;
+        LocalDate startShiftDate;
+        LocalDate endShiftDate = null;
+        if (queryReqVO.getStartTime() == null || queryReqVO.getEndTime() == null) {
+            ShiftDateAndCode currentShiftRange = shiftCalculationService.getShiftDateAndCode(
+                    deviceInfo.getOrgFactoryId(),
+                    deviceInfo.getId(),
+                    System.currentTimeMillis()
+            );
+            startShiftDate = currentShiftRange.shiftDate();
+        } else {
+            ShiftDateAndCode startShiftInfo = shiftCalculationService.getShiftDateAndCode(
+                    deviceInfo.getOrgFactoryId(),
+                    deviceInfo.getId(),
+                    queryReqVO.getStartTime()
+            );
 
-        // 根据开始时间和结束时间获取对应的班次信息
-        ShiftDateAndCode startShiftInfo = shiftCalculationService.getShiftDateAndCode(
-                deviceInfo.getOrgFactoryId(),
-                deviceInfo.getId(),
-                startTimeSeconds);
+            ShiftDateAndCode endShiftInfo = shiftCalculationService.getShiftDateAndCode(
+                    deviceInfo.getOrgFactoryId(),
+                    deviceInfo.getId(),
+                    queryReqVO.getEndTime()
+            );
+            startShiftDate = startShiftInfo.shiftDate();
+            endShiftDate = endShiftInfo.shiftDate();
+        }
 
-        ShiftDateAndCode endShiftInfo = shiftCalculationService.getShiftDateAndCode(
-                deviceInfo.getOrgFactoryId(),
-                deviceInfo.getId(),
-                endTimeSeconds);
-
-        // 1. 使用班次日期范围查询汇总数据（用于饼图）
+        // 2. 使用班次日期范围查询汇总数据（用于饼图）
         List<DeviceStateSummaryDO> summaryList = deviceStateSummaryRepository.selectByShiftDateRange(
                 queryReqVO.getDeviceId(),
-                startShiftInfo.shiftDate(),
-                endShiftInfo.shiftDate()
+                startShiftDate,
+                endShiftDate
         );
 
-        // 2. 查询状态记录数据（用于时间轴）
-        List<DeviceStateRecordDO> stateRecordList = deviceStateRecordRepository.selectByRange(
+        // 3. 查询状态记录数据（用于时间轴）
+        List<DeviceStateRecordDO> stateRecordList = deviceStateRecordRepository.selectByShiftDateRange(
                 queryReqVO.getDeviceId(),
-                queryReqVO.getStartTime(),
-                queryReqVO.getEndTime()
+                startShiftDate,
+                endShiftDate
         );
 
         return DeviceStateSummaryRespVO.builder()

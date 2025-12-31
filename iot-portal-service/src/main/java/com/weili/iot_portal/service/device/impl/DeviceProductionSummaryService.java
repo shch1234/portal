@@ -23,11 +23,6 @@ import org.springframework.stereotype.Service;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -197,8 +192,6 @@ public class DeviceProductionSummaryService implements IDeviceProductionSummaryS
         for (int i = 0; i < remaining.size(); i += batchSize) {
             int endIndex = Math.min(i + batchSize, remaining.size());
             List<DeviceInfoDO> batch = remaining.subList(i, endIndex);
-
-            List<Long> batchProcessed = new ArrayList<>();
             for (DeviceInfoDO device : batch) {
                 try {
                     int processedCount = processSingleDevice(device, statisticsTimeSeconds, startTsSeconds);
@@ -208,7 +201,6 @@ public class DeviceProductionSummaryService implements IDeviceProductionSummaryS
                         skip++;
                     }
                     processedIds.add(device.getId());
-                    batchProcessed.add(device.getId());
                 } catch (Exception e) {
                     error++;
                     log.error("产量汇总失败 deviceId={}", device.getId(), e);
@@ -265,7 +257,6 @@ public class DeviceProductionSummaryService implements IDeviceProductionSummaryS
                     range = previousRange;
                 } else {
                     // 无法获取上一个班次，无法处理
-                    log.debug("产量汇总: 无法获取上一个班次: deviceId={}", device.getId());
                     return 0;
                 }
             } else {
@@ -396,70 +387,81 @@ public class DeviceProductionSummaryService implements IDeviceProductionSummaryS
         }
         DeviceInfoDO deviceInfoDO = optional.get();
 
-        // 获取当前时间（包括时分秒），用于获取当前所在的班次信息
-        Instant now = Instant.now();
-        long nowSeconds = now.getEpochSecond();
-
-        // 根据当前时间获取所在的班次信息
+        // 1. 当日加工数：永远是系统当前时间所在班次的数据
+        long nowMillis = System.currentTimeMillis();
         ShiftDateAndCode currentShiftInfo = shiftCalculationService.getShiftDateAndCode(
                 deviceInfoDO.getOrgFactoryId(),
                 deviceInfoId,
-                nowSeconds);
+                nowMillis
+        );
 
-        // 使用班次的 shiftDate 作为查询的结束日期
-        LocalDate endDate = currentShiftInfo.shiftDate();
-        Integer currentShiftCode = currentShiftInfo.shiftCode();
+        // 查询当前班次的加工数量（从 device_production_record 表汇总）
+        long currentShiftCount = productionRecordRepository.countByDate(
+                deviceInfoId,
+                currentShiftInfo.shiftDate(),
+                currentShiftInfo.shiftCode()
+        );
+        respVO.setTodayProductionCount((int) currentShiftCount);
 
-        // 1. 查询当前班次的加工数量（从 device_production_record 表汇总）
-        long todayCount = productionRecordRepository.countByDate(deviceInfoId, endDate, currentShiftCode);
-        respVO.setTodayProductionCount((int) todayCount);
+        // 2. 产量明细列表：根据是否传参决定查询范围
+        LocalDate startShiftDate;
+        LocalDate endShiftDate;
 
-        // 2. 根据时间范围确定查询的起止日期
-        LocalDate startDate;
-        if ("WEEK".equalsIgnoreCase(reqVO.getTimeRange())) {
-            // 近一周：今天往前推6天，共7天
-            startDate = endDate.minusDays(6);
-        } else if ("MONTH".equalsIgnoreCase(reqVO.getTimeRange())) {
-            // 近一个月：今天往前推29天，共30天（但图表只显示15个点）
-            startDate = endDate.minusDays(29);
+        if (reqVO.getStartTime() == null || reqVO.getEndTime() == null) {
+            // 未传参数：默认查询最近一周（当前班次日期往前推7天）
+            endShiftDate = currentShiftInfo.shiftDate();
+            startShiftDate = endShiftDate.minusDays(6); // 包含今天共7天
         } else {
-            throw new IllegalArgumentException("不支持的时间范围: " + reqVO.getTimeRange());
+            // 传了参数：转换成对应的班次日期
+            ShiftDateAndCode startShiftInfo = shiftCalculationService.getShiftDateAndCode(
+                    deviceInfoDO.getOrgFactoryId(),
+                    deviceInfoId,
+                    reqVO.getStartTime()
+            );
+
+            ShiftDateAndCode endShiftInfo = shiftCalculationService.getShiftDateAndCode(
+                    deviceInfoDO.getOrgFactoryId(),
+                    deviceInfoId,
+                    reqVO.getEndTime()
+            );
+
+            startShiftDate = startShiftInfo.shiftDate();
+            endShiftDate = endShiftInfo.shiftDate();
         }
 
-        // 获取起始时间对应的班次信息
-        ShiftDateAndCode startShiftDateAndCode = shiftCalculationService.getShiftDateAndCode(
-                deviceInfoDO.getOrgFactoryId(),
+        // 从 device_production_summary 查询日期范围内的汇总数据
+        List<DeviceProductionSummaryDO> summaryList = productionSummaryRepository.findByShiftDateRange(
                 deviceInfoId,
-                startDate.atStartOfDay(ZoneId.systemDefault()).toInstant().getEpochSecond());
+                startShiftDate,
+                endShiftDate
+        );
 
-        // 3. 从 device_production_summary 查询日期范围内的汇总数据
-        List<DeviceProductionSummaryDO> summaryList = productionSummaryRepository.findByDateRange(
-                deviceInfoId,
-                startShiftDateAndCode.shiftCode(),
-                startShiftDateAndCode.shiftDate(),
-                endDate);
+        // 按日期分组汇总（一天可能有多个班次）
+        Map<LocalDate, Integer> dailyProductionMap = new HashMap<>();
+        if (summaryList != null && !summaryList.isEmpty()) {
+            dailyProductionMap = summaryList.stream()
+                    .collect(Collectors.groupingBy(
+                            DeviceProductionSummaryDO::getShiftDate,
+                            Collectors.summingInt(s -> s.getPartCount() != null ? s.getPartCount() : 0)
+                    ));
+        }
 
-        // 4. 按日期分组汇总（一天可能有多个班次）
-        Map<LocalDate, Integer> dailyProductionMap = summaryList.stream()
-                .collect(Collectors.groupingBy(
-                        DeviceProductionSummaryDO::getShiftDate,
-                        Collectors.summingInt(s -> s.getPartCount() != null ? s.getPartCount() : 0)
-                ));
-
-        // 5. 构建图表数据（按日期排序）
+        // 构建图表数据（按日期排序）
+        // 重要：必须保持横坐标完整，即使某些日期没有数据也要返回（值为0），确保前端能正确渲染图表
         List<DeviceProductionStatisticsRespVO.ProductionDetailVO> detailList = new ArrayList<>();
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("MM-dd");
 
-        int index = 1;
-        for (LocalDate date = startDate; !date.isAfter(endDate); date = date.plusDays(1)) {
+        for (LocalDate date = startShiftDate; !date.isAfter(endShiftDate); date = date.plusDays(1)) {
             DeviceProductionStatisticsRespVO.ProductionDetailVO detail =
                     new DeviceProductionStatisticsRespVO.ProductionDetailVO();
-            detail.setIndex(index++);
+
+            // 设置日期标签（横坐标）：保证每个日期都有值
             detail.setDateLabel(date.format(formatter));
 
+            // 根据横坐标匹配查询到的数据，不存在则设置为0
             Integer productionCount = dailyProductionMap.getOrDefault(date, 0);
-            detail.setProductionCount(productionCount);
-            detail.setQualifiedCount(productionCount); // 默认合格数量等于加工数量
+            detail.setProductionCount(productionCount != null ? productionCount : 0);
+            detail.setQualifiedCount(productionCount != null ? productionCount : 0); // 默认合格数量等于加工数量
             detail.setDefectCount(0);
 
             detailList.add(detail);

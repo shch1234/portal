@@ -110,6 +110,19 @@ public class DeviceProductionSummaryRepositoryImpl implements DeviceProductionSu
                 .orderByAsc(DeviceProductionSummaryDO::getShiftCode);
         return deviceProductionSummaryMapper.selectList(wrapper);
     }
+
+    @Override
+    public List<DeviceProductionSummaryDO> findByShiftDateRange(Long deviceInfoId,
+                                                                LocalDate startDate,
+                                                                LocalDate endDate) {
+        LambdaQueryWrapper<DeviceProductionSummaryDO> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(DeviceProductionSummaryDO::getDeviceInfoId, deviceInfoId)
+                .ge(DeviceProductionSummaryDO::getShiftDate, startDate)
+                .le(DeviceProductionSummaryDO::getShiftDate, endDate)
+                .orderByAsc(DeviceProductionSummaryDO::getShiftDate)
+                .orderByAsc(DeviceProductionSummaryDO::getShiftCode);
+        return deviceProductionSummaryMapper.selectList(wrapper);
+    }
 }
 
 
