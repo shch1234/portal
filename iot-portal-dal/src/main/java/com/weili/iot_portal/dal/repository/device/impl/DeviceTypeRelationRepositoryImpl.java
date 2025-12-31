@@ -9,9 +9,11 @@ import com.weili.iot_portal.dal.ddd.device.DeviceTypePageQuery;
 import com.weili.iot_portal.dal.mapper.device.DeviceTypeRelationMapper;
 import com.weili.iot_portal.dal.repository.device.DeviceTypeRelationRepository;
 import lombok.RequiredArgsConstructor;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
@@ -101,6 +103,9 @@ public class DeviceTypeRelationRepositoryImpl implements DeviceTypeRelationRepos
 
     @Override
     public List<DeviceTypeRelationDO> selectByCodes(List<String> deviceTypeCodes) {
+        if (CollectionUtils.isEmpty(deviceTypeCodes)) {
+            return Collections.emptyList();
+        }
         return mapper.selectList(new LambdaQueryWrapper<DeviceTypeRelationDO>().in(DeviceTypeRelationDO::getTypeCode, deviceTypeCodes));
     }
 
