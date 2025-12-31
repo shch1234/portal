@@ -16,11 +16,6 @@ import java.util.stream.Collectors;
  * - UNKNOWN: 255（未知状态）
  * </p>
  * <p>
- * 使用数字编码的优势：
- * 1. 节省存储空间（TINYINT UNSIGNED 1字节 vs VARCHAR 6-8字节）
- * 2. 提高查询性能（数字比较和索引更高效）
- * 3. 符合工业标准（OPC UA等标准使用数字编码）
- * </p>
  */
 public enum DeviceStateEnum {
 

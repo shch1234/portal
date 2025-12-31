@@ -10,10 +10,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
 import org.springframework.validation.annotation.Validated;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 /**
  * @author luying
@@ -37,30 +34,30 @@ public class DeviceViewController {
     @Resource
     private IDeviceProductionSummaryService deviceProductionSummaryService;
 
-    @GetMapping("/state-summary")
+    @PostMapping("/state-summary")
     @Operation(summary = "获取设备状态统计（饼图+时间轴）")
-    public CommonResult<DeviceStateSummaryRespVO> getDeviceStateSummary(@Valid DeviceStateSummaryQueryReqVO queryReqVO) {
+    public CommonResult<DeviceStateSummaryRespVO> getDeviceStateSummary(@Valid @RequestBody DeviceStateSummaryQueryReqVO queryReqVO) {
         DeviceStateSummaryRespVO result = deviceStateSummaryBizService.getDeviceStateSummary(queryReqVO);
         return CommonResult.success(result);
     }
 
-    @GetMapping("/axis-info")
+    @PostMapping("/axis-info")
     @Operation(summary = "获取设备轴标签信息（主轴曲线+轴坐标）")
     public CommonResult<DeviceAxisRespVO> getDeviceAxisInfo(@Valid DeviceAxisQueryReqVO queryReqVO) {
         DeviceAxisRespVO result = deviceAxisBizService.getDeviceAxisInfo(queryReqVO);
         return CommonResult.success(result);
     }
 
-    @GetMapping("/tool-compensation")
+    @PostMapping("/tool-compensation")
     @Operation(summary = "获取设备刀具补偿信息")
-    public CommonResult<PageResult<DeviceToolCompensationRespVO>> getDeviceToolCompensation(@Valid DeviceToolCompensationQueryReqVO queryReqVO) {
+    public CommonResult<PageResult<DeviceToolCompensationRespVO>> getDeviceToolCompensation(@Valid @RequestBody DeviceToolCompensationQueryReqVO queryReqVO) {
         PageResult<DeviceToolCompensationRespVO> result = deviceToolBizService.getDeviceToolCompensation(queryReqVO);
         return CommonResult.success(result);
     }
 
-    @GetMapping("/tool-records")
+    @PostMapping("/tool-records")
     @Operation(summary = "获取设备刀具使用记录列表，包括当前的道具记录")
-    public CommonResult<DeviceToolRecordRespVO> getDeviceToolRecords(@Valid DeviceToolRecordQueryReqVO queryReqVO) {
+    public CommonResult<DeviceToolRecordRespVO> getDeviceToolRecords(@Valid @RequestBody DeviceToolRecordQueryReqVO queryReqVO) {
         DeviceToolRecordRespVO result = deviceToolBizService.getDeviceToolRecords(queryReqVO);
         return CommonResult.success(result);
     }
@@ -74,10 +71,10 @@ public class DeviceViewController {
     }
 
 
-    @GetMapping("/production-statistics")
+    @PostMapping("/production-statistics")
     @Operation(summary = "查询设备产量统计",
             description = "查询设备当日加工数量和近一周/近一个月的产量趋势图数据")
-    public CommonResult<DeviceProductionStatisticsRespVO> getProductionStatistics(@Valid DeviceProductionStatisticsReqVO reqVO) {
+    public CommonResult<DeviceProductionStatisticsRespVO> getProductionStatistics(@Valid @RequestBody DeviceProductionStatisticsReqVO reqVO) {
         DeviceProductionStatisticsRespVO statistics = deviceProductionSummaryService.getDeviceProductionStatistics(reqVO);
         return CommonResult.success(statistics);
     }
