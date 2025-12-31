@@ -1,5 +1,6 @@
 package com.weili.iot_portal.service.device.impl;
 
+import com.weili.iot_portal.common.enums.AggregationType;
 import com.weili.iot_portal.common.exception.IotPortalErrorCode;
 import com.weili.iot_portal.common.exception.IotPortalException;
 import com.weili.iot_portal.dal.dataobject.device.DeviceInfoDO;
@@ -36,34 +37,6 @@ public class DeviceAxisBizService implements IDeviceAxisBizService {
     @Resource
     private DeviceAxisCacheService deviceAxisCacheService;
 
-    /**
-     * 聚合类型枚举
-     */
-    private enum AggregationType {
-        MINUTE(60),         // 按分钟聚合，5分钟=5个点
-        TEN_SECONDS(10);    // 按10秒聚合，5分钟=30个点
-
-        private final int intervalSeconds;
-
-        AggregationType(int intervalSeconds) {
-            this.intervalSeconds = intervalSeconds;
-        }
-
-        public int getIntervalSeconds() {
-            return intervalSeconds;
-        }
-
-        public static AggregationType fromString(String type) {
-            if (type == null) {
-                return MINUTE;  // 默认按分钟聚合
-            }
-            try {
-                return valueOf(type.toUpperCase());
-            } catch (IllegalArgumentException e) {
-                return MINUTE;
-            }
-        }
-    }
 
     @Override
     public DeviceAxisRespVO getDeviceAxisInfo(DeviceAxisQueryReqVO queryReqVO) {
@@ -220,6 +193,7 @@ public class DeviceAxisBizService implements IDeviceAxisBizService {
      * 按时间间隔聚合曲线数据
      * MINUTE: 按分钟聚合，5分钟=5个点
      * TEN_SECONDS: 按10秒聚合，5分钟=30个点
+     * 注意：time 字段永远有值，value 可以为 null
      */
     private List<CurvePoint> aggregateCurveByTime(List<CurvePointWithTs> points, AggregationType aggregationType) {
         if (points == null || points.isEmpty()) {
@@ -241,18 +215,25 @@ public class DeviceAxisBizService implements IDeviceAxisBizService {
             Long bucketTs = entry.getKey();
             List<CurvePointWithTs> bucketPoints = entry.getValue();
 
-            // 计算平均值
-            BigDecimal avgValue = bucketPoints.stream()
+            // 计算平均值（过滤掉 value 为 null 的点）
+            List<BigDecimal> validValues = bucketPoints.stream()
                     .map(p -> p.value)
-                    .reduce(BigDecimal.ZERO, BigDecimal::add)
-                    .divide(BigDecimal.valueOf(bucketPoints.size()), 2, RoundingMode.HALF_UP);
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toList());
 
-            // 格式化时间
+            BigDecimal avgValue = null;
+            if (!validValues.isEmpty()) {
+                avgValue = validValues.stream()
+                        .reduce(BigDecimal.ZERO, BigDecimal::add)
+                        .divide(BigDecimal.valueOf(validValues.size()), 2, RoundingMode.HALF_UP);
+            }
+
+            // 格式化时间（time 字段永远有值）
             String formattedTime = formatTime(bucketTs, aggregationType);
 
             result.add(CurvePoint.builder()
                     .time(formattedTime)
-                    .value(avgValue)
+                    .value(avgValue)  // value 可以为 null
                     .build());
         }
 
@@ -282,13 +263,18 @@ public class DeviceAxisBizService implements IDeviceAxisBizService {
 
     /**
      * 解析曲线点（带时间戳）
+     * 支持 value 为 null 的情况
      */
     private CurvePointWithTs parseCurvePointWithTs(String compactFormat) {
         try {
             String[] parts = compactFormat.split(":");
             if (parts.length == 2) {
                 Long ts = Long.parseLong(parts[0]);
-                BigDecimal value = new BigDecimal(parts[1]);
+                // 支持 value 为 null、空字符串或 "null" 字符串的情况
+                BigDecimal value = null;
+                if (parts[1] != null && !parts[1].trim().isEmpty() && !"null".equalsIgnoreCase(parts[1].trim())) {
+                    value = new BigDecimal(parts[1]);
+                }
                 return new CurvePointWithTs(ts, value);
             }
         } catch (Exception e) {
@@ -314,48 +300,6 @@ public class DeviceAxisBizService implements IDeviceAxisBizService {
             return new BigDecimal(String.valueOf(value));
         } catch (Exception e) {
             log.warn("转换BigDecimal失败: {}", value);
-            return null;
-        }
-    }
-
-    /**
-     * 转换为Long
-     */
-    private Long parseLong(Object value) {
-        if (value == null) {
-            return null;
-        }
-        if (value instanceof Long) {
-            return (Long) value;
-        }
-        if (value instanceof Number) {
-            return ((Number) value).longValue();
-        }
-        try {
-            return Long.parseLong(String.valueOf(value));
-        } catch (Exception e) {
-            log.warn("转换Long失败: {}", value);
-            return null;
-        }
-    }
-
-    /**
-     * 转换为Integer
-     */
-    private Integer parseInteger(Object value) {
-        if (value == null) {
-            return null;
-        }
-        if (value instanceof Integer) {
-            return (Integer) value;
-        }
-        if (value instanceof Number) {
-            return ((Number) value).intValue();
-        }
-        try {
-            return Integer.parseInt(String.valueOf(value));
-        } catch (Exception e) {
-            log.warn("转换Integer失败: {}", value);
             return null;
         }
     }
