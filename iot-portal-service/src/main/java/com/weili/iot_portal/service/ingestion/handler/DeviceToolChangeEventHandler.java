@@ -1,5 +1,6 @@
 package com.weili.iot_portal.service.ingestion.handler;
 
+import com.weili.iot_portal.common.enums.TransitionType;
 import com.weili.iot_portal.common.exception.IotPortalErrorCode;
 import com.weili.iot_portal.common.exception.IotPortalException;
 import com.weili.iot_portal.common.utils.WebhookTimestampUtils;
@@ -491,7 +492,7 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
         String currentToolNo = eventData.currentToolNo();
         long eventTimestamp = eventData.eventTimestamp();
 
-        log.info("[DeviceToolChangeEventHandler] 正常换刀: deviceInfoId={}, 旧刀号={}, 新刀号={}, timestamp={}",
+        log.debug("[DeviceToolChangeEventHandler] 正常换刀: deviceInfoId={}, 旧刀号={}, 新刀号={}, timestamp={}",
                 deviceInfoId, dbToolNo, currentToolNo, eventTimestamp);
 
         // 检查时间戳异常
@@ -533,7 +534,7 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
         String currentToolNo = eventData.currentToolNo();
         long eventTimestamp = eventData.eventTimestamp();
 
-        log.info("[DeviceToolChangeEventHandler] 首次连接，开始使用刀具: deviceInfoId={}, toolNo={}, timestamp={}",
+        log.debug("[DeviceToolChangeEventHandler] 首次连接，开始使用刀具: deviceInfoId={}, toolNo={}, timestamp={}",
                 deviceInfoId, currentToolNo, eventTimestamp);
 
         // 使用锁内已查询的结果，避免重复查询导致的并发问题
@@ -557,7 +558,7 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
             // 查询所有未结束的相同刀具号记录，防止数据不一致
             List<DeviceToolRecordDO> allOngoing = deviceToolRecordRepository.findAllOngoingByToolNo(deviceInfoId, currentToolNo);
             if (!allOngoing.isEmpty()) {
-                log.warn("[DeviceToolChangeEventHandler] 首次连接但发现{}条未结束的相同刀具记录（异常情况），将全部结束: deviceInfoId={}, toolNo={}",
+                log.debug("[DeviceToolChangeEventHandler] 首次连接但发现{}条未结束的相同刀具记录（异常情况），将全部结束: deviceInfoId={}, toolNo={}",
                         allOngoing.size(), deviceInfoId, currentToolNo);
                 for (DeviceToolRecordDO record : allOngoing) {
                     record.setEndTs(eventTimestamp);
@@ -765,16 +766,5 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
             String programName,         // 程序名
             Map<String, Object> compensationSnapshot  // 刀补数据快照（JSON）
     ) {
-    }
-
-    /**
-     * 换刀转换类型
-     */
-    private enum TransitionType {
-        FIRST_RECORD,       // 数据库无记录（首次记录）
-        NORMAL_CHANGE,      // 正常换刀
-        TOOL_UNCHANGED,     // 刀具未变化
-        TOOL_MISMATCH,      // 刀具不匹配
-        FIRST_CONNECTION    // 首次连接（数据库有记录但previousToolNo为空）
     }
 }

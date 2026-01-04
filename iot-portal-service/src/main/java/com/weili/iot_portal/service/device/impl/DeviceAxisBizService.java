@@ -298,7 +298,7 @@ public class DeviceAxisBizService implements IDeviceAxisBizService {
         try {
             return new BigDecimal(String.valueOf(value));
         } catch (Exception e) {
-            log.warn("转换BigDecimal失败: {}", value);
+            log.debug("转换BigDecimal失败: {}", value);
             return null;
         }
     }

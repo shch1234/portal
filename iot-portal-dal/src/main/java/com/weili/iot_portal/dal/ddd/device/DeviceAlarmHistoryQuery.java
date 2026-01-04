@@ -16,6 +16,7 @@ import java.util.List;
 @EqualsAndHashCode(callSuper = true)
 public class DeviceAlarmHistoryQuery extends PageParam {
     private Long deviceId;
+    private Long orgFactoryId;
     private List<Long> deviceIds;
     private Long factoryId;
     private Integer isActive;

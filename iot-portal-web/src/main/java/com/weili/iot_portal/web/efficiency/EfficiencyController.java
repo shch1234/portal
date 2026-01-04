@@ -1,9 +1,11 @@
 package com.weili.iot_portal.web.efficiency;
 
+import com.weili.basic.common.enums.ErrorCodeEnum;
 import com.weili.basic.common.model.CommonResult;
-import com.weili.iot_portal.domain.device.req.DeviceMetricStatisticsReqVO;
-import com.weili.iot_portal.domain.device.resp.DeviceMetricStatisticsRespVO;
-import com.weili.iot_portal.service.device.IDeviceMetricsSummaryQueryService;
+import com.weili.iot_portal.common.exception.IotPortalException;
+import com.weili.iot_portal.domain.device.req.MetricStatisticsReqVO;
+import com.weili.iot_portal.domain.device.resp.MetricStatisticsRespVO;
+import com.weili.iot_portal.service.device.IMetricsSummaryQueryService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.Resource;
@@ -27,14 +29,31 @@ import org.springframework.web.bind.annotation.RestController;
 public class EfficiencyController {
 
     @Resource
-    private IDeviceMetricsSummaryQueryService deviceMetricsSummaryQueryService;
+    private IMetricsSummaryQueryService metricsSummaryQueryService;
 
-    @PostMapping("/metric-statistics")
-    @Operation(summary = "查询设备指标统计",
+    @PostMapping("/metric-device")
+    @Operation(summary = "查询单个设备指标统计",
             description = "查询设备OEE、时间开动率、性能开动率、设备开动率、停机率等指标的当前值和趋势图数据")
-    public CommonResult<DeviceMetricStatisticsRespVO> getMetricStatistics(@Valid @RequestBody DeviceMetricStatisticsReqVO reqVO) {
-        DeviceMetricStatisticsRespVO statistics = deviceMetricsSummaryQueryService.getDeviceMetricStatistics(reqVO);
+    public CommonResult<MetricStatisticsRespVO> getDeviceMetric(@Valid @RequestBody MetricStatisticsReqVO reqVO) {
+        if (reqVO.getDeviceId() == null) {
+            throw new IotPortalException(ErrorCodeEnum.PARAMS_ILLEGAL, "设备ID不能为空");
+        }
+        MetricStatisticsRespVO statistics = metricsSummaryQueryService.getDeviceMetricStatistics(reqVO);
         return CommonResult.success(statistics);
     }
 
+    @PostMapping("/metric-factory")
+    @Operation(summary = "查询工厂指标统计",
+            description = "查询工厂OEE、时间开动率、性能开动率、设备开动率、停机率等指标的当前值和趋势图数据")
+    public CommonResult<MetricStatisticsRespVO> getListMetric(@Valid @RequestBody MetricStatisticsReqVO reqVO) {
+        MetricStatisticsRespVO statistics = metricsSummaryQueryService.getFactoryMetricStatistics(reqVO);
+        return CommonResult.success(statistics);
+    }
+    @PostMapping("/metric-device-top")
+    @Operation(summary = "查询指标的topN设备",
+            description = "查询工厂OEE、时间开动率、性能开动率、设备开动率、停机率等指标的当前值和趋势图数据")
+    public CommonResult<MetricStatisticsRespVO> getDeviceMetricTop(@Valid @RequestBody MetricStatisticsReqVO reqVO) {
+        MetricStatisticsRespVO statistics = metricsSummaryQueryService.getFactoryMetricStatistics(reqVO);
+        return CommonResult.success(statistics);
+    }
 }

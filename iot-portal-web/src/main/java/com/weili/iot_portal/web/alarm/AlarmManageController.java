@@ -1,7 +1,9 @@
 package com.weili.iot_portal.web.alarm;
 
+import com.weili.basic.common.enums.ErrorCodeEnum;
 import com.weili.basic.common.model.CommonResult;
 import com.weili.basic.common.model.PageResult;
+import com.weili.iot_portal.common.exception.IotPortalException;
 import com.weili.iot_portal.domain.device.req.DeviceAlarmHistoryQueryReqVO;
 import com.weili.iot_portal.domain.device.resp.AlarmHistoryRespVO;
 import com.weili.iot_portal.domain.device.resp.DeviceAlarmHistoryRespVO;
@@ -33,6 +35,9 @@ public class AlarmManageController {
     @PostMapping("/device-history")
     @Operation(summary = "查询设备的报警记录（包含当前的报警）")
     public CommonResult<DeviceAlarmHistoryRespVO> getDeviceAlarmHistory(@Valid @RequestBody DeviceAlarmHistoryQueryReqVO queryReqVO) {
+        if (queryReqVO.getDeviceId() == null) {
+            throw new IotPortalException(ErrorCodeEnum.PARAMS_ILLEGAL, "设备ID不能为空");
+        }
         DeviceAlarmHistoryRespVO result = deviceAlarmHistoryBizService.getDeviceAlarmHistory(queryReqVO);
         return CommonResult.success(result);
     }

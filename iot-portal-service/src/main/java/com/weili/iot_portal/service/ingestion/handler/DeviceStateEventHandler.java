@@ -77,7 +77,7 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void handle(WebhookInboxDO inbox, WebhookRequest request) throws Exception {
-        log.info("[Webhook-Handler-DeviceState] 处理设备状态事件: messageId={}, eventType={}, deviceCode={}",
+        log.debug("[Webhook-Handler-DeviceState] 处理设备状态事件: messageId={}, eventType={}, deviceCode={}",
                 request.getMessageId(), request.getEventType(), request.getDeviceCode());
 
         // 心跳事件单独处理
@@ -183,7 +183,7 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
         Long deviceInfoId = identity.deviceInfoId();
         
         if (deviceLockService.tryLockState(deviceInfoId, DeviceStateEventFields.LOCK_TIMEOUT_SECONDS)) {
-            log.warn("[Webhook-Handler-DeviceState] 获取设备状态锁失败: deviceInfoId={}, messageId={}",
+            log.debug("[Webhook-Handler-DeviceState] 获取设备状态锁失败: deviceInfoId={}, messageId={}",
                     deviceInfoId, request.getMessageId());
             throw new IotPortalException(IotPortalErrorCode.EVENT_DEVICE_STATE_PROCESSING);
         }
@@ -415,7 +415,7 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
      */
     private void handleStateMismatch(DeviceStateRecordDO latestState, EventData eventData,
                                      DeviceIdentity identity, WebhookRequest request) {
-        log.warn("状态不匹配异常: deviceInfoId={}, DB状态={}, 事件previousState={}, 事件currentState={}, timestamp={}",
+        log.debug("状态不匹配异常: deviceInfoId={}, DB状态={}, 事件previousState={}, 事件currentState={}, timestamp={}",
                 identity.deviceInfoId(), latestState.getStateCode(),
                 eventData.previousState(), eventData.currentState(), eventData.eventTimestamp());
 
@@ -442,7 +442,7 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
         // 检查是否存在状态间隙
         if (latestEndTs < eventData.eventTimestamp()) {
             // 存在间隙，插入 UNKNOWN 状态记录填充间隙
-            log.warn("检测到状态间隙，插入UNKNOWN状态: deviceInfoId={}, gap=[{} -> {}]",
+            log.debug("检测到状态间隙，插入UNKNOWN状态: deviceInfoId={}, gap=[{} -> {}]",
                     deviceInfoId, latestEndTs, eventData.eventTimestamp());
 
             Map<String, Object> gapProperties = new HashMap<>();

@@ -21,6 +21,9 @@ public class DeviceAlarmHistoryQueryReqVO extends PageParam {
     @Schema(description = "设备编码")
     private String deviceCode;
 
+    @Schema(description = "工厂ID")
+    private Long orgFactoryId;
+
     @Schema(description = "报警状态：1-报警中 0-已解除", example = "1")
     private Integer isActive;
 

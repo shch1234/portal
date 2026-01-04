@@ -19,6 +19,8 @@ import jakarta.annotation.Resource;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -93,11 +95,67 @@ public class DeviceStateSummaryBizService implements IDeviceStateSummaryBizServi
             totalFault += (summary.getFaultDurationS() != null ? summary.getFaultDurationS() : 0);
         }
 
+        // 计算总时长
+        int totalDuration = totalStandby + totalWorking + totalShutdown + totalFault;
+
+        // 计算百分比
+        BigDecimal standbyRatio;
+        BigDecimal workingRatio;
+        BigDecimal shutdownRatio;
+        BigDecimal faultRatio;
+
+        if (totalDuration == 0) {
+            // 总时长为0，所有占比都为0
+            standbyRatio = BigDecimal.ZERO;
+            workingRatio = BigDecimal.ZERO;
+            shutdownRatio = BigDecimal.ZERO;
+            faultRatio = BigDecimal.ZERO;
+        } else {
+            // 计算各状态的百分比，保留1位小数
+            standbyRatio = BigDecimal.valueOf(totalStandby)
+                    .multiply(BigDecimal.valueOf(100))
+                    .divide(BigDecimal.valueOf(totalDuration), 1, RoundingMode.HALF_UP);
+
+            workingRatio = BigDecimal.valueOf(totalWorking)
+                    .multiply(BigDecimal.valueOf(100))
+                    .divide(BigDecimal.valueOf(totalDuration), 1, RoundingMode.HALF_UP);
+
+            shutdownRatio = BigDecimal.valueOf(totalShutdown)
+                    .multiply(BigDecimal.valueOf(100))
+                    .divide(BigDecimal.valueOf(totalDuration), 1, RoundingMode.HALF_UP);
+
+            faultRatio = BigDecimal.valueOf(totalFault)
+                    .multiply(BigDecimal.valueOf(100))
+                    .divide(BigDecimal.valueOf(totalDuration), 1, RoundingMode.HALF_UP);
+
+            // 确保总和为100%
+            BigDecimal sum = standbyRatio.add(workingRatio).add(shutdownRatio).add(faultRatio);
+            BigDecimal diff = BigDecimal.valueOf(100).subtract(sum);
+
+            // 如果总和不是100，将差值加到最大的那个百分比上
+            if (diff.compareTo(BigDecimal.ZERO) != 0) {
+                // 找出最大的占比
+                if (totalStandby >= totalWorking && totalStandby >= totalShutdown && totalStandby >= totalFault) {
+                    standbyRatio = standbyRatio.add(diff);
+                } else if (totalWorking >= totalShutdown && totalWorking >= totalFault) {
+                    workingRatio = workingRatio.add(diff);
+                } else if (totalShutdown >= totalFault) {
+                    shutdownRatio = shutdownRatio.add(diff);
+                } else {
+                    faultRatio = faultRatio.add(diff);
+                }
+            }
+        }
+
         return StateRatioStatistics.builder()
                 .standbyDur(totalStandby)
                 .workingDur(totalWorking)
                 .shutdownDur(totalShutdown)
                 .faultDur(totalFault)
+                .standbyRatio(standbyRatio)
+                .workingRatio(workingRatio)
+                .shutdownRatio(shutdownRatio)
+                .faultRatio(faultRatio)
                 .build();
     }
 
