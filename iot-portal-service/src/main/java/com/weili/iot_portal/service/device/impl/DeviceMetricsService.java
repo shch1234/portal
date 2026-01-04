@@ -1,6 +1,5 @@
 package com.weili.iot_portal.service.device.impl;
 
-import com.weili.iot_portal.common.constant.RedisConstant;
 import com.weili.iot_portal.common.enums.DeviceStateEnum;
 import com.weili.iot_portal.dal.dataobject.device.DeviceInfoDO;
 import com.weili.iot_portal.dal.dataobject.device.DeviceParamConfigDO;
@@ -10,6 +9,7 @@ import com.weili.iot_portal.dal.repository.device.DeviceParamConfigRepository;
 import com.weili.iot_portal.dal.repository.device.DeviceProductionRecordRepository;
 import com.weili.iot_portal.dal.repository.device.DeviceStateRecordRepository;
 import com.weili.iot_portal.domain.ingestion.*;
+import com.weili.iot_portal.service.cache.DeviceMetricsCacheService;
 import com.weili.iot_portal.service.device.ICheckpointService;
 import com.weili.iot_portal.service.device.IDeviceMetricsService;
 import com.weili.iot_portal.service.metrics.MetricCalculationContext;
@@ -19,12 +19,9 @@ import com.weili.iot_portal.service.shift.IShiftCalculationService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
-import java.time.Duration;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -43,15 +40,12 @@ public class DeviceMetricsService implements IDeviceMetricsService {
     private static final long MILLIS_PER_SECOND = 1000L;
     private static final BigDecimal PERCENTAGE_MULTIPLIER = BigDecimal.valueOf(100);
 
-    @Value("${rt.metrics.ttl-seconds:600}")
-    private long ttlSeconds;
-
     private final DeviceInfoRepository deviceInfoRepository;
     private final DeviceStateRecordRepository deviceStateRecordRepository;
     private final DeviceParamConfigRepository deviceParamConfigRepository;
     private final DeviceProductionRecordRepository deviceProductionRecordRepository;
     private final IShiftCalculationService shiftCalculationService;
-    private final StringRedisTemplate stringRedisTemplate;
+    private final DeviceMetricsCacheService deviceMetricsCacheService;
     private final ICheckpointService<CheckpointData> checkpointService;
 
     @Autowired
@@ -60,7 +54,7 @@ public class DeviceMetricsService implements IDeviceMetricsService {
                                 DeviceParamConfigRepository deviceParamConfigRepository,
                                 DeviceProductionRecordRepository deviceProductionRecordRepository,
                                 IShiftCalculationService shiftCalculationService,
-                                StringRedisTemplate stringRedisTemplate,
+                                DeviceMetricsCacheService deviceMetricsCacheService,
                                 @Qualifier("deviceMetricsCheckpointService")
                                 ICheckpointService<CheckpointData> checkpointService) {
         this.deviceInfoRepository = deviceInfoRepository;
@@ -68,7 +62,7 @@ public class DeviceMetricsService implements IDeviceMetricsService {
         this.deviceParamConfigRepository = deviceParamConfigRepository;
         this.deviceProductionRecordRepository = deviceProductionRecordRepository;
         this.shiftCalculationService = shiftCalculationService;
-        this.stringRedisTemplate = stringRedisTemplate;
+        this.deviceMetricsCacheService = deviceMetricsCacheService;
         this.checkpointService = checkpointService;
     }
 
@@ -314,9 +308,18 @@ public class DeviceMetricsService implements IDeviceMetricsService {
         // 5. 验证性能率为0的原因并告警
         warnPerformanceRateZero(result, data);
         
-        // 6. 转换并写入Redis
+        // 6. 转换并写入缓存（通过缓存服务）
         RealtimeMetricsPercentages percentages = convertToPercentages(result);
-        writeMetricsToRedis(data.getFactoryId(), data.getDeviceId(), percentages, data.getNowMs());
+        RealtimeMetricSnapshot snapshot =
+                new RealtimeMetricSnapshot(
+                        percentages.getUptimeRate(),
+                        percentages.getPerformanceRate(),
+                        percentages.getAvailabilityRate(),
+                        percentages.getFaultRate(),
+                        percentages.getOee(),
+                        data.getNowMs() / MILLIS_PER_SECOND
+                );
+        deviceMetricsCacheService.saveRealtimeMetrics(data.getFactoryId(), data.getDeviceId(), snapshot);
     }
 
     // ==================== 数据准备层 ====================
@@ -675,185 +678,14 @@ public class DeviceMetricsService implements IDeviceMetricsService {
             return BigDecimal.ZERO;
         }
     }
-    
-    // ==================== 存储层 ====================
-    
-    /**
-     * 写入指标到Redis
-     * 
-     * @param factoryId 工厂ID
-     * @param deviceId 设备ID
-     * @param metrics 百分比形式的指标
-     * @param nowMs 当前时间（毫秒）
-     */
-    private void writeMetricsToRedis(Long factoryId, Long deviceId, 
-                                    RealtimeMetricsPercentages metrics, long nowMs) {
-        String key = buildRedisKey(factoryId, deviceId);
-        Map<String, String> payload = buildRedisPayload(metrics, nowMs / MILLIS_PER_SECOND);
-        
-        try {
-            stringRedisTemplate.opsForHash().putAll(key, payload);
-            stringRedisTemplate.expire(key, Duration.ofSeconds(ttlSeconds));
-        } catch (Exception e) {
-            log.error("写入Redis失败: key={}", key, e);
-        }
-    }
-    
-    /**
-     * 生成Redis key
-     * 
-     * @param factoryId 工厂ID
-     * @param deviceId 设备ID
-     * @return Redis key
-     */
-    private String buildRedisKey(Long factoryId, Long deviceId) {
-        return String.format(RedisConstant.RT_METRIC, defaultBlank(factoryId), defaultBlank(deviceId));
-    }
-    
-    /**
-     * 构建Redis payload
-     * 
-     * @param metrics 百分比形式的指标
-     * @param updatedAtSec 更新时间（秒）
-     * @return Redis payload Map
-     */
-    private Map<String, String> buildRedisPayload(RealtimeMetricsPercentages metrics, long updatedAtSec) {
-        Map<String, String> payload = new HashMap<>();
-        payload.put("metric.uptimeRate", metrics.getUptimeRate().toPlainString());
-        payload.put("metric.performanceRate", metrics.getPerformanceRate().toPlainString());
-        payload.put("metric.availabilityRate", metrics.getAvailabilityRate().toPlainString());
-        payload.put("metric.faultRate", metrics.getFaultRate().toPlainString());
-        payload.put("metric.oee", metrics.getOee().toPlainString());
-        payload.put("updatedAt", String.valueOf(updatedAtSec));
-        return payload;
-    }
-    
-    /**
-     * 写入指标到Redis（保留原方法以保持向后兼容）
-     * 
-     * @deprecated 使用 {@link #writeMetricsToRedis(Long, Long, RealtimeMetricsPercentages, long)} 代替
-     */
-    @Deprecated
-    private void writeMetricToRedis(Long factoryId, Long deviceId,
-                                    BigDecimal uptimeRate, BigDecimal performanceRate,
-                                    BigDecimal availabilityRate, BigDecimal faultRate,
-                                    BigDecimal oee, long updatedAtSec) {
-        String key = buildRedisKey(factoryId, deviceId);
-        Map<String, String> payload = new HashMap<>();
-        payload.put("metric.uptimeRate", uptimeRate.toPlainString());
-        payload.put("metric.performanceRate", performanceRate.toPlainString());
-        payload.put("metric.availabilityRate", availabilityRate.toPlainString());
-        payload.put("metric.faultRate", faultRate.toPlainString());
-        payload.put("metric.oee", oee.toPlainString());
-        payload.put("updatedAt", String.valueOf(updatedAtSec));
-        stringRedisTemplate.opsForHash().putAll(key, payload);
-        stringRedisTemplate.expire(key, Duration.ofSeconds(ttlSeconds));
-    }
-
     @Override
     public Optional<RealtimeMetricSnapshot> getDeviceRealtimeMetrics(Long factoryId, Long deviceId) {
-        String key = String.format(RedisConstant.RT_METRIC, defaultBlank(factoryId), defaultBlank(deviceId));
-        Map<Object, Object> map = stringRedisTemplate.opsForHash().entries(key);
-        if (map.isEmpty()) {
-            return Optional.empty();
-        }
-        try {
-            BigDecimal uptime = parseDecimal(map.get("metric.uptimeRate"));
-            BigDecimal performance = parseDecimal(map.get("metric.performanceRate"));
-            BigDecimal availability = parseDecimal(map.get("metric.availabilityRate"));
-            BigDecimal fault = parseDecimal(map.get("metric.faultRate"));
-            BigDecimal oee = parseDecimal(map.get("metric.oee"));
-            long updatedAt = parseLong(map.get("updatedAt"), 0L);
-            return Optional.of(new RealtimeMetricSnapshot(uptime, performance, availability, fault, oee, updatedAt));
-        } catch (Exception e) {
-            log.warn("读取实时指标解析失败: key={}", key, e);
-            return Optional.empty();
-        }
+        return deviceMetricsCacheService.getDeviceRealtimeMetrics(factoryId, deviceId);
     }
 
     @Override
     public Map<Long, RealtimeMetricSnapshot> batchGetDeviceRealtimeMetrics(Long factoryId, List<Long> deviceIds) {
-        Map<Long, RealtimeMetricSnapshot> result = new HashMap<>();
-        if (deviceIds == null || deviceIds.isEmpty()) {
-            return result;
-        }
-
-        // 性能优化：使用 Redis Pipeline 批量读取
-        List<String> keys = deviceIds.stream()
-                .map(deviceId -> String.format(RedisConstant.RT_METRIC, defaultBlank(factoryId), defaultBlank(deviceId)))
-                .collect(Collectors.toList());
-
-        try {
-            // 性能优化：使用 Redis Pipeline 批量执行，减少网络往返次数
-            // 注意：executePipelined 会自动处理序列化，返回的是 StringRedisTemplate 序列化后的结果
-            List<Object> pipelineResults = stringRedisTemplate.executePipelined(
-                    (org.springframework.data.redis.core.RedisCallback<Object>) connection -> {
-                        for (String key : keys) {
-                            connection.hGetAll(key.getBytes());
-                        }
-                        return null;
-                    }
-            );
-
-            // 解析批量读取结果
-            // executePipelined 返回的 Map 键值都是 String 类型（StringRedisTemplate 自动序列化）
-            for (int i = 0; i < deviceIds.size() && i < pipelineResults.size(); i++) {
-                Long deviceId = deviceIds.get(i);
-                Object resultObj = pipelineResults.get(i);
-                
-                if (resultObj == null) {
-                    continue;
-                }
-                
-                @SuppressWarnings("unchecked")
-                Map<Object, Object> map = (Map<Object, Object>) resultObj;
-                
-                if (map != null && !map.isEmpty()) {
-                    try {
-                        BigDecimal uptime = parseDecimal(map.get("metric.uptimeRate"));
-                        BigDecimal performance = parseDecimal(map.get("metric.performanceRate"));
-                        BigDecimal availability = parseDecimal(map.get("metric.availabilityRate"));
-                        BigDecimal fault = parseDecimal(map.get("metric.faultRate"));
-                        BigDecimal oee = parseDecimal(map.get("metric.oee"));
-                        long updatedAt = parseLong(map.get("updatedAt"), 0L);
-                        result.put(deviceId, new RealtimeMetricSnapshot(uptime, performance, availability, fault, oee, updatedAt));
-                    } catch (Exception e) {
-                        log.warn("批量读取实时指标解析失败: deviceId={}, key={}", deviceId, keys.get(i), e);
-                    }
-                }
-            }
-        } catch (Exception e) {
-            log.error("批量读取实时指标失败: factoryId={}, deviceCount={}", factoryId, deviceIds.size(), e);
-            // 如果批量读取失败，降级为单个读取
-            for (Long deviceId : deviceIds) {
-                Optional<RealtimeMetricSnapshot> snapOpt = getDeviceRealtimeMetrics(factoryId, deviceId);
-                snapOpt.ifPresent(snap -> result.put(deviceId, snap));
-            }
-        }
-
-        return result;
-    }
-
-    private BigDecimal parseDecimal(Object v) {
-        if (v == null) {
-            return java.math.BigDecimal.ZERO;
-        }
-        return new java.math.BigDecimal(v.toString());
-    }
-
-    private long parseLong(Object v, long defaultVal) {
-        if (v == null) {
-            return defaultVal;
-        }
-        try {
-            return Long.parseLong(v.toString());
-        } catch (NumberFormatException ex) {
-            return defaultVal;
-        }
-    }
-
-    private String defaultBlank(Long v) {
-        return v == null ? "none" : v.toString();
+        return deviceMetricsCacheService.batchGetDeviceRealtimeMetrics(factoryId, deviceIds);
     }
     
     // ==================== 内部类 ====================

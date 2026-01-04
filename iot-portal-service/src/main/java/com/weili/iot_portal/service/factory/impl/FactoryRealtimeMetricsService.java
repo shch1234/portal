@@ -1,24 +1,22 @@
 package com.weili.iot_portal.service.factory.impl;
 
-import com.weili.iot_portal.common.constant.RedisConstant;
 import com.weili.iot_portal.dal.dataobject.device.DeviceInfoDO;
 import com.weili.iot_portal.dal.repository.device.DeviceInfoRepository;
 import com.weili.iot_portal.domain.ingestion.BatchProcessResult;
 import com.weili.iot_portal.domain.ingestion.CheckpointData;
+import com.weili.iot_portal.domain.ingestion.FactoryRealtimeMetricSnapshot;
 import com.weili.iot_portal.domain.ingestion.RealtimeMetricSnapshot;
 import com.weili.iot_portal.domain.ingestion.ShiftTimeRange;
+import com.weili.iot_portal.service.cache.FactoryMetricsCacheService;
 import com.weili.iot_portal.service.device.ICheckpointService;
 import com.weili.iot_portal.service.device.IDeviceMetricsService;
 import com.weili.iot_portal.service.shift.IShiftCalculationService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.time.Duration;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -39,10 +37,7 @@ public class FactoryRealtimeMetricsService {
     private final ICheckpointService<CheckpointData> checkpointService;
     private final IShiftCalculationService shiftCalculationService;
     private final IDeviceMetricsService deviceMetricsService;
-    private final StringRedisTemplate stringRedisTemplate;
-
-    @Value("${factory.metrics.ttl-seconds:600}")
-    private long factoryTtlSeconds;
+    private final FactoryMetricsCacheService factoryMetricsCacheService;
 
     public FactoryRealtimeMetricsService(
             DeviceInfoRepository deviceInfoRepository,
@@ -50,12 +45,12 @@ public class FactoryRealtimeMetricsService {
             ICheckpointService<CheckpointData> checkpointService,
             IShiftCalculationService shiftCalculationService,
             IDeviceMetricsService deviceMetricsService,
-            StringRedisTemplate stringRedisTemplate) {
+            FactoryMetricsCacheService factoryMetricsCacheService) {
         this.deviceInfoRepository = deviceInfoRepository;
         this.checkpointService = checkpointService;
         this.shiftCalculationService = shiftCalculationService;
         this.deviceMetricsService = deviceMetricsService;
-        this.stringRedisTemplate = stringRedisTemplate;
+        this.factoryMetricsCacheService = factoryMetricsCacheService;
     }
 
     /**
@@ -263,7 +258,7 @@ public class FactoryRealtimeMetricsService {
     }
 
     /**
-     * 写入工厂实时指标到Redis
+     * 写入工厂实时指标到缓存（通过缓存服务）
      */
     private void writeFactoryRealtimeMetrics(Long factoryId, AggregationResult result, long updatedAtSec) {
         BigDecimal oee = calculateWeightedAverage(result.sumOee, result.sumWeight);
@@ -277,21 +272,12 @@ public class FactoryRealtimeMetricsService {
                 : BigDecimal.valueOf(result.validDevices)
                 .divide(BigDecimal.valueOf(result.totalDevices), DECIMAL_SCALE, RoundingMode.HALF_UP);
 
-        String key = String.format(RedisConstant.RT_FACTORY_METRIC, factoryId == null ? "none" : factoryId);
-        Map<String, String> payload = new HashMap<>();
-        payload.put("metric.oee", oee.toPlainString());
-        payload.put("metric.uptimeRate", uptime.toPlainString());
-        payload.put("metric.performanceRate", perf.toPlainString());
-        payload.put("metric.availabilityRate", avail.toPlainString());
-        payload.put("metric.faultRate", fault.toPlainString());
-        payload.put("meta.sumWeight", String.valueOf(result.sumWeight));
-        payload.put("meta.validDevices", String.valueOf(result.validDevices));
-        payload.put("meta.totalDevices", String.valueOf(result.totalDevices));
-        payload.put("meta.dataCompleteness", dataCompleteness.toPlainString());
-        payload.put("updatedAt", String.valueOf(updatedAtSec));
+        FactoryRealtimeMetricSnapshot snapshot = new FactoryRealtimeMetricSnapshot(
+                oee, uptime, perf, avail, fault,
+                result.sumWeight, result.validDevices, result.totalDevices,
+                dataCompleteness, updatedAtSec);
 
-        stringRedisTemplate.opsForHash().putAll(key, payload);
-        stringRedisTemplate.expire(key, Duration.ofSeconds(factoryTtlSeconds));
+        factoryMetricsCacheService.saveFactoryRealtimeMetrics(factoryId, snapshot);
     }
 
     /**
