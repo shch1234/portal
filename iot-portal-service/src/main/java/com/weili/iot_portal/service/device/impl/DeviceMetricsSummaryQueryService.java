@@ -49,10 +49,14 @@ public class DeviceMetricsSummaryQueryService implements IDeviceMetricsSummaryQu
         }
         DeviceInfoDO deviceInfoDO = optional.get();
 
-        // 1. 当前指标值：获取最新已完成班次的平均OEE（或其他指标）
+        // 1. 当前指标值：从缓存获取实时指标快照
         Optional<RealtimeMetricSnapshot> snapshotOptional = deviceMetricsCacheService.getDeviceRealtimeMetrics(deviceInfoDO.getOrgFactoryId(), deviceInfoId);
         RealtimeMetricSnapshot snapshot = snapshotOptional.orElse(RealtimeMetricSnapshot.empty());
-        respVO.setCurrentMetricValue(snapshot.getOee().multiply(BigDecimal.valueOf(100)));
+
+        // 将实时指标快照转换为 MetricDetailVO
+        DeviceMetricStatisticsRespVO.MetricDetailVO currentMetric = convertSnapshotToMetricDetail(snapshot);
+        respVO.setCurrentMetricValue(currentMetric);
+
         // 2. 指标明细列表：根据是否传参决定查询范围
         LocalDate startShiftDate = queryReqVO.getStartTime();
         LocalDate endShiftDate = queryReqVO.getEndTime();
@@ -148,6 +152,49 @@ public class DeviceMetricsSummaryQueryService implements IDeviceMetricsSummaryQu
         // 计算平均值，并转换为百分比形式（0-100）
         return sum.divide(BigDecimal.valueOf(values.size()), 4, RoundingMode.HALF_UP)
                 .multiply(BigDecimal.valueOf(100))
+                .setScale(1, RoundingMode.HALF_UP);
+    }
+
+    /**
+     * 将实时指标快照转换为 MetricDetailVO
+     * <p>
+     * 实时指标快照已经是百分比形式（0-1），需要转换为（0-100）
+     *
+     * @param snapshot 实时指标快照
+     * @return MetricDetailVO
+     */
+    private DeviceMetricStatisticsRespVO.MetricDetailVO convertSnapshotToMetricDetail(RealtimeMetricSnapshot snapshot) {
+        DeviceMetricStatisticsRespVO.MetricDetailVO detail = new DeviceMetricStatisticsRespVO.MetricDetailVO();
+        // OEE（整体设备效率）：已经是 0-1 范围，转换为百分比 0-100
+        detail.setOee(toPercentage(snapshot.getOee()));
+
+        // 时间开动率（可用率）：availabilityRate -> availability
+        detail.setAvailability(toPercentage(snapshot.getAvailabilityRate()));
+
+        // 性能开动率（性能率）：performanceRate -> performance
+        detail.setPerformance(toPercentage(snapshot.getPerformanceRate()));
+
+        // 设备开动率（设备利用率）：uptimeRate -> utilizationRate
+        detail.setUtilizationRate(toPercentage(snapshot.getUptimeRate()));
+
+        // 停机率：faultRate -> downtimeRate
+        // 注意：停机率也可以计算为 100 - 可用率，但这里直接使用 faultRate
+        detail.setDowntimeRate(toPercentage(snapshot.getFaultRate()));
+
+        return detail;
+    }
+
+    /**
+     * 将 0-1 范围的比率转换为 0-100 的百分比
+     *
+     * @param rate 比率值（0-1）
+     * @return 百分比值（0-100）
+     */
+    private BigDecimal toPercentage(BigDecimal rate) {
+        if (rate == null) {
+            return BigDecimal.ZERO;
+        }
+        return rate.multiply(BigDecimal.valueOf(100))
                 .setScale(1, RoundingMode.HALF_UP);
     }
 }
