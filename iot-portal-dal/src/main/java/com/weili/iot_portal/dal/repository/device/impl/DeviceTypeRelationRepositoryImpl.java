@@ -101,7 +101,6 @@ public class DeviceTypeRelationRepositoryImpl implements DeviceTypeRelationRepos
         return mapper.delete(new LambdaQueryWrapper<DeviceTypeRelationDO>().eq(DeviceTypeRelationDO::getId, id)) > 0;
     }
 
-    @Override
     public List<DeviceTypeRelationDO> selectByCodes(List<String> deviceTypeCodes) {
         if (CollectionUtils.isEmpty(deviceTypeCodes)) {
             return Collections.emptyList();
