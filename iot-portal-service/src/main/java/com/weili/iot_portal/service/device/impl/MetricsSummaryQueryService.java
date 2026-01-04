@@ -6,7 +6,9 @@ import com.weili.iot_portal.dal.dataobject.device.DeviceInfoDO;
 import com.weili.iot_portal.dal.dataobject.device.DeviceMetricSummaryDO;
 import com.weili.iot_portal.dal.repository.device.DeviceInfoRepository;
 import com.weili.iot_portal.dal.repository.device.DeviceMetricSummaryRepository;
+import com.weili.iot_portal.domain.device.req.MetricDeviceDataReqVO;
 import com.weili.iot_portal.domain.device.req.MetricStatisticsReqVO;
+import com.weili.iot_portal.domain.device.resp.MetricDeviceDataRespVO;
 import com.weili.iot_portal.domain.device.resp.MetricStatisticsRespVO;
 import com.weili.iot_portal.domain.ingestion.FactoryRealtimeMetricSnapshot;
 import com.weili.iot_portal.domain.ingestion.RealtimeMetricSnapshot;
@@ -382,5 +384,154 @@ public class MetricsSummaryQueryService implements IMetricsSummaryQueryService {
         detail.setDowntimeRate(toPercentage(snapshot.getFaultRate()));
 
         return detail;
+    }
+
+    @Override
+    public List<MetricDeviceDataRespVO> getDeviceMetricTop(MetricDeviceDataReqVO reqVO) {
+        Long orgFactoryId = reqVO.getOrgFactoryId();
+        LocalDate shiftDate = reqVO.getStartTime();
+        int topN = reqVO.getTop() != null ? reqVO.getTop() : 5;
+        if (shiftDate == null) {
+            shiftDate = LocalDate.now();
+        }
+
+        // 查询指定日期的所有班次数据
+        List<DeviceMetricSummaryDO> allMetrics = deviceMetricSummaryRepository
+                .selectByFactoryAndShift(orgFactoryId, shiftDate, reqVO.getShiftCode());
+
+        if (allMetrics.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        // 按班次分组
+        Map<Integer, List<DeviceMetricSummaryDO>> shiftMetricsMap = allMetrics.stream()
+                .collect(Collectors.groupingBy(DeviceMetricSummaryDO::getShiftCode));
+
+        // 批量查询设备信息
+        List<Long> deviceIds = allMetrics.stream()
+                .map(DeviceMetricSummaryDO::getDeviceInfoId)
+                .distinct()
+                .collect(Collectors.toList());
+        Map<Long, DeviceInfoDO> deviceInfoMap = deviceInfoRepository.selectByIds(deviceIds)
+                .stream()
+                .collect(Collectors.toMap(DeviceInfoDO::getId, Function.identity()));
+
+        // 构建响应数据
+        List<MetricDeviceDataRespVO> result = new ArrayList<>();
+
+        // 对每个班次构建TopN数据
+        for (Map.Entry<Integer, List<DeviceMetricSummaryDO>> entry : shiftMetricsMap.entrySet()) {
+            Integer shiftCode = entry.getKey();
+            List<DeviceMetricSummaryDO> shiftMetrics = entry.getValue();
+
+            MetricDeviceDataRespVO respVO = new MetricDeviceDataRespVO();
+            respVO.setShiftDate(shiftDate);
+            respVO.setShiftCode(shiftCode);
+
+            // 时间开动率TopN（availability）
+            respVO.setAvailability(buildTopNDeviceList(shiftMetrics, deviceInfoMap, topN,
+                    DeviceMetricSummaryDO::getAvailability));
+
+            // 性能开动率TopN（performance）
+            respVO.setPerformance(buildTopNDeviceList(shiftMetrics, deviceInfoMap, topN,
+                    DeviceMetricSummaryDO::getPerformance));
+
+            // OEE指标TopN
+            respVO.setOee(buildTopNDeviceList(shiftMetrics, deviceInfoMap, topN,
+                    DeviceMetricSummaryDO::getOee));
+
+            // 设备开动率TopN（utilizationRate）
+            respVO.setUtilizationRate(buildTopNDeviceList(shiftMetrics, deviceInfoMap, topN,
+                    DeviceMetricSummaryDO::getUtilizationRate));
+
+            // 停机率TopN（100 - availability，降序排列）
+            respVO.setDowntimeRate(buildDowntimeRateTopN(shiftMetrics, deviceInfoMap, topN));
+
+            result.add(respVO);
+        }
+
+        // 按班次编码排序
+        result.sort(Comparator.comparing(MetricDeviceDataRespVO::getShiftCode));
+
+        return result;
+    }
+
+    /**
+     * 构建TopN设备列表
+     *
+     * @param metrics       设备指标列表
+     * @param deviceInfoMap 设备信息Map
+     * @param topN          TopN数量
+     * @param metricGetter  指标获取函数
+     * @return TopN设备列表
+     */
+    private List<MetricDeviceDataRespVO.MetricDeviceDataVO> buildTopNDeviceList(
+            List<DeviceMetricSummaryDO> metrics,
+            Map<Long, DeviceInfoDO> deviceInfoMap,
+            int topN,
+            Function<DeviceMetricSummaryDO, BigDecimal> metricGetter) {
+
+        return metrics.stream()
+                .filter(m -> metricGetter.apply(m) != null)
+                .sorted((m1, m2) -> {
+                    BigDecimal v1 = metricGetter.apply(m1);
+                    BigDecimal v2 = metricGetter.apply(m2);
+                    return v2.compareTo(v1); // 降序排列
+                })
+                .limit(topN)
+                .map(metric -> {
+                    DeviceInfoDO deviceInfo = deviceInfoMap.get(metric.getDeviceInfoId());
+                    MetricDeviceDataRespVO.MetricDeviceDataVO vo = new MetricDeviceDataRespVO.MetricDeviceDataVO();
+                    if (deviceInfo != null) {
+                        vo.setDeviceId(String.valueOf(deviceInfo.getId()));
+                        vo.setDeviceCode(deviceInfo.getDeviceCode());
+                        vo.setDeviceName(deviceInfo.getDeviceName());
+                    }
+                    // 转换为百分比形式（0-100）
+                    vo.setValue(toPercentage(metricGetter.apply(metric)));
+                    return vo;
+                })
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * 构建停机率TopN列表
+     * 停机率 = 100 - 可用率
+     *
+     * @param metrics       设备指标列表
+     * @param deviceInfoMap 设备信息Map
+     * @param topN          TopN数量
+     * @return 停机率TopN设备列表
+     */
+    private List<MetricDeviceDataRespVO.MetricDeviceDataVO> buildDowntimeRateTopN(
+            List<DeviceMetricSummaryDO> metrics,
+            Map<Long, DeviceInfoDO> deviceInfoMap,
+            int topN) {
+
+        return metrics.stream()
+                .filter(m -> m.getAvailability() != null)
+                .sorted((m1, m2) -> {
+                    // 停机率越高越靠前，即可用率越低越靠前
+                    BigDecimal v1 = m1.getAvailability();
+                    BigDecimal v2 = m2.getAvailability();
+                    return v1.compareTo(v2); // 升序排列（可用率低的在前）
+                })
+                .limit(topN)
+                .map(metric -> {
+                    DeviceInfoDO deviceInfo = deviceInfoMap.get(metric.getDeviceInfoId());
+                    MetricDeviceDataRespVO.MetricDeviceDataVO vo = new MetricDeviceDataRespVO.MetricDeviceDataVO();
+                    if (deviceInfo != null) {
+                        vo.setDeviceId(String.valueOf(deviceInfo.getId()));
+                        vo.setDeviceCode(deviceInfo.getDeviceCode());
+                        vo.setDeviceName(deviceInfo.getDeviceName());
+                    }
+                    // 停机率 = 100 - 可用率（转换为百分比）
+                    BigDecimal availability = metric.getAvailability();
+                    BigDecimal downtimeRate = BigDecimal.valueOf(100)
+                            .subtract(toPercentage(availability));
+                    vo.setValue(downtimeRate);
+                    return vo;
+                })
+                .collect(Collectors.toList());
     }
 }

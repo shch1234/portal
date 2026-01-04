@@ -12,7 +12,6 @@ import org.springframework.stereotype.Repository;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 /**
  * 设备班次指标仓储实现
@@ -23,14 +22,6 @@ public class DeviceMetricSummaryRepositoryImpl implements DeviceMetricSummaryRep
 
     private final DeviceMetricSummaryMapper mapper;
 
-    @Override
-    public Optional<DeviceMetricSummaryDO> selectLatestFinalized(Long deviceId) {
-        LambdaQueryWrapper<DeviceMetricSummaryDO> wrapper = baseQuery(deviceId)
-                .eq(DeviceMetricSummaryDO::getIsFinalized, Boolean.TRUE)
-                .orderByDesc(DeviceMetricSummaryDO::getShiftStartTs)
-                .last("limit 1");
-        return Optional.ofNullable(mapper.selectOne(wrapper));
-    }
 
     @Override
     public PageResult<DeviceMetricSummaryDO> selectPage(Long deviceId,
@@ -97,7 +88,7 @@ public class DeviceMetricSummaryRepositoryImpl implements DeviceMetricSummaryRep
         if (deviceIds == null || deviceIds.isEmpty()) {
             return new java.util.HashMap<>();
         }
-        
+
         LambdaQueryWrapper<DeviceMetricSummaryDO> wrapper = new LambdaQueryWrapper<>();
         wrapper.in(DeviceMetricSummaryDO::getDeviceInfoId, deviceIds)
                 .eq(DeviceMetricSummaryDO::getIsFinalized, Boolean.TRUE);
@@ -109,12 +100,26 @@ public class DeviceMetricSummaryRepositoryImpl implements DeviceMetricSummaryRep
         }
         wrapper.orderByAsc(DeviceMetricSummaryDO::getDeviceInfoId)
                 .orderByAsc(DeviceMetricSummaryDO::getShiftEndTs);
-        
+
         List<DeviceMetricSummaryDO> allRecords = mapper.selectList(wrapper);
-        
+
         // 按设备ID分组
         return allRecords.stream()
                 .collect(java.util.stream.Collectors.groupingBy(DeviceMetricSummaryDO::getDeviceInfoId));
+    }
+
+    @Override
+    public List<DeviceMetricSummaryDO> selectByFactoryAndShift(Long orgFactoryId, LocalDate shiftDate, Integer shiftCode) {
+        LambdaQueryWrapper<DeviceMetricSummaryDO> wrapper = new LambdaQueryWrapper<>();
+        if (orgFactoryId != null) {
+            wrapper.eq(DeviceMetricSummaryDO::getOrgFactoryId, orgFactoryId);
+        }
+        wrapper.eq(DeviceMetricSummaryDO::getShiftDate, shiftDate)
+                .eq(DeviceMetricSummaryDO::getIsFinalized, Boolean.TRUE);
+        if (shiftCode != null) {
+            wrapper.eq(DeviceMetricSummaryDO::getShiftCode, shiftCode);
+        }
+        return mapper.selectList(wrapper);
     }
 
     @Override

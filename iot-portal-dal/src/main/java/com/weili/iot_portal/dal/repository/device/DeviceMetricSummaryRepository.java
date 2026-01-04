@@ -6,14 +6,11 @@ import com.weili.iot_portal.dal.dataobject.device.DeviceMetricSummaryDO;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 /**
  * 设备班次指标仓储
  */
 public interface DeviceMetricSummaryRepository {
-
-    Optional<DeviceMetricSummaryDO> selectLatestFinalized(Long deviceId);
 
     PageResult<DeviceMetricSummaryDO> selectPage(Long deviceId,
                                                  Long startTsMillis, Long endTsMillis, int pageNo, int pageSize);
@@ -53,6 +50,17 @@ public interface DeviceMetricSummaryRepository {
      */
     Map<Long, List<DeviceMetricSummaryDO>> selectFinalizedInRangeBatch(
             List<Long> deviceIds, Long startTsMillis, Long endTsMillis);
+
+    /**
+     * 查询指定工厂、班次日期、班次编码的所有设备指标数据（已完成的记录）
+     * 用于统计TopN设备
+     *
+     * @param orgFactoryId 工厂ID
+     * @param shiftDate    班次日期
+     * @param shiftCode    班次编码（可选，为null则查询当天所有班次）
+     * @return 设备指标汇总列表
+     */
+    List<DeviceMetricSummaryDO> selectByFactoryAndShift(Long orgFactoryId, LocalDate shiftDate, Integer shiftCode);
 
     void insert(DeviceMetricSummaryDO entity);
 
