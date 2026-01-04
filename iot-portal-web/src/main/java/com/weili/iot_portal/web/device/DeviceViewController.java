@@ -43,7 +43,7 @@ public class DeviceViewController {
 
     @PostMapping("/axis-info")
     @Operation(summary = "获取设备轴标签信息（主轴曲线+轴坐标）")
-    public CommonResult<DeviceAxisRespVO> getDeviceAxisInfo(@Valid DeviceAxisQueryReqVO queryReqVO) {
+    public CommonResult<DeviceAxisRespVO> getDeviceAxisInfo(@Valid @RequestBody DeviceAxisQueryReqVO queryReqVO) {
         DeviceAxisRespVO result = deviceAxisBizService.getDeviceAxisInfo(queryReqVO);
         return CommonResult.success(result);
     }
