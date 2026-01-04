@@ -1,8 +1,6 @@
 package com.weili.iot_portal.service.device;
 
 import com.weili.iot_portal.dal.dataobject.device.DeviceInfoDO;
-import com.weili.iot_portal.domain.device.req.DeviceProductionStatisticsReqVO;
-import com.weili.iot_portal.domain.device.resp.DeviceProductionStatisticsRespVO;
 import com.weili.iot_portal.domain.ingestion.BatchProcessResult;
 
 import java.util.List;

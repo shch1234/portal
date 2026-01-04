@@ -2,11 +2,7 @@ package com.weili.iot_portal.service.factory.impl;
 
 import com.weili.iot_portal.dal.dataobject.device.DeviceInfoDO;
 import com.weili.iot_portal.dal.repository.device.DeviceInfoRepository;
-import com.weili.iot_portal.domain.ingestion.BatchProcessResult;
-import com.weili.iot_portal.domain.ingestion.CheckpointData;
-import com.weili.iot_portal.domain.ingestion.FactoryRealtimeMetricSnapshot;
-import com.weili.iot_portal.domain.ingestion.RealtimeMetricSnapshot;
-import com.weili.iot_portal.domain.ingestion.ShiftTimeRange;
+import com.weili.iot_portal.domain.ingestion.*;
 import com.weili.iot_portal.service.cache.FactoryMetricsCacheService;
 import com.weili.iot_portal.service.device.ICheckpointService;
 import com.weili.iot_portal.service.device.IDeviceMetricsService;
@@ -17,7 +13,10 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**

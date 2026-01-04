@@ -11,6 +11,7 @@ import com.weili.iot_portal.dal.dataobject.ingestion.WebhookInboxDO;
 import com.weili.iot_portal.dal.repository.device.DeviceStateRecordRepository;
 import com.weili.iot_portal.domain.ingestion.DeviceIdentity;
 import com.weili.iot_portal.domain.ingestion.ShiftDateAndCode;
+import com.weili.iot_portal.domain.ingestion.ShiftTimeRange;
 import com.weili.iot_portal.domain.ingestion.WebhookRequest;
 import com.weili.iot_portal.service.cache.DeviceLockService;
 import com.weili.iot_portal.service.cache.DeviceStateCacheService;
@@ -24,15 +25,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-
-import com.weili.iot_portal.domain.ingestion.DeviceIdentity;
-import com.weili.iot_portal.domain.ingestion.ShiftTimeRange;
+import java.util.*;
 
 /**
  * 设备状态事件处理器

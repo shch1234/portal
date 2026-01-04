@@ -1,17 +1,12 @@
 package com.weili.iot_portal.service.device.impl;
 
-import com.weili.iot_portal.common.exception.IotPortalErrorCode;
-import com.weili.iot_portal.common.exception.IotPortalException;
 import com.weili.iot_portal.dal.dataobject.device.DeviceInfoDO;
 import com.weili.iot_portal.dal.dataobject.device.DeviceProductionSummaryDO;
 import com.weili.iot_portal.dal.repository.device.DeviceInfoRepository;
 import com.weili.iot_portal.dal.repository.device.DeviceProductionRecordRepository;
 import com.weili.iot_portal.dal.repository.device.DeviceProductionSummaryRepository;
-import com.weili.iot_portal.domain.device.req.DeviceProductionStatisticsReqVO;
-import com.weili.iot_portal.domain.device.resp.DeviceProductionStatisticsRespVO;
 import com.weili.iot_portal.domain.ingestion.BatchProcessResult;
 import com.weili.iot_portal.domain.ingestion.CheckpointData;
-import com.weili.iot_portal.domain.ingestion.ShiftDateAndCode;
 import com.weili.iot_portal.domain.ingestion.ShiftTimeRange;
 import com.weili.iot_portal.service.device.ICheckpointService;
 import com.weili.iot_portal.service.device.IDeviceProductionSummaryService;
@@ -23,7 +18,6 @@ import org.springframework.stereotype.Service;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
 
