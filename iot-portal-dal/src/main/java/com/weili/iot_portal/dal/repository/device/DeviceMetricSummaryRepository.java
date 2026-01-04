@@ -4,6 +4,8 @@ import com.weili.basic.common.model.PageResult;
 import com.weili.iot_portal.dal.dataobject.device.DeviceMetricSummaryDO;
 
 import java.time.LocalDate;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -14,7 +16,7 @@ public interface DeviceMetricSummaryRepository {
     Optional<DeviceMetricSummaryDO> selectLatestFinalized(Long deviceId);
 
     PageResult<DeviceMetricSummaryDO> selectPage(Long deviceId,
-                                                Long startTs, Long endTs, int pageNo, int pageSize);
+                                                 Long startTsMillis, Long endTsMillis, int pageNo, int pageSize);
 
     /**
      * 按设备和班次查询单条记录
@@ -22,44 +24,35 @@ public interface DeviceMetricSummaryRepository {
     DeviceMetricSummaryDO findByShift(Long deviceId, LocalDate shiftDate, Integer shiftCode);
 
     /**
-     * 查询统计时间点前已完成的班次记录
-     *
-     * @param deviceId 设备ID
-     * @param endTs    统计时间戳（秒）
-     * @return 班次记录列表（按 shift_end_ts 升序）
-     */
-    java.util.List<DeviceMetricSummaryDO> selectFinalizedUpTo(Long deviceId, Long endTs);
-
-    /**
      * 查询指定时间范围内已完成的班次记录
      *
-     * @param deviceId 设备ID
-     * @param startTs  开始时间戳（秒，可选，为null则不限制）
-     * @param endTs    结束时间戳（秒，可选，为null则不限制）
+     * @param deviceId      设备ID
+     * @param startTsMillis 开始时间戳（豪秒，可选，为null则不限制）
+     * @param endTsMillis   结束时间戳（豪秒，可选，为null则不限制）
      * @return 班次记录列表（按 shift_end_ts 升序）
      */
-    java.util.List<DeviceMetricSummaryDO> selectFinalizedInRange(Long deviceId, Long startTs, Long endTs);
+    List<DeviceMetricSummaryDO> selectFinalizedInRange(Long deviceId, Long startTsMillis, Long endTsMillis);
 
     /**
      * 查询在指定时间范围内有已完成汇总记录的设备ID列表
      * 用于工厂指标汇总任务，只处理有设备指标汇总数据的设备
      *
-     * @param startTs 开始时间戳（秒），查询 shift_end_ts >= startTs 的记录，可为null表示不限制
-     * @param endTs   结束时间戳（秒），查询 shift_end_ts <= endTs 的记录
+     * @param startTsMillis 开始时间戳（豪秒），查询 shift_end_ts >= startTs 的记录，可为null表示不限制
+     * @param endTsMillis   结束时间戳（豪秒），查询 shift_end_ts <= endTs 的记录
      * @return 设备ID列表（去重）
      */
-    java.util.List<Long> findDistinctDeviceIdsWithFinalizedSummaries(Long startTs, Long endTs);
+    List<Long> findDistinctDeviceIdsWithFinalizedSummaries(Long startTsMillis, Long endTsMillis);
 
     /**
      * 批量查询多个设备在指定时间范围内已完成的班次记录
      *
      * @param deviceIds 设备ID列表
-     * @param startTs   开始时间戳（秒，可选，为null则不限制）
-     * @param endTs     结束时间戳（秒，可选，为null则不限制）
+     * @param startTsMillis   开始时间戳（豪秒，可选，为null则不限制）
+     * @param endTsMillis     结束时间戳（豪秒，可选，为null则不限制）
      * @return 设备指标汇总Map，key为设备ID，value为该设备的班次记录列表（按 shift_end_ts 升序）
      */
-    java.util.Map<Long, java.util.List<DeviceMetricSummaryDO>> selectFinalizedInRangeBatch(
-            java.util.List<Long> deviceIds, Long startTs, Long endTs);
+    Map<Long, List<DeviceMetricSummaryDO>> selectFinalizedInRangeBatch(
+            List<Long> deviceIds, Long startTsMillis, Long endTsMillis);
 
     void insert(DeviceMetricSummaryDO entity);
 

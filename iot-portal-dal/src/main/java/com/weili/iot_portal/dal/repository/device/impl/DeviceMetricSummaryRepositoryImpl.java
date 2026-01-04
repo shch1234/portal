@@ -10,6 +10,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -58,29 +60,14 @@ public class DeviceMetricSummaryRepositoryImpl implements DeviceMetricSummaryRep
     }
 
     @Override
-    public java.util.List<DeviceMetricSummaryDO> selectFinalizedUpTo(Long deviceId, Long endTs) {
+    public List<DeviceMetricSummaryDO> selectFinalizedInRange(Long deviceId, Long startTsMillis, Long endTsMillis) {
         LambdaQueryWrapper<DeviceMetricSummaryDO> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(DeviceMetricSummaryDO::getDeviceInfoId, deviceId)
                 .eq(DeviceMetricSummaryDO::getIsFinalized, Boolean.TRUE);
-        if (endTs != null) {
-            long endTsMillis = endTs * 1000L;
-            wrapper.le(DeviceMetricSummaryDO::getShiftEndTs, endTsMillis);
-        }
-        wrapper.orderByAsc(DeviceMetricSummaryDO::getShiftEndTs);
-        return mapper.selectList(wrapper);
-    }
-
-    @Override
-    public java.util.List<DeviceMetricSummaryDO> selectFinalizedInRange(Long deviceId, Long startTs, Long endTs) {
-        LambdaQueryWrapper<DeviceMetricSummaryDO> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(DeviceMetricSummaryDO::getDeviceInfoId, deviceId)
-                .eq(DeviceMetricSummaryDO::getIsFinalized, Boolean.TRUE);
-        if (startTs != null) {
-            long startTsMillis = startTs * 1000L;
+        if (startTsMillis != null) {
             wrapper.ge(DeviceMetricSummaryDO::getShiftEndTs, startTsMillis);
         }
-        if (endTs != null) {
-            long endTsMillis = endTs * 1000L;
+        if (endTsMillis != null) {
             wrapper.le(DeviceMetricSummaryDO::getShiftEndTs, endTsMillis);
         }
         wrapper.orderByAsc(DeviceMetricSummaryDO::getShiftEndTs);
@@ -88,16 +75,14 @@ public class DeviceMetricSummaryRepositoryImpl implements DeviceMetricSummaryRep
     }
 
     @Override
-    public java.util.List<Long> findDistinctDeviceIdsWithFinalizedSummaries(Long startTs, Long endTs) {
+    public List<Long> findDistinctDeviceIdsWithFinalizedSummaries(Long startTsMillis, Long endTsMillis) {
         LambdaQueryWrapper<DeviceMetricSummaryDO> wrapper = new LambdaQueryWrapper<>();
         wrapper.select(DeviceMetricSummaryDO::getDeviceInfoId)
                 .eq(DeviceMetricSummaryDO::getIsFinalized, Boolean.TRUE);
-        if (startTs != null) {
-            long startTsMillis = startTs * 1000L;
+        if (startTsMillis != null) {
             wrapper.ge(DeviceMetricSummaryDO::getShiftEndTs, startTsMillis);
         }
-        if (endTs != null) {
-            long endTsMillis = endTs * 1000L;
+        if (endTsMillis != null) {
             wrapper.le(DeviceMetricSummaryDO::getShiftEndTs, endTsMillis);
         }
         return mapper.selectList(wrapper).stream()
@@ -107,8 +92,8 @@ public class DeviceMetricSummaryRepositoryImpl implements DeviceMetricSummaryRep
     }
 
     @Override
-    public java.util.Map<Long, java.util.List<DeviceMetricSummaryDO>> selectFinalizedInRangeBatch(
-            java.util.List<Long> deviceIds, Long startTs, Long endTs) {
+    public Map<Long, List<DeviceMetricSummaryDO>> selectFinalizedInRangeBatch(
+            List<Long> deviceIds, Long startTsMillis, Long endTsMillis) {
         if (deviceIds == null || deviceIds.isEmpty()) {
             return new java.util.HashMap<>();
         }
@@ -116,18 +101,16 @@ public class DeviceMetricSummaryRepositoryImpl implements DeviceMetricSummaryRep
         LambdaQueryWrapper<DeviceMetricSummaryDO> wrapper = new LambdaQueryWrapper<>();
         wrapper.in(DeviceMetricSummaryDO::getDeviceInfoId, deviceIds)
                 .eq(DeviceMetricSummaryDO::getIsFinalized, Boolean.TRUE);
-        if (startTs != null) {
-            long startTsMillis = startTs * 1000L;
+        if (startTsMillis != null) {
             wrapper.ge(DeviceMetricSummaryDO::getShiftEndTs, startTsMillis);
         }
-        if (endTs != null) {
-            long endTsMillis = endTs * 1000L;
+        if (endTsMillis != null) {
             wrapper.le(DeviceMetricSummaryDO::getShiftEndTs, endTsMillis);
         }
         wrapper.orderByAsc(DeviceMetricSummaryDO::getDeviceInfoId)
                 .orderByAsc(DeviceMetricSummaryDO::getShiftEndTs);
         
-        java.util.List<DeviceMetricSummaryDO> allRecords = mapper.selectList(wrapper);
+        List<DeviceMetricSummaryDO> allRecords = mapper.selectList(wrapper);
         
         // 按设备ID分组
         return allRecords.stream()

@@ -7,11 +7,11 @@ import lombok.Data;
 import java.time.LocalDate;
 
 /**
- * 设备产量统计查询 Request VO
+ * 设备指标统计查询 Request VO
  */
-@Schema(description = "设备产量统计查询 Request VO")
+@Schema(description = "设备指标统计查询 Request VO")
 @Data
-public class DeviceProductionStatisticsReqVO {
+public class DeviceMetricStatisticsReqVO {
 
     @Schema(description = "设备ID", requiredMode = Schema.RequiredMode.REQUIRED, example = "123456789")
     @NotNull(message = "设备ID不能为空")

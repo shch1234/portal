@@ -1,10 +1,10 @@
 package com.weili.iot_portal.domain.device.req;
 
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
-import com.weili.iot_portal.common.serializer.TimestampLongDeserializer;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
+
+import java.time.LocalDate;
 
 /**
  * 设备状态汇总查询 Request VO
@@ -17,11 +17,9 @@ public class DeviceStateSummaryQueryReqVO {
     @NotNull(message = "设备ID不能为空")
     private Long deviceId;
 
-    @Schema(description = "开始时间（前端传 yyyy-MM-dd；非必传，不传则使用当前班次的开始时间）", requiredMode = Schema.RequiredMode.NOT_REQUIRED, example = "2024-11-13 08:00:00")
-    @JsonDeserialize(using = TimestampLongDeserializer.class)
-    private Long startTime;
+    @Schema(description = "开始时间（前端传 yyyy-MM-dd；非必传）", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+    private LocalDate startTime;
 
-    @Schema(description = "结束时间（前端传 yyyy-MM-dd；非必传，不传则使用当前班次的结束时间）", requiredMode = Schema.RequiredMode.NOT_REQUIRED, example = "2024-11-13 20:00:00")
-    @JsonDeserialize(using = TimestampLongDeserializer.class)
-    private Long endTime;
+    @Schema(description = "结束时间（前端传 yyyy-MM-dd；非必传）", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+    private LocalDate endTime;
 }

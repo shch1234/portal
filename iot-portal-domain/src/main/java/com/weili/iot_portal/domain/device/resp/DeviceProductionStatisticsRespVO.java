@@ -30,11 +30,5 @@ public class DeviceProductionStatisticsRespVO {
 
         @Schema(description = "加工数量", example = "1024")
         private Integer productionCount;
-
-        @Schema(description = "合格数量", example = "1000")
-        private Integer qualifiedCount;
-
-        @Schema(description = "不合格数量", example = "24")
-        private Integer defectCount;
     }
 }

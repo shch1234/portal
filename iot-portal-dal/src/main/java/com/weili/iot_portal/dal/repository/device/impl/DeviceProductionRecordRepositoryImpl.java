@@ -64,11 +64,10 @@ public class DeviceProductionRecordRepositoryImpl implements DeviceProductionRec
     }
 
     @Override
-    public long countByDate(Long deviceInfoId, LocalDate shiftDate, Integer shiftCode) {
+    public long countByDate(Long deviceInfoId, LocalDate shiftDate) {
         LambdaQueryWrapper<DeviceProductionRecordDO> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(DeviceProductionRecordDO::getDeviceInfoId, deviceInfoId)
-                .eq(DeviceProductionRecordDO::getShiftDate, shiftDate)
-                .eq(DeviceProductionRecordDO::getShiftCode, shiftCode);
+                .eq(DeviceProductionRecordDO::getShiftDate, shiftDate);
         return mapper.selectCount(wrapper);
     }
 

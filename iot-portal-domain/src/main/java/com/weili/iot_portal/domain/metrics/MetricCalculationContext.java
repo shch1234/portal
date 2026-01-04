@@ -1,4 +1,4 @@
-package com.weili.iot_portal.service.metrics;
+package com.weili.iot_portal.domain.metrics;
 
 /**
  * 指标计算上下文

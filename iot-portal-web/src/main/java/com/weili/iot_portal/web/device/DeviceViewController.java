@@ -32,7 +32,7 @@ public class DeviceViewController {
     @Resource
     private IDeviceProgramBizService deviceProgramBizService;
     @Resource
-    private IDeviceProductionSummaryService deviceProductionSummaryService;
+    private IDeviceProductionSummaryQueryService deviceProductionSummaryQueryService;
 
     @PostMapping("/state-summary")
     @Operation(summary = "获取设备状态统计（饼图+时间轴）")
@@ -72,10 +72,9 @@ public class DeviceViewController {
 
 
     @PostMapping("/production-statistics")
-    @Operation(summary = "查询设备产量统计",
-            description = "查询设备当日加工数量和近一周/近一个月的产量趋势图数据")
+    @Operation(summary = "查询设备产量统计")
     public CommonResult<DeviceProductionStatisticsRespVO> getProductionStatistics(@Valid @RequestBody DeviceProductionStatisticsReqVO reqVO) {
-        DeviceProductionStatisticsRespVO statistics = deviceProductionSummaryService.getDeviceProductionStatistics(reqVO);
+        DeviceProductionStatisticsRespVO statistics = deviceProductionSummaryQueryService.getDeviceProductionStatistics(reqVO);
         return CommonResult.success(statistics);
     }
 }

@@ -1,4 +1,4 @@
-package com.weili.iot_portal.service.metrics;
+package com.weili.iot_portal.domain.metrics;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;

@@ -49,7 +49,7 @@ public interface DeviceProductionRecordRepository {
     /**
      * 统计当天的加工数量
      */
-    long countByDate(Long deviceInfoId, LocalDate shiftDate, Integer shiftCode);
+    long countByDate(Long deviceInfoId, LocalDate shiftDate);
 }
 
 

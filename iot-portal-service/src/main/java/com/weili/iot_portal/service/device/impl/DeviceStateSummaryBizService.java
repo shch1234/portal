@@ -12,11 +12,9 @@ import com.weili.iot_portal.domain.device.req.DeviceStateSummaryQueryReqVO;
 import com.weili.iot_portal.domain.device.resp.DeviceStateSummaryRespVO;
 import com.weili.iot_portal.domain.device.resp.StateRatioStatistics;
 import com.weili.iot_portal.domain.device.resp.StateTimeSegment;
-import com.weili.iot_portal.domain.ingestion.ShiftDateAndCode;
 import com.weili.iot_portal.service.cache.DeviceStateCacheService;
 import com.weili.iot_portal.service.device.IDeviceInfoBizService;
 import com.weili.iot_portal.service.device.IDeviceStateSummaryBizService;
-import com.weili.iot_portal.service.shift.IShiftCalculationService;
 import jakarta.annotation.Resource;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
@@ -40,9 +38,6 @@ public class DeviceStateSummaryBizService implements IDeviceStateSummaryBizServi
     private DeviceStateSummaryRepository deviceStateSummaryRepository;
     @Resource
     private DeviceStateRecordRepository deviceStateRecordRepository;
-    @Resource
-    private IShiftCalculationService shiftCalculationService;
-
 
     @Override
     public DeviceStateSummaryRespVO getDeviceStateSummary(DeviceStateSummaryQueryReqVO queryReqVO) {
@@ -54,31 +49,11 @@ public class DeviceStateSummaryBizService implements IDeviceStateSummaryBizServi
         String stateValue = deviceStateCacheService.getStateValue(deviceInfo.getOrgFactoryId(), deviceInfo.getId());
         String heartbeat = deviceStateCacheService.getHeartbeat(deviceInfo.getOrgFactoryId(), deviceInfo.getId());
 
-        LocalDate startShiftDate;
-        LocalDate endShiftDate = null;
+        LocalDate startShiftDate = queryReqVO.getStartTime();
+        LocalDate endShiftDate = queryReqVO.getEndTime();
         if (queryReqVO.getStartTime() == null || queryReqVO.getEndTime() == null) {
-            ShiftDateAndCode currentShiftRange = shiftCalculationService.getShiftDateAndCode(
-                    deviceInfo.getOrgFactoryId(),
-                    deviceInfo.getId(),
-                    System.currentTimeMillis()
-            );
-            startShiftDate = currentShiftRange.shiftDate();
-        } else {
-            ShiftDateAndCode startShiftInfo = shiftCalculationService.getShiftDateAndCode(
-                    deviceInfo.getOrgFactoryId(),
-                    deviceInfo.getId(),
-                    queryReqVO.getStartTime()
-            );
-
-            ShiftDateAndCode endShiftInfo = shiftCalculationService.getShiftDateAndCode(
-                    deviceInfo.getOrgFactoryId(),
-                    deviceInfo.getId(),
-                    queryReqVO.getEndTime()
-            );
-            startShiftDate = startShiftInfo.shiftDate();
-            endShiftDate = endShiftInfo.shiftDate();
+            startShiftDate = LocalDate.now();
         }
-
         // 2. 使用班次日期范围查询汇总数据（用于饼图）
         List<DeviceStateSummaryDO> summaryList = deviceStateSummaryRepository.selectByShiftDateRange(
                 queryReqVO.getDeviceId(),

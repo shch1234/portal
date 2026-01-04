@@ -47,12 +47,12 @@ public class DeviceMetricSummaryDO implements Serializable {
     private Integer shiftCode;
 
     /**
-     * 班次开始时间戳（秒，Unix时间戳，对应 shift_start_ts 列）
+     * 班次开始时间戳（豪秒，Unix时间戳，对应 shift_start_ts 列）
      */
     private Long shiftStartTs;
 
     /**
-     * 班次结束时间戳（秒，Unix时间戳，对应 shift_end_ts 列）
+     * 班次结束时间戳（豪秒，Unix时间戳，对应 shift_end_ts 列）
      */
     private Long shiftEndTs;
 

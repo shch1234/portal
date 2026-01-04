@@ -41,12 +41,5 @@ public interface IDeviceProductionSummaryService {
             long statisticsTimeSeconds,
             int batchSize,
             long timeoutMillis);
-
-    /**
-     * 查询设备产量统计数据
-     * @param reqVO 查询请求参数（设备ID和时间范围）
-     * @return 产量统计响应数据（当日加工数量 + 趋势图数据）
-     */
-    DeviceProductionStatisticsRespVO getDeviceProductionStatistics(DeviceProductionStatisticsReqVO reqVO);
 }
 

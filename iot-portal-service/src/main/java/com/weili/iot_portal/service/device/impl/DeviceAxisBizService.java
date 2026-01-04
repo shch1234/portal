@@ -218,8 +218,7 @@ public class DeviceAxisBizService implements IDeviceAxisBizService {
             // 计算平均值（过滤掉 value 为 null 的点）
             List<BigDecimal> validValues = bucketPoints.stream()
                     .map(p -> p.value)
-                    .filter(Objects::nonNull)
-                    .collect(Collectors.toList());
+                    .filter(Objects::nonNull).toList();
 
             BigDecimal avgValue = null;
             if (!validValues.isEmpty()) {
