@@ -500,13 +500,15 @@ public class DeviceMetricsService implements IDeviceMetricsService {
     
     /**
      * 获取理论节拍默认值（从 device_production_record 获取最新已完成记录的 duration_s）
+     * <p>
+     * 注意：duration_s 字段实际存储的是毫秒，需要转换为秒
      * 
      * @param deviceId 设备ID
      * @return 理论节拍默认值（秒），如果不存在则返回0
      */
     private long getTheoreticalCycleDefaultValue(Long deviceId) {
         return deviceProductionRecordRepository.findLatestCompletedDurationS(deviceId)
-                .map(Integer::longValue)
+                .map(durationMs -> durationMs.longValue() / 1000L)  // 将毫秒转换为秒
                 .orElse(0L);
     }
     

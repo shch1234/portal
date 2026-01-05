@@ -456,17 +456,18 @@ public class DeviceMetricsSummaryService implements IDeviceMetricsSummaryService
 
         // 如果参数未配置或值为0，尝试从 device_production_record 获取默认值
         if (theoreticalCycleSeconds <= 0 && deviceId != null) {
-            Optional<Integer> defaultDurationS = deviceProductionRecordRepository.findLatestCompletedDurationS(deviceId);
-            if (defaultDurationS.isPresent() && defaultDurationS.get() > 0) {
-                theoreticalCycleSeconds = defaultDurationS.get().longValue();
+            Optional<Integer> defaultDurationMs = deviceProductionRecordRepository.findLatestCompletedDurationS(deviceId);
+            if (defaultDurationMs.isPresent() && defaultDurationMs.get() > 0) {
+                // duration_s 字段实际存储的是毫秒，需要转换为秒
+                theoreticalCycleSeconds = defaultDurationMs.get().longValue() / 1000L;
                 if (fromConfig) {
-                    log.info("指标汇总: 理论节拍参数值为0，使用默认值（最新已完成记录的duration_s）: deviceId={}, shiftDate={}, shiftCode={}, " +
-                                    "defaultTheoreticalCycleSeconds={}",
-                            deviceId, shiftDate, shiftCode, theoreticalCycleSeconds);
+                    log.info("指标汇总: 理论节拍参数值为0，使用默认值（最新已完成记录的duration_s，已从毫秒转换为秒）: deviceId={}, shiftDate={}, shiftCode={}, " +
+                                    "defaultDurationMs={}, defaultTheoreticalCycleSeconds={}",
+                            deviceId, shiftDate, shiftCode, defaultDurationMs.get(), theoreticalCycleSeconds);
                 } else {
-                    log.info("指标汇总: 理论节拍参数未配置，使用默认值（最新已完成记录的duration_s）: deviceId={}, shiftDate={}, shiftCode={}, " +
-                                    "defaultTheoreticalCycleSeconds={}",
-                            deviceId, shiftDate, shiftCode, theoreticalCycleSeconds);
+                    log.info("指标汇总: 理论节拍参数未配置，使用默认值（最新已完成记录的duration_s，已从毫秒转换为秒）: deviceId={}, shiftDate={}, shiftCode={}, " +
+                                    "defaultDurationMs={}, defaultTheoreticalCycleSeconds={}",
+                            deviceId, shiftDate, shiftCode, defaultDurationMs.get(), theoreticalCycleSeconds);
                 }
             } else {
                 if (fromConfig) {
