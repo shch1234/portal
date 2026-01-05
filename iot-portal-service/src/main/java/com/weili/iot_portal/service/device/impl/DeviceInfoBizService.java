@@ -16,7 +16,6 @@ import com.weili.iot_portal.service.device.IDeviceModelBizService;
 import com.weili.iot_portal.service.device.IDeviceOrgRelationBizService;
 import com.weili.iot_portal.service.device.IDeviceTypeRelationBizService;
 import jakarta.annotation.Resource;
-import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -292,9 +291,17 @@ public class DeviceInfoBizService implements IDeviceInfoBizService {
         if (StringUtils.isNotBlank(pageReqVO.getDeviceStatus())) {
             pageQuery.setDeviceStatuses(Collections.singletonList(pageReqVO.getDeviceStatus()));
         }
-        if (StringUtils.isNotBlank(pageReqVO.getDeviceTypeCode())) {
-            pageQuery.setDeviceTypeCodes(Collections.singletonList(pageReqVO.getDeviceTypeCode()));
+        if (StringUtils.isNotBlank(pageReqVO.getDeviceSubTypeCode())) {
+            pageQuery.setDeviceTypeCodes(Collections.singletonList(pageReqVO.getDeviceSubTypeCode()));
+        } else if (StringUtils.isNotBlank(pageReqVO.getDeviceTypeCode())) {
+            //查询子的
+            List<DeviceTypeRelationDO> typeRelationList = deviceTypeRelationBizService.getDeviceTypeRelationByParentCode(pageReqVO.getDeviceTypeCode());
+            if (typeRelationList.isEmpty()) {
+                return PageResult.empty();
+            }
+            pageQuery.setDeviceTypeCodes(typeRelationList.stream().map(DeviceTypeRelationDO::getTypeCode).distinct().collect(Collectors.toList()));
         }
+
         if (StringUtils.isNotBlank(pageReqVO.getOrgFactoryId())) {
             pageQuery.setOrgFactoryIds(Collections.singletonList(pageReqVO.getOrgFactoryId()));
         }

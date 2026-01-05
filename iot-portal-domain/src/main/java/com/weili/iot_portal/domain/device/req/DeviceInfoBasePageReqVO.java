@@ -26,6 +26,10 @@ public class DeviceInfoBasePageReqVO extends PageParam {
     @Size(max = 200, message = "设备类型长度不能超过100个字符")
     private String deviceTypeCode;
 
+    @Schema(description = "子设备类型 ", example = "CNC_5AXIS")
+    @Size(max = 200, message = "设备类型长度不能超过100个字符")
+    private String deviceSubTypeCode;
+
     @Schema(description = "设备型号ID", example = "123456789")
     private String deviceModelId;
 
