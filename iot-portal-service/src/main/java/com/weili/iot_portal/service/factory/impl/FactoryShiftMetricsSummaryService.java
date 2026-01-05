@@ -33,6 +33,9 @@ public class FactoryShiftMetricsSummaryService {
     private static final int DECIMAL_SCALE = 4;
     private static final String CALC_STATUS_CALCULATED = "CALCULATED";
     private static final String CALC_SOURCE_SCHEDULED = "SCHEDULED";
+    
+    // 时间转换常量
+    private static final long MILLIS_PER_SECOND = 1000L;
 
     // 指标键名常量
     private static final String METRIC_KEY_OEE = "oee";
@@ -75,8 +78,11 @@ public class FactoryShiftMetricsSummaryService {
                 lookbackDays, dataReadyDelayHours, startTsSeconds, statisticsTimeSeconds, dataReadyCutoffSeconds);
         
         // 优化：只查询有设备指标汇总数据的设备ID（避免查询所有设备）
+        // 注意：Repository方法期望毫秒，需要转换
+        long startTsMillis = startTsSeconds * MILLIS_PER_SECOND;
+        long dataReadyCutoffMillis = dataReadyCutoffSeconds * MILLIS_PER_SECOND;
         List<Long> deviceIdsWithData = deviceMetricSummaryRepository.findDistinctDeviceIdsWithFinalizedSummaries(
-                startTsSeconds, dataReadyCutoffSeconds);
+                startTsMillis, dataReadyCutoffMillis);
         if (deviceIdsWithData == null || deviceIdsWithData.isEmpty()) {
             log.info("工厂班次指标汇总: 未发现有待处理的设备指标汇总数据");
             return BatchProcessResult.completed(0, 0, 0);
@@ -204,8 +210,11 @@ public class FactoryShiftMetricsSummaryService {
         List<Long> deviceIds = devices.stream()
                 .map(DeviceInfoDO::getId)
                 .collect(Collectors.toList());
+        // 注意：Repository方法期望毫秒，需要转换
+        long startTsMillis = startTsSeconds * MILLIS_PER_SECOND;
+        long dataReadyCutoffMillis = dataReadyCutoffSeconds * MILLIS_PER_SECOND;
         return deviceMetricSummaryRepository.selectFinalizedInRangeBatch(
-                deviceIds, startTsSeconds, dataReadyCutoffSeconds);
+                deviceIds, startTsMillis, dataReadyCutoffMillis);
     }
 
     /**

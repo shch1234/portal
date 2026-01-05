@@ -39,6 +39,27 @@ public class DeviceMetricsSummaryService implements IDeviceMetricsSummaryService
     // 时间转换常量
     private static final long MILLIS_PER_SECOND = 1000L;
 
+    /**
+     * 理论节拍提取结果
+     */
+    private static class TheoreticalCycleResult {
+        private final long value; // 理论节拍值（秒）
+        private final boolean useDefaultValue; // 是否使用了默认值
+
+        public TheoreticalCycleResult(long value, boolean useDefaultValue) {
+            this.value = value;
+            this.useDefaultValue = useDefaultValue;
+        }
+
+        public long getValue() {
+            return value;
+        }
+
+        public boolean isUseDefaultValue() {
+            return useDefaultValue;
+        }
+    }
+
     private final DeviceInfoRepository deviceInfoRepository;
     private final DeviceStateSummaryRepository deviceStateSummaryRepository;
     private final DeviceParamConfigRepository deviceParamConfigRepository;
@@ -293,18 +314,18 @@ public class DeviceMetricsSummaryService implements IDeviceMetricsSummaryService
             String shiftKey = buildShiftKey(summary.getSummaryDate(), summary.getShiftCode());
             DeviceProductionSummaryDO productionSummary = productionSummaryMap.get(shiftKey);
 
-            // 检查数据完整性
-            DataCompletenessCheckResult completenessResult = checkDataCompleteness(
-                    summary, productionSummary, deviceParams, device);
-
             // 提取理论节拍（即使缺失也要提取，用于记录）
             // 如果参数未配置或值为0，会尝试从 device_production_record 获取默认值
-            long theoreticalCycleSeconds = extractTheoreticalCycle(deviceParams, device.getId(),
+            TheoreticalCycleResult theoreticalCycleResult = extractTheoreticalCycle(deviceParams, device.getId(),
                     summary.getSummaryDate(), summary.getShiftCode());
+
+            // 检查数据完整性（如果理论节拍使用了默认值，不应该认为数据不完整）
+            DataCompletenessCheckResult completenessResult = checkDataCompleteness(
+                    summary, productionSummary, deviceParams, device, theoreticalCycleResult);
 
             // 即使数据不完整，也要插入/更新记录，但标记为待重算状态
             upsertMetrics(summary, device, productionSummary, plannedDowntimeSeconds,
-                    theoreticalCycleSeconds, completenessResult);
+                    theoreticalCycleResult, completenessResult);
 
             if (completenessResult.isComplete()) {
                 processed++;
@@ -359,18 +380,21 @@ public class DeviceMetricsSummaryService implements IDeviceMetricsSummaryService
      * 检查数据完整性：状态汇总和产量汇总都必须存在且 finalized
      * <p>
      * 注意：即使数据不完整，也会返回结果对象，但标记为不完整，用于后续标记待重算状态。
+     * 如果理论节拍使用了默认值（但值>0），不应该认为数据不完整。
      *
-     * @param stateSummary      状态汇总数据
-     * @param productionSummary 产量汇总数据（可能为null）
-     * @param deviceParams      设备参数配置列表（用于检查理论节拍）
-     * @param device            设备信息（用于日志记录）
+     * @param stateSummary           状态汇总数据
+     * @param productionSummary      产量汇总数据（可能为null）
+     * @param deviceParams           设备参数配置列表（用于检查理论节拍）
+     * @param device                 设备信息（用于日志记录）
+     * @param theoreticalCycleResult 理论节拍提取结果
      * @return 数据完整性检查结果
      */
     private DataCompletenessCheckResult checkDataCompleteness(
             DeviceStateSummaryDO stateSummary,
             DeviceProductionSummaryDO productionSummary,
             List<DeviceParamConfigDO> deviceParams,
-            DeviceInfoDO device) {
+            DeviceInfoDO device,
+            TheoreticalCycleResult theoreticalCycleResult) {
 
         List<String> missingDataList = new ArrayList<>();
         boolean missingProductionData = false;
@@ -396,20 +420,21 @@ public class DeviceMetricsSummaryService implements IDeviceMetricsSummaryService
         }
 
         // 检查理论节拍是否存在且有效
-        Optional<DeviceParamConfigDO> theoreticalCycleParam = deviceParams.stream()
-                .filter(p -> PARAM_THEORETICAL_CYCLE.equalsIgnoreCase(p.getParameterType()))
-                .findFirst();
-
-        if (theoreticalCycleParam.isEmpty()) {
-            missingDataList.add("理论节拍参数不存在");
-            missingTheoreticalCycle = true;
-        } else {
-            long theoreticalCycleSeconds = theoreticalCycleParam.get().getParameterValue().longValue();
-            if (theoreticalCycleSeconds <= 0) {
+        // 如果理论节拍使用了默认值但值>0，不应该认为数据不完整
+        if (theoreticalCycleResult.getValue() <= 0) {
+            // 理论节拍值为0或无效
+            Optional<DeviceParamConfigDO> theoreticalCycleParam = deviceParams.stream()
+                    .filter(p -> PARAM_THEORETICAL_CYCLE.equalsIgnoreCase(p.getParameterType()))
+                    .findFirst();
+            if (theoreticalCycleParam.isEmpty()) {
+                missingDataList.add("理论节拍参数不存在");
+                missingTheoreticalCycle = true;
+            } else {
                 missingDataList.add("理论节拍参数值无效（<=0）");
                 missingTheoreticalCycle = true;
             }
         }
+        // 如果理论节拍使用了默认值但值>0，不认为数据不完整（但会在recalculation_reason中记录）
 
         boolean isComplete = missingDataList.isEmpty();
         String missingDataStr = isComplete ? "" : String.join("、", missingDataList);
@@ -439,15 +464,16 @@ public class DeviceMetricsSummaryService implements IDeviceMetricsSummaryService
      * @param deviceId  设备ID（用于获取默认值）
      * @param shiftDate 班次日期（用于日志）
      * @param shiftCode 班次编码（用于日志）
-     * @return 理论节拍（秒），如果不存在则返回0
+     * @return 理论节拍提取结果（包含值和是否使用默认值的标识）
      */
-    private long extractTheoreticalCycle(List<DeviceParamConfigDO> params, Long deviceId, LocalDate shiftDate, Integer shiftCode) {
+    private TheoreticalCycleResult extractTheoreticalCycle(List<DeviceParamConfigDO> params, Long deviceId, LocalDate shiftDate, Integer shiftCode) {
         Optional<DeviceParamConfigDO> theoreticalCycleParam = params.stream()
                 .filter(p -> PARAM_THEORETICAL_CYCLE.equalsIgnoreCase(p.getParameterType()))
                 .findFirst();
 
         long theoreticalCycleSeconds = 0L;
         boolean fromConfig = false;
+        boolean useDefaultValue = false;
 
         if (theoreticalCycleParam.isPresent()) {
             theoreticalCycleSeconds = theoreticalCycleParam.get().getParameterValue().longValue();
@@ -460,6 +486,7 @@ public class DeviceMetricsSummaryService implements IDeviceMetricsSummaryService
             if (defaultDurationMs.isPresent() && defaultDurationMs.get() > 0) {
                 // duration_s 字段实际存储的是毫秒，需要转换为秒
                 theoreticalCycleSeconds = defaultDurationMs.get().longValue() / 1000L;
+                useDefaultValue = true;
                 if (fromConfig) {
                     log.info("指标汇总: 理论节拍参数值为0，使用默认值（最新已完成记录的duration_s，已从毫秒转换为秒）: deviceId={}, shiftDate={}, shiftCode={}, " +
                                     "defaultDurationMs={}, defaultTheoreticalCycleSeconds={}",
@@ -482,7 +509,7 @@ public class DeviceMetricsSummaryService implements IDeviceMetricsSummaryService
             }
         }
 
-        return theoreticalCycleSeconds;
+        return new TheoreticalCycleResult(theoreticalCycleSeconds, useDefaultValue);
     }
 
     /**
@@ -495,12 +522,12 @@ public class DeviceMetricsSummaryService implements IDeviceMetricsSummaryService
      * @param device                  设备信息
      * @param productionSummary       产量汇总数据（可能为null）
      * @param plannedDowntimeSeconds  计划停机时长（秒）
-     * @param theoreticalCycleSeconds 理论节拍（秒），如果缺失则为0
+     * @param theoreticalCycleResult  理论节拍提取结果
      * @param completenessResult      数据完整性检查结果
      */
     private void upsertMetrics(DeviceStateSummaryDO stateSummary, DeviceInfoDO device,
                                DeviceProductionSummaryDO productionSummary,
-                               long plannedDowntimeSeconds, long theoreticalCycleSeconds,
+                               long plannedDowntimeSeconds, TheoreticalCycleResult theoreticalCycleResult,
                                DataCompletenessCheckResult completenessResult) {
         // 1. 检查是否需要更新
         DeviceMetricSummaryDO existing = deviceMetricSummaryRepository.findByShift(
@@ -522,7 +549,7 @@ public class DeviceMetricsSummaryService implements IDeviceMetricsSummaryService
 
         // 2. 准备计算上下文（即使数据不完整也要准备，用于保存部分计算结果）
         MetricCalculationContext context = prepareCalculationContext(
-                stateSummary, productionSummary, plannedDowntimeSeconds, theoreticalCycleSeconds);
+                stateSummary, productionSummary, plannedDowntimeSeconds, theoreticalCycleResult.getValue());
 
         if (context == null) {
             return; // 数据验证失败，已记录日志
@@ -533,7 +560,7 @@ public class DeviceMetricsSummaryService implements IDeviceMetricsSummaryService
 
         // 4. 持久化数据（根据数据完整性设置不同的状态）
         persistMetrics(existing, stateSummary, device, result, plannedDowntimeSeconds,
-                theoreticalCycleSeconds, completenessResult);
+                theoreticalCycleResult, completenessResult);
     }
 
     /**
@@ -659,7 +686,7 @@ public class DeviceMetricsSummaryService implements IDeviceMetricsSummaryService
      * @param device                  设备信息
      * @param result                  指标计算结果
      * @param plannedDowntimeSeconds  计划停机时长（秒）
-     * @param theoreticalCycleSeconds 理论节拍（秒）
+     * @param theoreticalCycleResult  理论节拍提取结果
      * @param completenessResult      数据完整性检查结果
      */
     private void persistMetrics(DeviceMetricSummaryDO existing,
@@ -667,7 +694,7 @@ public class DeviceMetricsSummaryService implements IDeviceMetricsSummaryService
                                 DeviceInfoDO device,
                                 MetricCalculationResult result,
                                 long plannedDowntimeSeconds,
-                                long theoreticalCycleSeconds,
+                                TheoreticalCycleResult theoreticalCycleResult,
                                 DataCompletenessCheckResult completenessResult) {
 
         boolean isInsert = existing == null;
@@ -675,7 +702,7 @@ public class DeviceMetricsSummaryService implements IDeviceMetricsSummaryService
         if (isInsert) {
             DeviceMetricSummaryDO record = new DeviceMetricSummaryDO();
             populateMetricSummaryFields(record, stateSummary, device, result,
-                    plannedDowntimeSeconds, theoreticalCycleSeconds, completenessResult);
+                    plannedDowntimeSeconds, theoreticalCycleResult, completenessResult);
             deviceMetricSummaryRepository.insert(record);
 
             if (completenessResult.isComplete()) {
@@ -690,7 +717,7 @@ public class DeviceMetricsSummaryService implements IDeviceMetricsSummaryService
             }
         } else {
             populateMetricSummaryFields(existing, stateSummary, device, result,
-                    plannedDowntimeSeconds, theoreticalCycleSeconds, completenessResult);
+                    plannedDowntimeSeconds, theoreticalCycleResult, completenessResult);
             deviceMetricSummaryRepository.update(existing);
 
             if (completenessResult.isComplete()) {
@@ -713,6 +740,7 @@ public class DeviceMetricsSummaryService implements IDeviceMetricsSummaryService
      * <ul>
      *   <li>数据完整：设置为 CALCULATED（已计算），isFinalized = true</li>
      *   <li>数据不完整：设置为 INCOMPLETE_DATA（数据不完整，待重算），isFinalized = false</li>
+     *   <li>如果理论节拍使用了默认值：isFinalized = true，但在recalculation_reason中记录提示</li>
      * </ul>
      *
      * @param record                  指标汇总记录（插入或更新）
@@ -720,7 +748,7 @@ public class DeviceMetricsSummaryService implements IDeviceMetricsSummaryService
      * @param device                  设备信息
      * @param result                  指标计算结果
      * @param plannedDowntimeSeconds  计划停机时长（秒）
-     * @param theoreticalCycleSeconds 理论节拍（秒），如果缺失则为0
+     * @param theoreticalCycleResult  理论节拍提取结果
      * @param completenessResult      数据完整性检查结果
      */
     private void populateMetricSummaryFields(DeviceMetricSummaryDO record,
@@ -728,7 +756,7 @@ public class DeviceMetricsSummaryService implements IDeviceMetricsSummaryService
                                              DeviceInfoDO device,
                                              MetricCalculationResult result,
                                              long plannedDowntimeSeconds,
-                                             long theoreticalCycleSeconds,
+                                             TheoreticalCycleResult theoreticalCycleResult,
                                              DataCompletenessCheckResult completenessResult) {
         record.setDeviceInfoId(device.getId());
         record.setOrgFactoryId(stateSummary.getOrgFactoryId());
@@ -745,7 +773,7 @@ public class DeviceMetricsSummaryService implements IDeviceMetricsSummaryService
         record.setWorkingHours(result.getWorkingHours());
         record.setPlannedDowntimeS((int) plannedDowntimeSeconds);
         record.setUnplannedDowntimeS((int) millisToSeconds(result.getUnplannedDowntimeMillis()));
-        record.setTheoreticalCycleS((int) theoreticalCycleSeconds);
+        record.setTheoreticalCycleS((int) theoreticalCycleResult.getValue());
         record.setActualCycleS(result.getActualCycleS());
         record.setProductionCount((int) result.getActualOutput());
         record.setQualifiedCount((int) result.getQualifiedOutput());
@@ -753,7 +781,7 @@ public class DeviceMetricsSummaryService implements IDeviceMetricsSummaryService
         record.setCalculationData(result.getCalcData());
         record.setParameterSnapshot(Map.of(
                 PARAM_PLANNED_DOWNTIME, plannedDowntimeSeconds,
-                PARAM_THEORETICAL_CYCLE, theoreticalCycleSeconds
+                PARAM_THEORETICAL_CYCLE, theoreticalCycleResult.getValue()
         ));
 
         // 根据数据完整性设置状态
@@ -761,6 +789,10 @@ public class DeviceMetricsSummaryService implements IDeviceMetricsSummaryService
             // 数据完整：标记为已计算
             record.setIsFinalized(true);
             record.setCalculationStatus(CALC_STATUS_CALCULATED);
+            // 如果理论节拍使用了默认值，在recalculation_reason中记录提示
+            if (theoreticalCycleResult.isUseDefaultValue()) {
+                record.setRecalculationReason("理论节拍未设置，已使用默认值");
+            }
         } else {
             // 数据不完整：标记为待重算
             record.setIsFinalized(false); // 数据不完整，不能标记为已确定
