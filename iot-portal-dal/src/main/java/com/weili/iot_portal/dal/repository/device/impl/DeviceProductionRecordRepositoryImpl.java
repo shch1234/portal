@@ -51,14 +51,18 @@ public class DeviceProductionRecordRepositoryImpl implements DeviceProductionRec
 
     @Override
     public long countCompletedInRange(Long deviceId, Long startTs, Long endTs) {
+        // 将秒级时间戳转换为毫秒级时间戳（数据库中的 end_ts 是毫秒级）
+        Long startTsMillis = startTs != null ? startTs * 1000 : null;
+        Long endTsMillis = endTs != null ? endTs * 1000 : null;
+        
         LambdaQueryWrapper<DeviceProductionRecordDO> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(DeviceProductionRecordDO::getDeviceInfoId, deviceId)
                 .isNotNull(DeviceProductionRecordDO::getEndTs);
-        if (startTs != null) {
-            wrapper.ge(DeviceProductionRecordDO::getEndTs, startTs);
+        if (startTsMillis != null) {
+            wrapper.ge(DeviceProductionRecordDO::getEndTs, startTsMillis);
         }
-        if (endTs != null) {
-            wrapper.le(DeviceProductionRecordDO::getEndTs, endTs);
+        if (endTsMillis != null) {
+            wrapper.le(DeviceProductionRecordDO::getEndTs, endTsMillis);
         }
         return mapper.selectCount(wrapper);
     }
@@ -73,11 +77,15 @@ public class DeviceProductionRecordRepositoryImpl implements DeviceProductionRec
 
     @Override
     public List<Long> findDistinctDeviceIdsWithProductionRecords(long startTsSeconds, long endTsSeconds) {
+        // 将秒级时间戳转换为毫秒级时间戳（数据库中的 end_ts 是毫秒级）
+        long startTsMillis = startTsSeconds * 1000;
+        long endTsMillis = endTsSeconds * 1000;
+        
         LambdaQueryWrapper<DeviceProductionRecordDO> wrapper = new LambdaQueryWrapper<>();
         wrapper.select(DeviceProductionRecordDO::getDeviceInfoId)
                 .isNotNull(DeviceProductionRecordDO::getEndTs)
-                .ge(DeviceProductionRecordDO::getEndTs, startTsSeconds)
-                .le(DeviceProductionRecordDO::getEndTs, endTsSeconds);
+                .ge(DeviceProductionRecordDO::getEndTs, startTsMillis)
+                .le(DeviceProductionRecordDO::getEndTs, endTsMillis);
         return mapper.selectList(wrapper).stream()
                 .map(DeviceProductionRecordDO::getDeviceInfoId)
                 .distinct()
