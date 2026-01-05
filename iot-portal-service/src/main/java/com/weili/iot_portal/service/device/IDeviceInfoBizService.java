@@ -4,8 +4,11 @@ import com.weili.basic.common.model.PageResult;
 import com.weili.iot_portal.dal.dataobject.device.DeviceInfoDO;
 import com.weili.iot_portal.domain.device.req.DeviceInfoBasePageReqVO;
 import com.weili.iot_portal.domain.device.req.DeviceInfoSaveReqVO;
+import com.weili.iot_portal.domain.device.req.DeviceParamConfigReq;
 import com.weili.iot_portal.domain.device.resp.DeviceInfoOptionsRespVO;
 import com.weili.iot_portal.domain.device.resp.DeviceInfoRespVO;
+
+import java.util.List;
 
 /**
  * 设备信息业务服务接口
@@ -73,5 +76,13 @@ public interface IDeviceInfoBizService {
      * @return 设备信息选项数据
      */
     DeviceInfoOptionsRespVO getDeviceInfoOptions();
+
+    /**
+     * 获取设备参数配置信息
+     *
+     * @param id 设备信息ID
+     * @return 设备参数配置信息
+     */
+    List<DeviceParamConfigReq> getDeviceParamConfig(Long id);
 }
 

@@ -6,6 +6,7 @@ import com.weili.basic.common.util.BeanUtils;
 import com.weili.iot_portal.dal.dataobject.device.DeviceInfoDO;
 import com.weili.iot_portal.domain.device.req.DeviceInfoBasePageReqVO;
 import com.weili.iot_portal.domain.device.req.DeviceInfoSaveReqVO;
+import com.weili.iot_portal.domain.device.req.DeviceParamConfigReq;
 import com.weili.iot_portal.domain.device.resp.DeviceInfoOptionsRespVO;
 import com.weili.iot_portal.domain.device.resp.DeviceInfoRespVO;
 import com.weili.iot_portal.service.device.IDeviceInfoBizService;
@@ -17,6 +18,8 @@ import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 
 /**
@@ -47,6 +50,7 @@ public class DeviceInfoController {
         Long deviceInfoId = deviceInfoBizService.createDeviceInfo(createReqVO);
         return CommonResult.success(deviceInfoId);
     }
+
 
     @PutMapping("/update")
     @Operation(summary = "更新设备信息")
@@ -88,6 +92,14 @@ public class DeviceInfoController {
     public CommonResult<DeviceInfoOptionsRespVO> getDeviceInfoOptions() {
         DeviceInfoOptionsRespVO options = deviceInfoBizService.getDeviceInfoOptions();
         return CommonResult.success(options);
+    }
+
+    @GetMapping("/get-params-config")
+    @Operation(summary = "查询设备参数配置信息")
+    @Parameter(name = "id", description = "设备信息ID", required = true, example = "123456789")
+    public CommonResult<List<DeviceParamConfigReq>> getDeviceParamsConfig(@RequestParam("id") Long id) {
+        List<DeviceParamConfigReq> deviceInfo = deviceInfoBizService.getDeviceParamConfig(id);
+        return CommonResult.success(deviceInfo);
     }
 }
 

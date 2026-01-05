@@ -16,12 +16,12 @@ public class DeviceBaseInfoPageQuery extends PageParam {
     /**
      * 设备编号模糊查询（对应 device_code）
      */
-    private String deviceCodeLike;
+    private String deviceCode;
 
     /**
      * 设备名称模糊查询（对应 device_name）
      */
-    private String deviceNameLike;
+    private String deviceName;
 
     /**
      * 设备类型编码列表（对应 device_type_code）

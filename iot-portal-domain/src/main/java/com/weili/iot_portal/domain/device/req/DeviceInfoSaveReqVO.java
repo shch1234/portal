@@ -7,6 +7,8 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
+import java.util.List;
+
 
 /**
  * 设备信息创建/修改 Request VO
@@ -66,5 +68,5 @@ public class DeviceInfoSaveReqVO {
 
     @Schema(description = "设备参数配置信息（可选，创建设备时可同时创建参数配置）")
     @Valid
-    private DeviceParamConfigReq paramConfig;
+    private List<DeviceParamConfigReq> paramConfig;
 }

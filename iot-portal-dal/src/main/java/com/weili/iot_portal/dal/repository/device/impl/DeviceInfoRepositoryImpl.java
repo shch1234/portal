@@ -87,11 +87,11 @@ public class DeviceInfoRepositoryImpl implements DeviceInfoRepository {
     public PageResult<DeviceInfoDO> selectPage(DeviceBaseInfoPageQuery query) {
         Page<DeviceInfoDO> page = new Page<>(query.getPageNo(), query.getPageSize());
         LambdaQueryWrapper<DeviceInfoDO> wrapper = new LambdaQueryWrapper<>();
-        if (StringUtils.isNotBlank(query.getDeviceCodeLike())) {
-            wrapper.like(DeviceInfoDO::getDeviceCode, query.getDeviceCodeLike());
+        if (StringUtils.isNotBlank(query.getDeviceCode())) {
+            wrapper.like(DeviceInfoDO::getDeviceCode, query.getDeviceCode());
         }
-        if (StringUtils.isNotBlank(query.getDeviceNameLike())) {
-            wrapper.like(DeviceInfoDO::getDeviceName, query.getDeviceNameLike());
+        if (StringUtils.isNotBlank(query.getDeviceName())) {
+            wrapper.like(DeviceInfoDO::getDeviceName, query.getDeviceName());
         }
         if (query.getDeviceTypeCodes() != null && !query.getDeviceTypeCodes().isEmpty()) {
             wrapper.in(DeviceInfoDO::getDeviceTypeCode, query.getDeviceTypeCodes());

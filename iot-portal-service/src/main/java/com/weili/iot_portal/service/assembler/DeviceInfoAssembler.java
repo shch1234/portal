@@ -8,7 +8,6 @@ import com.weili.iot_portal.domain.device.req.DeviceLocationInfoReq;
 import com.weili.iot_portal.domain.device.req.DeviceNetworkInfoReq;
 import com.weili.iot_portal.domain.device.req.DeviceParamConfigReq;
 
-import java.time.Instant;
 import java.time.LocalDateTime;
 
 
@@ -120,23 +119,12 @@ public final class DeviceInfoAssembler {
     }
 
     /**
-     * 创建设备参数配置（首次新增设备时）
-     */
-    public static DeviceParamConfigDO createDeviceParamConfig(Long deviceInfoId, DeviceInfoSaveReqVO createReqVO) {
-        DeviceParamConfigReq paramConfigReq = createReqVO.getParamConfig();
-        DeviceParamConfigDO paramConfig = new DeviceParamConfigDO();
-        paramConfig.setDeviceInfoId(String.valueOf(deviceInfoId));
-        paramConfig.setParameterType(paramConfigReq.getParameterType());
-        paramConfig.setParameterValue(paramConfigReq.getParameterValue());
-        // 首次新增，生效时间设置为当前时间
-        paramConfig.setEffectiveStartTs(Instant.now().getEpochSecond());
-        paramConfig.setEffectiveEndTs(null); // NULL表示当前生效
-        paramConfig.setIsActive(true);
-        return paramConfig;
-    }
-
-    /**
-     * 创建设备参数配置（更新设备时，作为新版本记录）
+     * 创建设备参数配置（用于新增和更新设备时的新版本记录）
+     *
+     * @param deviceInfoId 设备ID
+     * @param paramConfigReq 参数配置请求
+     * @param effectiveStartTs 生效开始时间戳
+     * @return 设备参数配置DO
      */
     public static DeviceParamConfigDO createNewVersionParamConfig(Long deviceInfoId,
                                                                    DeviceParamConfigReq paramConfigReq,

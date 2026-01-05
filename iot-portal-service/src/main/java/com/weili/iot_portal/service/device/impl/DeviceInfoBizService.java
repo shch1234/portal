@@ -19,6 +19,7 @@ import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -80,9 +81,20 @@ public class DeviceInfoBizService implements IDeviceInfoBizService {
         }
 
         // 创建设备参数配置（首次新增）
-        if (createReqVO.getParamConfig() != null) {
-            DeviceParamConfigDO paramConfig = DeviceInfoAssembler.createDeviceParamConfig(deviceInfoId, createReqVO);
-            deviceParamConfigRepository.insert(paramConfig);
+        if (createReqVO.getParamConfig() != null && !createReqVO.getParamConfig().isEmpty()) {
+            // 验证：确保一个设备只包含一个 parameter_type 类型的数据
+            validateParameterTypeUnique(createReqVO.getParamConfig());
+
+            long now = Instant.now().getEpochSecond();
+            for (DeviceParamConfigReq paramConfigReq : createReqVO.getParamConfig()) {
+                // 验证参数类型不为空
+                if (StrUtil.isBlank(paramConfigReq.getParameterType())) {
+                    throw new IotPortalException(IotPortalErrorCode.DEVICE_PARAM_TYPE_EMPTY);
+                }
+                DeviceParamConfigDO paramConfig = DeviceInfoAssembler.createNewVersionParamConfig(
+                        deviceInfoId, paramConfigReq, now);
+                deviceParamConfigRepository.insert(paramConfig);
+            }
         }
 
         return deviceInfoId;
@@ -137,40 +149,87 @@ public class DeviceInfoBizService implements IDeviceInfoBizService {
      * 如果参数发生变更，则：
      * 1. 将当前生效的记录的结束时间设置为当前时间
      * 2. 新增一条记录，生效开始时间为当前时间
+     *
+     * @param deviceInfoId 设备ID
+     * @param paramConfigList 参数配置列表，一个设备只能包含一个相同 parameter_type 类型的数据
      */
-    private void updateDeviceParamConfig(Long deviceInfoId, DeviceParamConfigReq paramConfigReq) {
+    private void updateDeviceParamConfig(Long deviceInfoId, List<DeviceParamConfigReq> paramConfigList) {
+        // 验证参数列表不为空
+        if (paramConfigList == null || paramConfigList.isEmpty()) {
+            return;
+        }
+
+        // 验证：确保一个设备只包含一个 parameter_type 类型的数据
+        validateParameterTypeUnique(paramConfigList);
+
         // 查询当前生效的参数配置
         List<DeviceParamConfigDO> currentConfigs = deviceParamConfigRepository.selectCurrent(deviceInfoId);
+        long now = Instant.now().getEpochSecond();
 
-        // 查找当前参数类型的配置
-        Optional<DeviceParamConfigDO> currentConfig = currentConfigs.stream()
-                .filter(config -> config.getParameterType().equals(paramConfigReq.getParameterType()))
-                .findFirst();
+        // 遍历处理每个参数配置
+        for (DeviceParamConfigReq paramConfigReq : paramConfigList) {
+            // 验证参数类型不为空
+            if (StrUtil.isBlank(paramConfigReq.getParameterType())) {
+                throw new IotPortalException(IotPortalErrorCode.DEVICE_PARAM_TYPE_EMPTY);
+            }
 
-        long now = java.time.Instant.now().getEpochSecond();
+            // 查找当前参数类型的配置
+            Optional<DeviceParamConfigDO> currentConfig = currentConfigs.stream()
+                    .filter(config -> config.getParameterType().equals(paramConfigReq.getParameterType()))
+                    .findFirst();
 
-        if (currentConfig.isPresent()) {
-            DeviceParamConfigDO existing = currentConfig.get();
-            // 检查参数值是否发生变化
-            boolean valueChanged = existing.getParameterValue() == null
-                    || existing.getParameterValue().compareTo(paramConfigReq.getParameterValue()) != 0;
+            if (currentConfig.isPresent()) {
+                DeviceParamConfigDO existing = currentConfig.get();
+                // 检查参数值是否发生变化
+                boolean valueChanged = existing.getParameterValue() == null
+                        || existing.getParameterValue().compareTo(paramConfigReq.getParameterValue()) != 0;
 
-            if (valueChanged) {
-                // 参数值发生变化，需要创建新版本
-                // 1. 将当前记录的生效结束时间设置为当前时间
-                deviceParamConfigRepository.expireCurrent(deviceInfoId, paramConfigReq.getParameterType(), now);
+                if (valueChanged) {
+                    // 参数值发生变化，需要创建新版本
+                    // 1. 将当前记录的生效结束时间设置为当前时间
+                    deviceParamConfigRepository.expireCurrent(deviceInfoId, paramConfigReq.getParameterType(), now);
 
-                // 2. 新增一条记录，生效开始时间为当前时间
+                    // 2. 新增一条记录，生效开始时间为当前时间
+                    DeviceParamConfigDO newConfig = DeviceInfoAssembler.createNewVersionParamConfig(
+                            deviceInfoId, paramConfigReq, now);
+                    deviceParamConfigRepository.insert(newConfig);
+                }
+                // 如果参数值没有变化，则不做任何操作
+            } else {
+                // 当前不存在该参数类型的配置，直接新增
                 DeviceParamConfigDO newConfig = DeviceInfoAssembler.createNewVersionParamConfig(
                         deviceInfoId, paramConfigReq, now);
                 deviceParamConfigRepository.insert(newConfig);
             }
-            // 如果参数值没有变化，则不做任何操作
-        } else {
-            // 当前不存在该参数类型的配置，直接新增
-            DeviceParamConfigDO newConfig = DeviceInfoAssembler.createNewVersionParamConfig(
-                    deviceInfoId, paramConfigReq, now);
-            deviceParamConfigRepository.insert(newConfig);
+        }
+    }
+
+    /**
+     * 验证参数类型的唯一性
+     * 确保传入的参数配置列表中，每个 parameter_type 只出现一次
+     *
+     * @param paramConfigList 参数配置列表
+     * @throws IotPortalException 如果发现重复的 parameter_type
+     */
+    private void validateParameterTypeUnique(List<DeviceParamConfigReq> paramConfigList) {
+        // 使用 Set 来检测重复的 parameter_type
+        Set<String> parameterTypes = new HashSet<>();
+        List<String> duplicateTypes = new ArrayList<>();
+
+        for (DeviceParamConfigReq config : paramConfigList) {
+            String parameterType = config.getParameterType();
+            if (StrUtil.isNotBlank(parameterType)) {
+                if (!parameterTypes.add(parameterType)) {
+                    // 如果 add 返回 false，说明该类型已存在
+                    duplicateTypes.add(parameterType);
+                }
+            }
+        }
+
+        // 如果发现重复的参数类型，抛出异常
+        if (!duplicateTypes.isEmpty()) {
+            throw new IotPortalException(IotPortalErrorCode.DEVICE_PARAM_TYPE_DUPLICATE,
+                    "参数类型重复: " + String.join(", ", duplicateTypes));
         }
     }
 
@@ -224,7 +283,12 @@ public class DeviceInfoBizService implements IDeviceInfoBizService {
 
     @Override
     public PageResult<DeviceInfoRespVO> getDeviceInfoPage(DeviceInfoBasePageReqVO pageReqVO) {
-        PageResult<DeviceInfoDO> pageResult = deviceInfoRepository.selectPage(BeanUtils.toBean(pageReqVO, DeviceBaseInfoPageQuery.class));
+        DeviceBaseInfoPageQuery pageQuery = BeanUtils.toBean(pageReqVO, DeviceBaseInfoPageQuery.class);
+        pageQuery.setDeviceCode(pageReqVO.getDeviceCode());
+        pageQuery.setDeviceStatuses(Collections.singletonList(pageReqVO.getDeviceStatus()));
+        pageQuery.setDeviceTypeCodes(Collections.singletonList(pageReqVO.getDeviceTypeCode()));
+        pageQuery.setOrgFactoryIds(Collections.singletonList(pageReqVO.getOrgFactoryId()));
+        PageResult<DeviceInfoDO> pageResult = deviceInfoRepository.selectPage(pageQuery);
         PageResult<DeviceInfoRespVO> result = BeanUtils.toBean(pageResult, DeviceInfoRespVO.class);
         for (DeviceInfoRespVO row : result.getList()) {
             // 组装设备详细信息
@@ -293,6 +357,12 @@ public class DeviceInfoBizService implements IDeviceInfoBizService {
         options.setDeviceModels(deviceModels);
 
         return options;
+    }
+
+    @Override
+    public List<DeviceParamConfigReq> getDeviceParamConfig(Long id) {
+        List<DeviceParamConfigDO> configList = deviceParamConfigRepository.selectCurrent(id);
+        return BeanUtils.toBean(configList, DeviceParamConfigReq.class);
     }
 
 

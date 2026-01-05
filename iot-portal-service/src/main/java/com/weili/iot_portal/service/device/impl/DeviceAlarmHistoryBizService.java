@@ -6,6 +6,7 @@ import com.weili.iot_portal.dal.dataobject.device.DeviceAlarmHistoryDO;
 import com.weili.iot_portal.dal.dataobject.device.DeviceInfoDO;
 import com.weili.iot_portal.dal.dataobject.device.DeviceTypeRelationDO;
 import com.weili.iot_portal.dal.ddd.device.DeviceAlarmHistoryQuery;
+import com.weili.iot_portal.dal.ddd.device.DeviceBaseInfoPageQuery;
 import com.weili.iot_portal.dal.repository.device.DeviceAlarmHistoryRepository;
 import com.weili.iot_portal.dal.repository.device.DeviceInfoRepository;
 import com.weili.iot_portal.dal.repository.device.DeviceTypeRelationRepository;
@@ -15,13 +16,13 @@ import com.weili.iot_portal.domain.device.resp.DeviceAlarmHistoryRespVO;
 import com.weili.iot_portal.service.device.IDeviceAlarmHistoryBizService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
@@ -51,8 +52,13 @@ public class DeviceAlarmHistoryBizService implements IDeviceAlarmHistoryBizServi
     public PageResult<AlarmHistoryRespVO> queryAlarmManageList(DeviceAlarmHistoryQueryReqVO queryReqVO) {
         DeviceAlarmHistoryQuery historyQuery = BeanUtils.toBean(queryReqVO, DeviceAlarmHistoryQuery.class);
         if (StringUtils.isNotBlank(queryReqVO.getDeviceCode())) {
-            Optional<DeviceInfoDO> optional = deviceInfoRepository.findByDeviceCode(queryReqVO.getDeviceCode());
-            optional.ifPresent(deviceInfoDO -> historyQuery.setDeviceId(deviceInfoDO.getId()));
+            DeviceBaseInfoPageQuery pageQuery = new DeviceBaseInfoPageQuery();
+            pageQuery.setDeviceCode(queryReqVO.getDeviceCode());
+            pageQuery.setPageSize(500);
+            PageResult<DeviceInfoDO> pageResult = deviceInfoRepository.selectPage(pageQuery);
+            if (CollectionUtils.isNotEmpty(pageResult.getList())) {
+                historyQuery.setDeviceIds(pageResult.getList().stream().map(DeviceInfoDO::getId).distinct().toList());
+            }
         }
         PageResult<DeviceAlarmHistoryDO> pageResult = deviceAlarmHistoryRepository.selectPage(historyQuery);
 

@@ -70,6 +70,8 @@ public enum IotPortalErrorCode implements IEnumBase {
     DEVICE_LOCATION_NOT_FOUND("设备位置信息不存在"),
     DEVICE_NETWORK_CONFIG_NOT_FOUND("设备网络配置不存在"),
     DEVICE_NETWORK_CONFIG_DUPLICATE("设备已存在网络配置"),
+    DEVICE_PARAM_TYPE_EMPTY("设备参数类型不能为空"),
+    DEVICE_PARAM_TYPE_DUPLICATE("设备参数类型重复"),
 
     // 默认错误
     DEFAULT_ERROR("系统错误");
