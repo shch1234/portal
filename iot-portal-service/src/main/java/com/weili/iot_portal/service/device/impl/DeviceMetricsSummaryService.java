@@ -792,6 +792,9 @@ public class DeviceMetricsSummaryService implements IDeviceMetricsSummaryService
             // 如果理论节拍使用了默认值，在recalculation_reason中记录提示
             if (theoreticalCycleResult.isUseDefaultValue()) {
                 record.setRecalculationReason("理论节拍未设置，已使用默认值");
+            } else {
+                // 重算成功，清除重算原因（如果之前有的话）
+                record.setRecalculationReason(null);
             }
         } else {
             // 数据不完整：标记为待重算
