@@ -74,7 +74,7 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void handle(WebhookInboxDO inbox, WebhookRequest request) throws Exception {
-        log.info("[Webhook-Handler-DeviceToolChange] 处理设备换刀事件: messageId={}, eventType={}, deviceCode={}",
+        log.debug("[Webhook-Handler-DeviceToolChange] 处理设备换刀事件: messageId={}, eventType={}, deviceCode={}",
                 request.getMessageId(), request.getEventType(), request.getDeviceCode());
 
         // 1. 解析事件数据
@@ -350,7 +350,7 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
 
         // 获取分布式锁
         if (!deviceLockService.tryLockToolChange(deviceInfoId, DeviceToolEventFields.LOCK_TIMEOUT_SECONDS_TOOL_CHANGE)) {
-            log.warn("[Webhook-Handler-DeviceToolChange] 获取设备换刀锁失败: deviceInfoId={}, messageId={}",
+            log.debug("[Webhook-Handler-DeviceToolChange] 获取设备换刀锁失败: deviceInfoId={}, messageId={}",
                     deviceInfoId, request.getMessageId());
             throw new IotPortalException(IotPortalErrorCode.EVENT_TOOL_CHANGE_PROCESSING);
         }
@@ -454,7 +454,7 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
         }
 
         // 刀具不匹配
-        log.warn("[DeviceToolChangeEventHandler] 判断转换类型: TOOL_MISMATCH (previousToolNo={}, DB记录toolNo={})",
+        log.debug("[DeviceToolChangeEventHandler] 判断转换类型: TOOL_MISMATCH (previousToolNo={}, DB记录toolNo={})",
                 previousToolNo, dbToolNo);
         return TransitionType.TOOL_MISMATCH;
     }
@@ -472,7 +472,7 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
         String currentToolNo = eventData.currentToolNo();
         long eventTimestamp = eventData.eventTimestamp();
 
-        log.info("[DeviceToolChangeEventHandler] 数据库无记录，插入首次刀具记录: deviceInfoId={}, toolNo={}, timestamp={}",
+        log.debug("[DeviceToolChangeEventHandler] 数据库无记录，插入首次刀具记录: deviceInfoId={}, toolNo={}, timestamp={}",
                 deviceInfoId, currentToolNo, eventTimestamp);
 
         // 直接插入新记录

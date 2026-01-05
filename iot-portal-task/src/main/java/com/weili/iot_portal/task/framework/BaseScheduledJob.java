@@ -40,8 +40,6 @@ public abstract class BaseScheduledJob {
         String jobName = getJobName();
         
         XxlJobHelper.log("开始执行任务: {}", jobName);
-        log.info("开始执行任务: {}", jobName);
-        
         try {
             JobExecutionResult result = executeInternal();
             long cost = System.currentTimeMillis() - startTime;
@@ -64,14 +62,8 @@ public abstract class BaseScheduledJob {
             XxlJobHelper.log("任务完成: {}, 成功={}, 跳过={}, 失败={}, 耗时={}ms, 消息={}", 
                     jobName, result.getSuccessCount(), result.getSkipCount(), 
                     result.getErrorCount(), cost, result.getMessage());
-            log.info("任务完成: {}, 成功={}, 跳过={}, 失败={}, 耗时={}ms, 消息={}", 
-                    jobName, result.getSuccessCount(), result.getSkipCount(), 
-                    result.getErrorCount(), cost, result.getMessage());
         } else {
             XxlJobHelper.log("任务完成: {}, 成功={}, 跳过={}, 失败={}, 耗时={}ms", 
-                    jobName, result.getSuccessCount(), result.getSkipCount(), 
-                    result.getErrorCount(), cost);
-            log.info("任务完成: {}, 成功={}, 跳过={}, 失败={}, 耗时={}ms", 
                     jobName, result.getSuccessCount(), result.getSkipCount(), 
                     result.getErrorCount(), cost);
         }
@@ -81,7 +73,6 @@ public abstract class BaseScheduledJob {
      * 处理异常
      */
     protected void handleException(String jobName, Exception e, long cost) {
-        log.error("任务执行失败: {}, 耗时={}ms", jobName, cost, e);
         XxlJobHelper.log("任务执行失败: {}, error={}", jobName, e.getMessage());
     }
 }
