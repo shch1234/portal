@@ -685,11 +685,54 @@ public class DeviceShiftSummaryService implements IDeviceShiftSummaryService {
         StateStatistics shutdown = getStateStatistics(stateStats, DeviceStateEnum.SHUTDOWN.name());
         StateStatistics missing = getStateStatistics(stateStats, STATE_MISSING);
 
-        summary.setWorkingDurationS((int) working.durationSeconds);
-        summary.setStandbyDurationS((int) standby.durationSeconds);
-        summary.setFaultDurationS((int) fault.durationSeconds);
-        summary.setShutdownDurationS((int) shutdown.durationSeconds);
-        summary.setMissingDataS((int) missing.durationSeconds);
+        // 获取班次时长（毫秒），用于验证状态时长是否超过班次时长
+        long shiftDurationMillis = summary.getShiftEndTs() != null && summary.getShiftStartTs() != null
+                ? summary.getShiftEndTs() - summary.getShiftStartTs()
+                : 0L;
+
+        // 验证并限制各状态时长不超过班次时长（防止数据异常导致可用率大于1）
+        long workingMillis = working.durationSeconds;
+        long standbyMillis = standby.durationSeconds;
+        long faultMillis = fault.durationSeconds;
+        long shutdownMillis = shutdown.durationSeconds;
+        long missingMillis = missing.durationSeconds;
+
+        if (shiftDurationMillis > 0) {
+            if (workingMillis > shiftDurationMillis) {
+                log.warn("加工时长超过班次时长，已限制: deviceId={}, shiftDate={}, shiftCode={}, " +
+                                "workingMillis={}, shiftDurationMillis={}",
+                        summary.getDeviceInfoId(), summary.getSummaryDate(), summary.getShiftCode(),
+                        workingMillis, shiftDurationMillis);
+                workingMillis = shiftDurationMillis;
+            }
+            if (standbyMillis > shiftDurationMillis) {
+                log.warn("待机时长超过班次时长，已限制: deviceId={}, shiftDate={}, shiftCode={}, " +
+                                "standbyMillis={}, shiftDurationMillis={}",
+                        summary.getDeviceInfoId(), summary.getSummaryDate(), summary.getShiftCode(),
+                        standbyMillis, shiftDurationMillis);
+                standbyMillis = shiftDurationMillis;
+            }
+            if (faultMillis > shiftDurationMillis) {
+                log.warn("故障时长超过班次时长，已限制: deviceId={}, shiftDate={}, shiftCode={}, " +
+                                "faultMillis={}, shiftDurationMillis={}",
+                        summary.getDeviceInfoId(), summary.getSummaryDate(), summary.getShiftCode(),
+                        faultMillis, shiftDurationMillis);
+                faultMillis = shiftDurationMillis;
+            }
+            if (shutdownMillis > shiftDurationMillis) {
+                log.warn("关机时长超过班次时长，已限制: deviceId={}, shiftDate={}, shiftCode={}, " +
+                                "shutdownMillis={}, shiftDurationMillis={}",
+                        summary.getDeviceInfoId(), summary.getSummaryDate(), summary.getShiftCode(),
+                        shutdownMillis, shiftDurationMillis);
+                shutdownMillis = shiftDurationMillis;
+            }
+        }
+
+        summary.setWorkingDurationS((int) workingMillis);
+        summary.setStandbyDurationS((int) standbyMillis);
+        summary.setFaultDurationS((int) faultMillis);
+        summary.setShutdownDurationS((int) shutdownMillis);
+        summary.setMissingDataS((int) missingMillis);
 
         // 确保比例值在 0-1 范围内，防止数据库溢出
         summary.setWorkingRatio(clampRatio(working.ratio));
