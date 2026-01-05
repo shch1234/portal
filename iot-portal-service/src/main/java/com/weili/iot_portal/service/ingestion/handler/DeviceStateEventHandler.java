@@ -671,12 +671,21 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
                                                     Long startTs, Long endTs, Map<String, Object> properties) {
         List<DeviceStateRecordDO> records = new ArrayList<>();
         Long currentStartTs = startTs;
+        Long previousStartTs = null;  // 记录上一次的 startTs，防止无限循环
 
         log.debug("[DeviceStateEventHandler] 开始按班次截断: deviceInfoId={}, stateCode={}, startTs={}, endTs={}",
                 deviceInfoId, stateCode, startTs, endTs);
 
         while (currentStartTs != null && currentStartTs < endTs) {
             try {
+                // 安全检查：防止无限循环
+                if (previousStartTs != null && currentStartTs.equals(previousStartTs)) {
+                    log.warn("[DeviceStateEventHandler] 检测到可能的无限循环，停止截断: deviceInfoId={}, currentStartTs={}",
+                            deviceInfoId, currentStartTs);
+                    break;
+                }
+                previousStartTs = currentStartTs;
+
                 // 1. 计算当前开始时间所在的班次
                 ShiftTimeRange currentShift = shiftCalculationService.calculateShiftRange(
                         orgFactoryId, deviceInfoId, currentStartTs);
@@ -689,6 +698,19 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
 
                 // 2. 确定当前记录的结束时间：取 min(班次结束时间, 状态结束时间)
                 Long recordEndTs = Math.min(currentShift.getEndTs(), endTs);
+
+                // 修复：跳过零时长或负时长的记录（防止创建 start_ts = end_ts 的无效记录）
+                if (recordEndTs <= currentStartTs) {
+                    log.debug("[DeviceStateEventHandler] 跳过零时长记录: deviceInfoId={}, currentStartTs={}, recordEndTs={}",
+                            deviceInfoId, currentStartTs, recordEndTs);
+                    // 如果 recordEndTs 等于班次结束时间，且状态还未结束，继续下一班次
+                    if (recordEndTs.equals(currentShift.getEndTs()) && recordEndTs < endTs) {
+                        currentStartTs = recordEndTs;
+                        continue;  // 跳过当前循环，继续下一班次
+                    } else {
+                        break;  // 已完成截断
+                    }
+                }
 
                 // 3. 获取班次日期和编码
                 ShiftDateAndCode shiftInfo = shiftCalculationService.getShiftDateAndCode(
@@ -716,10 +738,31 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
 
                 // 5. 如果记录结束时间等于班次结束时间，且状态还未结束，继续下一班次
                 if (recordEndTs.equals(currentShift.getEndTs()) && recordEndTs < endTs) {
-                    // 下一段从班次结束时间开始（精确到毫秒，避免重复）
-                    currentStartTs = recordEndTs;
+                    // 获取下一个班次的范围（从班次结束时间+1毫秒开始，确保属于下一个班次）
+                    // 注意：如果班次边界时间（如20:00:00）不属于任何班次，需要特殊处理
+                    Long nextShiftStartTs = recordEndTs + 1;  // 从班次边界时间+1毫秒开始
+                    ShiftTimeRange nextShift = shiftCalculationService.calculateShiftRange(
+                            orgFactoryId, deviceInfoId, nextShiftStartTs);
+                    
+                    if (nextShift != null && nextShift.getStartTs() != null) {
+                        // 下一段从下一个班次的开始时间开始
+                        currentStartTs = nextShift.getStartTs();
+                        log.debug("[DeviceStateEventHandler] 切换到下一个班次: deviceInfoId={}, 当前班次结束={}, 下一班次开始={}, shiftCode={}",
+                                deviceInfoId, recordEndTs, currentStartTs, nextShift.getShiftCode());
+                    } else {
+                        // 无法获取下一个班次，停止截断
+                        log.warn("[DeviceStateEventHandler] 无法获取下一个班次，停止截断: deviceInfoId={}, recordEndTs={}",
+                                deviceInfoId, recordEndTs);
+                        break;
+                    }
                 } else {
                     // 已完成截断
+                    // 如果 recordEndTs 正好等于 endTs（状态结束时间也等于班次边界时间）
+                    // 说明状态正好在班次边界结束，不应该创建下一班次的记录
+                    if (recordEndTs.equals(endTs) && recordEndTs.equals(currentShift.getEndTs())) {
+                        log.debug("[DeviceStateEventHandler] 状态结束时间等于班次边界时间，不创建下一班次记录: deviceInfoId={}, recordEndTs={}, endTs={}",
+                                deviceInfoId, recordEndTs, endTs);
+                    }
                     break;
                 }
             } catch (Exception e) {
