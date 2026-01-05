@@ -23,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -282,8 +283,13 @@ public class DeviceShiftSummaryService implements IDeviceShiftSummaryService {
         }
 
         // 4. 计算并验证班次时间范围
-        DeviceStateRecordDO firstRecord = stateRecords.get(0);
-        long referenceTimeMillis = firstRecord.getStartTs();
+        // 注意：如果状态记录中有班次信息，应该使用班次开始时间作为参考时间戳
+        // 而不是状态记录的开始时间，因为状态记录的开始时间可能对应前一天的班次
+        // 使用班次日期的中午时间（12:00）作为参考时间戳，确保能正确计算该日期的班次
+        long referenceTimeMillis = shiftDate.atTime(12, 0)
+                .atZone(ZoneId.systemDefault())
+                .toInstant()
+                .toEpochMilli();
         
         Optional<ShiftTimeRange> shiftRangeOpt = shiftCalculationService.calculateAndValidateShiftRange(
                 device.getOrgFactoryId(),
@@ -293,7 +299,23 @@ public class DeviceShiftSummaryService implements IDeviceShiftSummaryService {
                 shiftCode);
         
         if (shiftRangeOpt.isEmpty()) {
-            return false;
+            // 如果使用中午时间计算失败，尝试使用状态记录的开始时间
+            // 但这种情况应该很少见
+            DeviceStateRecordDO firstRecord = stateRecords.get(0);
+            long fallbackTimeMillis = firstRecord.getStartTs();
+            shiftRangeOpt = shiftCalculationService.calculateAndValidateShiftRange(
+                    device.getOrgFactoryId(),
+                    device.getId(),
+                    fallbackTimeMillis,
+                    shiftDate,
+                    shiftCode);
+            
+            if (shiftRangeOpt.isEmpty()) {
+                log.warn("补偿任务阶段2: 无法计算班次时间范围: deviceId={}, shiftDate={}, shiftCode={}, " +
+                                "referenceTimeMillis={}, fallbackTimeMillis={}",
+                        key.deviceInfoId(), shiftDate, shiftCode, referenceTimeMillis, fallbackTimeMillis);
+                return false;
+            }
         }
         ShiftTimeRange shiftRange = shiftRangeOpt.get();
 
@@ -385,19 +407,45 @@ public class DeviceShiftSummaryService implements IDeviceShiftSummaryService {
                 log.warn("时间范围查询结果也为空: deviceId={}, startTs={}, endTs={}",
                         deviceId, shiftRange.getStartTs(), shiftRange.getEndTs());
             } else {
-                // 检查查询到的记录是否有异常（跨班次或时间范围过大）
+                // 检查并处理查询到的异常记录（跨班次或时间范围过大）
                 long shiftDurationMillis = shiftRange.getEndTs() - shiftRange.getStartTs();
+                long shiftStartTs = shiftRange.getStartTs();
+                long shiftEndTs = shiftRange.getEndTs();
+                List<DeviceStateRecordDO> filteredRecords = new ArrayList<>();
+                
                 for (DeviceStateRecordDO record : stateRecords) {
-                    long recordStartTs = record.getStartTs() != null ? record.getStartTs() : shiftRange.getStartTs();
-                    long recordEndTs = record.getEndTs() != null ? record.getEndTs() : shiftRange.getEndTs();
+                    long recordStartTs = record.getStartTs() != null ? record.getStartTs() : shiftStartTs;
+                    long recordEndTs = record.getEndTs() != null ? record.getEndTs() : shiftEndTs;
                     long recordDurationMillis = recordEndTs - recordStartTs;
                     
-                    // 如果单条记录的时间范围远超过班次时长（超过2倍），记录警告
+                    // 如果单条记录的时间范围远超过班次时长（超过2倍），进行处理
                     if (recordDurationMillis > shiftDurationMillis * 2) {
-                        log.warn("查询到异常的状态记录（时间范围过大）: deviceId={}, recordId={}, recordStartTs={}, recordEndTs={}, recordDuration={}, shiftDuration={}, shiftDate={}, shiftCode={}",
+                        log.warn("查询到异常的状态记录（时间范围过大），将截断到班次时间范围: deviceId={}, recordId={}, recordStartTs={}, recordEndTs={}, recordDuration={}, shiftDuration={}, shiftDate={}, shiftCode={}",
                                 deviceId, record.getId(), recordStartTs, recordEndTs, recordDurationMillis, shiftDurationMillis, shiftDate, shiftCode);
+                        
+                        // 创建记录副本，将时间范围截断到班次范围内
+                        DeviceStateRecordDO adjustedRecord = new DeviceStateRecordDO();
+                        adjustedRecord.setId(record.getId());
+                        adjustedRecord.setDeviceInfoId(record.getDeviceInfoId());
+                        adjustedRecord.setOrgFactoryId(record.getOrgFactoryId());
+                        adjustedRecord.setShiftDate(record.getShiftDate());
+                        adjustedRecord.setShiftCode(record.getShiftCode());
+                        adjustedRecord.setStateCode(record.getStateCode());
+                        adjustedRecord.setStartTs(Math.max(recordStartTs, shiftStartTs)); // 截断开始时间
+                        adjustedRecord.setEndTs(Math.min(recordEndTs, shiftEndTs)); // 截断结束时间
+                        adjustedRecord.setDurationS(record.getDurationS());
+                        adjustedRecord.setProperties(record.getProperties());
+                        adjustedRecord.setIsComplete(record.getIsComplete());
+                        
+                        filteredRecords.add(adjustedRecord);
+                    } else {
+                        // 正常记录直接添加
+                        filteredRecords.add(record);
                     }
                 }
+                
+                // 使用过滤后的记录列表
+                stateRecords = filteredRecords;
             }
         }
         
