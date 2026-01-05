@@ -47,6 +47,21 @@ public class FactoryMetricSummaryRepositoryImpl implements FactoryMetricSummaryR
     }
 
     @Override
+    public List<FactoryMetricSummaryDO> selectFinalizedInRange(Long orgFactoryId, LocalDate startShiftDate, LocalDate endShiftDate) {
+        LambdaQueryWrapper<FactoryMetricSummaryDO> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(FactoryMetricSummaryDO::getOrgFactoryId, orgFactoryId)
+                .eq(FactoryMetricSummaryDO::getIsFinalized, Boolean.TRUE);
+        if (startShiftDate != null) {
+            wrapper.ge(FactoryMetricSummaryDO::getShiftDate, startShiftDate);
+        }
+        if (endShiftDate != null) {
+            wrapper.le(FactoryMetricSummaryDO::getShiftDate, endShiftDate);
+        }
+        wrapper.orderByAsc(FactoryMetricSummaryDO::getShiftDate);
+        return mapper.selectList(wrapper);
+    }
+
+    @Override
     public void insert(FactoryMetricSummaryDO record) {
         mapper.insert(record);
     }
@@ -54,18 +69,6 @@ public class FactoryMetricSummaryRepositoryImpl implements FactoryMetricSummaryR
     @Override
     public void update(FactoryMetricSummaryDO record) {
         mapper.updateById(record);
-    }
-
-    @Override
-    public List<FactoryMetricSummaryDO> findPendingByDays(int days) {
-        LambdaQueryWrapper<FactoryMetricSummaryDO> wrapper = new LambdaQueryWrapper<>();
-        if (days > 0) {
-            LocalDate since = LocalDate.now().minusDays(days);
-            wrapper.ge(FactoryMetricSummaryDO::getShiftDate, since);
-        }
-        wrapper.eq(FactoryMetricSummaryDO::getIsFinalized, Boolean.FALSE);
-        wrapper.orderByDesc(FactoryMetricSummaryDO::getCalculatedTime);
-        return mapper.selectList(wrapper);
     }
 }
 

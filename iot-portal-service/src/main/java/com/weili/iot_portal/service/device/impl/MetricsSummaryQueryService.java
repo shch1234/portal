@@ -4,8 +4,10 @@ import com.weili.iot_portal.common.exception.IotPortalErrorCode;
 import com.weili.iot_portal.common.exception.IotPortalException;
 import com.weili.iot_portal.dal.dataobject.device.DeviceInfoDO;
 import com.weili.iot_portal.dal.dataobject.device.DeviceMetricSummaryDO;
+import com.weili.iot_portal.dal.dataobject.factory.FactoryMetricSummaryDO;
 import com.weili.iot_portal.dal.repository.device.DeviceInfoRepository;
 import com.weili.iot_portal.dal.repository.device.DeviceMetricSummaryRepository;
+import com.weili.iot_portal.dal.repository.factory.FactoryMetricSummaryRepository;
 import com.weili.iot_portal.domain.device.req.MetricDeviceDataReqVO;
 import com.weili.iot_portal.domain.device.req.MetricStatisticsReqVO;
 import com.weili.iot_portal.domain.device.resp.MetricDeviceDataRespVO;
@@ -13,6 +15,7 @@ import com.weili.iot_portal.domain.device.resp.MetricStatisticsRespVO;
 import com.weili.iot_portal.domain.ingestion.FactoryRealtimeMetricSnapshot;
 import com.weili.iot_portal.domain.ingestion.RealtimeMetricSnapshot;
 import com.weili.iot_portal.service.cache.DeviceMetricsCacheService;
+import com.weili.iot_portal.service.cache.FactoryMetricsCacheService;
 import com.weili.iot_portal.service.device.IMetricsSummaryQueryService;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
@@ -42,9 +45,9 @@ public class MetricsSummaryQueryService implements IMetricsSummaryQueryService {
     @Resource
     private DeviceMetricSummaryRepository deviceMetricSummaryRepository;
     @Resource
-    private com.weili.iot_portal.service.cache.FactoryMetricsCacheService factoryMetricsCacheService;
+    private FactoryMetricsCacheService factoryMetricsCacheService;
     @Resource
-    private com.weili.iot_portal.dal.repository.factory.FactoryMetricSummaryRepository factoryMetricSummaryRepository;
+    private FactoryMetricSummaryRepository factoryMetricSummaryRepository;
 
     @Override
     public MetricStatisticsRespVO getDeviceMetricStatistics(MetricStatisticsReqVO queryReqVO) {
@@ -69,14 +72,11 @@ public class MetricsSummaryQueryService implements IMetricsSummaryQueryService {
         LocalDate startShiftDate = dateRange[0];
         LocalDate endShiftDate = dateRange[1];
 
-        // 查询时间范围需要转换为时间戳（毫秒）
-        long[] timestampRange = convertToTimestampRange(startShiftDate, endShiftDate);
-
         // 从 device_metrics_summary 查询时间范围内的指标汇总数据
         List<DeviceMetricSummaryDO> metricsList = deviceMetricSummaryRepository.selectFinalizedInRange(
                 deviceInfoId,
-                timestampRange[0],
-                timestampRange[1]
+                startShiftDate,
+                endShiftDate
         );
 
         // 按日期分组汇总（一天可能有多个班次，取平均值）
@@ -107,9 +107,9 @@ public class MetricsSummaryQueryService implements IMetricsSummaryQueryService {
         }
 
         // 1. 当前指标值：从缓存获取工厂实时指标快照
-        Optional<com.weili.iot_portal.domain.ingestion.FactoryRealtimeMetricSnapshot> snapshotOptional =
+        Optional<FactoryRealtimeMetricSnapshot> snapshotOptional =
                 factoryMetricsCacheService.getFactoryRealtimeMetrics(orgFactoryId);
-        com.weili.iot_portal.domain.ingestion.FactoryRealtimeMetricSnapshot snapshot =
+        FactoryRealtimeMetricSnapshot snapshot =
                 snapshotOptional.orElse(null);
 
         // 将工厂实时指标快照转换为 MetricDetailVO
@@ -122,31 +122,27 @@ public class MetricsSummaryQueryService implements IMetricsSummaryQueryService {
         LocalDate[] dateRange = calculateDateRange(reqVO.getStartTime(), reqVO.getEndTime());
         LocalDate startShiftDate = dateRange[0];
         LocalDate endShiftDate = dateRange[1];
-
-        // 查询时间范围需要转换为时间戳（毫秒）
-        long[] timestampRange = convertToTimestampRange(startShiftDate, endShiftDate);
-
         // 从 factory_metric_summary 查询时间范围内的指标汇总数据
-        List<com.weili.iot_portal.dal.dataobject.factory.FactoryMetricSummaryDO> metricsList =
+        List<FactoryMetricSummaryDO> metricsList =
                 factoryMetricSummaryRepository.selectFinalizedInRange(
                         orgFactoryId,
-                        timestampRange[0],
-                        timestampRange[1]
+                        startShiftDate,
+                        endShiftDate
                 );
 
         // 按日期分组汇总（一天可能有多个班次，取平均值）
-        Map<LocalDate, List<com.weili.iot_portal.dal.dataobject.factory.FactoryMetricSummaryDO>> dailyMetricsMap =
-                groupByShiftDate(metricsList, com.weili.iot_portal.dal.dataobject.factory.FactoryMetricSummaryDO::getShiftDate);
+        Map<LocalDate, List<FactoryMetricSummaryDO>> dailyMetricsMap =
+                groupByShiftDate(metricsList, FactoryMetricSummaryDO::getShiftDate);
 
         // 构建图表数据（按日期排序）
         List<MetricStatisticsRespVO.MetricDetailVO> detailList = buildChartData(
                 startShiftDate,
                 endShiftDate,
                 dailyMetricsMap,
-                com.weili.iot_portal.dal.dataobject.factory.FactoryMetricSummaryDO::getAverageOee,
-                com.weili.iot_portal.dal.dataobject.factory.FactoryMetricSummaryDO::getAverageAvailability,
-                com.weili.iot_portal.dal.dataobject.factory.FactoryMetricSummaryDO::getAveragePerformance,
-                com.weili.iot_portal.dal.dataobject.factory.FactoryMetricSummaryDO::getAverageUtilizationRate
+                FactoryMetricSummaryDO::getAverageOee,
+                FactoryMetricSummaryDO::getAverageAvailability,
+                FactoryMetricSummaryDO::getAveragePerformance,
+                FactoryMetricSummaryDO::getAverageUtilizationRate
         );
 
         respVO.setMetricDetails(detailList);
@@ -170,21 +166,6 @@ public class MetricsSummaryQueryService implements IMetricsSummaryQueryService {
             startShiftDate = endShiftDate.minusDays(6); // 包含今天共7天
         }
         return new LocalDate[]{startShiftDate, endShiftDate};
-    }
-
-    /**
-     * 将日期范围转换为时间戳范围（毫秒）
-     *
-     * @param startDate 开始日期
-     * @param endDate   结束日期
-     * @return 时间戳范围数组 [startTsMillis, endTsMillis]
-     */
-    private long[] convertToTimestampRange(LocalDate startDate, LocalDate endDate) {
-        long startTsMillis = startDate.atStartOfDay(java.time.ZoneId.systemDefault())
-                .toInstant().toEpochMilli();
-        long endTsMillis = endDate.plusDays(1).atStartOfDay(java.time.ZoneId.systemDefault())
-                .toInstant().toEpochMilli();
-        return new long[]{startTsMillis, endTsMillis};
     }
 
     /**

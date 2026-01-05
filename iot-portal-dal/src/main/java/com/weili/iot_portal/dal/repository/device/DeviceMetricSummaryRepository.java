@@ -24,11 +24,11 @@ public interface DeviceMetricSummaryRepository {
      * 查询指定时间范围内已完成的班次记录
      *
      * @param deviceId      设备ID
-     * @param startTsMillis 开始时间戳（豪秒，可选，为null则不限制）
-     * @param endTsMillis   结束时间戳（豪秒，可选，为null则不限制）
+     * @param startShiftDate 开始班次
+     * @param endShiftDate   结束班次
      * @return 班次记录列表（按 shift_end_ts 升序）
      */
-    List<DeviceMetricSummaryDO> selectFinalizedInRange(Long deviceId, Long startTsMillis, Long endTsMillis);
+    List<DeviceMetricSummaryDO> selectFinalizedInRange(Long deviceId, LocalDate startShiftDate, LocalDate endShiftDate);
 
     /**
      * 查询在指定时间范围内有已完成汇总记录的设备ID列表

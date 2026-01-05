@@ -51,17 +51,17 @@ public class DeviceMetricSummaryRepositoryImpl implements DeviceMetricSummaryRep
     }
 
     @Override
-    public List<DeviceMetricSummaryDO> selectFinalizedInRange(Long deviceId, Long startTsMillis, Long endTsMillis) {
+    public List<DeviceMetricSummaryDO> selectFinalizedInRange(Long deviceId, LocalDate startShiftDate, LocalDate endShiftDate) {
         LambdaQueryWrapper<DeviceMetricSummaryDO> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(DeviceMetricSummaryDO::getDeviceInfoId, deviceId)
                 .eq(DeviceMetricSummaryDO::getIsFinalized, Boolean.TRUE);
-        if (startTsMillis != null) {
-            wrapper.ge(DeviceMetricSummaryDO::getShiftEndTs, startTsMillis);
+        if (startShiftDate != null) {
+            wrapper.ge(DeviceMetricSummaryDO::getShiftDate, startShiftDate);
         }
-        if (endTsMillis != null) {
-            wrapper.le(DeviceMetricSummaryDO::getShiftEndTs, endTsMillis);
+        if (endShiftDate != null) {
+            wrapper.le(DeviceMetricSummaryDO::getShiftDate, endShiftDate);
         }
-        wrapper.orderByAsc(DeviceMetricSummaryDO::getShiftEndTs);
+        wrapper.orderByAsc(DeviceMetricSummaryDO::getShiftDate);
         return mapper.selectList(wrapper);
     }
 
