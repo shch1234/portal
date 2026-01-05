@@ -183,33 +183,47 @@ public class DeviceAlarmEventHandler implements WebhookEventHandler {
             }
             
             try {
-                // 先尝试解析为List
-                List<Object> parsedList = JsonUtils.parseObject(jsonStr, new TypeReference<List<Object>>() {});
-                if (parsedList != null && !parsedList.isEmpty()) {
-                    List<Map<String, Object>> result = new ArrayList<>();
-                    for (Object o : parsedList) {
-                        if (o instanceof Map<?, ?>) {
-                            Map<?, ?> map = (Map<?, ?>) o;
-                            Map<String, Object> filtered = new HashMap<>();
-                            map.forEach((k, v) -> {
-                                if (k instanceof String) {
-                                    filtered.put((String) k, v);
-                                }
-                            });
-                            result.add(filtered);
+                // 先检查JSON字符串格式：如果以 [ 开头，尝试解析为List；如果以 { 开头，尝试解析为Map
+                String trimmedJson = jsonStr.trim();
+                if (trimmedJson.startsWith("[")) {
+                    // 尝试解析为List
+                    List<Object> parsedList = JsonUtils.parseObject(jsonStr, new TypeReference<List<Object>>() {});
+                    if (parsedList != null) {
+                        // 即使列表为空，也直接返回（空数组是有效的情况）
+                        if (parsedList.isEmpty()) {
+                            log.debug("[DeviceAlarmEventHandler] 从JSON字符串解析报警数组: 空数组");
+                            return Collections.emptyList();
+                        }
+                        
+                        List<Map<String, Object>> result = new ArrayList<>();
+                        for (Object o : parsedList) {
+                            if (o instanceof Map<?, ?>) {
+                                Map<?, ?> map = (Map<?, ?>) o;
+                                Map<String, Object> filtered = new HashMap<>();
+                                map.forEach((k, v) -> {
+                                    if (k instanceof String) {
+                                        filtered.put((String) k, v);
+                                    }
+                                });
+                                result.add(filtered);
+                            }
+                        }
+                        if (!result.isEmpty()) {
+                            log.debug("[DeviceAlarmEventHandler] 从JSON字符串解析报警数组: count={}", result.size());
+                            return result;
                         }
                     }
-                    if (!result.isEmpty()) {
-                        log.debug("[DeviceAlarmEventHandler] 从JSON字符串解析报警数组: count={}", result.size());
-                        return result;
+                } else if (trimmedJson.startsWith("{")) {
+                    // 尝试解析为单个Map对象
+                    Map<String, Object> parsedMap = JsonUtils.parseObject(jsonStr, new TypeReference<Map<String, Object>>() {});
+                    if (parsedMap != null && !parsedMap.isEmpty()) {
+                        log.debug("[DeviceAlarmEventHandler] 从JSON字符串解析单个报警对象");
+                        return Collections.singletonList(parsedMap);
                     }
-                }
-                
-                // 如果解析为List失败，尝试解析为单个Map对象
-                Map<String, Object> parsedMap = JsonUtils.parseObject(jsonStr, new TypeReference<Map<String, Object>>() {});
-                if (parsedMap != null && !parsedMap.isEmpty()) {
-                    log.debug("[DeviceAlarmEventHandler] 从JSON字符串解析单个报警对象");
-                    return Collections.singletonList(parsedMap);
+                } else {
+                    // 既不是数组也不是对象，记录警告
+                    log.warn("[DeviceAlarmEventHandler] JSON字符串格式不正确，既不是数组也不是对象: jsonStr={}", 
+                            jsonStr.length() > 100 ? jsonStr.substring(0, 100) + "..." : jsonStr);
                 }
             } catch (Exception e) {
                 log.warn("[DeviceAlarmEventHandler] 解析报警数组JSON字符串失败: jsonStr={}, error={}", 

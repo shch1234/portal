@@ -15,6 +15,8 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -733,11 +735,12 @@ public class DeviceMetricsSummaryService implements IDeviceMetricsSummaryService
         record.setShiftCode(stateSummary.getShiftCode());
         record.setShiftStartTs(stateSummary.getShiftStartTs());
         record.setShiftEndTs(stateSummary.getShiftEndTs());
-        record.setOee(result.getOee());
-        record.setAvailability(result.getAvailability());
-        record.setPerformance(result.getPerformance());
-        record.setQuality(result.getQuality());
-        record.setUtilizationRate(result.getUtilizationRate());
+        // 设置比率值，确保在 0-1 范围内，精度不超过4位小数（DECIMAL(5,4)）
+        record.setOee(normalizeRate(result.getOee()));
+        record.setAvailability(normalizeRate(result.getAvailability()));
+        record.setPerformance(normalizeRate(result.getPerformance()));
+        record.setQuality(normalizeRate(result.getQuality()));
+        record.setUtilizationRate(normalizeRate(result.getUtilizationRate()));
         record.setWorkingHours(result.getWorkingHours());
         record.setPlannedDowntimeS((int) plannedDowntimeSeconds);
         record.setUnplannedDowntimeS((int) millisToSeconds(result.getUnplannedDowntimeMillis()));
@@ -783,5 +786,42 @@ public class DeviceMetricsSummaryService implements IDeviceMetricsSummaryService
     private long getSafe(Integer v) {
         return v == null ? 0L : v;
     }
+    
+    /**
+     * 规范化比率值，确保在 0-1 范围内，精度不超过4位小数（DECIMAL(5,4)）
+     * <p>
+     * 处理规则：
+     * <ul>
+     *   <li>如果值为 null，返回 BigDecimal.ZERO</li>
+     *   <li>如果值 < 0，返回 BigDecimal.ZERO</li>
+     *   <li>如果值 > 1，返回 BigDecimal.ONE（并记录警告日志）</li>
+     *   <li>否则，保留4位小数并返回</li>
+     * </ul>
+     * </p>
+     * 
+     * @param rate 原始比率值
+     * @return 规范化后的比率值（0-1之间，精度4位小数）
+     */
+    private BigDecimal normalizeRate(BigDecimal rate) {
+        if (rate == null) {
+            return BigDecimal.ZERO;
+        }
+        
+        // 如果值小于0，返回0
+        if (rate.compareTo(BigDecimal.ZERO) < 0) {
+            log.warn("[DeviceMetricsSummaryService] 比率值为负数，已规范化为0: rate={}", rate);
+            return BigDecimal.ZERO;
+        }
+        
+        // 如果值大于1，返回1（并记录警告）
+        if (rate.compareTo(BigDecimal.ONE) > 0) {
+            log.warn("[DeviceMetricsSummaryService] 比率值大于1，已规范化为1: rate={}", rate);
+            return BigDecimal.ONE;
+        }
+        
+        // 保留4位小数（DECIMAL(5,4)）
+        return rate.setScale(4, RoundingMode.HALF_UP);
+    }
+    
 }
 

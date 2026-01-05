@@ -125,13 +125,20 @@ public class ShiftCalculationService implements IShiftCalculationService {
      * 1. 对于跨天班次（如三班制第三班：次日0:00-次日8:00，两班制第二班：20:00-次日8:00）：
      *    - 如果时间戳在班次的后半段（次日的部分），班次日期应该是前一日
      *    - 例如：三班制第三班，时间戳是次日2:00，业务上属于"昨日"的第三班，shiftDate应该是昨日
+     *    - 注意：如果传入的时间戳是 00:00:00（只有年月日，没有时分秒），对于跨天班次会被判断为后半段，属于前一天的班次
      * 2. 对于不跨天班次：
      *    - 班次日期就是时间戳对应的日期
+     * </p>
+     * <p>
+     * <b>重要提示：</b>
+     * - timestamp 应该包含完整的时分秒信息，以确保班次判断的准确性
+     * - 如果传入的时间戳只有年月日（如 2025-01-01 00:00:00），对于跨天班次可能会被判断为前一天的班次
+     * - 建议调用方确保传入的时间戳包含完整的时分秒信息
      * </p>
      * 
      * @param factoryId 工厂ID
      * @param deviceId 设备ID
-     * @param timestamp 时间戳（毫秒）
+     * @param timestamp 时间戳（毫秒），建议包含完整的时分秒信息
      * @return 班次日期和编码
      */
     @Override
@@ -155,15 +162,24 @@ public class ShiftCalculationService implements IShiftCalculationService {
             // 判断时间戳在班次的哪个部分：
             // 1. 如果 currentTime < endTime，说明在班次的后半段（次日的部分）
             //    例如：三班制第三班 00:00-08:00，时间戳是次日02:00，属于前一天的班次
+            //    注意：如果传入的是 00:00:00，也会被判断为后半段，属于前一天的班次
             // 2. 如果 currentTime >= startTime，说明在班次的前半段（当日的部分）
             //    例如：两班制第二班 20:00-次日08:00，时间戳是当日22:00，属于当天的班次
             if (currentTime.isBefore(endTime)) {
                 // 当前时间在跨天班次的后半段（次日的部分）
                 // 业务上属于前一天的班次
                 shiftDate = baseDate.minusDays(1);
-            } else {
+            } else if (!currentTime.isBefore(startTime)) {
                 // 当前时间在跨天班次的前半段（当日的部分）
                 // 业务上属于当天的班次
+                shiftDate = baseDate;
+            } else {
+                // 边界情况：currentTime < startTime 且 currentTime >= endTime
+                // 这种情况理论上不应该发生，因为 findShiftByTime 已经过滤了不在班次内的时间
+                // 但为了安全，使用 baseDate（与不跨天班次的处理保持一致）
+                log.warn("[ShiftCalculationService] 跨天班次边界情况: factoryId={}, deviceId={}, " +
+                        "timestamp={}, currentTime={}, startTime={}, endTime={}, shiftCode={}",
+                        factoryId, deviceId, timestamp, currentTime, startTime, endTime, shift.getCode());
                 shiftDate = baseDate;
             }
         } else {
