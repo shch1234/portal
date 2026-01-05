@@ -16,6 +16,8 @@ import com.weili.iot_portal.service.device.IDeviceModelBizService;
 import com.weili.iot_portal.service.device.IDeviceOrgRelationBizService;
 import com.weili.iot_portal.service.device.IDeviceTypeRelationBizService;
 import jakarta.annotation.Resource;
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -150,7 +152,7 @@ public class DeviceInfoBizService implements IDeviceInfoBizService {
      * 1. 将当前生效的记录的结束时间设置为当前时间
      * 2. 新增一条记录，生效开始时间为当前时间
      *
-     * @param deviceInfoId 设备ID
+     * @param deviceInfoId    设备ID
      * @param paramConfigList 参数配置列表，一个设备只能包含一个相同 parameter_type 类型的数据
      */
     private void updateDeviceParamConfig(Long deviceInfoId, List<DeviceParamConfigReq> paramConfigList) {
@@ -284,10 +286,18 @@ public class DeviceInfoBizService implements IDeviceInfoBizService {
     @Override
     public PageResult<DeviceInfoRespVO> getDeviceInfoPage(DeviceInfoBasePageReqVO pageReqVO) {
         DeviceBaseInfoPageQuery pageQuery = BeanUtils.toBean(pageReqVO, DeviceBaseInfoPageQuery.class);
-        pageQuery.setDeviceCode(pageReqVO.getDeviceCode());
-        pageQuery.setDeviceStatuses(Collections.singletonList(pageReqVO.getDeviceStatus()));
-        pageQuery.setDeviceTypeCodes(Collections.singletonList(pageReqVO.getDeviceTypeCode()));
-        pageQuery.setOrgFactoryIds(Collections.singletonList(pageReqVO.getOrgFactoryId()));
+        if (StringUtils.isNotEmpty(pageReqVO.getDeviceCode())) {
+            pageQuery.setDeviceCode(pageReqVO.getDeviceCode());
+        }
+        if (StringUtils.isNotBlank(pageReqVO.getDeviceStatus())) {
+            pageQuery.setDeviceStatuses(Collections.singletonList(pageReqVO.getDeviceStatus()));
+        }
+        if (StringUtils.isNotBlank(pageReqVO.getDeviceTypeCode())) {
+            pageQuery.setDeviceTypeCodes(Collections.singletonList(pageReqVO.getDeviceTypeCode()));
+        }
+        if (StringUtils.isNotBlank(pageReqVO.getOrgFactoryId())) {
+            pageQuery.setOrgFactoryIds(Collections.singletonList(pageReqVO.getOrgFactoryId()));
+        }
         PageResult<DeviceInfoDO> pageResult = deviceInfoRepository.selectPage(pageQuery);
         PageResult<DeviceInfoRespVO> result = BeanUtils.toBean(pageResult, DeviceInfoRespVO.class);
         for (DeviceInfoRespVO row : result.getList()) {
