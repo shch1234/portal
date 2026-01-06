@@ -33,6 +33,9 @@ public class FactoryShiftMetricsSummaryService {
     private static final int DECIMAL_SCALE = 4;
     private static final String CALC_STATUS_CALCULATED = "CALCULATED";
     private static final String CALC_SOURCE_SCHEDULED = "SCHEDULED";
+    
+    // 时间转换常量
+    private static final long MILLIS_PER_SECOND = 1000L;
 
     // 指标键名常量
     private static final String METRIC_KEY_OEE = "oee";
@@ -75,8 +78,11 @@ public class FactoryShiftMetricsSummaryService {
                 lookbackDays, dataReadyDelayHours, startTsSeconds, statisticsTimeSeconds, dataReadyCutoffSeconds);
         
         // 优化：只查询有设备指标汇总数据的设备ID（避免查询所有设备）
+        // 注意：Repository方法期望毫秒，需要转换
+        long startTsMillis = startTsSeconds * MILLIS_PER_SECOND;
+        long dataReadyCutoffMillis = dataReadyCutoffSeconds * MILLIS_PER_SECOND;
         List<Long> deviceIdsWithData = deviceMetricSummaryRepository.findDistinctDeviceIdsWithFinalizedSummaries(
-                startTsSeconds, dataReadyCutoffSeconds);
+                startTsMillis, dataReadyCutoffMillis);
         if (deviceIdsWithData == null || deviceIdsWithData.isEmpty()) {
             log.info("工厂班次指标汇总: 未发现有待处理的设备指标汇总数据");
             return BatchProcessResult.completed(0, 0, 0);
@@ -204,8 +210,11 @@ public class FactoryShiftMetricsSummaryService {
         List<Long> deviceIds = devices.stream()
                 .map(DeviceInfoDO::getId)
                 .collect(Collectors.toList());
+        // 注意：Repository方法期望毫秒，需要转换
+        long startTsMillis = startTsSeconds * MILLIS_PER_SECOND;
+        long dataReadyCutoffMillis = dataReadyCutoffSeconds * MILLIS_PER_SECOND;
         return deviceMetricSummaryRepository.selectFinalizedInRangeBatch(
-                deviceIds, startTsSeconds, dataReadyCutoffSeconds);
+                deviceIds, startTsMillis, dataReadyCutoffMillis);
     }
 
     /**
@@ -485,16 +494,16 @@ public class FactoryShiftMetricsSummaryService {
      * 计算平均值指标
      */
     private AverageMetrics calculateAverageMetrics(ShiftAggregate agg, int totalDevices) {
-        BigDecimal avgOee = calculateWeightedAverage(agg.sumOee, agg.sumWeight);
-        BigDecimal avgAvailability = calculateWeightedAverage(agg.sumAvailability, agg.sumWeight);
-        BigDecimal avgPerformance = calculateWeightedAverage(agg.sumPerformance, agg.sumWeight);
-        BigDecimal avgUtilization = calculateWeightedAverage(agg.sumUptime, agg.sumWeight);
-        BigDecimal avgFault = calculateWeightedAverage(agg.sumFault, agg.sumWeight);
+        BigDecimal avgOee = normalizeRate(calculateWeightedAverage(agg.sumOee, agg.sumWeight));
+        BigDecimal avgAvailability = normalizeRate(calculateWeightedAverage(agg.sumAvailability, agg.sumWeight));
+        BigDecimal avgPerformance = normalizeRate(calculateWeightedAverage(agg.sumPerformance, agg.sumWeight));
+        BigDecimal avgUtilization = normalizeRate(calculateWeightedAverage(agg.sumUptime, agg.sumWeight));
+        BigDecimal avgFault = normalizeRate(calculateWeightedAverage(agg.sumFault, agg.sumWeight));
         
         BigDecimal dataCompleteness = totalDevices == 0
                 ? BigDecimal.ZERO
-                : BigDecimal.valueOf(agg.validDevices)
-                .divide(BigDecimal.valueOf(totalDevices), DECIMAL_SCALE, RoundingMode.HALF_UP);
+                : normalizeRate(BigDecimal.valueOf(agg.validDevices)
+                .divide(BigDecimal.valueOf(totalDevices), DECIMAL_SCALE, RoundingMode.HALF_UP));
         
         return new AverageMetrics(avgOee, avgAvailability, avgPerformance, avgUtilization, avgFault, dataCompleteness);
     }
@@ -655,6 +664,42 @@ public class FactoryShiftMetricsSummaryService {
     private BigDecimal calculateWeightedAverage(BigDecimal sum, long weight) {
         return weight == 0 ? BigDecimal.ZERO 
                 : sum.divide(BigDecimal.valueOf(weight), DECIMAL_SCALE, RoundingMode.HALF_UP);
+    }
+    
+    /**
+     * 规范化比率值，确保在 0-1 范围内，精度不超过4位小数（DECIMAL(5,4)）
+     * <p>
+     * 处理规则：
+     * <ul>
+     *   <li>如果值为 null，返回 BigDecimal.ZERO</li>
+     *   <li>如果值 < 0，返回 BigDecimal.ZERO</li>
+     *   <li>如果值 > 1，返回 BigDecimal.ONE（并记录警告日志）</li>
+     *   <li>否则，保留4位小数并返回</li>
+     * </ul>
+     * </p>
+     * 
+     * @param rate 原始比率值
+     * @return 规范化后的比率值（0-1之间，精度4位小数）
+     */
+    private BigDecimal normalizeRate(BigDecimal rate) {
+        if (rate == null) {
+            return BigDecimal.ZERO;
+        }
+        
+        // 如果值小于0，返回0
+        if (rate.compareTo(BigDecimal.ZERO) < 0) {
+            log.warn("[FactoryShiftMetricsSummaryService] 比率值为负数，已规范化为0: rate={}", rate);
+            return BigDecimal.ZERO;
+        }
+        
+        // 如果值大于1，返回1（并记录警告）
+        if (rate.compareTo(BigDecimal.ONE) > 0) {
+            log.warn("[FactoryShiftMetricsSummaryService] 比率值大于1，已规范化为1: rate={}", rate);
+            return BigDecimal.ONE;
+        }
+        
+        // 保留4位小数（DECIMAL(5,4)）
+        return rate.setScale(4, RoundingMode.HALF_UP);
     }
 
     /**

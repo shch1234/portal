@@ -69,38 +69,53 @@ public class DeviceProgramEventHandler implements WebhookEventHandler {
      */
     @Override
     public void handleRealtime(WebhookRequest request) throws Exception {
-        Map<String, Object> eventData = request.getEventData();
-        // 解析设备标识（按 deviceCode / deviceId 解析为 portal 的 deviceInfoId / factoryId）
-        DeviceIdentity identity = 
-                webhookHandlerUtils.resolveDeviceIdentity(request);
-        Long deviceInfoId = identity.deviceInfoId();
-        Long orgFactoryId = identity.orgFactoryId();
+        try {
+            Map<String, Object> eventData = request.getEventData();
+            
+            // 解析设备标识（按 deviceCode / deviceId 解析为 portal 的 deviceInfoId / factoryId）
+            DeviceIdentity identity = 
+                    webhookHandlerUtils.resolveDeviceIdentity(request);
+            Long deviceInfoId = identity.deviceInfoId();
+            Long orgFactoryId = identity.orgFactoryId();
 
-        // 解析时间戳
-        Long eventTimestamp = request.getDataTimestamp() != null
-                ? request.getDataTimestamp()
-                : request.getTimestamp();
-        if (eventTimestamp == null) {
-            eventTimestamp = System.currentTimeMillis();
+            // 解析时间戳
+            Long eventTimestamp = request.getDataTimestamp() != null
+                    ? request.getDataTimestamp()
+                    : request.getTimestamp();
+            if (eventTimestamp == null) {
+                eventTimestamp = System.currentTimeMillis();
+            }
+
+            // 提取程序相关字段
+            Map<String, Object> programFields = extractProgramFields(eventData);
+            
+            if (programFields.isEmpty()) {
+                log.warn("[DeviceProgramEventHandler] DEVICE_PROGRAM 事件未包含程序字段，跳过写入: deviceInfoId={}, eventDataKeys={}", 
+                        deviceInfoId, eventData != null ? eventData.keySet() : "null");
+                return;
+            }
+
+            // 转换为String类型的Map（Redis Hash需要String类型）
+            Map<String, String> programData = new HashMap<>();
+            programFields.forEach((k, v) -> programData.put(k, String.valueOf(v)));
+
+            // 如果只有programPath而没有programName，从programPath中提取文件名作为programName
+            if (!programData.containsKey(DeviceProgramEventFields.PROGRAM_NAME) 
+                    && programData.containsKey(DeviceProgramEventFields.PROGRAM_PATH)) {
+                String programPath = programData.get(DeviceProgramEventFields.PROGRAM_PATH);
+                String extractedProgramName = extractProgramNameFromPath(programPath);
+                if (extractedProgramName != null) {
+                    programData.put(DeviceProgramEventFields.PROGRAM_NAME, extractedProgramName);
+                }
+            }
+            
+            deviceProgramCacheService.saveProgram(orgFactoryId, deviceInfoId, programData,
+                    eventTimestamp, DeviceProgramEventFields.SOURCE_TB, request.getMessageId());
+        } catch (Exception e) {
+            log.error("[DeviceProgramEventHandler] 处理DEVICE_PROGRAM事件异常: messageId={}, error={}", 
+                    request != null ? request.getMessageId() : null, e.getMessage(), e);
+            throw e;
         }
-
-        // 提取程序相关字段
-        Map<String, Object> programFields = extractProgramFields(eventData);
-        if (programFields.isEmpty()) {
-            log.warn("[DeviceProgramEventHandler] DEVICE_PROGRAM 事件未包含程序字段，跳过写入: deviceInfoId={}", deviceInfoId);
-            return;
-        }
-
-        // 转换为String类型的Map（Redis Hash需要String类型）
-        Map<String, String> programData = new HashMap<>();
-        programFields.forEach((k, v) -> programData.put(k, String.valueOf(v)));
-
-        // 写入Redis缓存
-        deviceProgramCacheService.saveProgram(orgFactoryId, deviceInfoId, programData,
-                eventTimestamp, DeviceProgramEventFields.SOURCE_TB, request.getMessageId());
-        
-        log.debug("[DeviceProgramEventHandler] 程序信息已写入缓存: deviceInfoId={}, programName={}", 
-                deviceInfoId, programData.get(DeviceProgramEventFields.PROGRAM_NAME));
     }
 
     /**
@@ -147,5 +162,35 @@ public class DeviceProgramEventHandler implements WebhookEventHandler {
             }
         });
         return programMap;
+    }
+
+    /**
+     * 从程序路径中提取程序名称
+     * <p>
+     * 例如：
+     * - "/path/to/program.nc" -> "program.nc"
+     * - "C:\\path\\to\\program.nc" -> "program.nc"
+     * - "program.nc" -> "program.nc"
+     * </p>
+     *
+     * @param programPath 程序路径
+     * @return 程序名称，如果无法提取则返回null
+     */
+    private String extractProgramNameFromPath(String programPath) {
+        if (programPath == null || programPath.trim().isEmpty()) {
+            return null;
+        }
+        
+        // 处理Windows路径（反斜杠）和Unix路径（正斜杠）
+        String normalizedPath = programPath.replace('\\', '/');
+        
+        // 提取最后一个斜杠后的文件名
+        int lastSlashIndex = normalizedPath.lastIndexOf('/');
+        if (lastSlashIndex >= 0 && lastSlashIndex < normalizedPath.length() - 1) {
+            return normalizedPath.substring(lastSlashIndex + 1);
+        }
+        
+        // 如果没有斜杠，直接返回原字符串（可能是文件名）
+        return normalizedPath;
     }
 }

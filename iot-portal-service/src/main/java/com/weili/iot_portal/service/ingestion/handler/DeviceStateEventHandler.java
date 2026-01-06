@@ -622,6 +622,12 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
     /**
      * 创建状态记录（支持跨班次截断）
      * 如果状态跨班次，会自动按班次截断为多条记录
+     * <p>
+     * 改进点：
+     * 1. 对进行中的状态（endTs = null）也进行跨班次检查，避免插入跨多个班次的记录
+     * 2. 最大持续时间限制为一个班次时长，超过后自动截断到班次结束时间
+     * 3. 增强数据验证，确保数据质量
+     * </p>
      *
      * @param deviceInfoId 设备ID
      * @param orgFactoryId 工厂ID
@@ -635,23 +641,139 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
     private List<DeviceStateRecordDO> createStateRecords(Long deviceInfoId, Long orgFactoryId,
                                                            Integer stateCode, Long startTs, Long endTs,
                                                            boolean isComplete, Map<String, Object> properties) {
-        // 如果结束时间为null（进行中的状态），不进行截断
+        // 数据验证
+        if (startTs == null) {
+            log.error("[DeviceStateEventHandler] startTs cannot be null: deviceId={}, stateCode={}", 
+                    deviceInfoId, stateCode);
+            throw new IllegalArgumentException("startTs cannot be null");
+        }
+        
+        // 获取状态开始时间所在的班次，用于计算班次时长
+        ShiftTimeRange startShift = shiftCalculationService.calculateShiftRange(orgFactoryId, deviceInfoId, startTs);
+        if (startShift == null || startShift.getEndTs() == null) {
+            log.warn("[DeviceStateEventHandler] 无法计算班次范围，使用默认处理: deviceId={}, stateCode={}, startTs={}",
+                    deviceInfoId, stateCode, startTs);
+            // 如果无法计算班次，回退到原有逻辑（不进行班次时长限制）
+            return createStateRecordsWithoutShiftLimit(deviceInfoId, orgFactoryId, stateCode, startTs, endTs, isComplete, properties);
+        }
+        
+        long shiftDurationMs = startShift.getEndTs() - startShift.getStartTs();
+        long shiftEndTs = startShift.getEndTs();
+        
+        long currentTime = System.currentTimeMillis();
+        long effectiveEndTs = endTs != null ? endTs : currentTime;
+        long duration = effectiveEndTs - startTs;
+        
+        // 如果结束时间为null（进行中的状态），使用当前时间检查跨班次和班次时长限制
+        if (endTs == null) {
+            // 检查是否超过班次时长或班次已结束
+            // 如果超过班次时长，应该已经跨班次了，需要截断
+            if (duration > shiftDurationMs || currentTime > shiftEndTs) {
+                if (currentTime > shiftEndTs) {
+                    // 开始时间所在的班次已经结束，必须截断
+                    log.info("[DeviceStateEventHandler] 进行中的状态所在班次已结束，需要截断: deviceId={}, stateCode={}, " +
+                                    "startTs={}, shiftEndTs={}, currentTime={}",
+                            deviceInfoId, stateCode, startTs, shiftEndTs, currentTime);
+                    effectiveEndTs = shiftEndTs;  // 先截断到开始时间所在班次的结束时间
+                } else {
+                    // 持续时间超过班次时长，截断到班次结束时间
+                    log.warn("[DeviceStateEventHandler] 进行中的状态持续时间超过班次时长，截断到班次结束: deviceId={}, stateCode={}, " +
+                                    "startTs={}, duration={}ms ({}小时), shiftDuration={}ms ({}小时), shiftEndTs={}",
+                            deviceInfoId, stateCode, startTs, duration, 
+                            duration / (60L * 60 * 1000), shiftDurationMs, shiftDurationMs / (60L * 60 * 1000), shiftEndTs);
+                    effectiveEndTs = shiftEndTs;
+                }
+            }
+            
+            // 检查是否跨班次（使用当前时间或截断后的时间作为结束时间）
+            boolean crossesShift = shiftCalculationService.checkIfCrossesShift(
+                    orgFactoryId, deviceInfoId, startTs, effectiveEndTs);
+            
+            if (crossesShift) {
+                // 跨班次：截断到当前班次
+                // 注意：截断后的最后一条记录仍然是进行中的状态（endTs = null）
+                log.info("[DeviceStateEventHandler] 进行中的状态跨班次，截断到当前班次: deviceId={}, stateCode={}, " +
+                                "startTs={}, effectiveEndTs={}",
+                        deviceInfoId, stateCode, startTs, effectiveEndTs);
+                List<DeviceStateRecordDO> records = splitByShift(deviceInfoId, orgFactoryId, stateCode, 
+                        startTs, effectiveEndTs, properties);
+                
+                // 将最后一条记录的endTs设置为null（表示进行中）
+                if (!records.isEmpty()) {
+                    DeviceStateRecordDO lastRecord = records.get(records.size() - 1);
+                    lastRecord.setEndTs(null);
+                    lastRecord.setDurationS(null);
+                    lastRecord.setIsComplete(false);
+                }
+                
+                return records;
+            }
+            
+            // 不跨班次：检查是否超过班次时长
+            // 如果超过班次时长但未跨班次（理论上不应该发生，但为了安全起见），截断到班次结束时间
+            if (duration > shiftDurationMs) {
+                log.warn("[DeviceStateEventHandler] 进行中的状态持续时间超过班次时长但未跨班次，截断到班次结束: deviceId={}, stateCode={}, " +
+                                "startTs={}, duration={}ms ({}小时), shiftDuration={}ms ({}小时)",
+                        deviceInfoId, stateCode, startTs, duration, 
+                        duration / (60L * 60 * 1000), shiftDurationMs, shiftDurationMs / (60L * 60 * 1000));
+                // 创建一条结束的记录（到班次结束时间），然后创建一条新的进行中的记录（从班次结束时间开始）
+                DeviceStateRecordDO endedRecord = createSingleStateRecord(deviceInfoId, orgFactoryId, stateCode,
+                        startTs, shiftEndTs, true, properties);
+                DeviceStateRecordDO ongoingRecord = createSingleStateRecord(deviceInfoId, orgFactoryId, stateCode,
+                        shiftEndTs, null, false, properties);
+                return Arrays.asList(endedRecord, ongoingRecord);
+            }
+            
+            // 不跨班次且未超过班次时长：创建单条记录（endTs仍为null，表示进行中）
+            DeviceStateRecordDO record = createSingleStateRecord(deviceInfoId, orgFactoryId, stateCode,
+                    startTs, null, false, properties);
+            return Collections.singletonList(record);
+        }
+        
+        // 原有逻辑：endTs != null 的情况
+        // 检查是否超过班次时长，如果超过则截断到班次结束时间
+        if (duration > shiftDurationMs) {
+            log.warn("[DeviceStateEventHandler] 状态持续时间超过班次时长，截断到班次结束: deviceId={}, stateCode={}, " +
+                            "startTs={}, originalEndTs={}, duration={}ms ({}小时), shiftDuration={}ms ({}小时), shiftEndTs={}",
+                    deviceInfoId, stateCode, startTs, endTs, duration, 
+                    duration / (60L * 60 * 1000), shiftDurationMs, shiftDurationMs / (60L * 60 * 1000), shiftEndTs);
+            effectiveEndTs = shiftEndTs;
+        }
+
+        // 原有逻辑：endTs != null 的情况
+        // 使用截断后的结束时间
+        boolean crossesShift = shiftCalculationService.checkIfCrossesShift(
+                orgFactoryId, deviceInfoId, startTs, effectiveEndTs);
+        if (!crossesShift) {
+            // 不跨班次：创建单条记录
+            DeviceStateRecordDO record = createSingleStateRecord(deviceInfoId, orgFactoryId, stateCode,
+                    startTs, effectiveEndTs, isComplete, properties);
+            return Collections.singletonList(record);
+        }
+
+        // 跨班次：按班次截断
+        return splitByShift(deviceInfoId, orgFactoryId, stateCode, startTs, effectiveEndTs, properties);
+    }
+    
+    /**
+     * 创建状态记录（不进行班次时长限制，用于无法计算班次时的回退处理）
+     */
+    private List<DeviceStateRecordDO> createStateRecordsWithoutShiftLimit(Long deviceInfoId, Long orgFactoryId,
+                                                                           Integer stateCode, Long startTs, Long endTs,
+                                                                           boolean isComplete, Map<String, Object> properties) {
         if (endTs == null) {
             DeviceStateRecordDO record = createSingleStateRecord(deviceInfoId, orgFactoryId, stateCode,
                     startTs, null, false, properties);
             return Collections.singletonList(record);
         }
 
-        // 检查是否跨班次
         boolean crossesShift = shiftCalculationService.checkIfCrossesShift(orgFactoryId, deviceInfoId, startTs, endTs);
         if (!crossesShift) {
-            // 不跨班次：创建单条记录
             DeviceStateRecordDO record = createSingleStateRecord(deviceInfoId, orgFactoryId, stateCode,
                     startTs, endTs, isComplete, properties);
             return Collections.singletonList(record);
         }
 
-        // 跨班次：按班次截断
         return splitByShift(deviceInfoId, orgFactoryId, stateCode, startTs, endTs, properties);
     }
 

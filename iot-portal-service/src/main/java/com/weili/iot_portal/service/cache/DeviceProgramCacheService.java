@@ -45,17 +45,25 @@ public class DeviceProgramCacheService {
     public void saveProgram(Long factoryId, Long deviceId, Map<String, String> programData,
                             long updatedAt, String source, String traceId) {
         if (programData == null || programData.isEmpty()) {
+            log.warn("[DeviceProgramCacheService] 程序数据为空，跳过写入: factoryId={}, deviceId={}", factoryId, deviceId);
             return;
         }
-        Map<String, String> payload = new HashMap<>(programData);
-        payload.put("updatedAt", String.valueOf(updatedAt));
-        payload.put("source", source);
-        if (StringUtils.isNotBlank(traceId)) {
-            payload.put("traceId", traceId);
+        try {
+            Map<String, String> payload = new HashMap<>(programData);
+            payload.put("updatedAt", String.valueOf(updatedAt));
+            payload.put("source", source);
+            if (StringUtils.isNotBlank(traceId)) {
+                payload.put("traceId", traceId);
+            }
+            String key = buildProgramKey(factoryId, deviceId);
+            
+            redisTemplate.opsForHash().putAll(key, payload);
+            redisTemplate.expire(key, Duration.ofMillis(programTtlMillis));
+        } catch (Exception e) {
+            log.error("[DeviceProgramCacheService] 写入Redis缓存失败: factoryId={}, deviceId={}, error={}", 
+                    factoryId, deviceId, e.getMessage(), e);
+            throw e;
         }
-        String key = buildProgramKey(factoryId, deviceId);
-        redisTemplate.opsForHash().putAll(key, payload);
-        redisTemplate.expire(key, Duration.ofMillis(programTtlMillis));
     }
 
     /**
