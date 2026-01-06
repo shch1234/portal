@@ -72,7 +72,7 @@ public class DeviceAlarmEventHandler implements WebhookEventHandler {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void handle(WebhookInboxDO inbox, WebhookRequest request) throws Exception {
-        log.info("[Webhook-Handler-DeviceAlarm] 处理设备报警事件: messageId={}, eventType={}, deviceCode={}",
+        log.debug("[Webhook-Handler-DeviceAlarm] 处理设备报警事件: messageId={}, eventType={}, deviceCode={}",
                 request.getMessageId(), request.getEventType(), request.getDeviceCode());
 
         // 1. 解析事件数据
@@ -532,7 +532,7 @@ public class DeviceAlarmEventHandler implements WebhookEventHandler {
         }
 
         if (eventData.currentAlarms().isEmpty()) {
-            log.info("[DeviceAlarmEventHandler] 数据库无记录但当前报警数组为空，跳过处理: deviceInfoId={}", deviceInfoId);
+            log.debug("[DeviceAlarmEventHandler] 数据库无记录但当前报警数组为空，跳过处理: deviceInfoId={}", deviceInfoId);
             return;
         }
 

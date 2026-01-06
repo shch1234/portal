@@ -31,7 +31,8 @@ public class DeviceModelBizService implements IDeviceModelBizService {
     public Long createDeviceModel(DeviceModelSaveReqVO createReqVO) {
         // 验证型号编码唯一性
         validateModelCodeUnique(null, createReqVO.getModelCode());
-
+        //验证设备类型编码
+        validateDeviceTypeCode(createReqVO);
         DeviceModelDO deviceModel = BeanUtils.toBean(createReqVO, DeviceModelDO.class);
         deviceModelRepository.insert(deviceModel);
         return deviceModel.getId();
@@ -44,9 +45,19 @@ public class DeviceModelBizService implements IDeviceModelBizService {
         validateDeviceModelExists(updateReqVO.getId());
         // 验证型号编码唯一性
         validateModelCodeUnique(updateReqVO.getId(), updateReqVO.getModelCode());
-
+        //验证设备类型编码
+        validateDeviceTypeCode(updateReqVO);
         DeviceModelDO deviceModel = BeanUtils.toBean(updateReqVO, DeviceModelDO.class);
         deviceModelRepository.update(deviceModel);
+    }
+
+    private void validateDeviceTypeCode(DeviceModelSaveReqVO updateReqVO) {
+        if (updateReqVO.getDeviceTypeCode().contains(",")) {
+            String[] split = updateReqVO.getDeviceTypeCode().split(",");
+            split[0] = split[0].trim(); //父
+            split[1] = split[1].trim(); //子
+            updateReqVO.setDeviceTypeCode(split[1]);
+        }
     }
 
     @Override

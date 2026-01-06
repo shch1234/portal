@@ -119,7 +119,9 @@ public class UserRoleBizService implements IUserRoleBizService {
     }
 
     @Override
+    @Transactional
     public void insertUserRole(List<Long> userIds, List<Long> roleIds) {
+        userRoleRepository.deleteListByUserIds(userIds);//先删除后新增
         List<UserRoleDO> userRoleList = getUserRoleList(userIds, roleIds);
         userRoleRepository.batchCreate(userRoleList);
     }

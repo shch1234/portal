@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -60,7 +61,7 @@ public class DeviceTypeRelationBizService implements IDeviceTypeRelationBizServi
         }
 
         DeviceTypeRelationDO deviceTypeRelation = BeanUtils.toBean(updateReqVO, DeviceTypeRelationDO.class);
-        if (!existing.getParentTypeId().equals(updateReqVO.getParentTypeId())) {
+        if (!Objects.equals(existing.getParentTypeId(), updateReqVO.getParentTypeId())) {
             deviceTypeRelation.setPath(buildPath(deviceTypeRelation.getParentTypeId()) + "/" + deviceTypeRelation.getId());
             // 更新所有子节点的路径
             updateChildrenPaths(deviceTypeRelation.getId(), deviceTypeRelation.getPath());

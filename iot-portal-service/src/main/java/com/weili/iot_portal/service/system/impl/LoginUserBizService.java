@@ -22,6 +22,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
@@ -96,7 +97,12 @@ public class LoginUserBizService implements ILoginUserBizService {
         if (CollectionUtils.isEmpty(pageResult.getList())) {
             return PageResult.empty();
         }
-        List<LoginUserDO> resultList = pageResult.getList();
-        return PageResult.buildSuccess(pageResult.getTotal(), BeanUtils.toBean(resultList, LoginUserRespVO.class));
+        List<LoginUserRespVO> list = new ArrayList<>();
+        for (LoginUserDO user : pageResult.getList()) {
+            LoginUserRespVO userRespVO = BeanUtils.toBean(user, LoginUserRespVO.class);
+            userRespVO.setUserName(user.getUsername());
+            list.add(userRespVO);
+        }
+        return PageResult.buildSuccess(pageResult.getTotal(), list);
     }
 }

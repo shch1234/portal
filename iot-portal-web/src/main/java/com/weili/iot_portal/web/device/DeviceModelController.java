@@ -4,16 +4,19 @@ import com.weili.basic.common.model.CommonResult;
 import com.weili.basic.common.model.PageResult;
 import com.weili.basic.common.util.BeanUtils;
 import com.weili.iot_portal.dal.dataobject.device.DeviceModelDO;
+import com.weili.iot_portal.dal.dataobject.device.DeviceTypeRelationDO;
 import com.weili.iot_portal.domain.device.req.DeviceModelPageReqVO;
 import com.weili.iot_portal.domain.device.req.DeviceModelSaveReqVO;
 import com.weili.iot_portal.domain.device.resp.DeviceModelRespVO;
 import com.weili.iot_portal.service.device.IDeviceModelBizService;
+import com.weili.iot_portal.service.device.IDeviceTypeRelationBizService;
 import com.weili.iot_portal.web.annotation.PermRequired;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
@@ -28,6 +31,8 @@ public class DeviceModelController {
 
     @Resource
     private IDeviceModelBizService deviceModelBizService;
+    @Resource
+    private IDeviceTypeRelationBizService deviceTypeRelationBizService;
 
     @PostMapping("/create")
     @Operation(summary = "创建设备型号")
@@ -59,7 +64,19 @@ public class DeviceModelController {
     @Parameter(name = "id", description = "设备型号ID", required = true, example = "123456789")
     public CommonResult<DeviceModelRespVO> getDeviceModel(@RequestParam("id") Long id) {
         DeviceModelDO deviceModel = deviceModelBizService.getDeviceModel(id);
-        return CommonResult.success(BeanUtils.toBean(deviceModel, DeviceModelRespVO.class));
+        DeviceModelRespVO deviceModelRespVO = BeanUtils.toBean(deviceModel, DeviceModelRespVO.class);
+        //组织父子类型
+        String deviceTypeCode = deviceModel.getDeviceTypeCode();
+        DeviceTypeRelationDO typeRelationDO = deviceTypeRelationBizService.getDeviceTypeRelationByCode(deviceTypeCode);
+        if (typeRelationDO != null) {
+            String typeCode = typeRelationDO.getTypeCode();
+            String parentTypeCode = typeRelationDO.getParentTypeCode();
+            if (StringUtils.isNotBlank(parentTypeCode)) {
+                deviceTypeCode = parentTypeCode + "," + typeCode;
+            }
+        }
+        deviceModelRespVO.setDeviceTypeCode(deviceTypeCode);
+        return CommonResult.success(deviceModelRespVO);
     }
 
     @GetMapping("/page")

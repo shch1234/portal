@@ -25,4 +25,10 @@ public class RolePageReqVO extends PageParam {
     @DateTimeFormat(pattern = DateUtils.FORMAT_YEAR_MONTH_DAY_HOUR_MINUTE_SECOND)
     private LocalDateTime[] createTime;
 
+    @Schema(description = "状态，参见 CommonStatusEnum 枚举类")
+    private Integer status;
+
+    @Schema(description = "编码，模糊匹配")
+    private String code;
+
 }

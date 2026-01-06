@@ -89,7 +89,7 @@ public class DeviceMetricsService implements IDeviceMetricsService {
         int skippedCount = allDevices.size() - (int) filtered;
         if (skippedCount > 0) {
             skip += skippedCount;
-            log.info("实时指标计算: 总设备数={}, 符合条件设备数={}, 已跳过={} (未监控/非在用/未关联工厂)", 
+            log.debug("实时指标计算: 总设备数={}, 符合条件设备数={}, 已跳过={} (未监控/非在用/未关联工厂)",
                     allDevices.size(), filtered, skippedCount);
         }
 
@@ -208,13 +208,13 @@ public class DeviceMetricsService implements IDeviceMetricsService {
         List<DeviceInfoDO> validDevices = filterValidDevices(allDevices);
 
         if (validDevices.isEmpty()) {
-            log.info("实时指标计算: 没有符合条件的设备需要处理");
+            log.debug("实时指标计算: 没有符合条件的设备需要处理");
             return MetricsCalculationResult.of(0, 0);
         }
 
         int skippedCount = allDevices.size() - validDevices.size();
         if (skippedCount > 0) {
-            log.info("实时指标计算: 总设备数={}, 符合条件设备数={}, 已跳过={} (未监控/非在用/未关联工厂)", 
+            log.debug("实时指标计算: 总设备数={}, 符合条件设备数={}, 已跳过={} (未监控/非在用/未关联工厂)",
                     allDevices.size(), validDevices.size(), skippedCount);
         }
 
