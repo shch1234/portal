@@ -1,8 +1,13 @@
 package com.weili.iot_portal.service.device.impl;
 
+import com.weili.iot_portal.common.exception.IotPortalErrorCode;
+import com.weili.iot_portal.common.exception.IotPortalException;
+import com.weili.iot_portal.dal.dataobject.device.DeviceInfoDO;
 import com.weili.iot_portal.domain.device.resp.DeviceProgramRespVO;
 import com.weili.iot_portal.service.cache.DeviceProgramCacheService;
+import com.weili.iot_portal.service.device.IDeviceInfoBizService;
 import com.weili.iot_portal.service.device.IDeviceProgramBizService;
+import jakarta.annotation.Resource;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -15,15 +20,30 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class DeviceProgramBizService implements IDeviceProgramBizService {
 
-    private final DeviceProgramCacheService deviceProgramCacheService;
+    @Resource
+    private IDeviceInfoBizService deviceInfoBizService;
+    @Resource
+    private DeviceProgramCacheService deviceProgramCacheService;
 
     @Override
     public DeviceProgramRespVO getDeviceProgram(Long deviceId) {
-        // 从Redis缓存获取程序信息
-        Map<Object, Object> programData = deviceProgramCacheService.getProgram(null, deviceId);
+        // 查询设备信息，获取factoryId（Redis key需要factoryId）
+        DeviceInfoDO deviceInfo = deviceInfoBizService.getDeviceInfo(deviceId);
+        if (deviceInfo == null) {
+            log.warn("[DeviceProgramBizService] 设备不存在: deviceId={}", deviceId);
+            throw new IotPortalException(IotPortalErrorCode.DEVICE_INFO_NOT_FOUND, "设备不存在");
+        }
+        
+        Long factoryId = deviceInfo.getOrgFactoryId();
+        if (factoryId == null) {
+            log.warn("[DeviceProgramBizService] 设备未关联工厂，无法查询程序信息: deviceId={}", deviceId);
+            return null;
+        }
+        
+        // 从Redis缓存获取程序信息（使用正确的factoryId）
+        Map<Object, Object> programData = deviceProgramCacheService.getProgram(factoryId, deviceId);
 
         if (programData == null || programData.isEmpty()) {
             log.debug("设备程序信息缓存为空: deviceId={}", deviceId);
