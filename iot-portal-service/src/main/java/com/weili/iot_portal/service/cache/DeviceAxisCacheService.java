@@ -167,7 +167,7 @@ public class DeviceAxisCacheService {
      * @return Redis 键
      */
     private String buildCurveKey(Long factoryId, Long deviceId, String metric) {
-        return String.format("rt:axis:curve:%s:%s:%s",
+        return String.format(RedisConstant.RT_AXIS_CURVE,
                 metric, factoryId, deviceId);
     }
 }

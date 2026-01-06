@@ -1,6 +1,7 @@
 package com.weili.iot_portal.service.config;
 
 import com.weili.basic.redis.client.RedisClient;
+import com.weili.iot_portal.common.constant.RedisConstant;
 import com.weili.iot_portal.domain.ingestion.CheckpointData;
 import com.weili.iot_portal.service.device.ICheckpointService;
 import com.weili.iot_portal.service.device.impl.GenericCheckpointService;
@@ -24,7 +25,7 @@ public class CheckpointServiceConfig {
             @Value("${shift.summary.checkpoint-ttl-seconds:86400}") long ttlSeconds) {
         return new GenericCheckpointService(
                 redisClient,
-                "device_state_summary:checkpoint:",
+                RedisConstant.CHECKPOINT_DEVICE_STATE_SUMMARY,
                 ttlSeconds
         );
     }
@@ -38,7 +39,7 @@ public class CheckpointServiceConfig {
             @Value("${rt.metrics.checkpoint-ttl-seconds:3600}") long ttlSeconds) {
         return new GenericCheckpointService(
                 redisClient,
-                "device_metrics:checkpoint:",
+                RedisConstant.CHECKPOINT_DEVICE_METRICS,
                 ttlSeconds
         );
     }
@@ -52,7 +53,7 @@ public class CheckpointServiceConfig {
             @Value("${metrics.summary.checkpoint-ttl-seconds:86400}") long ttlSeconds) {
         return new GenericCheckpointService(
                 redisClient,
-                "device_metrics_summary:checkpoint:",
+                RedisConstant.CHECKPOINT_DEVICE_METRICS_SUMMARY,
                 ttlSeconds
         );
     }
@@ -66,7 +67,7 @@ public class CheckpointServiceConfig {
             @Value("${production.summary.checkpoint-ttl-seconds:86400}") long ttlSeconds) {
         return new GenericCheckpointService(
                 redisClient,
-                "device_production_summary:checkpoint:",
+                RedisConstant.CHECKPOINT_DEVICE_PRODUCTION_SUMMARY,
                 ttlSeconds
         );
     }
@@ -80,7 +81,7 @@ public class CheckpointServiceConfig {
             @Value("${factory.metrics.checkpoint-ttl-seconds:3600}") long ttlSeconds) {
         return new GenericCheckpointService(
                 redisClient,
-                "factory_metrics:checkpoint:",
+                RedisConstant.CHECKPOINT_FACTORY_METRICS,
                 ttlSeconds
         );
     }
@@ -94,7 +95,7 @@ public class CheckpointServiceConfig {
             @Value("${factory.metrics.summary.checkpoint-ttl-seconds:86400}") long ttlSeconds) {
         return new GenericCheckpointService(
                 redisClient,
-                "factory_metrics_summary:checkpoint:",
+                RedisConstant.CHECKPOINT_FACTORY_METRICS_SUMMARY,
                 ttlSeconds
         );
     }

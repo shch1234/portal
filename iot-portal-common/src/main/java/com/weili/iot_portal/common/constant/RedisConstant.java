@@ -27,6 +27,10 @@ public class RedisConstant {
      */
     public static final String RT_AXIS = COMMON + "rt:axis:%s:%s";
     /**
+     * 实时数据：轴曲线数据（List，按指标名称分组，如 feed、rpm、load）
+     */
+    public static final String RT_AXIS_CURVE = COMMON + "rt:axis:curve:%s:%s:%s";
+    /**
      * 实时数据：刀具信息（Hash）
      */
     public static final String RT_TOOL = COMMON + "rt:tool:%s:%s";
@@ -47,6 +51,39 @@ public class RedisConstant {
      */
     public static final String COMPENSATION_ACTIVE = COMMON + "compensation:active:%s";
 
+    /**
+     * 检查点服务：设备状态汇总检查点
+     */
+    public static final String CHECKPOINT_DEVICE_STATE_SUMMARY = COMMON + "device_state_summary:checkpoint:";
+    /**
+     * 检查点服务：设备指标计算检查点
+     */
+    public static final String CHECKPOINT_DEVICE_METRICS = COMMON + "device_metrics:checkpoint:";
+    /**
+     * 检查点服务：设备指标汇总检查点
+     */
+    public static final String CHECKPOINT_DEVICE_METRICS_SUMMARY = COMMON + "device_metrics_summary:checkpoint:";
+    /**
+     * 检查点服务：设备产量汇总检查点
+     */
+    public static final String CHECKPOINT_DEVICE_PRODUCTION_SUMMARY = COMMON + "device_production_summary:checkpoint:";
+    /**
+     * 检查点服务：工厂实时指标检查点
+     */
+    public static final String CHECKPOINT_FACTORY_METRICS = COMMON + "factory_metrics:checkpoint:";
+    /**
+     * 检查点服务：工厂班次指标汇总检查点
+     */
+    public static final String CHECKPOINT_FACTORY_METRICS_SUMMARY = COMMON + "factory_metrics_summary:checkpoint:";
+
+    /**
+     * Webhook 幂等性缓存键前缀
+     */
+    public static final String WEBHOOK_IDEMPOTENT = COMMON + "webhook:idempotent:";
+    /**
+     * Webhook 实时数据缓存键格式（String，按设备编码和事件类型）
+     */
+    public static final String WEBHOOK_REALTIME_DEVICE = COMMON + "realtime:device:%s:%s";
 
     /**
      * 设备状态锁键前缀

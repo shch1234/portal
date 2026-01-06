@@ -1,6 +1,7 @@
 package com.weili.iot_portal.service.ingestion.support;
 
 import com.weili.basic.common.util.JsonUtils;
+import com.weili.iot_portal.common.constant.RedisConstant;
 import com.weili.iot_portal.domain.ingestion.WebhookRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -36,7 +37,7 @@ public class RealtimeWebhookCacheService {
     }
 
     private String buildKey(String deviceCode, String eventType) {
-        return String.format("realtime:device:%s:%s", deviceCode, eventType);
+        return String.format(RedisConstant.WEBHOOK_REALTIME_DEVICE, deviceCode, eventType);
     }
 }
 

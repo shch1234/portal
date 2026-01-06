@@ -89,13 +89,6 @@ public final class DeviceAxisEventFields {
      */
     public static final String METRIC_FEED = "feed";
 
-    // ==================== Redis Key 格式 ====================
-    /**
-     * 轴曲线 Redis Key 格式
-     * 格式：rt:axis:curve:{metric}:{factoryId}:{deviceId}
-     */
-    public static final String CURVE_KEY_FORMAT = "rt:axis:curve:%s:%s:%s";
-
     // ==================== 默认值 ====================
     /**
      * 默认空值占位符

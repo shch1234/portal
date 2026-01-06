@@ -1,5 +1,6 @@
 package com.weili.iot_portal.service.ingestion.support;
 
+import com.weili.iot_portal.common.constant.RedisConstant;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,8 +24,6 @@ import java.time.Duration;
 @Slf4j
 @Component
 public class WebhookIdempotentService {
-
-    private static final String KEY_PREFIX = "webhook:idempotent:";
     
     /**
      * 幂等性缓存 TTL（秒）
@@ -96,7 +95,7 @@ public class WebhookIdempotentService {
         if (StringUtils.isBlank(messageId)) {
             return true;
         }
-        String key = KEY_PREFIX + messageId;
+        String key = RedisConstant.WEBHOOK_IDEMPOTENT + messageId;
         Boolean success = redisTemplate.opsForValue()
                 .setIfAbsent(key, "1", Duration.ofSeconds(ttlSeconds));
         return Boolean.TRUE.equals(success);

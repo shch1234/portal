@@ -124,22 +124,40 @@ public class DeviceToolCacheService {
 
     /**
      * 获取刀具编号
+     * <p>
+     * 从缓存的 JSON 数据中提取 toolNo
+     * </p>
      *
      * @param factoryId 工厂ID
      * @param deviceId  设备ID
      * @return 刀具编号，如果不存在返回 null
      */
     public String getToolNo(Long factoryId, Long deviceId) {
-        String key = buildToolKey(factoryId, deviceId);
-        Object value = redisTemplate.opsForHash().get(key, DeviceToolEventFields.TOOL_NO);
-        return String.valueOf(value);
+        Map<String, Object> toolData = getTool(factoryId, deviceId);
+        if (toolData == null) {
+            return null;
+        }
+        Object toolNoObj = toolData.get(DeviceToolEventFields.TOOL_NO);
+        return toolNoObj != null ? String.valueOf(toolNoObj) : null;
     }
 
-
+    /**
+     * 获取刀补号
+     * <p>
+     * 从缓存的 JSON 数据中提取 holderNumber
+     * </p>
+     *
+     * @param factoryId 工厂ID
+     * @param deviceId  设备ID
+     * @return 刀补号，如果不存在返回 null
+     */
     public String getToolHolderNo(Long factoryId, Long deviceId) {
-        String key = buildToolKey(factoryId, deviceId);
-        Object value = redisTemplate.opsForHash().get(key, DeviceToolEventFields.HOLDER_NUMBER);
-        return String.valueOf(value);
+        Map<String, Object> toolData = getTool(factoryId, deviceId);
+        if (toolData == null) {
+            return null;
+        }
+        Object holderNoObj = toolData.get(DeviceToolEventFields.HOLDER_NUMBER);
+        return holderNoObj != null ? String.valueOf(holderNoObj) : null;
     }
 
     // ==================== 刀补补偿缓存 ====================

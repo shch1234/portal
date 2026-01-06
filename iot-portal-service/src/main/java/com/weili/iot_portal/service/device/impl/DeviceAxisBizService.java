@@ -59,11 +59,15 @@ public class DeviceAxisBizService implements IDeviceAxisBizService {
         // 2. 解析轴坐标数据
         List<AxisCoordinate> axisCoordinates = parseAxisCoordinates(axisData);
 
-        // 3. 获取曲线数据（使用指定的聚合类型）
+        // 3. 提取倍率值
+        Integer ratio = extractRatio(axisData);
+
+        // 4. 获取曲线数据（使用指定的聚合类型）
         SpindleInfo spindleInfo = buildSpindleInfo(orgFactoryId, deviceInfoId, aggregationType);
         return DeviceAxisRespVO.builder()
                 .spindleInfo(spindleInfo)
                 .axisCoordinates(axisCoordinates)
+                .ratio(ratio)
                 .build();
     }
 
@@ -280,6 +284,42 @@ public class DeviceAxisBizService implements IDeviceAxisBizService {
             log.warn("解析曲线点紧凑格式失败: {}", compactFormat, e);
         }
         return null;
+    }
+
+    /**
+     * 提取倍率值
+     *
+     * @param axisData 轴数据映射
+     * @return 倍率值（整数，百分比），如果不存在返回 null
+     */
+    private Integer extractRatio(Map<Object, Object> axisData) {
+        Object ratioObj = axisData.get(DeviceAxisEventFields.RATIO);
+        if (ratioObj == null) {
+            return null;
+        }
+        try {
+            // 支持多种数据类型：Integer, Long, String, BigDecimal
+            if (ratioObj instanceof Integer) {
+                return (Integer) ratioObj;
+            }
+            if (ratioObj instanceof Long) {
+                return ((Long) ratioObj).intValue();
+            }
+            if (ratioObj instanceof Number) {
+                return ((Number) ratioObj).intValue();
+            }
+            // 字符串类型，尝试解析
+            String ratioStr = String.valueOf(ratioObj).trim();
+            if (ratioStr.isEmpty()) {
+                return null;
+            }
+            // 如果是小数，转换为整数（例如 50.0 -> 50）
+            BigDecimal ratioDecimal = new BigDecimal(ratioStr);
+            return ratioDecimal.intValue();
+        } catch (Exception e) {
+            log.warn("解析倍率值失败: {}", ratioObj, e);
+            return null;
+        }
     }
 
     /**
