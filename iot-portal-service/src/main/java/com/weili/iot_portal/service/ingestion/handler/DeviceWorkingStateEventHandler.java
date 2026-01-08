@@ -7,14 +7,12 @@ import com.weili.iot_portal.dal.dataobject.device.DeviceProductionRecordDO;
 import com.weili.iot_portal.dal.dataobject.ingestion.WebhookInboxDO;
 import com.weili.iot_portal.dal.repository.device.DeviceProductionRecordRepository;
 import com.weili.iot_portal.domain.ingestion.DeviceIdentity;
-import com.weili.iot_portal.domain.ingestion.ShiftDateAndCode;
 import com.weili.iot_portal.domain.ingestion.WebhookRequest;
 import com.weili.iot_portal.service.cache.DeviceLockService;
 import com.weili.iot_portal.service.ingestion.WebhookEventHandler;
 import com.weili.iot_portal.service.ingestion.WebhookFailLogService;
 import com.weili.iot_portal.service.ingestion.WebhookProcessingStrategy;
 import com.weili.iot_portal.service.ingestion.handler.fields.DeviceWorkingStateEventFields;
-import com.weili.iot_portal.service.shift.IShiftCalculationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -46,8 +44,8 @@ public class DeviceWorkingStateEventHandler implements WebhookEventHandler {
     private final WebhookHandlerUtils webhookHandlerUtils;
     private final DeviceProductionRecordRepository deviceProductionRecordRepository;
     private final DeviceLockService deviceLockService;
-    private final IShiftCalculationService shiftCalculationService;
     private final WebhookFailLogService webhookFailLogService;
+    private final RecordHandlerUtils recordHandlerUtils;
 
     @Override
     public boolean supports(String eventType) {
@@ -312,9 +310,9 @@ public class DeviceWorkingStateEventHandler implements WebhookEventHandler {
             // 先结束未完成的记录
             ongoing.setEndTs(eventData.eventTimestamp());
             if (ongoing.getStartTs() != null) {
-                ongoing.setDurationS((int) (eventData.eventTimestamp() - ongoing.getStartTs()));
+                ongoing.setDurationS(eventData.eventTimestamp() - ongoing.getStartTs());
             }
-            fillShiftInfoIfMissing(ongoing, orgFactoryId);
+            recordHandlerUtils.fillShiftInfoIfMissing(ongoing, orgFactoryId);
             deviceProductionRecordRepository.updateById(ongoing);
         }
         
@@ -349,9 +347,9 @@ public class DeviceWorkingStateEventHandler implements WebhookEventHandler {
         // 更新记录
         ongoing.setEndTs(eventData.eventTimestamp());
         if (ongoing.getStartTs() != null) {
-            ongoing.setDurationS((int) (eventData.eventTimestamp() - ongoing.getStartTs()));
+            ongoing.setDurationS(eventData.eventTimestamp() - ongoing.getStartTs());
         }
-        fillShiftInfoIfMissing(ongoing, orgFactoryId);
+        recordHandlerUtils.fillShiftInfoIfMissing(ongoing, orgFactoryId);
         deviceProductionRecordRepository.updateById(ongoing);
         
         log.debug("[DeviceWorkingStateEventHandler] 更新加工记录: deviceInfoId={}, durationS={}",
@@ -380,9 +378,9 @@ public class DeviceWorkingStateEventHandler implements WebhookEventHandler {
                         deviceInfoId);
                 ongoing.setEndTs(eventData.eventTimestamp());
                 if (ongoing.getStartTs() != null) {
-                    ongoing.setDurationS((int) (eventData.eventTimestamp() - ongoing.getStartTs()));
+                    ongoing.setDurationS(eventData.eventTimestamp() - ongoing.getStartTs());
                 }
-                fillShiftInfoIfMissing(ongoing, orgFactoryId);
+                recordHandlerUtils.fillShiftInfoIfMissing(ongoing, orgFactoryId);
                 deviceProductionRecordRepository.updateById(ongoing);
             }
             
@@ -396,7 +394,7 @@ public class DeviceWorkingStateEventHandler implements WebhookEventHandler {
             // 插入一条仅结束的记录（起止相同）
             DeviceProductionRecordDO record = createProductionRecord(
                     deviceInfoId, orgFactoryId, eventData.eventTimestamp(), eventData.eventTimestamp());
-            record.setDurationS(0);
+            record.setDurationS(0L);
             deviceProductionRecordRepository.insert(record);
             
             String errorMessage = String.format("首次连接但状态是结束: currentStatus=%d", currentStatus);
@@ -436,9 +434,9 @@ public class DeviceWorkingStateEventHandler implements WebhookEventHandler {
                 // 结束该记录
                 ongoing.setEndTs(eventData.eventTimestamp());
                 if (ongoing.getStartTs() != null) {
-                    ongoing.setDurationS((int) (eventData.eventTimestamp() - ongoing.getStartTs()));
+                    ongoing.setDurationS(eventData.eventTimestamp() - ongoing.getStartTs());
                 }
-                fillShiftInfoIfMissing(ongoing, orgFactoryId);
+                recordHandlerUtils.fillShiftInfoIfMissing(ongoing, orgFactoryId);
                 deviceProductionRecordRepository.updateById(ongoing);
                 
                 String errorMessage = String.format("状态不匹配但已修复: previousStatus=%d, currentStatus=%d, 已结束进行中记录",
@@ -467,7 +465,7 @@ public class DeviceWorkingStateEventHandler implements WebhookEventHandler {
                 // 状态是结束，插入一条仅结束的记录
                 DeviceProductionRecordDO record = createProductionRecord(
                         deviceInfoId, orgFactoryId, eventData.eventTimestamp(), eventData.eventTimestamp());
-                record.setDurationS(0);
+                record.setDurationS(0L);
                 deviceProductionRecordRepository.insert(record);
             }
             
@@ -499,9 +497,9 @@ public class DeviceWorkingStateEventHandler implements WebhookEventHandler {
             ongoing.setEndTs(eventData.eventTimestamp());
             if (ongoing.getStartTs() != null) {
                 long duration = eventData.eventTimestamp() - ongoing.getStartTs();
-                ongoing.setDurationS(duration < 0 ? 0 : (int) duration);
+                ongoing.setDurationS(duration < 0 ? 0L : duration);
             }
-            fillShiftInfoIfMissing(ongoing, orgFactoryId);
+            recordHandlerUtils.fillShiftInfoIfMissing(ongoing, orgFactoryId);
             deviceProductionRecordRepository.updateById(ongoing);
         }
         
@@ -530,44 +528,13 @@ public class DeviceWorkingStateEventHandler implements WebhookEventHandler {
         record.setEndTs(endTs);
         
         if (endTs != null && startTs != null) {
-            record.setDurationS((int) (endTs - startTs));
+            record.setDurationS(endTs - startTs);
         }
         
-        // 设置班次信息
-        if (startTs != null) {
-            try {
-                ShiftDateAndCode shiftInfo = shiftCalculationService.getShiftDateAndCode(orgFactoryId, deviceInfoId, startTs);
-                record.setShiftDate(shiftInfo.shiftDate());
-                record.setShiftCode(shiftInfo.shiftCode());
-            } catch (Exception e) {
-                log.warn("[DeviceWorkingStateEventHandler] 计算班次信息失败: deviceInfoId={}, startTs={}, error={}",
-                        deviceInfoId, startTs, e.getMessage());
-            }
-        }
+        // 使用通用工具类设置班次信息
+        recordHandlerUtils.fillShiftInfoIfMissing(record, orgFactoryId);
         
         return record;
-    }
-
-    /**
-     * 如果班次信息缺失，根据开始时间补充
-     */
-    private void fillShiftInfoIfMissing(DeviceProductionRecordDO record, Long factoryId) {
-        if (record.getStartTs() != null
-                && (record.getShiftDate() == null || record.getShiftCode() == null)) {
-            try {
-                ShiftDateAndCode shiftInfo = shiftCalculationService.getShiftDateAndCode(
-                        factoryId, record.getDeviceInfoId(), record.getStartTs());
-                if (record.getShiftDate() == null) {
-                    record.setShiftDate(shiftInfo.shiftDate());
-                }
-                if (record.getShiftCode() == null) {
-                    record.setShiftCode(shiftInfo.shiftCode());
-                }
-            } catch (Exception e) {
-                log.warn("[DeviceWorkingStateEventHandler] 补充班次信息失败: deviceInfoId={}, startTs={}, error={}",
-                        record.getDeviceInfoId(), record.getStartTs(), e.getMessage());
-            }
-        }
     }
 
     // ==================== 内部数据类 ====================

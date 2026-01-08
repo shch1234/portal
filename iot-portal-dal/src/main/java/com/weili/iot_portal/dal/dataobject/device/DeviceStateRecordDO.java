@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
+import com.weili.iot_portal.domain.record.TimeRangeRecord;
 import lombok.Data;
 
 import java.io.Serial;
@@ -18,7 +19,7 @@ import java.util.Map;
  */
 @Data
 @TableName(value = "device_state_record", autoResultMap = true)
-public class DeviceStateRecordDO implements Serializable {
+public class DeviceStateRecordDO implements Serializable, TimeRangeRecord {
 
     @Serial
     private static final long serialVersionUID = -5709800285274273654L;

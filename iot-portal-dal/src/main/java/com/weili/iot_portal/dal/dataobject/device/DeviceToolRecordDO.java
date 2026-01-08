@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
+import com.weili.iot_portal.domain.record.TimeRangeRecord;
 import lombok.Data;
 
 import java.io.Serial;
@@ -17,7 +18,7 @@ import java.util.Map;
  */
 @Data
 @TableName(value = "device_tool_record", autoResultMap = true)
-public class DeviceToolRecordDO implements Serializable {
+public class DeviceToolRecordDO implements Serializable, TimeRangeRecord {
 
     @Serial
     private static final long serialVersionUID = 1L;
@@ -51,6 +52,10 @@ public class DeviceToolRecordDO implements Serializable {
      */
     private String toolMagazineNo;
 
+    /**
+     * 刀补号（对应 tool_holder_no 列，便于查询）
+     */
+    private String toolHolderNo;
     /**
      * 刀具类型（对应 tool_type 列）
      * 如：铣刀、钻头、镗刀等

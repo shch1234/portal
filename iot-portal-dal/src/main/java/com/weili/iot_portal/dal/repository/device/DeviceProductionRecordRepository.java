@@ -42,9 +42,10 @@ public interface DeviceProductionRecordRepository {
      * </ul>
      * 
      * @param deviceId 设备ID
-     * @return duration_s（秒），如果不存在则返回 Optional.empty()
+     * @return duration_s（毫秒），如果不存在则返回 Optional.empty()
+     *         注意：虽然数据库列名为 duration_s，但实际存储的是毫秒值
      */
-    Optional<Integer> findLatestCompletedDurationS(Long deviceId);
+    Optional<Long> findLatestCompletedDurationS(Long deviceId);
 
     /**
      * 统计当天的加工数量

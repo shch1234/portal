@@ -508,7 +508,7 @@ public class DeviceMetricsService implements IDeviceMetricsService {
      */
     private long getTheoreticalCycleDefaultValue(Long deviceId) {
         return deviceProductionRecordRepository.findLatestCompletedDurationS(deviceId)
-                .map(durationMs -> durationMs.longValue() / 1000L)  // 将毫秒转换为秒
+                .map(durationMs -> durationMs / 1000L)  // 将毫秒转换为秒
                 .orElse(0L);
     }
     

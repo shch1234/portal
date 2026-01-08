@@ -93,7 +93,7 @@ public class DeviceProductionRecordRepositoryImpl implements DeviceProductionRec
     }
 
     @Override
-    public Optional<Integer> findLatestCompletedDurationS(Long deviceId) {
+    public Optional<Long> findLatestCompletedDurationS(Long deviceId) {
         LambdaQueryWrapper<DeviceProductionRecordDO> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(DeviceProductionRecordDO::getDeviceInfoId, deviceId)
                 .isNotNull(DeviceProductionRecordDO::getEndTs)  // 必须是已完成的记录
