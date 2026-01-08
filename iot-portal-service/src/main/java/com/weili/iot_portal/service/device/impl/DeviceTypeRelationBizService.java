@@ -110,7 +110,7 @@ public class DeviceTypeRelationBizService implements IDeviceTypeRelationBizServi
      */
     private DeviceTypeRelationDO validateDeviceTypeRelationExists(Long id) {
         if (id == null) {
-            throw new IotPortalException(IotPortalErrorCode.DEVICE_ID_EMPTY);
+            throw new IotPortalException(IotPortalErrorCode.ILLEGAL, "id不能为空");
         }
         Optional<DeviceTypeRelationDO> deviceTypeRelation = deviceTypeRelationRepository.findById(id);
         if (deviceTypeRelation.isEmpty()) {

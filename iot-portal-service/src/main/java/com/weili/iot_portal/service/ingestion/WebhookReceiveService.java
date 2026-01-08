@@ -64,7 +64,7 @@ public class WebhookReceiveService {
         // 2) 设备匹配和同步
         Optional<DeviceInfoDO> deviceOpt = matchAndSyncDevice(request);
         if (deviceOpt.isEmpty()) {
-            log.warn("[Webhook-处理] [步骤2] 设备未匹配，停止处理: messageId={}, eventType={}, deviceCode={}",
+            log.debug("[Webhook-处理] [步骤2] 设备未匹配，停止处理: messageId={}, eventType={}, deviceCode={}",
                     request.getMessageId(), eventType, request.getDeviceCode());
             return;
         }
@@ -113,7 +113,7 @@ public class WebhookReceiveService {
         }
         Optional<DeviceInfoDO> deviceOpt = deviceMatchingService.match(request.getDeviceCode());
         if (deviceOpt.isEmpty()) {
-            log.warn("[Webhook-处理] [步骤2] 设备未匹配，直接ACK: messageId={}, deviceCode={}, eventType={}",
+            log.debug("[Webhook-处理] [步骤2] 设备未匹配，直接ACK: messageId={}, deviceCode={}, eventType={}",
                     request.getMessageId(), request.getDeviceCode(), request.getEventType());
             return Optional.empty();
         }
@@ -257,14 +257,14 @@ public class WebhookReceiveService {
                 }
                 default -> {
                     // 未知策略，降级为仅缓存
-                    log.warn("[Webhook-处理] [步骤3] 未知处理策略，降级为仅缓存: strategy={}, messageId={}, eventType={}",
+                    log.debug("[Webhook-处理] [步骤3] 未知处理策略，降级为仅缓存: strategy={}, messageId={}, eventType={}",
                             strategy, request.getMessageId(), finalEventType);
                     realtimeWebhookCacheService.cache(finalEventType, device.getDeviceCode(), request);
                 }
             }
         } else {
             // 无 Handler，只缓存原始数据（轻量级处理）
-            log.warn("[Webhook-处理] [步骤3] 实时数据（无Handler），仅缓存: messageId={}, eventType={}",
+            log.debug("[Webhook-处理] [步骤3] 实时数据（无Handler），仅缓存: messageId={}, eventType={}",
                     request.getMessageId(), finalEventType);
             realtimeWebhookCacheService.cache(finalEventType, device.getDeviceCode(), request);
         }
