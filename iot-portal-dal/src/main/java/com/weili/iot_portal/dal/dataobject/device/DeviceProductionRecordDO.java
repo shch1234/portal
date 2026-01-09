@@ -3,18 +3,20 @@ package com.weili.iot_portal.dal.dataobject.device;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.weili.iot_portal.domain.record.TimeRangeRecord;
 import lombok.Data;
 
 import java.io.Serial;
 import java.io.Serializable;
 import java.time.LocalDate;
+import java.util.Map;
 
 /**
  * 设备产量明细（device_production_record）
  */
 @Data
 @TableName("device_production_record")
-public class DeviceProductionRecordDO implements Serializable {
+public class DeviceProductionRecordDO implements Serializable, TimeRangeRecord {
 
     @Serial
     private static final long serialVersionUID = 1L;
@@ -34,7 +36,12 @@ public class DeviceProductionRecordDO implements Serializable {
 
     private Long endTs;
 
-    private Integer durationS;
+    /**
+     * 持续时长（毫秒，对应 duration_s 列）
+     * 注意：虽然数据库列名为 duration_s，但实际存储的是毫秒值
+     * 统一使用 Long 类型，与其他记录表保持一致
+     */
+    private Long durationS;
 
     private String workpieceNo;
 
@@ -56,6 +63,20 @@ public class DeviceProductionRecordDO implements Serializable {
     private Integer shiftCode;
 
     private String countSource;
+
+    /**
+     * 扩展属性（用于存储异常标记等信息）
+     * 注意：DeviceProductionRecordDO 当前没有 properties 字段，返回 null
+     */
+    @Override
+    public Map<String, Object> getProperties() {
+        return null;
+    }
+
+    @Override
+    public void setProperties(Map<String, Object> properties) {
+        // DeviceProductionRecordDO 当前不支持 properties，忽略
+    }
 }
 
 

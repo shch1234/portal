@@ -95,5 +95,13 @@ public class DeviceToolRecordRepositoryImpl implements DeviceToolRecordRepositor
                 .orderByDesc(DeviceToolRecordDO::getStartTs);
         return mapper.selectList(wrapper);
     }
+
+    @Override
+    public void deleteById(Long id) {
+        if (id == null) {
+            return;
+        }
+        mapper.deleteById(id);
+    }
 }
 

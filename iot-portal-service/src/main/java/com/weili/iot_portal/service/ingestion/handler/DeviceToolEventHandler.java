@@ -3,8 +3,10 @@ package com.weili.iot_portal.service.ingestion.handler;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.weili.basic.common.util.JsonUtils;
 import com.weili.iot_portal.dal.dataobject.device.DeviceToolCompensationDO;
+import com.weili.iot_portal.dal.dataobject.device.DeviceToolRecordDO;
 import com.weili.iot_portal.dal.dataobject.ingestion.WebhookInboxDO;
 import com.weili.iot_portal.dal.repository.device.DeviceToolCompensationRepository;
+import com.weili.iot_portal.dal.repository.device.DeviceToolRecordRepository;
 import com.weili.iot_portal.domain.ingestion.DeviceIdentity;
 import com.weili.iot_portal.domain.ingestion.WebhookRequest;
 import com.weili.iot_portal.service.cache.DeviceToolCacheService;
@@ -45,6 +47,7 @@ public class DeviceToolEventHandler implements WebhookEventHandler {
     private final WebhookHandlerUtils webhookHandlerUtils;
     private final DeviceToolCacheService deviceToolCacheService;
     private final DeviceToolCompensationRepository deviceToolCompensationRepository;
+    private final DeviceToolRecordRepository deviceToolRecordRepository;
 
     @Override
     public boolean supports(String eventType) {
@@ -130,10 +133,61 @@ public class DeviceToolEventHandler implements WebhookEventHandler {
                         deviceInfoId, holderNumber);
             }
         }
+        // 保证实时缓存中的 toolMagazineNo（holderNumber）与后续入库一致：
+        // 如果 holderNumber 为空但补偿对象中包含 HOLDER_NUMBER，则使用之填充
+        if (StringUtils.isBlank(holderNumber) && compValue != null && !compValue.isEmpty()) {
+            Object holderFromComp = compValue.get(DeviceToolEventFields.HOLDER_NUMBER);
+            if (holderFromComp != null) {
+                String holderStr = String.valueOf(holderFromComp).trim();
+                if (!holderStr.isEmpty() && !isZeroValue(holderStr)) {
+                    holderNumber = holderStr;
+                }
+            }
+        }
         
         // 构建包含 toolNo、holderNumber 和 compensation 的完整结构，存入Redis
         deviceToolCacheService.saveTool(orgFactoryId, deviceInfoId, toolNo, holderNumber, compValue,
                 eventTimestamp, DeviceToolEventFields.SOURCE_TB, request.getMessageId());
+        
+        // 更新进行中记录的 toolHolderNo（如果 toolNo 匹配）
+        // 注意：刀具记录的创建和变更统一由 DeviceToolChangeEventHandler 处理（DEVICE_TOOL_CHANGE 事件）
+        // 这里只负责更新 toolHolderNo，避免与 DeviceToolChangeEventHandler 重复插入
+        updateToolHolderNoIfNeeded(deviceInfoId, toolNo, holderNumber);
+    }
+    
+    /**
+     * 更新进行中记录的 toolHolderNo（如果需要）
+     * <p>
+     * 职责说明：
+     * 1. 仅更新 toolHolderNo：如果数据库中有进行中的记录且 toolNo 匹配，更新 toolHolderNo
+     * 2. 不创建新记录：刀具记录的创建和变更统一由 DeviceToolChangeEventHandler 处理
+     * 3. 这样避免与 DeviceToolChangeEventHandler 重复插入，职责更清晰
+     * </p>
+     */
+    private void updateToolHolderNoIfNeeded(Long deviceInfoId, String toolNo, String holderNumber) {
+        if (deviceInfoId == null || StringUtils.isBlank(toolNo) || 
+            StringUtils.isBlank(holderNumber) || isZeroValue(holderNumber)) {
+            return;
+        }
+        
+        try {
+            // 检查是否有进行中的刀具记录
+            DeviceToolRecordDO latestOngoing = deviceToolRecordRepository.findLatestOngoing(deviceInfoId);
+            
+            if (latestOngoing != null && toolNo.equals(latestOngoing.getToolNo())) {
+                // toolNo 匹配，更新 toolHolderNo（如果需要）
+                String currentHolderNo = latestOngoing.getToolHolderNo();
+                if (!holderNumber.equals(currentHolderNo)) {
+                    latestOngoing.setToolHolderNo(holderNumber);
+                    deviceToolRecordRepository.updateById(latestOngoing);
+                    log.debug("[DeviceToolEventHandler] 更新进行中记录的toolHolderNo: deviceId={}, toolNo={}, holderNumber={}",
+                            deviceInfoId, toolNo, holderNumber);
+                }
+            }
+        } catch (Exception e) {
+            log.warn("[DeviceToolEventHandler] 更新toolHolderNo时发生异常: deviceId={}, toolNo={}, error={}",
+                    deviceInfoId, toolNo, e.getMessage(), e);
+        }
     }
 
     /**

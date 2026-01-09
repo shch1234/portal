@@ -482,10 +482,10 @@ public class DeviceMetricsSummaryService implements IDeviceMetricsSummaryService
 
         // 如果参数未配置或值为0，尝试从 device_production_record 获取默认值
         if (theoreticalCycleSeconds <= 0 && deviceId != null) {
-            Optional<Integer> defaultDurationMs = deviceProductionRecordRepository.findLatestCompletedDurationS(deviceId);
+            Optional<Long> defaultDurationMs = deviceProductionRecordRepository.findLatestCompletedDurationS(deviceId);
             if (defaultDurationMs.isPresent() && defaultDurationMs.get() > 0) {
                 // duration_s 字段实际存储的是毫秒，需要转换为秒
-                theoreticalCycleSeconds = defaultDurationMs.get().longValue() / 1000L;
+                theoreticalCycleSeconds = defaultDurationMs.get() / 1000L;
                 useDefaultValue = true;
                 if (fromConfig) {
                     log.info("指标汇总: 理论节拍参数值为0，使用默认值（最新已完成记录的duration_s，已从毫秒转换为秒）: deviceId={}, shiftDate={}, shiftCode={}, " +

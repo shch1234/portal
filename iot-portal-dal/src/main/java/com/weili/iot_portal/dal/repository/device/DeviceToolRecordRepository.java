@@ -51,5 +51,12 @@ public interface DeviceToolRecordRepository {
      * 按 ID 更新
      */
     void updateById(DeviceToolRecordDO record);
+
+    /**
+     * 根据ID删除记录
+     *
+     * @param id 记录ID
+     */
+    void deleteById(Long id);
 }
 
