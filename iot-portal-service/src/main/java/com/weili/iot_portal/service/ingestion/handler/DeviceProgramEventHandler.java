@@ -99,15 +99,24 @@ public class DeviceProgramEventHandler implements WebhookEventHandler {
             Map<String, String> programData = new HashMap<>();
             programFields.forEach((k, v) -> programData.put(k, String.valueOf(v)));
 
-            // 如果只有programPath而没有programName，从programPath中提取文件名作为programName
-            if (!programData.containsKey(DeviceProgramEventFields.PROGRAM_NAME) 
-                    && programData.containsKey(DeviceProgramEventFields.PROGRAM_PATH)) {
+            // 处理程序名和程序路径的互相补充逻辑
+            String programName = programData.get(DeviceProgramEventFields.PROGRAM_NAME);
                 String programPath = programData.get(DeviceProgramEventFields.PROGRAM_PATH);
+            
+            // 如果只有 programPath 而没有 programName，从 programPath 中提取文件名作为 programName
+            if ((programName == null || programName.trim().isEmpty()) 
+                    && (programPath != null && !programPath.trim().isEmpty())) {
                 String extractedProgramName = extractProgramNameFromPath(programPath);
                 if (extractedProgramName != null) {
                     programData.put(DeviceProgramEventFields.PROGRAM_NAME, extractedProgramName);
                 }
             }
+            // 如果只有 programName 而没有 programPath，用 programName 替代 programPath
+            else if ((programPath == null || programPath.trim().isEmpty()) 
+                    && (programName != null && !programName.trim().isEmpty())) {
+                programData.put(DeviceProgramEventFields.PROGRAM_PATH, programName);
+            }
+            // 如果都存在，使用各自的值（不需要额外处理）
             
             deviceProgramCacheService.saveProgram(orgFactoryId, deviceInfoId, programData,
                     eventTimestamp, DeviceProgramEventFields.SOURCE_TB, request.getMessageId());
@@ -147,6 +156,10 @@ public class DeviceProgramEventHandler implements WebhookEventHandler {
             // 统一程序路径字段名
             else if (DeviceProgramEventFields.isProgramPathField(key)) {
                 programMap.put(DeviceProgramEventFields.PROGRAM_PATH, v);
+            }
+            // 统一程序上下文字段名（programCtx/programCtx）
+            else if (DeviceProgramEventFields.PROGRAM_CTX.equalsIgnoreCase(key)) {
+                programMap.put(DeviceProgramEventFields.PROGRAM_CTX, v);
             }
             // 统一G代码字段名
             else if (DeviceProgramEventFields.isGCodeField(key)) {

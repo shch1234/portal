@@ -50,6 +50,12 @@ public final class DeviceProgramEventFields {
      */
     public static final String PROGRAM_PATH_UNDERSCORE = "program_path";
 
+    /**
+     * 程序上下文（programCtx）
+     * 用于存放程序信息，包括正在执行的程序代码等
+     */
+    public static final String PROGRAM_CTX = "programCtx";
+
     // ==================== G代码/M代码相关字段 ====================
     /**
      * G代码（标准字段名）
