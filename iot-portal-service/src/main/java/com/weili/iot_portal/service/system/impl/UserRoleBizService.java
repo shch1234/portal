@@ -206,7 +206,7 @@ public class UserRoleBizService implements IUserRoleBizService {
         return userList.stream().map(user -> {
             LoginUserRespVO userRespVO = BeanUtils.toBean(user, LoginUserRespVO.class);
             userRespVO.setId(user.getId());
-            userRespVO.setUserName(user.getUsername());
+            userRespVO.setUsername(user.getUsername());
             return userRespVO;
         }).collect(Collectors.toList());
     }

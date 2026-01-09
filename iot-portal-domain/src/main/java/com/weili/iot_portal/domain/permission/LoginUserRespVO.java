@@ -22,7 +22,7 @@ public class LoginUserRespVO  extends BaseVO {
     private Long userId;
 
     @Schema(description = "用户名称")
-    private String userName;
+    private String username;
 
     @Schema(description = "员工号")
     private Integer jobNumber;
