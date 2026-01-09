@@ -16,6 +16,8 @@ public class LoginUserRespVO  extends BaseVO {
     @Serial
     private static final long serialVersionUID = 6541113041221746588L;
 
+    private Long id;
+
     @Schema(description = "用户ID")
     private Long userId;
 

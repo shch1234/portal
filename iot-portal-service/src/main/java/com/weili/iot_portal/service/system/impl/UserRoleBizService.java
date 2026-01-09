@@ -203,7 +203,12 @@ public class UserRoleBizService implements IUserRoleBizService {
         }
         List<Long> userIds = userRoleList.stream().map(UserRoleDO::getUserId).distinct().toList();
         List<LoginUserDO> userList = loginUserRepository.listByUserIds(userIds);
-        return BeanUtils.toBean(userList, LoginUserRespVO.class);
+        return userList.stream().map(user -> {
+            LoginUserRespVO userRespVO = BeanUtils.toBean(user, LoginUserRespVO.class);
+            userRespVO.setId(user.getId());
+            userRespVO.setUserName(user.getUsername());
+            return userRespVO;
+        }).collect(Collectors.toList());
     }
 
 
