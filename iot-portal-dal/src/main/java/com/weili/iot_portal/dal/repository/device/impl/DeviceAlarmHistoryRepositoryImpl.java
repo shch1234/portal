@@ -55,6 +55,16 @@ public class DeviceAlarmHistoryRepositoryImpl implements DeviceAlarmHistoryRepos
         return new PageResult<>(result.getRecords(), result.getTotal());
     }
 
+    @Override
+    public List<DeviceAlarmHistoryDO> findTopByDuration(Long factoryId, Integer topN) {
+        LambdaQueryWrapper<DeviceAlarmHistoryDO> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(factoryId != null, DeviceAlarmHistoryDO::getOrgFactoryId, factoryId)
+                .isNotNull(DeviceAlarmHistoryDO::getDurationS)
+                .orderByDesc(DeviceAlarmHistoryDO::getDurationS)
+                .last("LIMIT " + topN);
+        return mapper.selectList(wrapper);
+    }
+
 
     @Override
     public void insert(DeviceAlarmHistoryDO record) {

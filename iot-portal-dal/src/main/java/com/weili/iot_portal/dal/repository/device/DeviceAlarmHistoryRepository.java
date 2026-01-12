@@ -16,6 +16,13 @@ public interface DeviceAlarmHistoryRepository {
      */
     PageResult<DeviceAlarmHistoryDO> selectPage(DeviceAlarmHistoryQuery query);
 
+    /**
+     * 查询报警时长TOP N
+     * @param factoryId 工厂ID
+     * @param topN TOP N数量
+     * @return 报警时长TOP N列表
+     */
+    List<DeviceAlarmHistoryDO> findTopByDuration(Long factoryId, Integer topN);
 
     void insert(DeviceAlarmHistoryDO record);
 

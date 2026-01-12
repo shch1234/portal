@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -66,18 +67,6 @@ public class DeviceStateCacheService {
     }
 
     /**
-     * 获取设备状态缓存
-     *
-     * @param factoryId 工厂ID
-     * @param deviceId  设备ID
-     * @return 状态数据映射，如果不存在返回 null
-     */
-    public Map<Object, Object> getState(Long factoryId, Long deviceId) {
-        String key = buildStateKey(factoryId, deviceId);
-        return redisTemplate.opsForHash().entries(key);
-    }
-
-    /**
      * 获取设备状态值
      *
      * @param factoryId 工厂ID
@@ -88,6 +77,51 @@ public class DeviceStateCacheService {
         String key = buildStateKey(factoryId, deviceId);
         Object value = redisTemplate.opsForHash().get(key, DeviceStateEventFields.STATE);
         return value != null ? value.toString() : null;
+    }
+
+    /**
+     * 批量获取设备状态
+     *
+     * @param factoryId 工厂ID
+     * @param deviceIds 设备ID列表
+     * @return 设备ID到状态数据的映射，设备ID -> 状态数据映射（包含state, updatedAt等字段）
+     */
+    public Map<Long, Map<Object, Object>> batchGetState(Long factoryId, List<Long> deviceIds) {
+        if (deviceIds == null || deviceIds.isEmpty()) {
+            return new HashMap<>();
+        }
+
+        Map<Long, Map<Object, Object>> result = new HashMap<>(deviceIds.size());
+
+        try {
+            // 使用Pipeline批量查询，减少网络往返
+            List<Object> pipelineResults = redisTemplate.executePipelined((org.springframework.data.redis.core.RedisCallback<Object>) connection -> {
+                for (Long deviceId : deviceIds) {
+                    String key = buildStateKey(factoryId, deviceId);
+                    byte[] keyBytes = key.getBytes();
+                    connection.hashCommands().hGetAll(keyBytes);
+                }
+                return null;
+            });
+
+            // 组装结果
+            for (int i = 0; i < deviceIds.size(); i++) {
+                Long deviceId = deviceIds.get(i);
+                Object pipelineResult = pipelineResults.get(i);
+
+                if (pipelineResult instanceof Map) {
+                    @SuppressWarnings("unchecked")
+                    Map<Object, Object> stateData = (Map<Object, Object>) pipelineResult;
+                    if (!stateData.isEmpty()) {
+                        result.put(deviceId, stateData);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.error("批量获取设备状态失败, factoryId: {}, deviceIds size: {}", factoryId, deviceIds.size(), e);
+        }
+
+        return result;
     }
 
     /**

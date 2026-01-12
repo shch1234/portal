@@ -54,6 +54,14 @@ public interface DeviceInfoRepository {
      */
     List<DeviceInfoDO> selectByIds(List<Long> ids);
 
+    /**
+     * 查询被监控的设备
+     *
+     * @param factoryId 工厂ID（可选，为null时查询所有工厂）
+     * @return 被监控的设备列表
+     */
+    List<DeviceInfoDO> findMonitoredDevices(Long factoryId);
+
     void insert(DeviceInfoDO entity);
 
     void update(DeviceInfoDO entity);

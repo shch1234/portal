@@ -14,8 +14,7 @@ import java.time.LocalDate;
 import java.util.Map;
 
 /**
- * 工厂级指标汇总（按班次）DO
- * 对应表：factory_metric_summary
+ * 工厂级指标汇总表（按班次）：平均OEE、平均设备利用率等核心指标使用独立字段
  */
 @Data
 @TableName(value = "factory_metric_summary", autoResultMap = true)
@@ -36,14 +35,13 @@ public class FactoryMetricSummaryDO implements Serializable {
     /** 班次编码（可为字符串或数值的字符串化表示，取决于班次配置） */
     private String shiftCode;
 
-    /** 班次开始时间（epoch millis） */
+    /** 班次开始时间（Unix时间戳） */
     private Long shiftStartTs;
 
-    /** 班次结束时间（epoch millis） */
+    /** 班次结束时间（Unix时间戳） */
     private Long shiftEndTs;
 
-    // 核心指标（按班次聚合的统计值）
-    /** 平均 OEE（0..1 或 0..100，取决于上层约定） */
+    /** 平均OEE（整体设备效率） */
     private BigDecimal averageOee;
     /** 平均可用性 */
     private BigDecimal averageAvailability;
@@ -53,42 +51,39 @@ public class FactoryMetricSummaryDO implements Serializable {
     private BigDecimal averageQuality;
     /** 平均利用率 */
     private BigDecimal averageUtilizationRate;
-    /** 平均工时（小时） */
+    /** 平均加工时长（小时） */
     private BigDecimal averageWorkingHours;
-    /** 产量（总计） */
+    /** 总加工数量 */
     private Integer totalProductionCount;
-    /** 合格产量（总计） */
+    /** 总合格数量 */
     private Integer totalQualifiedCount;
-    /** 计划停机时长（秒）——保留历史字段命名（单位：秒） */
+    /** 总计划停机时长（单位：秒） */
     private Integer totalPlannedDowntimeS;
-    /** 非计划停机时长（秒）——保留历史字段命名（单位：秒） */
+    /** 总非计划停机时长（单位：秒） */
     private Integer totalUnplannedDowntimeS;
-
-    // 扩展/审计数据（JSON 字段）
     /** 指标快照，任意结构，使用 JSON 存储 */
     @TableField(typeHandler = JacksonTypeHandler.class)
     private Map<String, Object> metrics;
     /** 计算过程中的中间数据或参数快照，便于追溯与复算 */
     @TableField(typeHandler = JacksonTypeHandler.class)
     private Map<String, Object> calculationData;
-
-    /** 统计涉及的设备数量 */
+    /** 参与计算的设备数量 */
     private Integer deviceCount;
-    /** 是否为最终汇总（true 表示完成且无需再复算） */
+    /** 是否已最终确定：1-已确定 0-待确定（班次结束后为1） */
     private Boolean isFinalized;
-    /** 计算状态（可用于人工或自动复算流程的标识） */
+    /** 计算状态：PENDING-待计算 CALCULATED-已计算 RECALCULATED-已重算 FAILED-计算失败 */
     private String calculationStatus;
-    /** 计算时间（epoch millis） */
+    /** 计算时间戳（秒，Unix时间戳） */
     private Long calculatedTime;
-    /** 计算来源（例如 SCHEDULED、COMPENSATION、MANUAL 等） */
+    /** 计算来源：SCHEDULED-定时任务 MANUAL-手动触发 RECALC-重算 */
     private String calculationSource;
-    /** 数据完整度（0..1） */
+    /** 数据完整度（有效数据设备数/总设备数) */
     private BigDecimal dataCompleteness;
-    /** 最近一次复算时间（epoch millis） */
+    /** 重算时间戳（秒，Unix时间戳，NULL表示未重算） */
     private Long recalculatedAt;
-    /** 最近一次复算原因（用于审计） */
+    /** 重算原因（如参数修订、数据补全等） */
     private String recalculationReason;
-    /** 复算次数统计 */
+    /** 重算次数 */
     private Integer recalculationCount;
 }
 

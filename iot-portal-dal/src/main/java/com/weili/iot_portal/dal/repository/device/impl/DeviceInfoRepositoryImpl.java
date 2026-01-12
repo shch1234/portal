@@ -84,6 +84,19 @@ public class DeviceInfoRepositoryImpl implements DeviceInfoRepository {
     }
 
     @Override
+    public List<DeviceInfoDO> findMonitoredDevices(Long factoryId) {
+        LambdaQueryWrapper<DeviceInfoDO> wrapper = new LambdaQueryWrapper<DeviceInfoDO>()
+                .eq(DeviceInfoDO::getIsMonitored, true)
+                .eq(DeviceInfoDO::getDeleted, false);
+
+        if (factoryId != null) {
+            wrapper.eq(DeviceInfoDO::getOrgFactoryId, factoryId);
+        }
+
+        return mapper.selectList(wrapper);
+    }
+
+    @Override
     public PageResult<DeviceInfoDO> selectPage(DeviceBaseInfoPageQuery query) {
         Page<DeviceInfoDO> page = new Page<>(query.getPageNo(), query.getPageSize());
         LambdaQueryWrapper<DeviceInfoDO> wrapper = new LambdaQueryWrapper<>();
