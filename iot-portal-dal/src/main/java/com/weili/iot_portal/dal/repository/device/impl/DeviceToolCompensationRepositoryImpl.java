@@ -65,7 +65,27 @@ public class DeviceToolCompensationRepositoryImpl implements DeviceToolCompensat
         if (record == null) {
             return;
         }
+        
+        // 在插入前，先删除已存在的相同唯一约束的记录（避免唯一约束冲突）
+        // 唯一约束 uq_tool_comp_active 基于 (device_info_id, tool_holder_no, active)
+        // 需要根据 active 值删除对应的记录
+        if (record.getDeviceInfoId() != null && record.getToolHolderNo() != null && record.getActive() != null) {
+            LambdaQueryWrapper<DeviceToolCompensationDO> deleteWrapper = new LambdaQueryWrapper<>();
+            deleteWrapper.eq(DeviceToolCompensationDO::getDeviceInfoId, record.getDeviceInfoId())
+                    .eq(DeviceToolCompensationDO::getToolHolderNo, record.getToolHolderNo())
+                    .eq(DeviceToolCompensationDO::getActive, record.getActive());
+            
+            int deletedCount = mapper.delete(deleteWrapper);
+            if (deletedCount > 0) {
+                log.info("[DeviceToolCompensationRepository] 插入前删除已存在的记录，避免唯一约束冲突: " +
+                        "deviceInfoId={}, toolHolderNo={}, active={}, deletedCount={}",
+                        record.getDeviceInfoId(), record.getToolHolderNo(), record.getActive(), deletedCount);
+            }
+        }
+        
         mapper.insert(record);
+        log.debug("[DeviceToolCompensationRepository] 成功插入记录: deviceInfoId={}, toolHolderNo={}, active={}, id={}",
+                record.getDeviceInfoId(), record.getToolHolderNo(), record.getActive(), record.getId());
     }
 
     @Override

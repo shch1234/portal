@@ -36,6 +36,14 @@ public interface DeviceToolCompensationRepository {
      */
     Long countActiveByDevice(Long factoryId, String deviceId);
 
+    /**
+     * 插入新记录（自动处理唯一约束冲突）
+     * <p>
+     * 在插入前会先删除已存在的相同唯一约束的记录，避免冲突
+     * </p>
+     *
+     * @param record 要插入的记录
+     */
     void insert(DeviceToolCompensationDO record);
 
     void updateById(DeviceToolCompensationDO record);

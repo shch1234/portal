@@ -88,15 +88,17 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void handle(WebhookInboxDO inbox, WebhookRequest request) throws Exception {
-        log.info("[DeviceStateEventHandler] ========== 开始处理设备状态事件 ========== messageId={}, eventType={}, deviceCode={}",
-                request.getMessageId(), request.getEventType(), request.getDeviceCode());
-
-        // 心跳事件单独处理
+        // 心跳事件单独处理（使用DEBUG级别，减少日志量）
         if (DeviceStateEventFields.EVENT_TYPE_HEARTBEAT.equals(request.getEventType())) {
-            log.info("[DeviceStateEventHandler] 检测到心跳事件，单独处理: messageId={}", request.getMessageId());
+            log.debug("[DeviceStateEventHandler] 处理心跳事件: messageId={}, deviceCode={}", 
+                    request.getMessageId(), request.getDeviceCode());
             handleHeartbeat(request);
             return;
         }
+
+        // 非心跳事件使用INFO级别
+        log.info("[DeviceStateEventHandler] ========== 开始处理设备状态事件 ========== messageId={}, eventType={}, deviceCode={}",
+                request.getMessageId(), request.getEventType(), request.getDeviceCode());
 
         // 1. 解析事件数据
         EventData eventData = parseEventData(request);
