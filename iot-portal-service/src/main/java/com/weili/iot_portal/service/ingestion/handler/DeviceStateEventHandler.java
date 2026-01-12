@@ -88,11 +88,12 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void handle(WebhookInboxDO inbox, WebhookRequest request) throws Exception {
-        log.debug("[Webhook-Handler-DeviceState] 处理设备状态事件: messageId={}, eventType={}, deviceCode={}",
+        log.info("[DeviceStateEventHandler] ========== 开始处理设备状态事件 ========== messageId={}, eventType={}, deviceCode={}",
                 request.getMessageId(), request.getEventType(), request.getDeviceCode());
 
         // 心跳事件单独处理
         if (DeviceStateEventFields.EVENT_TYPE_HEARTBEAT.equals(request.getEventType())) {
+            log.info("[DeviceStateEventHandler] 检测到心跳事件，单独处理: messageId={}", request.getMessageId());
             handleHeartbeat(request);
             return;
         }
@@ -102,9 +103,13 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
         
         // 2. 解析设备信息
         DeviceIdentity identity = webhookHandlerUtils.resolveDeviceIdentity(request);
+        log.info("[DeviceStateEventHandler] 设备身份解析完成: messageId={}, deviceInfoId={}, orgFactoryId={}",
+                request.getMessageId(), identity.deviceInfoId(), identity.orgFactoryId());
         
         // 3. 使用分布式锁处理状态更新
         processStateTransitionWithLock(eventData, identity, request);
+        
+        log.info("[DeviceStateEventHandler] ========== 设备状态事件处理完成 ========== messageId={}", request.getMessageId());
     }
 
     // ==================== 数据解析 ====================
@@ -149,6 +154,14 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
                 ? DeviceStateEnum.fromCode(previousStateCode).name() 
                 : null;
         String currentState = DeviceStateEnum.fromCode(currentStateCode).name();
+
+        // 添加状态解析的详细日志（用于调试）
+        log.info("[DeviceStateEventHandler] 状态解析结果: messageId={}, deviceCode={}, " +
+                "原始previousState={}, 解析后previousStateCode={}, previousState={}, " +
+                "原始currentState={}, 解析后currentStateCode={}, currentState={}",
+                request.getMessageId(), request.getDeviceCode(),
+                previousStateObj, previousStateCode, previousState,
+                currentStateObj, currentStateCode, currentState);
 
         // convertStateCodeToName 已经处理了验证和转换，直接使用结果
         StateValidationResult currentStateResult = new StateValidationResult(
@@ -206,12 +219,31 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
             // 查询数据库最新状态
             Optional<DeviceStateRecordDO> latestStateOpt = stateTimelineRepository.findLatestState(deviceInfoId);
             
+            // 添加数据库查询结果的详细日志（用于调试）
+            if (latestStateOpt.isPresent()) {
+                DeviceStateRecordDO latestState = latestStateOpt.get();
+                DeviceStateEnum dbStateEnum = DeviceStateEnum.fromCode(latestState.getStateCode());
+                log.info("[DeviceStateEventHandler] 数据库查询结果: deviceInfoId={}, messageId={}, " +
+                        "DB最新状态={}({}), DB状态startTs={}, DB状态endTs={}, DB状态id={}",
+                        deviceInfoId, request.getMessageId(),
+                        dbStateEnum.name(), latestState.getStateCode(),
+                        latestState.getStartTs(), latestState.getEndTs(), latestState.getId());
+            } else {
+                log.info("[DeviceStateEventHandler] 数据库查询结果: deviceInfoId={}, messageId={}, 数据库无记录",
+                        deviceInfoId, request.getMessageId());
+            }
+            
             // 处理状态转换
             StateTransitionResult result = processStateTransition(
                     latestStateOpt, eventData, identity, request);
             
             needUpdateCache = result.needUpdateCache();
             dbOperationSuccess = result.dbOperationSuccess();
+            
+            // 添加处理结果日志
+            log.info("[DeviceStateEventHandler] 状态转换处理完成: deviceInfoId={}, messageId={}, " +
+                    "needUpdateCache={}, dbOperationSuccess={}",
+                    deviceInfoId, request.getMessageId(), needUpdateCache, dbOperationSuccess);
         } finally {
             deviceLockService.unlockState(deviceInfoId);
         }
@@ -238,14 +270,22 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
         log.debug("[DeviceStateEventHandler] 处理状态转换: 类型={}, deviceInfoId={}, currentState={}, previousState={}",
                 transitionType, deviceInfoId, eventData.currentState(), eventData.previousState());
         
+        log.info("[DeviceStateEventHandler] 开始处理状态转换: deviceInfoId={}, transitionType={}, currentState={}({}), previousState={}({})",
+                deviceInfoId, transitionType, eventData.currentState(), eventData.currentStateCode(),
+                eventData.previousState(), eventData.previousStateCode());
+        
         switch (transitionType) {
             case FIRST_RECORD:
                 // 情况D：数据库无记录（首次记录）
+                log.info("[DeviceStateEventHandler] 执行 FIRST_RECORD 处理: deviceInfoId={}, currentState={}({})",
+                        deviceInfoId, eventData.currentState(), eventData.currentStateCode());
                 handleFirstRecord(deviceInfoId, orgFactoryId, eventData);
                 return new StateTransitionResult(true, true);
                 
             case FIRST_CONNECTION:
                 // 情况A：首次连接（previousState = NULL）
+                log.info("[DeviceStateEventHandler] 执行 FIRST_CONNECTION 处理: deviceInfoId={}, currentState={}({})",
+                        deviceInfoId, eventData.currentState(), eventData.currentStateCode());
                 // 注意：如果数据库中有未结束的状态记录，需要先结束它
                 if (latestStateOpt.isPresent() && latestStateOpt.get().getEndTs() == null) {
                     DeviceStateRecordDO latestState = latestStateOpt.get();
@@ -273,11 +313,18 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
                 
             case STATE_UNCHANGED:
                 // 状态未变化（重复的相同状态事件）
+                log.info("[DeviceStateEventHandler] 处理状态转换: STATE_UNCHANGED - 状态未变化，跳过数据库写入，只刷新缓存TTL。deviceInfoId={}, currentState={}({}), DB状态={}({})",
+                        deviceInfoId, eventData.currentState(), eventData.currentStateCode(),
+                        latestStateOpt.isPresent() ? DeviceStateEnum.fromCode(latestStateOpt.get().getStateCode()).name() : "N/A",
+                        latestStateOpt.isPresent() ? latestStateOpt.get().getStateCode() : "N/A");
                 return new StateTransitionResult(false, true);
                 
             case NORMAL_TRANSITION:
                 // 情况B：正常匹配（previousState == DB最新状态）
                 DeviceStateRecordDO latestState = latestStateOpt.get();
+                log.info("[DeviceStateEventHandler] 执行 NORMAL_TRANSITION 处理: deviceInfoId={}, previousState={}({}), currentState={}({})",
+                        deviceInfoId, eventData.previousState(), eventData.previousStateCode(),
+                        eventData.currentState(), eventData.currentStateCode());
                 handleNormalTransition(latestState, orgFactoryId, eventData);
                 return new StateTransitionResult(true, true);
                 
@@ -285,8 +332,12 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
                 // 情况C：状态不匹配（异常情况）
                 latestState = latestStateOpt.get();
                 DeviceStateEnum dbStateEnum = DeviceStateEnum.fromCode(latestState.getStateCode());
-                log.warn("[Webhook-Handler-DeviceState] 状态不匹配: DB状态={}({}), 事件previousState={}, 事件currentState={}, deviceInfoId={}",
-                        dbStateEnum.name(), latestState.getStateCode(), eventData.previousState(), eventData.currentState(), deviceInfoId);
+                log.warn("[Webhook-Handler-DeviceState] 状态不匹配: DB状态={}({}), 事件previousState={}({}), 事件currentState={}({}), deviceInfoId={}",
+                        dbStateEnum.name(), latestState.getStateCode(),
+                        eventData.previousState(), eventData.previousStateCode(),
+                        eventData.currentState(), eventData.currentStateCode(), deviceInfoId);
+                log.info("[DeviceStateEventHandler] 执行 STATE_MISMATCH 处理: deviceInfoId={}",
+                        deviceInfoId);
                 handleStateMismatch(latestState, eventData, identity, request);
                 return new StateTransitionResult(true, true);
                 
@@ -317,30 +368,41 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
         // 直接使用数字编码进行比较（避免字符串转换）
         DeviceStateEnum latestStateEnum = DeviceStateEnum.fromCode(latestState.getStateCode());
         
-        log.debug("[DeviceStateEventHandler] 判断转换类型: DB最新状态={}({}), 事件previousState={}({}), 事件currentState={}({}), DB状态endTs={}",
+        log.info("[DeviceStateEventHandler] 状态转换类型判断: DB最新状态={}({}), 事件previousState={}({}), 事件currentState={}({}), DB状态endTs={}, DB状态id={}",
                 latestStateEnum.name(), latestState.getStateCode(), 
                 eventData.previousState(), previousStateCode,
                 eventData.currentState(), currentStateCode,
-                latestState.getEndTs());
+                latestState.getEndTs(), latestState.getId());
         
         // 检查状态是否真的未变化（直接比较数字编码）
-        boolean isStateUnchanged = currentStateCode != null 
-                && currentStateCode.equals(latestState.getStateCode())
-                && previousStateCode != null
-                && previousStateCode.equals(latestState.getStateCode());
+        boolean isCurrentStateSame = currentStateCode != null && currentStateCode.equals(latestState.getStateCode());
+        boolean isPreviousStateSame = previousStateCode != null && previousStateCode.equals(latestState.getStateCode());
+        boolean isStateUnchanged = isCurrentStateSame && isPreviousStateSame;
+        
+        log.info("[DeviceStateEventHandler] 状态比较详情: currentStateCode({})==DB状态({})={}, previousStateCode({})==DB状态({})={}, 状态未变化={}",
+                currentStateCode, latestState.getStateCode(), isCurrentStateSame,
+                previousStateCode, latestState.getStateCode(), isPreviousStateSame,
+                isStateUnchanged);
         
         if (isStateUnchanged) {
-            log.debug("[DeviceStateEventHandler] 判断转换类型: STATE_UNCHANGED (状态未变化)");
+            log.info("[DeviceStateEventHandler] 判断转换类型: STATE_UNCHANGED (状态未变化) - 当前状态({})和上一状态({})都与数据库状态({})相同",
+                    currentStateCode, previousStateCode, latestState.getStateCode());
             return TransitionType.STATE_UNCHANGED;
         }
         
         // 检查是否正常匹配（直接比较数字编码）
-        if (previousStateCode != null && previousStateCode.equals(latestState.getStateCode())) {
-            log.debug("[DeviceStateEventHandler] 判断转换类型: NORMAL_TRANSITION (正常匹配)");
+        boolean isNormalMatch = previousStateCode != null && previousStateCode.equals(latestState.getStateCode());
+        log.info("[DeviceStateEventHandler] 正常匹配检查: previousStateCode({})==DB状态({})={}",
+                previousStateCode, latestState.getStateCode(), isNormalMatch);
+        
+        if (isNormalMatch) {
+            log.info("[DeviceStateEventHandler] 判断转换类型: NORMAL_TRANSITION (正常匹配) - 上一状态({})与数据库状态({})匹配",
+                    previousStateCode, latestState.getStateCode());
             return TransitionType.NORMAL_TRANSITION;
         }
         
-        log.debug("[DeviceStateEventHandler] 判断转换类型: STATE_MISMATCH (状态不匹配)");
+        log.info("[DeviceStateEventHandler] 判断转换类型: STATE_MISMATCH (状态不匹配) - 上一状态({})与数据库状态({})不匹配",
+                previousStateCode, latestState.getStateCode());
         return TransitionType.STATE_MISMATCH;
     }
 
@@ -869,12 +931,19 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
         Long orgFactoryId = identity.orgFactoryId();
         Long deviceInfoId = identity.deviceInfoId();
         
+        log.info("[DeviceStateEventHandler] 更新缓存: deviceInfoId={}, needUpdateCache={}, currentState={}({})",
+                deviceInfoId, needUpdateCache, eventData.currentState(), eventData.currentStateCode());
+        
         if (needUpdateCache) {
             // 更新状态缓存（使用数字编码）
+            log.info("[DeviceStateEventHandler] 执行缓存更新: deviceInfoId={}, state={}({})",
+                    deviceInfoId, eventData.currentState(), eventData.currentStateCode());
             updateStateCache(orgFactoryId, deviceInfoId, eventData.currentStateCode(),
                     eventData.eventTimestamp(), request.getMessageId());
         } else {
             // 状态未变化，只刷新缓存 TTL 和心跳
+            log.info("[DeviceStateEventHandler] 只刷新缓存TTL和心跳: deviceInfoId={}, state={}({})",
+                    deviceInfoId, eventData.currentState(), eventData.currentStateCode());
             refreshStateCacheAndHeartbeat(orgFactoryId, deviceInfoId, eventData.eventTimestamp(), request.getMessageId());
         }
     }

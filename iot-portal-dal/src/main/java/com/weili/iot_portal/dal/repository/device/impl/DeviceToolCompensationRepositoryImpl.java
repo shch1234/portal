@@ -1,6 +1,7 @@
 package com.weili.iot_portal.dal.repository.device.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.weili.iot_portal.dal.dataobject.device.DeviceToolCompensationDO;
 import com.weili.iot_portal.dal.mapper.device.DeviceToolCompensationMapper;
 import com.weili.iot_portal.dal.repository.device.DeviceToolCompensationRepository;
@@ -71,6 +72,18 @@ public class DeviceToolCompensationRepositoryImpl implements DeviceToolCompensat
             return;
         }
         mapper.updateById(record);
+    }
+
+    @Override
+    public void deactivateById(Long id, Long endTs, Integer active) {
+        if (id == null) {
+            return;
+        }
+        LambdaUpdateWrapper<DeviceToolCompensationDO> updateWrapper = new LambdaUpdateWrapper<>();
+        updateWrapper.eq(DeviceToolCompensationDO::getId, id)
+                .set(DeviceToolCompensationDO::getEndTs, endTs)
+                .set(DeviceToolCompensationDO::getActive, active);
+        mapper.update(null, updateWrapper);
     }
 }
 
