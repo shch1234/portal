@@ -126,9 +126,32 @@ public class DeviceMatchingService {
     private Optional<DeviceInfoDO> queryFromDatabase(String deviceCode) {
         DeviceInfoDO device = deviceInfoRepository.findActiveMonitoredByDeviceCode(deviceCode).orElse(null);
         if (device == null) {
-            log.warn("[DeviceMatching] 设备未匹配: deviceCode={}", deviceCode);
+            // 添加详细调试日志：查询设备详细信息，分析未匹配原因
+            Optional<DeviceInfoDO> rawDevice = deviceInfoRepository.findByDeviceCode(deviceCode);
+            if (rawDevice.isPresent()) {
+                DeviceInfoDO raw = rawDevice.get();
+                log.warn("[DeviceMatching] 设备未匹配: deviceCode={}, id={}, deleted={}, deviceStatus={}, isMonitored={}, tbDeviceId={}",
+                        deviceCode, raw.getId(), raw.getDeleted(), raw.getDeviceStatus(), raw.getIsMonitored(), raw.getTbDeviceId());
+                
+                // 分析未匹配原因
+                StringBuilder reasons = new StringBuilder();
+                if (Boolean.TRUE.equals(raw.getDeleted())) {
+                    reasons.append("设备已删除(deleted=true); ");
+                }
+                if (!"ACTIVE".equals(raw.getDeviceStatus())) {
+                    reasons.append("设备状态不是ACTIVE(deviceStatus=").append(raw.getDeviceStatus()).append("); ");
+                }
+                if (reasons.length() > 0) {
+                    log.warn("[DeviceMatching] 设备未匹配原因: deviceCode={}, 原因={}", deviceCode, reasons.toString());
+                }
+            } else {
+                log.warn("[DeviceMatching] 设备未匹配: deviceCode={}, 数据库中不存在该设备", deviceCode);
+            }
             return Optional.empty();
         }
+        
+        log.debug("[DeviceMatching] 设备匹配成功: deviceCode={}, id={}, deleted={}, deviceStatus={}, isMonitored={}",
+                deviceCode, device.getId(), device.getDeleted(), device.getDeviceStatus(), device.getIsMonitored());
         return Optional.of(device);
     }
 

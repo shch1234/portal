@@ -114,12 +114,6 @@ public class DeviceAlarmEventHandler implements WebhookEventHandler {
         }
         List<Map<String, Object>> currentAlarms = extractAlarms(currentAlarmsObj);
         
-        // 如果currentAlarms为空，记录警告日志
-        if (currentAlarms.isEmpty()) {
-            log.warn("[DeviceAlarmEventHandler] 当前报警数组为空: eventData keys={}, messageId={}",
-                    eventDataMap.keySet(), request.getMessageId());
-        }
-
         // 提取时间戳
         Long eventTimestamp = WebhookTimestampUtils.extractDeviceTimestamp(
                 eventDataMap, request.getTelemetryData(), request.getDataTimestamp(), request.getTimestamp());

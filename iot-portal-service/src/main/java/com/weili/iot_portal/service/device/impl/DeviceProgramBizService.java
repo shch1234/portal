@@ -54,6 +54,9 @@ public class DeviceProgramBizService implements IDeviceProgramBizService {
         String programName = getStringValue(programData, "programName");
         String programPath = getStringValue(programData, "programPath");
 
+        // 提取程序上下文（programCtx），用于存放程序信息（执行代码）
+        String programCtx = getStringValue(programData, "programCtx");
+
         // 提取主G代码和M代码
         String gCode = getStringValue(programData, "gCode");
         String mCode = getStringValue(programData, "mCode");
@@ -64,10 +67,15 @@ public class DeviceProgramBizService implements IDeviceProgramBizService {
         // 构建M代码详情：提取所有以 mCode 开头的字段（如 mCode1, mCode2 等）
         String mCodeDetails = buildMCodeDetails(programData, mCode);
 
+        // 执行代码从 programCtx 中获取
+        String executeCode = (programCtx != null && !programCtx.trim().isEmpty()) 
+                ? programCtx 
+                : null;
+
         return DeviceProgramRespVO.builder()
                 .programName(programName)
                 .programPath(programPath)
-                .executeCode(gCode) // 执行代码使用主G代码
+                .executeCode(executeCode) 
                 .gCodeDetails(gCodeDetails)
                 .mCodeDetails(mCodeDetails)
                 .build();

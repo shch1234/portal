@@ -428,9 +428,8 @@ public class DeviceToolEventHandler implements WebhookEventHandler {
         if (active != null) {
             log.debug("[DeviceToolEventHandler] 刀补值变化，关闭旧记录并创建新记录: deviceId={}, holderNumber={}, oldVersion={}", 
                     deviceId, holderNumber, active.getVersion());
-            active.setEndTs(ts);
-            active.setActive(DeviceToolEventFields.ACTIVE_STATUS_DISABLED);
-            deviceToolCompensationRepository.updateById(active);
+            // 使用 LambdaUpdateWrapper 仅更新 active 和 end_ts 字段，避免更新其他字段导致唯一约束冲突
+            deviceToolCompensationRepository.deactivateById(active.getId(), ts, DeviceToolEventFields.ACTIVE_STATUS_DISABLED);
             nextVersion = (active.getVersion() != null ? active.getVersion() + 1 : DeviceToolEventFields.INITIAL_VERSION);
             // 删除旧缓存（补偿值已变化）
             deviceToolCacheService.deleteActiveCompensation(deviceId, holderNumber);

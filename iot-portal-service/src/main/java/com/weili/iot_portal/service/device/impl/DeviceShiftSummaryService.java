@@ -722,8 +722,11 @@ public class DeviceShiftSummaryService implements IDeviceShiftSummaryService {
 
     /**
      * 填充状态统计字段
+     * <p>
+     * 改为 protected，允许同一包下的其他类复用此逻辑
+     * </p>
      */
-    private void populateStateStatisticsFields(
+    protected void populateStateStatisticsFields(
             DeviceStateSummaryDO summary,
             Map<String, StateStatistics> stateStats) {
         
@@ -791,8 +794,11 @@ public class DeviceShiftSummaryService implements IDeviceShiftSummaryService {
 
     /**
      * 限制比例值在 0-1 范围内
+     * <p>
+     * 改为 protected，允许同一包下的其他类复用此逻辑
+     * </p>
      */
-    private BigDecimal clampRatio(BigDecimal ratio) {
+    protected BigDecimal clampRatio(BigDecimal ratio) {
         if (ratio == null) {
             return BigDecimal.ZERO;
         }
@@ -810,8 +816,11 @@ public class DeviceShiftSummaryService implements IDeviceShiftSummaryService {
 
     /**
      * 获取状态统计（带默认值）
+     * <p>
+     * 改为 protected，允许同一包下的其他类复用此逻辑
+     * </p>
      */
-    private StateStatistics getStateStatistics(Map<String, StateStatistics> stateStats, String stateName) {
+    protected StateStatistics getStateStatistics(Map<String, StateStatistics> stateStats, String stateName) {
         return stateStats.getOrDefault(stateName, new StateStatistics(stateName, 0, 0));
     }
 

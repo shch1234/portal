@@ -100,7 +100,7 @@ public class LoginUserBizService implements ILoginUserBizService {
         List<LoginUserRespVO> list = new ArrayList<>();
         for (LoginUserDO user : pageResult.getList()) {
             LoginUserRespVO userRespVO = BeanUtils.toBean(user, LoginUserRespVO.class);
-            userRespVO.setUserName(user.getUsername());
+            userRespVO.setUsername(user.getUsername());
             list.add(userRespVO);
         }
         return PageResult.buildSuccess(pageResult.getTotal(), list);

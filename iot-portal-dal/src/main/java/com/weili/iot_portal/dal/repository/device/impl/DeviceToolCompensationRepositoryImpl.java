@@ -1,14 +1,17 @@
 package com.weili.iot_portal.dal.repository.device.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.weili.iot_portal.dal.dataobject.device.DeviceToolCompensationDO;
 import com.weili.iot_portal.dal.mapper.device.DeviceToolCompensationMapper;
 import com.weili.iot_portal.dal.repository.device.DeviceToolCompensationRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
 
+@Slf4j
 @Repository
 @RequiredArgsConstructor
 public class DeviceToolCompensationRepositoryImpl implements DeviceToolCompensationRepository {
@@ -62,7 +65,27 @@ public class DeviceToolCompensationRepositoryImpl implements DeviceToolCompensat
         if (record == null) {
             return;
         }
+        
+        // 在插入前，先删除已存在的相同唯一约束的记录（避免唯一约束冲突）
+        // 唯一约束 uq_tool_comp_active 基于 (device_info_id, tool_holder_no, active)
+        // 需要根据 active 值删除对应的记录
+        if (record.getDeviceInfoId() != null && record.getToolHolderNo() != null && record.getActive() != null) {
+            LambdaQueryWrapper<DeviceToolCompensationDO> deleteWrapper = new LambdaQueryWrapper<>();
+            deleteWrapper.eq(DeviceToolCompensationDO::getDeviceInfoId, record.getDeviceInfoId())
+                    .eq(DeviceToolCompensationDO::getToolHolderNo, record.getToolHolderNo())
+                    .eq(DeviceToolCompensationDO::getActive, record.getActive());
+            
+            int deletedCount = mapper.delete(deleteWrapper);
+            if (deletedCount > 0) {
+                log.info("[DeviceToolCompensationRepository] 插入前删除已存在的记录，避免唯一约束冲突: " +
+                        "deviceInfoId={}, toolHolderNo={}, active={}, deletedCount={}",
+                        record.getDeviceInfoId(), record.getToolHolderNo(), record.getActive(), deletedCount);
+            }
+        }
+        
         mapper.insert(record);
+        log.debug("[DeviceToolCompensationRepository] 成功插入记录: deviceInfoId={}, toolHolderNo={}, active={}, id={}",
+                record.getDeviceInfoId(), record.getToolHolderNo(), record.getActive(), record.getId());
     }
 
     @Override
@@ -71,6 +94,54 @@ public class DeviceToolCompensationRepositoryImpl implements DeviceToolCompensat
             return;
         }
         mapper.updateById(record);
+    }
+
+    @Override
+    public void deactivateById(Long id, Long endTs, Integer active) {
+        if (id == null) {
+            return;
+        }
+        
+        // 先查询记录，获取 device_info_id, org_factory_id, tool_holder_no
+        DeviceToolCompensationDO record = mapper.selectById(id);
+        if (record == null) {
+            log.warn("[DeviceToolCompensationRepository] 记录不存在，无法关闭: id={}", id);
+            return;
+        }
+        
+        log.debug("[DeviceToolCompensationRepository] 准备关闭记录: id={}, deviceInfoId={}, orgFactoryId={}, toolHolderNo={}, active={}",
+                id, record.getDeviceInfoId(), record.getOrgFactoryId(), record.getToolHolderNo(), active);
+        
+        // 在更新前，先删除已存在的 active=0 的记录（避免唯一约束冲突）
+        // 唯一约束 uq_tool_comp_active 基于 (device_info_id, tool_holder_no, active)，不包含 org_factory_id
+        // 如果已存在 active=0 的记录，更新当前记录为 active=0 会违反唯一约束
+        LambdaQueryWrapper<DeviceToolCompensationDO> deleteWrapper = new LambdaQueryWrapper<>();
+        deleteWrapper.eq(DeviceToolCompensationDO::getDeviceInfoId, record.getDeviceInfoId())
+                .eq(DeviceToolCompensationDO::getToolHolderNo, record.getToolHolderNo())
+                .eq(DeviceToolCompensationDO::getActive, 0)
+                .ne(DeviceToolCompensationDO::getId, id); // 排除当前记录
+        
+        int deletedCount = mapper.delete(deleteWrapper);
+        if (deletedCount > 0) {
+            log.info("[DeviceToolCompensationRepository] 删除已存在的 active=0 记录，避免唯一约束冲突: " +
+                    "deviceInfoId={}, toolHolderNo={}, deletedCount={} (唯一约束基于 device_info_id, tool_holder_no, active)",
+                    record.getDeviceInfoId(), record.getToolHolderNo(), deletedCount);
+        }
+        
+        // 然后更新当前记录
+        LambdaUpdateWrapper<DeviceToolCompensationDO> updateWrapper = new LambdaUpdateWrapper<>();
+        updateWrapper.eq(DeviceToolCompensationDO::getId, id)
+                .set(DeviceToolCompensationDO::getEndTs, endTs)
+                .set(DeviceToolCompensationDO::getActive, active);
+        int updatedCount = mapper.update(null, updateWrapper);
+        
+        if (updatedCount > 0) {
+            log.debug("[DeviceToolCompensationRepository] 成功关闭记录: id={}, endTs={}, active={}",
+                    id, endTs, active);
+        } else {
+            log.warn("[DeviceToolCompensationRepository] 更新记录失败: id={}, endTs={}, active={}",
+                    id, endTs, active);
+        }
     }
 }
 
