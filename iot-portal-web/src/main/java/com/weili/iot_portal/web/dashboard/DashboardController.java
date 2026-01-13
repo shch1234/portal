@@ -77,7 +77,7 @@ public class DashboardController {
     @GetMapping("/device-list")
     @Operation(summary = "获取设备列表", description = "获取指定工厂下的所有被监控设备信息，包括设备ID、设备编码、设备类型、设备实时在线状态")
     @Parameter(name = "code", description = "工厂code", example = "123456789")
-    public CommonResult<List<DeviceListRespVO>> getDeviceList(@RequestParam(value = "factoryId") Long code) {
+    public CommonResult<List<DeviceListRespVO>> getDeviceList(@RequestParam(value = "code") Long code) {
         List<DeviceListRespVO> result = dashboardService.getDeviceList(code);
         return CommonResult.success(result);
     }
