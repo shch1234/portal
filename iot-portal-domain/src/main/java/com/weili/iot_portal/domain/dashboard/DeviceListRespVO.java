@@ -21,6 +21,9 @@ public class DeviceListRespVO {
     @Schema(description = "设备类型编码", example = "TYPE001")
     private String deviceTypeCode;
 
+    @Schema(description = "设备类型名称", example = "设备类型名称")
+    private String deviceTypeName;
+
     @Schema(description = "设备状态：0-在线，1-离线，2-故障", example = "0")
     private String state;
 }

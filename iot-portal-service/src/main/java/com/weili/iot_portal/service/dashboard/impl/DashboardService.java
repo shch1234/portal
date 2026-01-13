@@ -5,10 +5,12 @@ import com.weili.iot_portal.common.exception.IotPortalException;
 import com.weili.iot_portal.dal.dataobject.device.DeviceAlarmHistoryDO;
 import com.weili.iot_portal.dal.dataobject.device.DeviceInfoDO;
 import com.weili.iot_portal.dal.dataobject.device.DeviceOrgRelationDO;
+import com.weili.iot_portal.dal.dataobject.device.DeviceTypeRelationDO;
 import com.weili.iot_portal.dal.dataobject.factory.FactoryMetricSummaryDO;
 import com.weili.iot_portal.dal.repository.device.DeviceAlarmHistoryRepository;
 import com.weili.iot_portal.dal.repository.device.DeviceInfoRepository;
 import com.weili.iot_portal.dal.repository.device.DeviceOrgRelationRepository;
+import com.weili.iot_portal.dal.repository.device.DeviceTypeRelationRepository;
 import com.weili.iot_portal.dal.repository.factory.FactoryMetricSummaryRepository;
 import com.weili.iot_portal.domain.dashboard.AlarmDurationTopRespVO;
 import com.weili.iot_portal.domain.dashboard.DeviceListRespVO;
@@ -62,6 +64,9 @@ public class DashboardService implements IDashboardService {
     private DeviceOrgRelationRepository deviceOrgRelationRepository;
 
     @Resource
+    private DeviceTypeRelationRepository deviceTypeRelationRepository;
+
+    @Resource
     private DeviceAlarmHistoryRepository deviceAlarmHistoryRepository;
 
     @Resource
@@ -89,7 +94,6 @@ public class DashboardService implements IDashboardService {
         int faultDevices = 0;
 
         if (totalDevices == 0) {
-            log.info("未查询到监控设备");
             DeviceStateStatisticsRespVO result = new DeviceStateStatisticsRespVO();
             result.setTotalDevices(0);
             result.setOnlineDevices(0);
@@ -128,7 +132,6 @@ public class DashboardService implements IDashboardService {
                 faultDevices++;
             } else {
                 // 未知状态，默认视为离线
-                log.warn("设备状态未知, deviceId: {}, state: {}", device.getId(), state);
                 offlineDevices++;
             }
         }
@@ -139,10 +142,6 @@ public class DashboardService implements IDashboardService {
         result.setOnlineDevices(onlineDevices);
         result.setOfflineDevices(offlineDevices);
         result.setFaultDevices(faultDevices);
-
-        log.info("设备状态统计完成, total: {}, online: {}, offline: {}, fault: {}",
-                totalDevices, onlineDevices, offlineDevices, faultDevices);
-
         return result;
     }
 
@@ -153,7 +152,6 @@ public class DashboardService implements IDashboardService {
         List<DeviceAlarmHistoryDO> alarmHistories = deviceAlarmHistoryRepository.findTopByDuration(factoryId, topN);
 
         if (alarmHistories == null || alarmHistories.isEmpty()) {
-            log.info("未查询到报警数据");
             return new ArrayList<>();
         }
 
@@ -180,12 +178,10 @@ public class DashboardService implements IDashboardService {
             }
 
             vo.setAlarmText(alarm.getAlarmText());
-            vo.setDurationS(alarm.getDurationS());
+            vo.setDurationS(alarm.getDurationS() / 1000);
 
             result.add(vo);
         }
-
-        log.info("报警时长TOP数据查询完成, 返回{}条记录", result.size());
         return result;
     }
 
@@ -264,6 +260,9 @@ public class DashboardService implements IDashboardService {
         // 3. 批量从Redis获取设备的实时状态
         Map<Long, Map<Object, Object>> deviceStateMap = deviceStateCacheService.batchGetState(factoryId, deviceIds);
 
+        List<String> deviceTypeCodes = monitoredDevices.stream().map(DeviceInfoDO::getDeviceTypeCode).distinct().toList();
+        List<DeviceTypeRelationDO> typeRelationList = deviceTypeRelationRepository.selectByCodes(deviceTypeCodes);
+        Map<String, DeviceTypeRelationDO> typeCodeMap = typeRelationList.stream().collect(Collectors.toMap(DeviceTypeRelationDO::getTypeCode, d -> d));
         // 4. 遍历所有被监控的设备，从批量查询结果中获取状态并组装VO
         List<DeviceListRespVO> result = new ArrayList<>(monitoredDevices.size());
         for (DeviceInfoDO device : monitoredDevices) {
@@ -282,6 +281,9 @@ public class DashboardService implements IDashboardService {
             vo.setDeviceId(device.getId());
             vo.setDeviceCode(device.getDeviceCode());
             vo.setDeviceTypeCode(device.getDeviceTypeCode());
+            vo.setDeviceTypeName(typeCodeMap.containsKey(device.getDeviceTypeCode()) ?
+                    typeCodeMap.get(device.getDeviceTypeCode()).getDescription() :
+                    "未知");
             vo.setState(state);
             result.add(vo);
         }

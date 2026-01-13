@@ -63,7 +63,7 @@ public class DeviceAlarmHistoryDO implements Serializable {
     private Long endTs;
 
     /**
-     * 持续时长（秒）
+     * 持续时长（豪秒）
      */
     private Integer durationS;
 
