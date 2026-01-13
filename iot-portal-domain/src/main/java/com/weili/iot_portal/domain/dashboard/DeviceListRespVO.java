@@ -23,7 +23,4 @@ public class DeviceListRespVO {
 
     @Schema(description = "设备状态：0-在线，1-离线，2-故障", example = "0")
     private String state;
-
-    @Schema(description = "设备状态文本：在线、离线、故障", example = "在线")
-    private String stateText;
 }

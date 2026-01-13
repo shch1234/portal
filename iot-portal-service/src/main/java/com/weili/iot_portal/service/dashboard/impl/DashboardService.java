@@ -1,10 +1,14 @@
 package com.weili.iot_portal.service.dashboard.impl;
 
+import com.weili.basic.common.enums.ErrorCodeEnum;
+import com.weili.iot_portal.common.exception.IotPortalException;
 import com.weili.iot_portal.dal.dataobject.device.DeviceAlarmHistoryDO;
 import com.weili.iot_portal.dal.dataobject.device.DeviceInfoDO;
+import com.weili.iot_portal.dal.dataobject.device.DeviceOrgRelationDO;
 import com.weili.iot_portal.dal.dataobject.factory.FactoryMetricSummaryDO;
 import com.weili.iot_portal.dal.repository.device.DeviceAlarmHistoryRepository;
 import com.weili.iot_portal.dal.repository.device.DeviceInfoRepository;
+import com.weili.iot_portal.dal.repository.device.DeviceOrgRelationRepository;
 import com.weili.iot_portal.dal.repository.factory.FactoryMetricSummaryRepository;
 import com.weili.iot_portal.domain.dashboard.AlarmDurationTopRespVO;
 import com.weili.iot_portal.domain.dashboard.DeviceListRespVO;
@@ -22,10 +26,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -37,18 +38,6 @@ import java.util.stream.Collectors;
 @Slf4j
 @Service
 public class DashboardService implements IDashboardService {
-
-    @Resource
-    private DeviceInfoRepository deviceInfoRepository;
-
-    @Resource
-    private DeviceStateCacheService deviceStateCacheService;
-
-    @Resource
-    private DeviceAlarmHistoryRepository deviceAlarmHistoryRepository;
-
-    @Resource
-    private FactoryMetricSummaryRepository factoryMetricSummaryRepository;
 
     /**
      * 设备状态定义常量
@@ -63,11 +52,34 @@ public class DashboardService implements IDashboardService {
     private static final String METRIC_TYPE_OEE = "OEE";
     private static final String METRIC_TYPE_UTILIZATION = "UTILIZATION";
 
-    @Override
-    public DeviceStateStatisticsRespVO getDeviceStateStatistics(Long factoryId) {
-        log.info("获取设备状态统计数据, factoryId: {}", factoryId);
+    @Resource
+    private DeviceInfoRepository deviceInfoRepository;
 
-        // 1. 通过Repository查询所有被监控的设备（isMonitored = true）
+    @Resource
+    private DeviceStateCacheService deviceStateCacheService;
+
+    @Resource
+    private DeviceOrgRelationRepository deviceOrgRelationRepository;
+
+    @Resource
+    private DeviceAlarmHistoryRepository deviceAlarmHistoryRepository;
+
+    @Resource
+    private FactoryMetricSummaryRepository factoryMetricSummaryRepository;
+
+
+    private Long getFactoryId(Long factoryCode) {
+        Optional<DeviceOrgRelationDO> optional = deviceOrgRelationRepository.findByUnitCode(String.valueOf(factoryCode));
+        if (optional.isPresent()) {
+            DeviceOrgRelationDO orgRelationDO = optional.get();
+            return orgRelationDO.getId();
+        }
+        throw new IotPortalException(ErrorCodeEnum.PARAMS_ILLEGAL);
+    }
+
+    @Override
+    public DeviceStateStatisticsRespVO getDeviceStateStatistics(Long factoryCode) {
+        Long factoryId = getFactoryId(factoryCode);
         List<DeviceInfoDO> monitoredDevices = deviceInfoRepository.findMonitoredDevices(factoryId);
 
         // 2. 统计设备状态
@@ -135,10 +147,9 @@ public class DashboardService implements IDashboardService {
     }
 
     @Override
-    public List<AlarmDurationTopRespVO> getAlarmDurationTop(Long factoryId, Integer topN) {
-        log.info("获取报警时长TOP数据, factoryId: {}, topN: {}", factoryId, topN);
-
+    public List<AlarmDurationTopRespVO> getAlarmDurationTop(Long factoryCode, Integer topN) {
         // 1. 从Repository查询报警时长TOP N
+        Long factoryId = getFactoryId(factoryCode);
         List<DeviceAlarmHistoryDO> alarmHistories = deviceAlarmHistoryRepository.findTopByDuration(factoryId, topN);
 
         if (alarmHistories == null || alarmHistories.isEmpty()) {
@@ -179,11 +190,9 @@ public class DashboardService implements IDashboardService {
     }
 
     @Override
-    public MetricTrendRespVO getMetricTrend(Long factoryId, String metricType, LocalDate startDate, LocalDate endDate) {
-        log.info("获取指标趋势数据, factoryId: {}, metricType: {}, startDate: {}, endDate: {}",
-                factoryId, metricType, startDate, endDate);
-
+    public MetricTrendRespVO getMetricTrend(Long factoryCode, String metricType, LocalDate startDate, LocalDate endDate) {
         // 1. 查询指定时间范围内的工厂指标汇总数据
+        Long factoryId = getFactoryId(factoryCode);
         List<FactoryMetricSummaryDO> summaries = factoryMetricSummaryRepository
                 .selectFinalizedInRange(factoryId, startDate, endDate);
 
@@ -233,16 +242,13 @@ public class DashboardService implements IDashboardService {
 
         result.setTime(xAxis);
         result.setValue(yAxis);
-
-        log.info("指标趋势数据查询完成, 返回{}个数据点", xAxis.size());
         return result;
     }
 
     @Override
-    public List<DeviceListRespVO> getDeviceList(Long factoryId) {
-        log.info("获取设备列表, factoryId: {}", factoryId);
-
+    public List<DeviceListRespVO> getDeviceList(Long factoryCode) {
         // 1. 通过Repository查询所有被监控的设备（isMonitored = true）
+        Long factoryId = getFactoryId(factoryCode);
         List<DeviceInfoDO> monitoredDevices = deviceInfoRepository.findMonitoredDevices(factoryId);
 
         if (monitoredDevices == null || monitoredDevices.isEmpty()) {
@@ -277,30 +283,8 @@ public class DashboardService implements IDashboardService {
             vo.setDeviceCode(device.getDeviceCode());
             vo.setDeviceTypeCode(device.getDeviceTypeCode());
             vo.setState(state);
-            vo.setStateText(getStateText(state));
-
             result.add(vo);
         }
-
-        log.info("设备列表查询完成, 返回{}条记录", result.size());
         return result;
-    }
-
-    /**
-     * 获取状态文本描述
-     *
-     * @param state 状态代码
-     * @return 状态文本
-     */
-    private String getStateText(String state) {
-        if (STATE_ONLINE.equals(state)) {
-            return "在线";
-        } else if (STATE_OFFLINE.equals(state)) {
-            return "离线";
-        } else if (STATE_FAULT.equals(state)) {
-            return "故障";
-        } else {
-            return "未知";
-        }
     }
 }
