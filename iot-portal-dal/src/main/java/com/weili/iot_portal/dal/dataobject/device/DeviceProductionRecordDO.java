@@ -1,14 +1,17 @@
 package com.weili.iot_portal.dal.dataobject.device;
 
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
 import com.weili.iot_portal.domain.record.TimeRangeRecord;
 import lombok.Data;
 
 import java.io.Serial;
 import java.io.Serializable;
 import java.time.LocalDate;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -65,17 +68,23 @@ public class DeviceProductionRecordDO implements Serializable, TimeRangeRecord {
     private String countSource;
 
     /**
+     * 扩展属性（JSON，对应 properties 列）
+     * 用于存储异常标记等信息，如离线异常、时间戳异常等
+     */
+    @TableField(typeHandler = JacksonTypeHandler.class)
+    private Map<String, Object> properties;
+
+    /**
      * 扩展属性（用于存储异常标记等信息）
-     * 注意：DeviceProductionRecordDO 当前没有 properties 字段，返回 null
      */
     @Override
     public Map<String, Object> getProperties() {
-        return null;
+        return properties;
     }
 
     @Override
     public void setProperties(Map<String, Object> properties) {
-        // DeviceProductionRecordDO 当前不支持 properties，忽略
+        this.properties = properties;
     }
 }
 

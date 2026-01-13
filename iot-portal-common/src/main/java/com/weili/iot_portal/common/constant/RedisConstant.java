@@ -36,6 +36,8 @@ public class RedisConstant {
     public static final String RT_TOOL = COMMON + "rt:tool:%s:%s";
     /**
      * 实时数据：状态心跳（String）
+     * 存储值："1" 表示有心跳，"0" 表示无心跳（键不存在时返回）
+     * TTL：默认 120 秒（2分钟），可通过配置 rt.state.heartbeat-ttl-seconds 调整
      */
     public static final String RT_STATE_HEARTBEAT = COMMON + "rt:state:hb:%s:%s";
     /**

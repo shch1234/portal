@@ -37,7 +37,7 @@ public class DeviceStateCacheService {
     @Value("${rt.state.ttl-millis:600000}")
     private long stateTtlMillis;
 
-    @Value("${rt.state.heartbeat-ttl-seconds:300}")
+    @Value("${rt.state.heartbeat-ttl-seconds:120}")
     private long stateHeartbeatTtlSeconds;
 
     // ==================== 状态数据缓存 ====================
@@ -139,27 +139,91 @@ public class DeviceStateCacheService {
 
     /**
      * 保存或刷新状态心跳
+     * <p>
+     * 优化：统一存储 "1" 作为心跳状态标记，忽略 traceId 参数
+     * TTL 默认 300 秒（5分钟），可通过配置 rt.state.heartbeat-ttl-seconds 调整
+     * </p>
+     * <p>
+     * TTL 设置建议：
+     * - 120秒（2分钟）：适合高频发送场景（每10-30秒发送一次），实时性要求高，但可能因网络延迟误判
+     * - 300秒（5分钟）：推荐值，平衡实时性和稳定性，适合大多数场景（每30秒-2分钟发送一次）
+     * - 600秒（10分钟）：适合低频发送场景，但离线检测延迟较大
+     * </p>
      *
      * @param factoryId 工厂ID
      * @param deviceId  设备ID
-     * @param traceId   追踪ID（可选，为空时使用默认值）
+     * @param traceId   追踪ID（已废弃，统一存储 "1"）
      */
     public void saveHeartbeat(Long factoryId, Long deviceId, String traceId) {
         String key = buildHeartbeatKey(factoryId, deviceId);
-        String value = StringUtils.defaultIfBlank(traceId, "1");
-        redisTemplate.opsForValue().set(key, value, Duration.ofSeconds(stateHeartbeatTtlSeconds));
+        // 统一存储 "1" 作为心跳状态标记，忽略 traceId
+        redisTemplate.opsForValue().set(key, "1", Duration.ofSeconds(stateHeartbeatTtlSeconds));
     }
 
     /**
      * 获取状态心跳值
+     * <p>
+     * 优化：如果键不存在（已过期），返回 "0" 而不是 null
+     * 返回值："1" 表示有心跳，"0" 表示无心跳（已过期）
+     * </p>
      *
      * @param factoryId 工厂ID
      * @param deviceId  设备ID
-     * @return 心跳值，如果不存在返回 null
+     * @return 心跳状态，"1" 表示有心跳，"0" 表示无心跳（已过期）
      */
     public String getHeartbeat(Long factoryId, Long deviceId) {
         String key = buildHeartbeatKey(factoryId, deviceId);
-        return redisTemplate.opsForValue().get(key);
+        String value = redisTemplate.opsForValue().get(key);
+        // 如果键不存在（已过期），返回 "0" 表示无心跳
+        return value != null ? value : "0";
+    }
+
+    /**
+     * 批量获取心跳状态
+     * <p>
+     * 使用 Pipeline 批量查询，提高性能
+     * </p>
+     *
+     * @param factoryId 工厂ID
+     * @param deviceIds 设备ID列表
+     * @return 设备ID到心跳状态的映射，设备ID -> "1"（有心跳）或"0"（无心跳）
+     */
+    public Map<Long, String> batchGetHeartbeatStatus(Long factoryId, List<Long> deviceIds) {
+        if (deviceIds == null || deviceIds.isEmpty()) {
+            return new HashMap<>();
+        }
+
+        Map<Long, String> result = new HashMap<>(deviceIds.size());
+
+        try {
+            // 使用Pipeline批量查询，减少网络往返
+            List<Object> pipelineResults = redisTemplate.executePipelined((org.springframework.data.redis.core.RedisCallback<Object>) connection -> {
+                for (Long deviceId : deviceIds) {
+                    String key = buildHeartbeatKey(factoryId, deviceId);
+                    byte[] keyBytes = key.getBytes();
+                    connection.stringCommands().get(keyBytes);
+                }
+                return null;
+            });
+
+            // 组装结果
+            for (int i = 0; i < deviceIds.size(); i++) {
+                Long deviceId = deviceIds.get(i);
+                Object pipelineResult = pipelineResults.get(i);
+
+                // 如果键不存在（已过期），返回"0"表示无心跳
+                String status = pipelineResult != null ? pipelineResult.toString() : "0";
+                result.put(deviceId, status);
+            }
+        } catch (Exception e) {
+            log.error("批量获取心跳状态失败, factoryId: {}, deviceIds size: {}", factoryId, deviceIds.size(), e);
+            // 发生异常时，所有设备默认返回"0"（无心跳）
+            for (Long deviceId : deviceIds) {
+                result.put(deviceId, "0");
+            }
+        }
+
+        return result;
     }
 
     // ==================== 辅助方法 ====================

@@ -113,7 +113,7 @@ public class DeviceStateSummaryBizService implements IDeviceStateSummaryBizServi
 
         return DeviceStateSummaryRespVO.builder()
                 .currentState(stateValue)
-                .currentHeart(StringUtils.isNotBlank(heartbeat))
+                .currentHeart("1".equals(heartbeat))
                 .ratioStatistics(buildRatioStatistics(summaryList))
                 .timelineData(buildTimelineData(stateRecordList))
                 .build();
