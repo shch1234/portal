@@ -76,9 +76,8 @@ public class DeviceStateSummaryBizService implements IDeviceStateSummaryBizServi
         // 1. 获取当前时间对应的班次日期（考虑跨天班次）
         // 例如：2026-1-15 04:00 属于 2026-1-14 的第二班，则 currentShiftDate = 2026-1-14
         long currentTime = System.currentTimeMillis();
-        com.weili.iot_portal.domain.ingestion.ShiftDateAndCode currentShiftDateAndCode = 
-                shiftCalculationService.getShiftDateAndCode(deviceInfo.getOrgFactoryId(), queryReqVO.getDeviceId(), currentTime);
-        LocalDate currentShiftDate = currentShiftDateAndCode.shiftDate();
+        LocalDate currentShiftDate = shiftCalculationService.getShiftDate(
+                deviceInfo.getOrgFactoryId(), queryReqVO.getDeviceId(), currentTime);
         
         // 2. 处理查询日期范围
         LocalDate startShiftDate = queryReqVO.getStartTime();

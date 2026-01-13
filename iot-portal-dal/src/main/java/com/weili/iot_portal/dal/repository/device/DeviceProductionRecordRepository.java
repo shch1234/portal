@@ -48,7 +48,7 @@ public interface DeviceProductionRecordRepository {
     Optional<Long> findLatestCompletedDurationS(Long deviceId);
 
     /**
-     * 统计当天的加工数量
+     * 统计当天的加工数量（只统计已完成的记录，end_ts不为null）
      */
     long countByDate(Long deviceInfoId, LocalDate shiftDate);
 }

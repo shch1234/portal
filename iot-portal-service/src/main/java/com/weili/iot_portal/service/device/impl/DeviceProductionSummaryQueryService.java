@@ -10,6 +10,7 @@ import com.weili.iot_portal.dal.repository.device.DeviceProductionSummaryReposit
 import com.weili.iot_portal.domain.device.req.DeviceProductionStatisticsReqVO;
 import com.weili.iot_portal.domain.device.resp.DeviceProductionStatisticsRespVO;
 import com.weili.iot_portal.service.device.IDeviceProductionSummaryQueryService;
+import com.weili.iot_portal.service.shift.IShiftCalculationService;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -34,6 +35,8 @@ public class DeviceProductionSummaryQueryService implements IDeviceProductionSum
     private DeviceProductionRecordRepository productionRecordRepository;
     @Resource
     private DeviceProductionSummaryRepository productionSummaryRepository;
+    @Resource
+    private IShiftCalculationService shiftCalculationService;
 
 
     @Override
@@ -45,10 +48,19 @@ public class DeviceProductionSummaryQueryService implements IDeviceProductionSum
         if (optional.isEmpty()) {
             throw new IotPortalException(IotPortalErrorCode.DEVICE_INFO_NOT_FOUND);
         }
-        // 1. 当日加工数：永远是系统当前时间所在班次的数据
+        DeviceInfoDO deviceInfo = optional.get();
+        
+        // 1. 当日加工数：根据当前时间计算班次日期（考虑跨天班次的情况）
+        long currentTimestamp = System.currentTimeMillis();
+        LocalDate currentShiftDate = shiftCalculationService.getShiftDate(
+                deviceInfo.getOrgFactoryId(),
+                deviceInfoId,
+                currentTimestamp
+        );
+        
         long currentShiftCount = productionRecordRepository.countByDate(
                 deviceInfoId,
-                LocalDate.now()
+                currentShiftDate
         );
         respVO.setTodayProductionCount((int) currentShiftCount);
 

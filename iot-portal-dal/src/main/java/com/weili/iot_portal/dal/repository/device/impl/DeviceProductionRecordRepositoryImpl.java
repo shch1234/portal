@@ -71,7 +71,8 @@ public class DeviceProductionRecordRepositoryImpl implements DeviceProductionRec
     public long countByDate(Long deviceInfoId, LocalDate shiftDate) {
         LambdaQueryWrapper<DeviceProductionRecordDO> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(DeviceProductionRecordDO::getDeviceInfoId, deviceInfoId)
-                .eq(DeviceProductionRecordDO::getShiftDate, shiftDate);
+                .eq(DeviceProductionRecordDO::getShiftDate, shiftDate)
+                .isNotNull(DeviceProductionRecordDO::getEndTs); // 只统计已完成的记录（end_ts不为null）
         return mapper.selectCount(wrapper);
     }
 

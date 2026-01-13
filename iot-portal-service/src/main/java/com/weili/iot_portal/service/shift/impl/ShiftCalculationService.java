@@ -191,6 +191,23 @@ public class ShiftCalculationService implements IShiftCalculationService {
     }
 
     /**
+     * 获取时间戳对应的班次日期（带工厂验证）
+     * <p>
+     * 根据当前时间戳和班次配置计算班次日期，考虑跨天班次的情况。
+     * 例如：当前是2026-1-13 04:00，两班制第二班（20:00-次日08:00），班次日期应该是2026-1-12
+     * </p>
+     * 
+     * @param factoryId 工厂ID
+     * @param deviceId 设备ID
+     * @param timestamp 时间戳（毫秒），建议包含完整的时分秒信息
+     * @return 班次日期
+     */
+    @Override
+    public LocalDate getShiftDate(Long factoryId, Long deviceId, long timestamp) {
+        return getShiftDateAndCode(factoryId, deviceId, timestamp).shiftDate();
+    }
+
+    /**
      * 检查时间范围是否跨班（带工厂验证）
      * <p>
      * 判断逻辑：
