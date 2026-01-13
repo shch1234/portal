@@ -448,11 +448,22 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
      * 4. 如果数据库有记录且 previousToolNo 匹配，判断为 NORMAL_CHANGE
      * 5. 如果数据库有记录但 previousToolNo 不匹配，判断为 TOOL_MISMATCH
      * </p>
+     * <p>
+     * 特殊处理：
+     * - 如果 previousToolNo 为 "0"（未使用刀具），视为数据库无记录（因为0不会写入记录），判断为 FIRST_RECORD
+     * - 如果 currentToolNo 为 "0"（未使用刀具），在各处理方法中不创建新记录，只终止旧记录
+     * </p>
      */
     private TransitionType determineTransitionType(Optional<DeviceToolRecordDO> latestOngoingOpt,
                                                    EventData eventData) {
         String previousToolNo = eventData.previousToolNo();
         String currentToolNo = eventData.currentToolNo();
+
+        // 特殊处理：如果 previousToolNo 为 "0"（未使用刀具），视为数据库无记录（因为0不会写入记录）
+        if (DeviceToolEventFields.isUnusedTool(previousToolNo)) {
+            log.debug("[DeviceToolChangeEventHandler] 判断转换类型: FIRST_RECORD (previousToolNo为0，视为无记录)");
+            return TransitionType.FIRST_RECORD;
+        }
 
         // 先检查数据库是否有记录
         if (latestOngoingOpt.isEmpty()) {
@@ -497,10 +508,21 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
      * 参考 DeviceStateEventHandler.handleFirstRecord 的逻辑：
      * 直接插入新记录，不管 previousToolNo 是否为空
      * </p>
+     * <p>
+     * 特殊处理：
+     * - 如果 currentToolNo 为 "0"（未使用刀具），不创建新记录（因为0表示未使用刀具，不会写入device_tool_record表）
+     * </p>
      */
     private void handleFirstRecord(Long deviceInfoId, Long orgFactoryId, EventData eventData) {
         String currentToolNo = eventData.currentToolNo();
         long eventTimestamp = eventData.eventTimestamp();
+
+        // 如果 currentToolNo 为 "0"（未使用刀具），不创建新记录
+        if (DeviceToolEventFields.isUnusedTool(currentToolNo)) {
+            log.debug("[DeviceToolChangeEventHandler] 数据库无记录但刀具号为0（未使用刀具），跳过创建记录: deviceInfoId={}, timestamp={}",
+                    deviceInfoId, eventTimestamp);
+            return;
+        }
 
         log.debug("[DeviceToolChangeEventHandler] 数据库无记录，插入首次刀具记录: deviceInfoId={}, toolNo={}, timestamp={}",
                 deviceInfoId, currentToolNo, eventTimestamp);
@@ -515,6 +537,10 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
 
     /**
      * 正常换刀：previousToolNo匹配数据库记录
+     * <p>
+     * 特殊处理：
+     * - 如果 currentToolNo 为 "0"（未使用刀具），只终止旧记录，不创建新记录
+     * </p>
      */
     private void handleNormalToolChange(DeviceToolRecordDO latestOngoing, Long orgFactoryId, EventData eventData) {
         Long deviceInfoId = latestOngoing.getDeviceInfoId();
@@ -546,6 +572,13 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
                     dbToolNo, latestOngoing.getEndTs(), latestOngoing.getDurationS());
         }
 
+        // 如果 currentToolNo 为 "0"（未使用刀具），不创建新记录
+        if (DeviceToolEventFields.isUnusedTool(currentToolNo)) {
+            log.debug("[DeviceToolChangeEventHandler] 新刀号为0（未使用刀具），只终止旧记录，不创建新记录: deviceInfoId={}, 旧刀号={}",
+                    deviceInfoId, dbToolNo);
+            return;
+        }
+
         // 插入新刀具记录
         DeviceToolRecordDO newRecord = createToolRecord(deviceInfoId, orgFactoryId, eventData, eventTimestamp);
         deviceToolRecordRepository.insert(newRecord);
@@ -558,6 +591,10 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
      * 首次连接处理
      * <p>
      * 修复并发问题：使用锁内已查询的结果，避免重复查询导致的竞态条件
+     * </p>
+     * <p>
+     * 特殊处理：
+     * - 如果 currentToolNo 为 "0"（未使用刀具），只终止旧记录，不创建新记录
      * </p>
      */
     private void handleFirstConnection(Optional<DeviceToolRecordDO> latestOngoingOpt,
@@ -601,6 +638,13 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
                     );
                 }
             }
+        }
+
+        // 如果 currentToolNo 为 "0"（未使用刀具），不创建新记录
+        if (DeviceToolEventFields.isUnusedTool(currentToolNo)) {
+            log.debug("[DeviceToolChangeEventHandler] 新刀号为0（未使用刀具），只终止旧记录，不创建新记录: deviceInfoId={}",
+                    deviceInfoId);
+            return;
         }
 
         // 插入新记录
@@ -662,6 +706,13 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
                     errorMessage, true);
         }
 
+        // 如果 currentToolNo 为 "0"（未使用刀具），不创建新记录
+        if (DeviceToolEventFields.isUnusedTool(currentToolNo)) {
+            log.debug("[DeviceToolChangeEventHandler] 新刀号为0（未使用刀具），只终止旧记录，不创建新记录: deviceInfoId={}",
+                    deviceInfoId);
+            return;
+        }
+
         // 插入新记录
         DeviceToolRecordDO newRecord = createToolRecord(deviceInfoId, orgFactoryId, eventData, eventTimestamp);
         deviceToolRecordRepository.insert(newRecord);
@@ -672,6 +723,10 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
 
     /**
      * 时间戳异常处理
+     * <p>
+     * 特殊处理：
+     * - 如果 currentToolNo 为 "0"（未使用刀具），只终止旧记录，不创建新记录
+     * </p>
      */
     private void handleTimestampAnomaly(DeviceToolRecordDO ongoing,
                                         EventData eventData,
@@ -693,6 +748,14 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
                 ongoing.setDurationS(durationMs < 0 ? 0L : durationMs);
             }
             deviceToolRecordRepository.updateById(ongoing);
+        }
+
+        // 如果 currentToolNo 为 "0"（未使用刀具），不创建新记录
+        String currentToolNo = eventData.currentToolNo();
+        if (DeviceToolEventFields.isUnusedTool(currentToolNo)) {
+            log.debug("[DeviceToolChangeEventHandler] 时间戳异常但新刀号为0（未使用刀具），只终止旧记录，不创建新记录: deviceInfoId={}",
+                    deviceInfoId);
+            return;
         }
 
         // 插入新记录，使用事件时间戳（毫秒级）

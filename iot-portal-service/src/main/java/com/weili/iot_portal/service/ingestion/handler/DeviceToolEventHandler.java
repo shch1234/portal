@@ -114,6 +114,14 @@ public class DeviceToolEventHandler implements WebhookEventHandler {
             return;
         }
         
+        // 如果刀具号为0（未使用刀具），不写入刀补补偿表
+        boolean isUnusedTool = DeviceToolEventFields.isUnusedTool(toolNo);
+        if (isUnusedTool) {
+            log.debug("{} 事件刀具号为0（未使用刀具），跳过刀补补偿表写入: deviceInfoId={}", 
+                    DeviceToolEventFields.EVENT_TYPE, deviceInfoId);
+            holderNumber = null;  // 确保为null，不写入补偿表
+        }
+        
         // 如果holderNumber为0或不存在，不写入刀补补偿表（刀补号0没有意义）
         if (StringUtils.isBlank(holderNumber) || isZeroValue(holderNumber)) {
             log.debug("{} 事件刀补号为0或不存在，跳过刀补补偿表写入: deviceInfoId={}", 
@@ -123,7 +131,8 @@ public class DeviceToolEventHandler implements WebhookEventHandler {
         
         // 提取补偿数据
         Map<String, Object> compValue = null;
-        if (StringUtils.isNotBlank(holderNumber)) {
+        // 只有在刀具号不为0且holderNumber不为空时，才写入刀补补偿表
+        if (!isUnusedTool && StringUtils.isNotBlank(holderNumber)) {
             compValue = extractCompensationValue(eventData);
             if (!compValue.isEmpty()) {
                 // 写入刀补补偿表（版本化覆盖）

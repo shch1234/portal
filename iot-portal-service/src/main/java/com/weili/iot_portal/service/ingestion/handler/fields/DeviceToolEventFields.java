@@ -46,6 +46,13 @@ public final class DeviceToolEventFields {
     public static final String TOOL_NO = "toolNo";
 
     /**
+     * 刀具编号值：未使用刀具
+     * 当刀具编号为"0"时，表示当前没有使用任何刀具
+     * 此时不会写入device_tool_record表
+     */
+    public static final String TOOL_NO_UNUSED = "0";
+
+    /**
      * 刀补号（标准字段名）
      * 用于标识刀具所在的刀架位置编号，是刀补补偿的关键标识
      * 值为0时表示未使用刀补
@@ -279,5 +286,33 @@ public final class DeviceToolEventFields {
         String key = fieldName.trim().toLowerCase();
         return key.startsWith(OFFSET_PREFIX.toLowerCase())
                 || key.startsWith(COMP_PREFIX.toLowerCase());
+    }
+
+    /**
+     * 判断刀具编号是否为未使用刀具（值为"0"）
+     * <p>
+     * 当刀具编号为"0"时，表示当前没有使用任何刀具，不会写入device_tool_record表
+     * </p>
+     *
+     * @param toolNo 刀具编号
+     * @return true 如果刀具编号为"0"（未使用刀具）
+     */
+    public static boolean isUnusedTool(String toolNo) {
+        if (toolNo == null) {
+            return false;
+        }
+        String trimmed = toolNo.trim();
+        // 判断是否为字符串"0"
+        if (TOOL_NO_UNUSED.equals(trimmed)) {
+            return true;
+        }
+        // 尝试解析为数字，判断是否为0
+        try {
+            double numValue = Double.parseDouble(trimmed);
+            return numValue == 0.0;
+        } catch (NumberFormatException e) {
+            // 不是数字，返回false
+            return false;
+        }
     }
 }
