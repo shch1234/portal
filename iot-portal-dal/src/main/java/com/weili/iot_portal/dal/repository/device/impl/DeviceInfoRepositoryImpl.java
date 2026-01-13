@@ -86,7 +86,6 @@ public class DeviceInfoRepositoryImpl implements DeviceInfoRepository {
     @Override
     public List<DeviceInfoDO> findMonitoredDevices(Long factoryId) {
         LambdaQueryWrapper<DeviceInfoDO> wrapper = new LambdaQueryWrapper<DeviceInfoDO>()
-                .eq(DeviceInfoDO::getIsMonitored, true)
                 .eq(DeviceInfoDO::getDeleted, false);
 
         if (factoryId != null) {
