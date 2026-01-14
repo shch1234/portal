@@ -33,6 +33,7 @@ public interface IDeviceMetricsSummaryService {
      * @param timeoutMillis   超时时间（毫秒）
      * @param lookbackDays    处理时间范围（天），只处理当前时间往前推N天内的数据
      * @param dataReadyDelayHours 数据就绪延迟时间（小时），只处理班次结束时间在统计时间点之前至少N小时的班次
+     * @param recalculationIntervalHours 数据不完整记录的重算间隔时间（小时），如果距离上次计算时间超过此间隔，即使状态汇总未更新，也会重新计算
      * @return 处理结果
      */
     BatchProcessResult processAllDevicesWithCheckpoint(
@@ -40,7 +41,8 @@ public interface IDeviceMetricsSummaryService {
             int batchSize,
             long timeoutMillis,
             int lookbackDays,
-            int dataReadyDelayHours);
+            int dataReadyDelayHours,
+            int recalculationIntervalHours);
 
     /**
      * 批量处理工厂设备的班次指标汇总（带检查点机制）
@@ -51,6 +53,7 @@ public interface IDeviceMetricsSummaryService {
      * @param batchSize       批大小
      * @param timeoutMillis   超时时间（毫秒）
      * @param dataReadyDelayHours 数据就绪延迟时间（小时），只处理班次结束时间在统计时间点之前至少N小时的班次
+     * @param recalculationIntervalHours 数据不完整记录的重算间隔时间（小时），如果距离上次计算时间超过此间隔，即使状态汇总未更新，也会重新计算
      * @return 处理结果
      */
     BatchProcessResult processFactoryDevicesWithCheckpoint(
@@ -59,7 +62,8 @@ public interface IDeviceMetricsSummaryService {
             long statPointMillis,
             int batchSize,
             long timeoutMillis,
-            int dataReadyDelayHours);
+            int dataReadyDelayHours,
+            int recalculationIntervalHours);
 
     /**
      * 向后兼容旧接口（不带检查点），内部可委托带检查点的实现

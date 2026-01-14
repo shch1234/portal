@@ -58,5 +58,20 @@ public class DeviceMetricsSummaryConfig {
      */
     @Min(0)
     private Integer dataReadyDelayHours = 2; // 默认2小时，即使 Apollo 未配置也不会报错
+
+    /**
+     * 数据不完整记录的重算间隔时间（小时）
+     * 对于标记为 INCOMPLETE_DATA 的记录，如果距离上次计算时间超过此间隔，即使状态汇总未更新，也会重新计算
+     * Apollo 配置：metrics.summary.recalculation-interval-hours
+     * 默认值：1小时（可根据实际情况调整）
+     * 注意：此字段有默认值，即使 Apollo 未配置也不会报错
+     * 
+     * 示例：
+     * - 记录标记为 INCOMPLETE_DATA，上次计算时间：10:00
+     * - 当前时间：11:30，recalculationIntervalHours = 1
+     * - 距离上次计算已超过1小时，会重新计算
+     */
+    @Min(0)
+    private Integer recalculationIntervalHours = 1; // 默认1小时，即使 Apollo 未配置也不会报错
 }
 

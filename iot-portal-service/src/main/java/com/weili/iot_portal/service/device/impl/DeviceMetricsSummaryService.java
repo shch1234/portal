@@ -87,8 +87,8 @@ public class DeviceMetricsSummaryService implements IDeviceMetricsSummaryService
 
     @Override
     public BatchProcessResult processAllDevicesWithCheckpoint(long statPointMillis, int batchSize, long timeoutMillis) {
-        // 使用默认的7天时间范围和2小时数据就绪延迟
-        return processAllDevicesWithCheckpoint(statPointMillis, batchSize, timeoutMillis, 7, 2);
+        // 使用默认的7天时间范围、2小时数据就绪延迟和1小时重算间隔
+        return processAllDevicesWithCheckpoint(statPointMillis, batchSize, timeoutMillis, 7, 2, 1);
     }
 
     /**
@@ -99,10 +99,11 @@ public class DeviceMetricsSummaryService implements IDeviceMetricsSummaryService
      * @param timeoutMillis       超时时间（毫秒）
      * @param lookbackDays        处理时间范围（天），只处理当前时间往前推N天内的数据
      * @param dataReadyDelayHours 数据就绪延迟时间（小时），只处理班次结束时间在统计时间点之前至少N小时的班次
+     * @param recalculationIntervalHours 数据不完整记录的重算间隔时间（小时），如果距离上次计算时间超过此间隔，即使状态汇总未更新，也会重新计算
      * @return 处理结果
      */
     @Override
-    public BatchProcessResult processAllDevicesWithCheckpoint(long statPointMillis, int batchSize, long timeoutMillis, int lookbackDays, int dataReadyDelayHours) {
+    public BatchProcessResult processAllDevicesWithCheckpoint(long statPointMillis, int batchSize, long timeoutMillis, int lookbackDays, int dataReadyDelayHours, int recalculationIntervalHours) {
         // 计算时间范围：从当前时间往前推N天（毫秒）
         long startTsMillis = statPointMillis - (lookbackDays * 24L * 60 * 60 * 1000);
 
@@ -156,7 +157,7 @@ public class DeviceMetricsSummaryService implements IDeviceMetricsSummaryService
             List<DeviceInfoDO> factoryDevices = entry.getValue();
             try {
                 BatchProcessResult factoryResult = processFactoryDevicesWithCheckpoint(
-                        factoryId, factoryDevices, statPointMillis, batchSize, timeoutMillis, dataReadyDelayHours);
+                        factoryId, factoryDevices, statPointMillis, batchSize, timeoutMillis, dataReadyDelayHours, recalculationIntervalHours);
                 success += factoryResult.getSuccessCount();
                 skip += factoryResult.getSkipCount();
                 error += factoryResult.getErrorCount();
@@ -175,7 +176,8 @@ public class DeviceMetricsSummaryService implements IDeviceMetricsSummaryService
                                                                   long statPointMillis,
                                                                   int batchSize,
                                                                   long timeoutMillis,
-                                                                  int dataReadyDelayHours) {
+                                                                  int dataReadyDelayHours,
+                                                                  int recalculationIntervalHours) {
         // 加载检查点
         // 注意：检查点服务使用秒，需要转换
         long statPointSeconds = statPointMillis / 1000;
@@ -203,17 +205,22 @@ public class DeviceMetricsSummaryService implements IDeviceMetricsSummaryService
 
             for (DeviceInfoDO device : batch) {
                 try {
-                    boolean processed = processDevice(device, statPointMillis, dataReadyDelayHours);
+                    boolean processed = processDevice(device, statPointMillis, dataReadyDelayHours, recalculationIntervalHours);
                     if (processed) {
                         success++;
                     } else {
                         skip++;
                     }
+                    // 无论成功还是跳过，都加入检查点（避免重复处理）
                     processedIds.add(device.getId());
                     newProcessed.add(device.getId());
                 } catch (Exception e) {
                     error++;
                     log.error("指标汇总失败 deviceId={}", device.getId(), e);
+                    // 改进：即使失败也加入检查点，避免无限重试
+                    // 注意：如果是因为数据问题导致的失败，记录会被标记为待重算，下次会重新计算
+                    processedIds.add(device.getId());
+                    newProcessed.add(device.getId());
                 }
             }
 
@@ -240,10 +247,11 @@ public class DeviceMetricsSummaryService implements IDeviceMetricsSummaryService
      * @param statPointMillis     统计时间点（毫秒），只处理 shift_end_ts <= statPointMillis 的已完成班次
      * @param dataReadyDelayHours 数据就绪延迟时间（小时），用于确保上游任务有足够时间完成数据生成
      *                            例如：当前时间15:00，延迟2小时，则只处理班次结束时间 <= 13:00 的班次
+     * @param recalculationIntervalHours 数据不完整记录的重算间隔时间（小时），如果距离上次计算时间超过此间隔，即使状态汇总未更新，也会重新计算
      * @return true 如果至少处理了一个班次，false 如果没有符合条件的班次或处理失败
      */
     @Transactional(rollbackFor = Exception.class)
-    protected boolean processDevice(DeviceInfoDO device, long statPointMillis, int dataReadyDelayHours) {
+    protected boolean processDevice(DeviceInfoDO device, long statPointMillis, int dataReadyDelayHours, int recalculationIntervalHours) {
         // 计算数据就绪时间点：统计时间点往前推 N 小时
         // 只处理班次结束时间 <= (统计时间点 - 延迟时间) 的班次
         long dataReadyCutoffMillis = statPointMillis - (dataReadyDelayHours * 3600L * 1000L);
@@ -325,7 +333,7 @@ public class DeviceMetricsSummaryService implements IDeviceMetricsSummaryService
 
             // 即使数据不完整，也要插入/更新记录，但标记为待重算状态
             upsertMetrics(summary, device, productionSummary, plannedDowntimeSeconds,
-                    theoreticalCycleResult, completenessResult);
+                    theoreticalCycleResult, completenessResult, recalculationIntervalHours);
 
             if (completenessResult.isComplete()) {
                 processed++;
@@ -524,11 +532,12 @@ public class DeviceMetricsSummaryService implements IDeviceMetricsSummaryService
      * @param plannedDowntimeSeconds  计划停机时长（秒）
      * @param theoreticalCycleResult  理论节拍提取结果
      * @param completenessResult      数据完整性检查结果
+     * @param recalculationIntervalHours 数据不完整记录的重算间隔时间（小时），如果距离上次计算时间超过此间隔，即使状态汇总未更新，也会重新计算
      */
     private void upsertMetrics(DeviceStateSummaryDO stateSummary, DeviceInfoDO device,
                                DeviceProductionSummaryDO productionSummary,
                                long plannedDowntimeSeconds, TheoreticalCycleResult theoreticalCycleResult,
-                               DataCompletenessCheckResult completenessResult) {
+                               DataCompletenessCheckResult completenessResult, int recalculationIntervalHours) {
         // 1. 检查是否需要更新
         DeviceMetricSummaryDO existing = deviceMetricSummaryRepository.findByShift(
                 device.getId(), stateSummary.getSummaryDate(), stateSummary.getShiftCode());
@@ -538,13 +547,20 @@ public class DeviceMetricsSummaryService implements IDeviceMetricsSummaryService
             return;
         }
 
-        // 如果数据不完整，但记录已存在且标记为待重算，且状态汇总未更新，可以跳过（避免重复标记）
+        // 如果数据不完整，但记录已存在且标记为待重算，需要检查是否需要重算
         if (!completenessResult.isComplete() && existing != null
-                && CALC_STATUS_INCOMPLETE_DATA.equals(existing.getCalculationStatus())
-                && shouldSkipUpdate(existing, stateSummary)) {
-            log.debug("指标汇总: 记录已标记为待重算且数据未变化，跳过: deviceId={}, shiftDate={}, shiftCode={}",
-                    device.getId(), stateSummary.getSummaryDate(), stateSummary.getShiftCode());
-            return;
+                && CALC_STATUS_INCOMPLETE_DATA.equals(existing.getCalculationStatus())) {
+            // 检查是否需要重算：如果距离上次计算时间超过重算间隔，即使状态汇总未更新，也要重新计算
+            boolean shouldRecalculate = shouldRecalculateIncompleteData(existing, recalculationIntervalHours);
+            if (!shouldRecalculate && shouldSkipUpdate(existing, stateSummary)) {
+                log.debug("指标汇总: 记录已标记为待重算且数据未变化，跳过: deviceId={}, shiftDate={}, shiftCode={}",
+                        device.getId(), stateSummary.getSummaryDate(), stateSummary.getShiftCode());
+                return;
+            }
+            if (shouldRecalculate) {
+                log.info("指标汇总: 记录标记为待重算且超过重算间隔时间（{}小时），重新计算: deviceId={}, shiftDate={}, shiftCode={}",
+                        recalculationIntervalHours, device.getId(), stateSummary.getSummaryDate(), stateSummary.getShiftCode());
+            }
         }
 
         // 2. 准备计算上下文（即使数据不完整也要准备，用于保存部分计算结果）
@@ -622,6 +638,27 @@ public class DeviceMetricsSummaryService implements IDeviceMetricsSummaryService
                 qualifiedOutput,
                 theoreticalCycleSeconds
         );
+    }
+
+    /**
+     * 检查数据不完整的记录是否需要重算（基于重算间隔时间）
+     * <p>
+     * 如果距离上次计算时间超过重算间隔时间，即使状态汇总未更新，也应该重新计算
+     *
+     * @param existing 已存在的指标汇总记录
+     * @param recalculationIntervalHours 重算间隔时间（小时）
+     * @return true 如果需要重算，false 如果不需要重算
+     */
+    private boolean shouldRecalculateIncompleteData(DeviceMetricSummaryDO existing, int recalculationIntervalHours) {
+        if (existing == null || existing.getCalculatedTime() == null) {
+            return true; // 如果没有计算时间，需要重算
+        }
+
+        long currentTimeSeconds = System.currentTimeMillis() / MILLIS_PER_SECOND;
+        long lastCalculatedTimeSeconds = existing.getCalculatedTime();
+        long elapsedHours = (currentTimeSeconds - lastCalculatedTimeSeconds) / 3600;
+
+        return elapsedHours >= recalculationIntervalHours;
     }
 
     /**
