@@ -39,6 +39,8 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 
+import static com.weili.iot_portal.service.device.util.DeviceLogContext.*;
+
 /**
  * 设备状态汇总业务服务实现
  */
@@ -70,7 +72,12 @@ public class DeviceStateSummaryBizService implements IDeviceStateSummaryBizServi
         if (deviceInfo == null) {
             throw new IotPortalException(IotPortalErrorCode.DEVICE_INFO_NOT_FOUND, "设备不存在");
         }
-        String stateValue = deviceStateCacheService.getStateValue(deviceInfo.getOrgFactoryId(), deviceInfo.getId());
+        
+        // 设置设备编号到 MDC，使日志能够显示设备编号
+        setDeviceCode(deviceInfo);
+        
+        try {
+            String stateValue = deviceStateCacheService.getStateValue(deviceInfo.getOrgFactoryId(), deviceInfo.getId());
         String heartbeat = deviceStateCacheService.getHeartbeat(deviceInfo.getOrgFactoryId(), deviceInfo.getId());
 
         // 1. 获取当前时间对应的班次日期（考虑跨天班次）
@@ -110,12 +117,16 @@ public class DeviceStateSummaryBizService implements IDeviceStateSummaryBizServi
                 endShiftDate
         );
 
-        return DeviceStateSummaryRespVO.builder()
-                .currentState(stateValue)
-                .currentHeart("1".equals(heartbeat))
-                .ratioStatistics(buildRatioStatistics(summaryList))
-                .timelineData(buildTimelineData(stateRecordList))
-                .build();
+            return DeviceStateSummaryRespVO.builder()
+                    .currentState(stateValue)
+                    .currentHeart("1".equals(heartbeat))
+                    .ratioStatistics(buildRatioStatistics(summaryList))
+                    .timelineData(buildTimelineData(stateRecordList))
+                    .build();
+        } finally {
+            // 清除设备编号 MDC，避免线程复用导致设备编号污染
+            clearDeviceCode();
+        }
     }
 
     /**

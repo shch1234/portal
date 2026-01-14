@@ -9,11 +9,13 @@ import com.weili.iot_portal.service.ingestion.WebhookSecurityService;
 import com.weili.iot_portal.service.ingestion.support.WebhookRequestValidator;
 import jakarta.annotation.security.PermitAll;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 
@@ -94,12 +96,21 @@ public class UnifiedWebhookController {
             
             // 异步处理业务逻辑，立即返回响应
             if (webhookAsyncExecutor != null) {
+                // 获取当前线程的 MDC 上下文，以便在异步执行时传递
+                Map<String, String> mdcContext = MDC.getCopyOfContextMap();
                 CompletableFuture.runAsync(() -> {
+                    // 在异步线程中恢复 MDC 上下文
+                    if (mdcContext != null) {
+                        MDC.setContextMap(mdcContext);
+                    }
                     try {
                         webhookReceiveService.handle(category, eventType, webhookRequest);
                     } catch (Exception e) {
                         log.error("[Webhook-接收] 异步处理失败: category={}, eventType={}, messageId={}",
                                 category, eventType, webhookRequest.getMessageId(), e);
+                    } finally {
+                        // 清除 MDC，避免线程复用导致设备编号污染
+                        MDC.clear();
                     }
                 }, webhookAsyncExecutor);
             } else {

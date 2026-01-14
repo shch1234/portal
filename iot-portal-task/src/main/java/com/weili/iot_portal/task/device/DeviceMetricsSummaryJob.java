@@ -71,29 +71,53 @@ public class DeviceMetricsSummaryJob extends BaseScheduledJob {
                 Instant.ofEpochMilli(statisticsTimeMillis), config.getLookbackDays(), config.getDataReadyDelayHours());
 
         // 步骤1：并行执行状态汇总和产量汇总任务，确保数据已就绪（带超时和异常保护）
-        XxlJobHelper.log("开始并行执行前置任务（状态汇总 + 产量汇总）...");
         long prerequisiteStartTime = System.currentTimeMillis();
         
         CompletableFuture<BatchProcessResult> stateSummaryFuture = executeStateSummaryWithTimeout(statisticsTimeMillis);
         CompletableFuture<BatchProcessResult> productionSummaryFuture = executeProductionSummaryWithTimeout(statisticsTimeSeconds);
         
-        // 等待两个前置任务都完成（或超时）
+        // 等待两个前置任务都完成（或超时），并获取执行结果
+        BatchProcessResult stateResult = null;
+        BatchProcessResult productionResult = null;
         try {
             CompletableFuture.allOf(stateSummaryFuture, productionSummaryFuture).join();
+            stateResult = stateSummaryFuture.getNow(BatchProcessResult.completed(0, 0, 0));
+            productionResult = productionSummaryFuture.getNow(BatchProcessResult.completed(0, 0, 0));
         } catch (Exception e) {
             log.warn("前置任务执行过程中出现异常，继续执行指标汇总", e);
+            if (stateResult == null) {
+                stateResult = BatchProcessResult.completed(0, 0, 1);
+            }
+            if (productionResult == null) {
+                productionResult = BatchProcessResult.completed(0, 0, 1);
+            }
         }
         
         long prerequisiteCostTime = System.currentTimeMillis() - prerequisiteStartTime;
-        XxlJobHelper.log("前置任务执行完成，总耗时: {}ms", prerequisiteCostTime);
+        XxlJobHelper.log("前置任务完成: 状态汇总(成功={},失败={}), 产量汇总(成功={},失败={}), 耗时={}ms", 
+                stateResult != null ? stateResult.getSuccessCount() : 0,
+                stateResult != null ? stateResult.getErrorCount() : 0,
+                productionResult != null ? productionResult.getSuccessCount() : 0,
+                productionResult != null ? productionResult.getErrorCount() : 0,
+                prerequisiteCostTime);
+        
+        // 只在有错误时输出详细警告
+        if (stateResult != null && stateResult.getErrorCount() > 0) {
+            XxlJobHelper.log("警告: 状态汇总任务有 {} 个失败，可能导致指标汇总数据不完整", stateResult.getErrorCount());
+        }
+        if (productionResult != null && (productionResult.getErrorCount() > 0 || productionResult.getSuccessCount() == 0)) {
+            XxlJobHelper.log("严重警告: 产量汇总任务执行异常（成功={}, 失败={}），将导致指标汇总数据大量不完整！", 
+                    productionResult.getSuccessCount(), productionResult.getErrorCount());
+        }
+        if (productionResult != null && productionConfig.getLookbackDays() < config.getLookbackDays()) {
+            XxlJobHelper.log("警告: 产量汇总处理时间范围（{}天）小于指标汇总时间范围（{}天），可能导致部分班次数据缺失", 
+                    productionConfig.getLookbackDays(), config.getLookbackDays());
+        }
 
         // 步骤2：等待一小段时间，确保数据已持久化到数据库
-        // 注意：这里等待时间很短（1秒），主要是为了确保数据库事务已提交
         Thread.sleep(1000);
-        XxlJobHelper.log("等待数据持久化完成（1秒）...");
 
-        // 步骤3：执行指标汇总任务（无论产量汇总是否成功都继续执行）
-        XxlJobHelper.log("开始执行指标汇总任务...");
+        // 步骤3：执行指标汇总任务
         long metricsStartTime = System.currentTimeMillis();
         
         BatchProcessResult metricsResult = metricsSummaryService.processAllDevicesWithCheckpoint(
@@ -110,6 +134,9 @@ public class DeviceMetricsSummaryJob extends BaseScheduledJob {
                 metricsResult.getSkipCount(), 
                 metricsResult.getErrorCount(),
                 metricsCostTime);
+        
+        // 改进2：数据完整性统计已在Service层记录，这里只做总结
+        // 注意：完整率统计信息会在Service层的日志中输出，包括全局统计和工厂级别统计
 
         // 返回指标汇总的结果（产量汇总的结果已在日志中记录）
         return JobExecutionResult.of(
@@ -127,7 +154,6 @@ public class DeviceMetricsSummaryJob extends BaseScheduledJob {
      * @return 状态汇总结果的 CompletableFuture
      */
     private CompletableFuture<BatchProcessResult> executeStateSummaryWithTimeout(long statisticsTimeMillis) {
-        XxlJobHelper.log("开始执行状态汇总任务（前置依赖，带超时保护）...");
         long stateSummaryStartTime = System.currentTimeMillis();
         
         // 计算超时时间：使用状态汇总任务的超时时间 + 20% 的缓冲时间
@@ -163,10 +189,10 @@ public class DeviceMetricsSummaryJob extends BaseScheduledJob {
                         }
                         return BatchProcessResult.completed(0, 0, 1);
                     } else {
-                        XxlJobHelper.log("状态汇总任务完成: 成功={}, 跳过={}, 失败={}, 耗时={}ms", 
-                                result.getSuccessCount(), result.getSkipCount(), result.getErrorCount(), stateSummaryCostTime);
+                        // 只在有错误时输出日志
                         if (result.getErrorCount() > 0) {
-                            XxlJobHelper.log("警告: 状态汇总任务有 {} 个失败，但继续执行指标汇总任务", result.getErrorCount());
+                            log.warn("状态汇总任务完成但有失败: 成功={}, 失败={}, 耗时={}ms", 
+                                    result.getSuccessCount(), result.getErrorCount(), stateSummaryCostTime);
                         }
                         return result;
                     }
@@ -182,7 +208,6 @@ public class DeviceMetricsSummaryJob extends BaseScheduledJob {
      * @return 产量汇总结果的 CompletableFuture
      */
     private CompletableFuture<BatchProcessResult> executeProductionSummaryWithTimeout(long statisticsTimeSeconds) {
-        XxlJobHelper.log("开始执行产量汇总任务（前置依赖，带超时保护）...");
         long productionStartTime = System.currentTimeMillis();
         
         // 计算超时时间：使用产量汇总任务的超时时间 + 20% 的缓冲时间
@@ -219,10 +244,10 @@ public class DeviceMetricsSummaryJob extends BaseScheduledJob {
                         }
                         return BatchProcessResult.completed(0, 0, 1);
                     } else {
-                        XxlJobHelper.log("产量汇总任务完成: 成功={}, 跳过={}, 失败={}, 耗时={}ms", 
-                                result.getSuccessCount(), result.getSkipCount(), result.getErrorCount(), productionCostTime);
+                        // 只在有错误时输出日志
                         if (result.getErrorCount() > 0) {
-                            XxlJobHelper.log("警告: 产量汇总任务有 {} 个失败，但继续执行指标汇总任务", result.getErrorCount());
+                            log.warn("产量汇总任务完成但有失败: 成功={}, 失败={}, 耗时={}ms", 
+                                    result.getSuccessCount(), result.getErrorCount(), productionCostTime);
                         }
                         return result;
                     }

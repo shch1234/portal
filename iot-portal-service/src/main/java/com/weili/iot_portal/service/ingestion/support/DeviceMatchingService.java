@@ -13,6 +13,8 @@ import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -36,8 +38,26 @@ public class DeviceMatchingService {
 
     private static final long CACHE_TTL_SECONDS = Duration.ofHours(1).toSeconds();
 
+    /**
+     * 未匹配设备 WARN 日志的最小输出间隔（毫秒）
+     * <p>
+     * 行业通用做法：
+     * - 首次发现问题时输出 WARN
+     * - 后续在一个时间窗口内（例如 60 秒）只输出一次 WARN
+     * - 其余请求可以降级为 DEBUG 或不输出，避免刷屏
+     * </p>
+     */
+    private static final long UNMATCHED_WARN_INTERVAL_MILLIS = Duration.ofSeconds(60).toMillis();
+
     private final DeviceInfoRepository deviceInfoRepository;
     private final RedisClient redisClient;
+
+    /**
+     * 记录每个未匹配设备上次输出 WARN 日志的时间戳（毫秒）
+     * key: deviceCode
+     * value: lastWarnTimeMillis
+     */
+    private final ConcurrentMap<String, Long> unmatchedDeviceLastWarnTime = new ConcurrentHashMap<>();
 
     /**
      * 匹配设备（带缓存）
@@ -130,26 +150,51 @@ public class DeviceMatchingService {
             Optional<DeviceInfoDO> rawDevice = deviceInfoRepository.findByDeviceCode(deviceCode);
             if (rawDevice.isPresent()) {
                 DeviceInfoDO raw = rawDevice.get();
-                log.warn("[DeviceMatching] 设备未匹配: deviceCode={}, id={}, deleted={}, deviceStatus={}, isMonitored={}, tbDeviceId={}",
-                        deviceCode, raw.getId(), raw.getDeleted(), raw.getDeviceStatus(), raw.getIsMonitored(), raw.getTbDeviceId());
-                
-                // 分析未匹配原因
-                StringBuilder reasons = new StringBuilder();
-                if (Boolean.TRUE.equals(raw.getDeleted())) {
-                    reasons.append("设备已删除(deleted=true); ");
+
+                // 根据设备编号节流 WARN 日志，避免刷屏
+                long now = System.currentTimeMillis();
+                Long lastWarnTime = unmatchedDeviceLastWarnTime.get(deviceCode);
+                boolean shouldWarn = lastWarnTime == null
+                        || (now - lastWarnTime) >= UNMATCHED_WARN_INTERVAL_MILLIS;
+
+                if (shouldWarn) {
+                    unmatchedDeviceLastWarnTime.put(deviceCode, now);
+                    log.warn("[DeviceMatching] 设备未匹配: deviceCode={}, id={}, deleted={}, deviceStatus={}, isMonitored={}, tbDeviceId={}",
+                            deviceCode, raw.getId(), raw.getDeleted(), raw.getDeviceStatus(), raw.getIsMonitored(), raw.getTbDeviceId());
+
+                    // 分析未匹配原因（仅在 WARN 日志输出时一起打印）
+                    StringBuilder reasons = new StringBuilder();
+                    if (Boolean.TRUE.equals(raw.getDeleted())) {
+                        reasons.append("设备已删除(deleted=true); ");
+                    }
+                    if (!"ACTIVE".equals(raw.getDeviceStatus())) {
+                        reasons.append("设备状态不是ACTIVE(deviceStatus=").append(raw.getDeviceStatus()).append("); ");
+                    }
+                    if (reasons.length() > 0) {
+                        log.warn("[DeviceMatching] 设备未匹配原因: deviceCode={}, 原因={}", deviceCode, reasons.toString());
+                    }
+                } else if (log.isDebugEnabled()) {
+                    // 在节流窗口内，仅输出 DEBUG 级别日志，避免 WARN 刷屏
+                    log.debug("[DeviceMatching] 设备未匹配(节流中): deviceCode={}, id={}, deleted={}, deviceStatus={}, isMonitored={}, tbDeviceId={}",
+                            deviceCode, raw.getId(), raw.getDeleted(), raw.getDeviceStatus(), raw.getIsMonitored(), raw.getTbDeviceId());
                 }
-                if (!"ACTIVE".equals(raw.getDeviceStatus())) {
-                    reasons.append("设备状态不是ACTIVE(deviceStatus=").append(raw.getDeviceStatus()).append("); ");
-                }
-                if (reasons.length() > 0) {
-                    log.warn("[DeviceMatching] 设备未匹配原因: deviceCode={}, 原因={}", deviceCode, reasons.toString());
-                }
+
             } else {
-                log.warn("[DeviceMatching] 设备未匹配: deviceCode={}, 数据库中不存在该设备", deviceCode);
+                long now = System.currentTimeMillis();
+                Long lastWarnTime = unmatchedDeviceLastWarnTime.get(deviceCode);
+                boolean shouldWarn = lastWarnTime == null
+                        || (now - lastWarnTime) >= UNMATCHED_WARN_INTERVAL_MILLIS;
+
+                if (shouldWarn) {
+                    unmatchedDeviceLastWarnTime.put(deviceCode, now);
+                    log.warn("[DeviceMatching] 设备未匹配: deviceCode={}, 数据库中不存在该设备", deviceCode);
+                } else if (log.isDebugEnabled()) {
+                    log.debug("[DeviceMatching] 设备未匹配(节流中): deviceCode={}, 数据库中不存在该设备", deviceCode);
+                }
             }
             return Optional.empty();
         }
-        
+
         log.debug("[DeviceMatching] 设备匹配成功: deviceCode={}, id={}, deleted={}, deviceStatus={}, isMonitored={}",
                 deviceCode, device.getId(), device.getDeleted(), device.getDeviceStatus(), device.getIsMonitored());
         return Optional.of(device);

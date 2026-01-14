@@ -8,6 +8,7 @@ import com.weili.iot_portal.service.ingestion.support.WebhookInboxService;
 import com.weili.iot_portal.service.ingestion.support.WebhookProcessService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -267,8 +268,24 @@ public class WebhookInboxProcessorImpl implements WebhookInboxProcessor {
 
         ExecutorService executor = getExecutorService();
         CompletableFuture<?>[] futures = inboxList.stream()
-                .map(inbox -> CompletableFuture.runAsync(() -> 
-                    processSingleMessage(inbox, success, skip, error), executor))
+                .map(inbox -> {
+                    // 注意：这里获取的 MDC 可能不包含设备编号（因为设备编号是在 processSingleMessage 内部设置的）
+                    // 但为了保持一致性，仍然传递 MDC 上下文
+                    Map<String, String> mdcContext = MDC.getCopyOfContextMap();
+                    return CompletableFuture.runAsync(() -> {
+                        // 在异步线程中恢复 MDC 上下文
+                        if (mdcContext != null && !mdcContext.isEmpty()) {
+                            MDC.setContextMap(mdcContext);
+                        }
+                        try {
+                            // processSingleMessage 内部会设置设备编号到 MDC，覆盖之前的值
+                            processSingleMessage(inbox, success, skip, error);
+                        } finally {
+                            // 清除 MDC，避免线程复用导致设备编号污染
+                            MDC.clear();
+                        }
+                    }, executor);
+                })
                 .toArray(CompletableFuture[]::new);
 
         // 等待所有任务完成（设置超时）
@@ -331,9 +348,23 @@ public class WebhookInboxProcessorImpl implements WebhookInboxProcessor {
                 ? getExecutorService() 
                 : getTimeoutExecutorService();
             
+            // 获取当前线程的 MDC 上下文，以便在异步执行时传递
+            // 注意：这里获取的 MDC 可能不包含设备编号（因为设备编号是在 processSingle 内部设置的）
+            Map<String, String> mdcContext = MDC.getCopyOfContextMap();
+            
             CompletableFuture<Void> future = CompletableFuture.runAsync(() -> {
-                // 优化：传递 false，表示不强制重新查询，使用已查询的对象
-                webhookProcessService.processSingle(finalProcessingInbox, false);
+                // 在异步线程中恢复 MDC 上下文
+                if (mdcContext != null && !mdcContext.isEmpty()) {
+                    MDC.setContextMap(mdcContext);
+                }
+                try {
+                    // processSingle 内部会设置设备编号到 MDC，覆盖之前的值
+                    // 优化：传递 false，表示不强制重新查询，使用已查询的对象
+                    webhookProcessService.processSingle(finalProcessingInbox, false);
+                } finally {
+                    // 清除 MDC，避免线程复用导致设备编号污染
+                    MDC.clear();
+                }
             }, timeoutExecutor);
 
             // 等待处理完成，设置超时时间

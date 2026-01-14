@@ -14,6 +14,8 @@ import org.springframework.stereotype.Service;
 
 import java.util.Optional;
 
+import static com.weili.iot_portal.service.device.util.DeviceLogContext.*;
+
 /**
  * Webhook 消息处理服务（核心处理逻辑）
  * 负责从收件箱消息构建请求、查找 Handler、调用处理、状态管理等核心业务逻辑
@@ -56,6 +58,9 @@ public class WebhookProcessService {
         WebhookInboxDO processingInbox = inbox;
         WebhookEventHandler handler = null; // 在外部声明，以便在 catch 块中使用
         String handlerName = null; // 保存 handler 名称，以便在异常处理时使用
+        
+        // 设置设备编号到 MDC，使日志能够显示设备编号
+        setDeviceCode(inbox.getDeviceCode());
         
         try {
             log.debug("[Webhook-Process] ====== 开始处理消息 ======");
@@ -119,6 +124,9 @@ public class WebhookProcessService {
                 
         } catch (Exception ex) {
             handleProcessException(processingInbox, request, handlerName, ex, start);
+        } finally {
+            // 清除设备编号 MDC，避免线程复用导致设备编号污染
+            clearDeviceCode();
         }
     }
     

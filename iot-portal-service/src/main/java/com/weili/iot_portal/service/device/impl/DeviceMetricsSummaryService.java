@@ -15,6 +15,8 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import static com.weili.iot_portal.service.device.util.DeviceLogContext.*;
+
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
@@ -107,15 +109,13 @@ public class DeviceMetricsSummaryService implements IDeviceMetricsSummaryService
         // 计算时间范围：从当前时间往前推N天（毫秒）
         long startTsMillis = statPointMillis - (lookbackDays * 24L * 60 * 60 * 1000);
 
-        log.info("指标汇总: 处理时间范围 {} 天，数据就绪延迟 {} 小时，开始时间戳(毫秒)={}, 结束时间戳(毫秒)={}, 数据就绪截止时间(毫秒)={}",
-                lookbackDays, dataReadyDelayHours, startTsMillis, statPointMillis,
-                statPointMillis - (dataReadyDelayHours * 3600L * 1000L));
+        log.info("指标汇总: 处理时间范围 {} 天，数据就绪延迟 {} 小时", lookbackDays, dataReadyDelayHours);
 
         // 从 device_state_summary 表中查询有已完成汇总记录的设备ID
         // 只处理有数据的设备，而不是所有设备
         List<Long> deviceIdsWithData = deviceStateSummaryRepository.findDistinctDeviceIdsWithFinalizedSummaries(startTsMillis, statPointMillis);
         if (deviceIdsWithData == null || deviceIdsWithData.isEmpty()) {
-            log.info("指标汇总: 未发现有待处理的设备状态汇总数据");
+            log.debug("指标汇总: 未发现有待处理的设备状态汇总数据");
             return BatchProcessResult.completed(0, 0, 0);
         }
 
@@ -146,32 +146,98 @@ public class DeviceMetricsSummaryService implements IDeviceMetricsSummaryService
         }
 
         if (devicesByFactory.isEmpty()) {
-            log.info("指标汇总: 没有符合条件的设备需要处理");
+            log.debug("指标汇总: 没有符合条件的设备需要处理");
             return BatchProcessResult.completed(0, notFoundCount, 0);
         }
 
         int success = 0, skip = 0, error = 0;
+        // 改进2：汇总数据完整性统计
+        int totalShiftsProcessed = 0;
+        int totalCompleteShifts = 0;
+        int totalIncompleteShifts = 0;
 
         for (Map.Entry<Long, List<DeviceInfoDO>> entry : devicesByFactory.entrySet()) {
             Long factoryId = entry.getKey();
             List<DeviceInfoDO> factoryDevices = entry.getValue();
             try {
-                BatchProcessResult factoryResult = processFactoryDevicesWithCheckpoint(
+                ProcessFactoryResult factoryResult = processFactoryDevicesWithCheckpointAndStats(
                         factoryId, factoryDevices, statPointMillis, batchSize, timeoutMillis, dataReadyDelayHours, recalculationIntervalHours);
-                success += factoryResult.getSuccessCount();
-                skip += factoryResult.getSkipCount();
-                error += factoryResult.getErrorCount();
+                success += factoryResult.getBatchResult().getSuccessCount();
+                skip += factoryResult.getBatchResult().getSkipCount();
+                error += factoryResult.getBatchResult().getErrorCount();
+                // 汇总统计信息
+                totalShiftsProcessed += factoryResult.getTotalShifts();
+                totalCompleteShifts += factoryResult.getCompleteShifts();
+                totalIncompleteShifts += factoryResult.getIncompleteShifts();
             } catch (Exception e) {
                 error += factoryDevices.size();
                 log.error("处理工厂失败: factoryId={}, deviceCount={}", factoryId, factoryDevices.size(), e);
             }
         }
 
+        // 改进2：记录全局数据完整性统计（只在完整率过低时输出警告）
+        if (totalShiftsProcessed > 0) {
+            double completenessRate = (double) totalCompleteShifts / totalShiftsProcessed;
+            // 如果完整率过低，记录警告
+            if (completenessRate < 0.8 && totalShiftsProcessed > 10) {
+                log.warn("指标汇总全局数据完整率过低: 完整率={:.2f}% ({}/{})，建议检查产量汇总任务", 
+                        completenessRate * 100, totalCompleteShifts, totalShiftsProcessed);
+            }
+        }
+
         return BatchProcessResult.completed(success, skip + notFoundCount, error);
+    }
+    
+    /**
+     * 处理工厂结果（包含统计信息）
+     */
+    private static class ProcessFactoryResult {
+        private final BatchProcessResult batchResult;
+        private final int totalShifts;
+        private final int completeShifts;
+        private final int incompleteShifts;
+        
+        public ProcessFactoryResult(BatchProcessResult batchResult, int totalShifts, int completeShifts, int incompleteShifts) {
+            this.batchResult = batchResult;
+            this.totalShifts = totalShifts;
+            this.completeShifts = completeShifts;
+            this.incompleteShifts = incompleteShifts;
+        }
+        
+        public BatchProcessResult getBatchResult() {
+            return batchResult;
+        }
+        
+        public int getTotalShifts() {
+            return totalShifts;
+        }
+        
+        public int getCompleteShifts() {
+            return completeShifts;
+        }
+        
+        public int getIncompleteShifts() {
+            return incompleteShifts;
+        }
     }
 
     @Override
     public BatchProcessResult processFactoryDevicesWithCheckpoint(Long factoryId,
+                                                                  List<DeviceInfoDO> devices,
+                                                                  long statPointMillis,
+                                                                  int batchSize,
+                                                                  long timeoutMillis,
+                                                                  int dataReadyDelayHours,
+                                                                  int recalculationIntervalHours) {
+        ProcessFactoryResult result = processFactoryDevicesWithCheckpointAndStats(
+                factoryId, devices, statPointMillis, batchSize, timeoutMillis, dataReadyDelayHours, recalculationIntervalHours);
+        return result.getBatchResult();
+    }
+    
+    /**
+     * 处理工厂设备并返回统计信息（内部方法）
+     */
+    private ProcessFactoryResult processFactoryDevicesWithCheckpointAndStats(Long factoryId,
                                                                   List<DeviceInfoDO> devices,
                                                                   long statPointMillis,
                                                                   int batchSize,
@@ -188,14 +254,19 @@ public class DeviceMetricsSummaryService implements IDeviceMetricsSummaryService
 
         if (remaining.isEmpty()) {
             checkpointService.clearCheckpoint(factoryId, statPointSeconds);
-            return BatchProcessResult.completed(0, 0, 0);
+            return new ProcessFactoryResult(BatchProcessResult.completed(0, 0, 0), 0, 0, 0);
         }
 
         if (!processedIds.isEmpty()) {
-            log.info("指标汇总从检查点恢复: factoryId={}, 已处理={}, 剩余={}", factoryId, processedIds.size(), remaining.size());
+            // 降级为debug，减少日志输出
+            log.debug("指标汇总从检查点恢复: factoryId={}, 已处理={}, 剩余={}", factoryId, processedIds.size(), remaining.size());
         }
 
         int success = 0, skip = 0, error = 0;
+        // 改进2：统计数据完整性
+        int totalShiftsProcessed = 0;
+        int completeShifts = 0;
+        int incompleteShifts = 0;
         List<Long> newProcessed = new ArrayList<>();
         long start = System.currentTimeMillis();
 
@@ -205,9 +276,13 @@ public class DeviceMetricsSummaryService implements IDeviceMetricsSummaryService
 
             for (DeviceInfoDO device : batch) {
                 try {
-                    boolean processed = processDevice(device, statPointMillis, dataReadyDelayHours, recalculationIntervalHours);
-                    if (processed) {
+                    ProcessDeviceResult deviceResult = processDeviceWithStats(device, statPointMillis, dataReadyDelayHours, recalculationIntervalHours);
+                    if (deviceResult.isProcessed()) {
                         success++;
+                        // 统计数据完整性
+                        totalShiftsProcessed += deviceResult.getTotalShifts();
+                        completeShifts += deviceResult.getCompleteShifts();
+                        incompleteShifts += deviceResult.getIncompleteShifts();
                     } else {
                         skip++;
                     }
@@ -231,13 +306,156 @@ public class DeviceMetricsSummaryService implements IDeviceMetricsSummaryService
             if (System.currentTimeMillis() - start > timeoutMillis) {
                 log.warn("指标汇总超时: factoryId={}, processed={}, remaining={}",
                         factoryId, processedIds.size(), devices.size() - processedIds.size());
-                return BatchProcessResult.incomplete(success, skip, error);
+                return new ProcessFactoryResult(
+                        BatchProcessResult.incomplete(success, skip, error),
+                        totalShiftsProcessed, completeShifts, incompleteShifts);
             }
         }
 
         // 全部完成，清除检查点
         checkpointService.clearCheckpoint(factoryId, statPointSeconds);
-        return BatchProcessResult.completed(success, skip, error);
+        
+        // 改进2：记录数据完整性统计（只在完整率过低时输出警告）
+        if (totalShiftsProcessed > 0) {
+            double completenessRate = (double) completeShifts / totalShiftsProcessed;
+            // 如果完整率过低，记录警告
+            if (completenessRate < 0.8 && totalShiftsProcessed > 10) {
+                log.warn("指标汇总数据完整率过低: 工厂={}, 完整率={:.2f}% ({}/{})，建议检查产量汇总任务", 
+                        factoryId, completenessRate * 100, completeShifts, totalShiftsProcessed);
+            } else {
+                // 正常情况只输出debug日志
+                log.debug("指标汇总数据完整性: 工厂={}, 总班次={}, 完整={}, 不完整={}, 完整率={:.2f}%", 
+                        factoryId, totalShiftsProcessed, completeShifts, incompleteShifts, completenessRate * 100);
+            }
+        }
+        
+        return new ProcessFactoryResult(
+                BatchProcessResult.completed(success, skip, error),
+                totalShiftsProcessed, completeShifts, incompleteShifts);
+    }
+    
+    /**
+     * 处理设备结果（包含统计信息）
+     */
+    private static class ProcessDeviceResult {
+        private final boolean processed;
+        private final int totalShifts;
+        private final int completeShifts;
+        private final int incompleteShifts;
+        
+        public ProcessDeviceResult(boolean processed, int totalShifts, int completeShifts, int incompleteShifts) {
+            this.processed = processed;
+            this.totalShifts = totalShifts;
+            this.completeShifts = completeShifts;
+            this.incompleteShifts = incompleteShifts;
+        }
+        
+        public boolean isProcessed() {
+            return processed;
+        }
+        
+        public int getTotalShifts() {
+            return totalShifts;
+        }
+        
+        public int getCompleteShifts() {
+            return completeShifts;
+        }
+        
+        public int getIncompleteShifts() {
+            return incompleteShifts;
+        }
+    }
+    
+    /**
+     * 处理单台设备并返回统计信息
+     */
+    private ProcessDeviceResult processDeviceWithStats(DeviceInfoDO device, long statPointMillis, 
+                                                       int dataReadyDelayHours, int recalculationIntervalHours) {
+        // 设置设备编号到 MDC，使日志能够显示设备编号
+        setDeviceCode(device);
+        
+        try {
+            // 计算数据就绪时间点：统计时间点往前推 N 小时
+            long dataReadyCutoffMillis = statPointMillis - (dataReadyDelayHours * 3600L * 1000L);
+
+            // 查询设备在统计时间点前的所有状态汇总记录
+            List<DeviceStateSummaryDO> summaries = deviceStateSummaryRepository.selectByRange(
+                    device.getId(), null, statPointMillis);
+            if (summaries == null || summaries.isEmpty()) {
+                return new ProcessDeviceResult(false, 0, 0, 0);
+            }
+
+            // 过滤：只处理已结束且数据已就绪的班次
+            List<DeviceStateSummaryDO> readySummaries = summaries.stream()
+                    .filter(s -> {
+                        if (s.getShiftEndTs() == null) {
+                            return false;
+                        }
+                        boolean isEnded = s.getShiftEndTs() <= statPointMillis;
+                        if (!isEnded) {
+                            return false;
+                        }
+                        boolean isDataReady = s.getShiftEndTs() <= dataReadyCutoffMillis;
+                        if (!isDataReady) {
+                            return false;
+                        }
+                        return true;
+                    })
+                    .filter(s -> Boolean.TRUE.equals(s.getIsFinalized()))
+                    .collect(java.util.stream.Collectors.toList());
+
+            if (readySummaries.isEmpty()) {
+                return new ProcessDeviceResult(false, 0, 0, 0);
+            }
+
+            // 性能优化：一次性加载设备参数配置
+            List<DeviceParamConfigDO> deviceParams = deviceParamConfigRepository.selectCurrent(device.getId());
+            long plannedDowntimeSeconds = extractPlannedDowntime(deviceParams);
+
+            // 性能优化：批量查询产量汇总数据
+            Map<String, DeviceProductionSummaryDO> productionSummaryMap = batchQueryProductionSummaries(
+                    device.getId(), readySummaries);
+
+            // 处理每个符合条件的班次
+            int processed = 0;
+            int incompleteDataCount = 0;
+            for (DeviceStateSummaryDO summary : readySummaries) {
+                String shiftKey = buildShiftKey(summary.getSummaryDate(), summary.getShiftCode());
+                DeviceProductionSummaryDO productionSummary = productionSummaryMap.get(shiftKey);
+
+                TheoreticalCycleResult theoreticalCycleResult = extractTheoreticalCycle(deviceParams, device.getId(),
+                        summary.getSummaryDate(), summary.getShiftCode());
+
+                DataCompletenessCheckResult completenessResult = checkDataCompleteness(
+                        summary, productionSummary, deviceParams, device, theoreticalCycleResult);
+
+                upsertMetrics(summary, device, productionSummary, plannedDowntimeSeconds,
+                        theoreticalCycleResult, completenessResult, recalculationIntervalHours);
+
+                if (completenessResult.isComplete()) {
+                    processed++;
+                } else {
+                    incompleteDataCount++;
+                    log.warn("指标汇总: 数据不完整，已标记为待重算: deviceId={}, deviceCode={}, shiftDate={}, shiftCode={}, " +
+                                    "缺失数据={}",
+                            device.getId(), device.getDeviceCode(), summary.getSummaryDate(), summary.getShiftCode(),
+                            completenessResult.getMissingData());
+                }
+            }
+
+            if (incompleteDataCount > 0) {
+                log.warn("指标汇总: 设备部分班次数据不完整，已标记为待重算: deviceId={}, deviceCode={}, 总班次数={}, " +
+                                "完整数据={}, 待重算={}",
+                        device.getId(), device.getDeviceCode(), readySummaries.size(), processed, incompleteDataCount);
+            }
+
+            return new ProcessDeviceResult(processed > 0 || incompleteDataCount > 0,
+                    readySummaries.size(), processed, incompleteDataCount);
+        } finally {
+            // 清除设备编号 MDC，避免线程复用导致设备编号污染
+            clearDeviceCode();
+        }
     }
 
     /**
@@ -337,20 +555,18 @@ public class DeviceMetricsSummaryService implements IDeviceMetricsSummaryService
 
             if (completenessResult.isComplete()) {
                 processed++;
-                log.debug("指标汇总: 成功处理状态汇总: deviceId={}, shiftDate={}, shiftCode={}",
-                        device.getId(), summary.getSummaryDate(), summary.getShiftCode());
             } else {
                 incompleteDataCount++;
-                log.warn("指标汇总: 数据不完整，已标记为待重算: deviceId={}, deviceCode={}, shiftDate={}, shiftCode={}, " +
-                                "缺失数据={}",
-                        device.getId(), device.getDeviceCode(), summary.getSummaryDate(), summary.getShiftCode(),
+                // 降级为debug，减少日志输出
+                log.debug("指标汇总: 数据不完整，已标记为待重算: deviceId={}, shiftDate={}, shiftCode={}, 缺失数据={}",
+                        device.getId(), summary.getSummaryDate(), summary.getShiftCode(),
                         completenessResult.getMissingData());
             }
         }
 
+        // 只在有数据不完整时输出警告（设备级别汇总）
         if (incompleteDataCount > 0) {
-            log.warn("指标汇总: 设备部分班次数据不完整，已标记为待重算: deviceId={}, deviceCode={}, 总班次数={}, " +
-                            "完整数据={}, 待重算={}",
+            log.warn("指标汇总: 设备部分班次数据不完整: deviceId={}, deviceCode={}, 总班次={}, 完整={}, 待重算={}",
                     device.getId(), device.getDeviceCode(), readySummaries.size(), processed, incompleteDataCount);
         }
 
@@ -495,15 +711,9 @@ public class DeviceMetricsSummaryService implements IDeviceMetricsSummaryService
                 // duration_s 字段实际存储的是毫秒，需要转换为秒
                 theoreticalCycleSeconds = defaultDurationMs.get() / 1000L;
                 useDefaultValue = true;
-                if (fromConfig) {
-                    log.info("指标汇总: 理论节拍参数值为0，使用默认值（最新已完成记录的duration_s，已从毫秒转换为秒）: deviceId={}, shiftDate={}, shiftCode={}, " +
-                                    "defaultDurationMs={}, defaultTheoreticalCycleSeconds={}",
-                            deviceId, shiftDate, shiftCode, defaultDurationMs.get(), theoreticalCycleSeconds);
-                } else {
-                    log.info("指标汇总: 理论节拍参数未配置，使用默认值（最新已完成记录的duration_s，已从毫秒转换为秒）: deviceId={}, shiftDate={}, shiftCode={}, " +
-                                    "defaultDurationMs={}, defaultTheoreticalCycleSeconds={}",
-                            deviceId, shiftDate, shiftCode, defaultDurationMs.get(), theoreticalCycleSeconds);
-                }
+                // 降级为debug，减少日志输出
+                log.debug("指标汇总: 理论节拍使用默认值: deviceId={}, shiftDate={}, shiftCode={}, defaultTheoreticalCycleSeconds={}",
+                        deviceId, shiftDate, shiftCode, theoreticalCycleSeconds);
             } else {
                 if (fromConfig) {
                     log.warn("指标汇总: 理论节拍参数值无效（<=0），且无法获取默认值，将导致性能开动率和OEE为0: deviceId={}, shiftDate={}, shiftCode={}, " +
@@ -558,7 +768,8 @@ public class DeviceMetricsSummaryService implements IDeviceMetricsSummaryService
                 return;
             }
             if (shouldRecalculate) {
-                log.info("指标汇总: 记录标记为待重算且超过重算间隔时间（{}小时），重新计算: deviceId={}, shiftDate={}, shiftCode={}",
+                // 降级为debug，减少日志输出
+                log.debug("指标汇总: 记录标记为待重算且超过重算间隔时间（{}小时），重新计算: deviceId={}, shiftDate={}, shiftCode={}",
                         recalculationIntervalHours, device.getId(), stateSummary.getSummaryDate(), stateSummary.getShiftCode());
             }
         }
@@ -641,12 +852,13 @@ public class DeviceMetricsSummaryService implements IDeviceMetricsSummaryService
     }
 
     /**
-     * 检查数据不完整的记录是否需要重算（基于重算间隔时间）
+     * 检查数据不完整的记录是否需要重算（基于重算间隔时间和重算次数）
      * <p>
-     * 如果距离上次计算时间超过重算间隔时间，即使状态汇总未更新，也应该重新计算
+     * 如果距离上次计算时间超过重算间隔时间，即使状态汇总未更新，也应该重新计算。
+     * 改进3：如果重算次数过多，延长重算间隔，避免无效重算。
      *
      * @param existing 已存在的指标汇总记录
-     * @param recalculationIntervalHours 重算间隔时间（小时）
+     * @param recalculationIntervalHours 基础重算间隔时间（小时）
      * @return true 如果需要重算，false 如果不需要重算
      */
     private boolean shouldRecalculateIncompleteData(DeviceMetricSummaryDO existing, int recalculationIntervalHours) {
@@ -654,11 +866,27 @@ public class DeviceMetricsSummaryService implements IDeviceMetricsSummaryService
             return true; // 如果没有计算时间，需要重算
         }
 
+        // 改进3：根据重算次数调整重算间隔
+        int actualIntervalHours = recalculationIntervalHours;
+        if (existing.getRecalculationCount() != null && existing.getRecalculationCount() > 5) {
+            // 如果重算次数超过5次，延长重算间隔到6小时，避免频繁无效重算
+            actualIntervalHours = 6;
+            log.debug("指标汇总: 记录重算次数过多（{}次），延长重算间隔到{}小时: deviceId={}, shiftDate={}, shiftCode={}",
+                    existing.getRecalculationCount(), actualIntervalHours,
+                    existing.getDeviceInfoId(), existing.getShiftDate(), existing.getShiftCode());
+        } else if (existing.getRecalculationCount() != null && existing.getRecalculationCount() > 10) {
+            // 如果重算次数超过10次，延长重算间隔到24小时
+            actualIntervalHours = 24;
+            log.warn("指标汇总: 记录重算次数过多（{}次），延长重算间隔到{}小时，建议人工检查: deviceId={}, shiftDate={}, shiftCode={}",
+                    existing.getRecalculationCount(), actualIntervalHours,
+                    existing.getDeviceInfoId(), existing.getShiftDate(), existing.getShiftCode());
+        }
+
         long currentTimeSeconds = System.currentTimeMillis() / MILLIS_PER_SECOND;
         long lastCalculatedTimeSeconds = existing.getCalculatedTime();
         long elapsedHours = (currentTimeSeconds - lastCalculatedTimeSeconds) / 3600;
 
-        return elapsedHours >= recalculationIntervalHours;
+        return elapsedHours >= actualIntervalHours;
     }
 
     /**
@@ -683,7 +911,8 @@ public class DeviceMetricsSummaryService implements IDeviceMetricsSummaryService
 
         // 如果记录标记为待重算，需要重新计算
         if (CALC_STATUS_INCOMPLETE_DATA.equals(existing.getCalculationStatus())) {
-            log.info("指标汇总: 记录标记为待重算，重新计算: deviceId={}, shiftDate={}, shiftCode={}",
+            // 降级为debug，减少日志输出
+            log.debug("指标汇总: 记录标记为待重算，重新计算: deviceId={}, shiftDate={}, shiftCode={}",
                     stateSummary.getDeviceInfoId(), stateSummary.getSummaryDate(), stateSummary.getShiftCode());
             return false;
         }
@@ -702,10 +931,9 @@ public class DeviceMetricsSummaryService implements IDeviceMetricsSummaryService
             return true;
         }
 
-        log.info("指标汇总: 状态汇总已更新，重新计算指标: deviceId={}, shiftDate={}, shiftCode={}, " +
-                        "stateSummaryCalculatedTime(ms)={}, metricSummaryCalculatedTime(ms)={}",
-                stateSummary.getDeviceInfoId(), stateSummary.getSummaryDate(), stateSummary.getShiftCode(),
-                stateSummaryCalculatedTimeMillis, metricSummaryCalculatedTimeMillis);
+        // 降级为debug，减少日志输出
+        log.debug("指标汇总: 状态汇总已更新，重新计算: deviceId={}, shiftDate={}, shiftCode={}",
+                stateSummary.getDeviceInfoId(), stateSummary.getSummaryDate(), stateSummary.getShiftCode());
         return false;
     }
 
@@ -739,34 +967,22 @@ public class DeviceMetricsSummaryService implements IDeviceMetricsSummaryService
         if (isInsert) {
             DeviceMetricSummaryDO record = new DeviceMetricSummaryDO();
             populateMetricSummaryFields(record, stateSummary, device, result,
-                    plannedDowntimeSeconds, theoreticalCycleResult, completenessResult);
+                    plannedDowntimeSeconds, theoreticalCycleResult, completenessResult, null);
             deviceMetricSummaryRepository.insert(record);
 
-            if (completenessResult.isComplete()) {
-                log.info("指标汇总: 插入新记录: deviceId={}, shiftDate={}, shiftCode={}, oee={}, availability={}, performance={}",
-                        device.getId(), stateSummary.getSummaryDate(), stateSummary.getShiftCode(),
-                        result.getOee(), result.getAvailability(), result.getPerformance());
-            } else {
-                log.info("指标汇总: 插入新记录（数据不完整，待重算）: deviceId={}, shiftDate={}, shiftCode={}, " +
-                                "缺失数据={}, oee={}, availability={}, performance={}",
-                        device.getId(), stateSummary.getSummaryDate(), stateSummary.getShiftCode(),
-                        completenessResult.getMissingData(), result.getOee(), result.getAvailability(), result.getPerformance());
-            }
+            // 降级为debug，减少日志输出
+            log.debug("指标汇总: 插入记录: deviceId={}, shiftDate={}, shiftCode={}, 完整={}",
+                    device.getId(), stateSummary.getSummaryDate(), stateSummary.getShiftCode(),
+                    completenessResult.isComplete());
         } else {
             populateMetricSummaryFields(existing, stateSummary, device, result,
-                    plannedDowntimeSeconds, theoreticalCycleResult, completenessResult);
+                    plannedDowntimeSeconds, theoreticalCycleResult, completenessResult, existing);
             deviceMetricSummaryRepository.update(existing);
 
-            if (completenessResult.isComplete()) {
-                log.info("指标汇总: 更新已存在记录: deviceId={}, shiftDate={}, shiftCode={}, oee={}, availability={}, performance={}",
-                        device.getId(), stateSummary.getSummaryDate(), stateSummary.getShiftCode(),
-                        result.getOee(), result.getAvailability(), result.getPerformance());
-            } else {
-                log.info("指标汇总: 更新已存在记录（数据不完整，待重算）: deviceId={}, shiftDate={}, shiftCode={}, " +
-                                "缺失数据={}, oee={}, availability={}, performance={}",
-                        device.getId(), stateSummary.getSummaryDate(), stateSummary.getShiftCode(),
-                        completenessResult.getMissingData(), result.getOee(), result.getAvailability(), result.getPerformance());
-            }
+            // 降级为debug，减少日志输出
+            log.debug("指标汇总: 更新记录: deviceId={}, shiftDate={}, shiftCode={}, 完整={}",
+                    device.getId(), stateSummary.getSummaryDate(), stateSummary.getShiftCode(),
+                    completenessResult.isComplete());
         }
     }
 
@@ -787,6 +1003,7 @@ public class DeviceMetricsSummaryService implements IDeviceMetricsSummaryService
      * @param plannedDowntimeSeconds  计划停机时长（秒）
      * @param theoreticalCycleResult  理论节拍提取结果
      * @param completenessResult      数据完整性检查结果
+     * @param existingRecord          已存在的记录（用于判断是否是重算，如果为null表示是新记录）
      */
     private void populateMetricSummaryFields(DeviceMetricSummaryDO record,
                                              DeviceStateSummaryDO stateSummary,
@@ -794,7 +1011,8 @@ public class DeviceMetricsSummaryService implements IDeviceMetricsSummaryService
                                              MetricCalculationResult result,
                                              long plannedDowntimeSeconds,
                                              TheoreticalCycleResult theoreticalCycleResult,
-                                             DataCompletenessCheckResult completenessResult) {
+                                             DataCompletenessCheckResult completenessResult,
+                                             DeviceMetricSummaryDO existingRecord) {
         record.setDeviceInfoId(device.getId());
         record.setOrgFactoryId(stateSummary.getOrgFactoryId());
         record.setShiftDate(stateSummary.getSummaryDate());
@@ -830,8 +1048,9 @@ public class DeviceMetricsSummaryService implements IDeviceMetricsSummaryService
             if (theoreticalCycleResult.isUseDefaultValue()) {
                 record.setRecalculationReason("理论节拍未设置，已使用默认值");
             } else {
-                // 重算成功，清除重算原因（如果之前有的话）
+                // 重算成功，清除重算原因和重算次数（如果之前有的话）
                 record.setRecalculationReason(null);
+                record.setRecalculationCount(0);
             }
         } else {
             // 数据不完整：标记为待重算
@@ -839,6 +1058,17 @@ public class DeviceMetricsSummaryService implements IDeviceMetricsSummaryService
             record.setCalculationStatus(CALC_STATUS_INCOMPLETE_DATA);
             // 记录重算原因
             record.setRecalculationReason("数据不完整：" + completenessResult.getMissingData());
+            // 改进3：更新重算次数（如果记录已存在且之前标记为待重算，则增加重算次数）
+            if (existingRecord != null && CALC_STATUS_INCOMPLETE_DATA.equals(existingRecord.getCalculationStatus())) {
+                // 记录已存在且之前就是待重算状态，增加重算次数
+                int currentCount = existingRecord.getRecalculationCount() != null ? existingRecord.getRecalculationCount() : 0;
+                record.setRecalculationCount(currentCount + 1);
+                record.setRecalculatedAt(millisToSeconds(System.currentTimeMillis()));
+            } else {
+                // 新记录或之前不是待重算状态，初始化重算次数
+                record.setRecalculationCount(1);
+                record.setRecalculatedAt(millisToSeconds(System.currentTimeMillis()));
+            }
         }
 
         record.setCalculatedTime(millisToSeconds(System.currentTimeMillis()));

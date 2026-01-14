@@ -19,6 +19,8 @@ import org.springframework.stereotype.Service;
 import java.util.Map;
 import java.util.Optional;
 
+import static com.weili.iot_portal.service.device.util.DeviceLogContext.*;
+
 /**
  * Webhook 接收服务
  * <p>
@@ -52,32 +54,38 @@ public class WebhookReceiveService {
      * @param request   解析后的请求对象
      */
     public void handle(String category, String eventType, WebhookRequest request) {
-        log.debug("[Webhook-处理] 开始处理: messageId={}, category={}, eventType={}, deviceCode={}",
-                    request.getMessageId(), category, eventType, request.getDeviceCode());
+        // 设置设备编号到 MDC，使日志能够显示设备编号
+        setDeviceCode(request.getDeviceCode());
+        
+        try {
+            log.debug("[Webhook-处理] 开始处理: messageId={}, category={}, eventType={}, deviceCode={}",
+                        request.getMessageId(), category, eventType, request.getDeviceCode());
 
-        // 1) 幂等性检查
-        if (!checkIdempotency(request)) {
-            log.debug("[Webhook-处理] [步骤1] 消息已处理，跳过: messageId={}", request.getMessageId());
-            return;
-        }
+            // 1) 幂等性检查
+            if (!checkIdempotency(request)) {
+                log.debug("[Webhook-处理] [步骤1] 消息已处理，跳过: messageId={}", request.getMessageId());
+                return;
+            }
 
-        // 2) 设备匹配和同步
-        Optional<DeviceInfoDO> deviceOpt = matchAndSyncDevice(request);
-        if (deviceOpt.isEmpty()) {
-            log.debug("[Webhook-处理] [步骤2] 设备未匹配，停止处理: messageId={}, eventType={}, deviceCode={}",
-                    request.getMessageId(), eventType, request.getDeviceCode());
-            return;
-        }
-        DeviceInfoDO device = deviceOpt.get();
+            // 2) 设备匹配和同步
+            Optional<DeviceInfoDO> deviceOpt = matchAndSyncDevice(request);
+            if (deviceOpt.isEmpty()) {
+                log.debug("[Webhook-处理] [步骤2] 设备未匹配，停止处理: messageId={}, eventType={}, deviceCode={}",
+                        request.getMessageId(), eventType, request.getDeviceCode());
+                return;
+            }
+            DeviceInfoDO device = deviceOpt.get();
 
         // 3) 补充请求信息
         enrichRequest(request, category, eventType, device);
 
-        // 4) 分类处理
-        dispatchByCategory(category, request, device);
+            // 4) 分类处理
+            dispatchByCategory(category, request, device);
 
-        if (log.isDebugEnabled()) {
             log.debug("[Webhook-处理] 处理完成: messageId={}", request.getMessageId());
+        } finally {
+            // 清除设备编号 MDC，避免线程复用导致设备编号污染
+            clearDeviceCode();
         }
     }
 
@@ -292,6 +300,10 @@ public class WebhookReceiveService {
      */
     private void handleRealtimeHandler(WebhookEventHandler handler, WebhookRequest request,
                                       String eventType, WebhookProcessingStrategy strategy) {
+        // 确保 MDC 中已设置设备编号（如果 handle 方法中已设置，这里会保持；如果未设置，这里补充设置）
+        // 注意：这里不检查 MDC 是否已设置，直接设置即可（工具类内部会处理）
+        setDeviceCode(request.getDeviceCode());
+        
         try {
             Map<String, Object> eventData = request.getEventData();
             if (eventData == null || eventData.isEmpty()) {
@@ -314,6 +326,9 @@ public class WebhookReceiveService {
                     request.getMessageId(), eventType, strategy, e);
             // REALTIME事件处理失败不影响主流程，只记录日志
             // 这是REALTIME事件的低可靠性策略：允许丢失，不重试
+        } finally {
+            // 清除设备编号 MDC，避免线程复用导致设备编号污染
+            clearDeviceCode();
         }
     }
 
@@ -327,6 +342,8 @@ public class WebhookReceiveService {
      */
     @Async
     public void processMessageAsync(String messageId) {
+        // 注意：@Async 方法会在新线程中执行，MDC 不会自动传递
+        // 但这里调用的是 webhookProcessService.processSingle，它内部会设置 MDC
         try {
             if (log.isDebugEnabled()) {
                 log.debug("[Webhook-处理] 开始异步处理消息: messageId={}", messageId);

@@ -21,6 +21,8 @@ import java.time.ZoneId;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import static com.weili.iot_portal.service.device.util.DeviceLogContext.*;
+
 /**
  * 设备产量汇总服务实现（带工厂分组、批次、检查点）
  */
@@ -227,114 +229,122 @@ public class DeviceProductionSummaryService implements IDeviceProductionSummaryS
      * @return 处理的班次数量，如果处理失败则返回0
      */
     protected int processSingleDevice(DeviceInfoDO device, long statisticsTimeSeconds, long startTsSeconds) {
-        long statisticsTimeMs = statisticsTimeSeconds * 1000;
-        long startTsMs = startTsSeconds * 1000;
+        // 设置设备编号到 MDC，使日志能够显示设备编号
+        setDeviceCode(device);
 
-        int processedCount = 0;
-        ShiftTimeRange currentRange = shiftCalculationService.calculateShiftRange(
-                device.getOrgFactoryId(), device.getId(), statisticsTimeMs);
+        try {
+            long statisticsTimeMs = statisticsTimeSeconds * 1000;
+            long startTsMs = startTsSeconds * 1000;
 
-        // 从当前班次开始，往前遍历所有已结束的班次
-        ShiftTimeRange range = currentRange;
+            int processedCount = 0;
+            ShiftTimeRange currentRange = shiftCalculationService.calculateShiftRange(
+                    device.getOrgFactoryId(), device.getId(), statisticsTimeMs);
 
-        // 如果当前班次正在进行中，先获取上一个班次
-        if (range != null && range.getEndTs() != null && range.getEndTs() > statisticsTimeMs) {
-            // 当前班次尚未结束，跳过当前班次，从上一个班次开始处理
-            log.debug("产量汇总: 当前班次正在进行中，跳过: deviceId={}, shiftEndTs={}, statisticsTimeMs={}",
-                    device.getId(), range.getEndTs(), statisticsTimeMs);
+            // 从当前班次开始，往前遍历所有已结束的班次
+            ShiftTimeRange range = currentRange;
 
-            if (range.getStartTs() > startTsMs) {
-                // 如果当前班次开始时间在时间范围内，尝试获取上一个班次
-                ShiftTimeRange previousRange = shiftCalculationService.calculatePreviousShiftRange(
-                        device.getOrgFactoryId(), device.getId(), range.getStartTs());
-                if (previousRange != null && previousRange.getEndTs() != null) {
-                    range = previousRange;
-                } else {
-                    // 无法获取上一个班次，无法处理
-                    return 0;
-                }
-            } else {
-                // 当前班次开始时间早于时间范围开始时间，无法处理
-                log.debug("产量汇总: 当前班次开始时间早于时间范围: deviceId={}, shiftStartTs={}, startTsMs={}",
-                        device.getId(), range.getStartTs(), startTsMs);
-                return 0;
-            }
-        }
-
-        while (range != null && range.getEndTs() != null) {
-            // 只处理已结束的班次
-            if (range.getEndTs() > statisticsTimeMs) {
-                // 班次尚未结束，跳过并继续获取上一个班次
-                log.debug("产量汇总: 跳过正在进行中的班次: deviceId={}, shiftEndTs={}, statisticsTimeMs={}",
+            // 如果当前班次正在进行中，先获取上一个班次
+            if (range != null && range.getEndTs() != null && range.getEndTs() > statisticsTimeMs) {
+                // 当前班次尚未结束，跳过当前班次，从上一个班次开始处理
+                log.debug("产量汇总: 当前班次正在进行中，跳过: deviceId={}, shiftEndTs={}, statisticsTimeMs={}",
                         device.getId(), range.getEndTs(), statisticsTimeMs);
 
-                // 获取上一个班次
                 if (range.getStartTs() > startTsMs) {
+                    // 如果当前班次开始时间在时间范围内，尝试获取上一个班次
                     ShiftTimeRange previousRange = shiftCalculationService.calculatePreviousShiftRange(
                             device.getOrgFactoryId(), device.getId(), range.getStartTs());
                     if (previousRange != null && previousRange.getEndTs() != null) {
                         range = previousRange;
-                        continue;
+                    } else {
+                        // 无法获取上一个班次，无法处理
+                        return 0;
                     }
+                } else {
+                    // 当前班次开始时间早于时间范围开始时间，无法处理
+                    log.debug("产量汇总: 当前班次开始时间早于时间范围: deviceId={}, shiftStartTs={}, startTsMs={}",
+                            device.getId(), range.getStartTs(), startTsMs);
+                    return 0;
                 }
-                break;
             }
 
-            // 只处理时间范围内的班次
-            if (range.getEndTs() < startTsMs) {
-                // 班次结束时间早于开始时间，停止遍历
-                log.debug("产量汇总: 班次结束时间早于时间范围: deviceId={}, shiftEndTs={}, startTsMs={}",
-                        device.getId(), range.getEndTs(), startTsMs);
-                break;
+            while (range != null && range.getEndTs() != null) {
+                // 只处理已结束的班次
+                if (range.getEndTs() > statisticsTimeMs) {
+                    // 班次尚未结束，跳过并继续获取上一个班次
+                    log.debug("产量汇总: 跳过正在进行中的班次: deviceId={}, shiftEndTs={}, statisticsTimeMs={}",
+                            device.getId(), range.getEndTs(), statisticsTimeMs);
+
+                    // 获取上一个班次
+                    if (range.getStartTs() > startTsMs) {
+                        ShiftTimeRange previousRange = shiftCalculationService.calculatePreviousShiftRange(
+                                device.getOrgFactoryId(), device.getId(), range.getStartTs());
+                        if (previousRange != null && previousRange.getEndTs() != null) {
+                            range = previousRange;
+                            continue;
+                        }
+                    }
+                    break;
+                }
+
+                // 只处理时间范围内的班次
+                if (range.getEndTs() < startTsMs) {
+                    // 班次结束时间早于开始时间，停止遍历
+                    log.debug("产量汇总: 班次结束时间早于时间范围: deviceId={}, shiftEndTs={}, startTsMs={}",
+                            device.getId(), range.getEndTs(), startTsMs);
+                    break;
+                }
+
+                long shiftStartSec = range.getStartTs() / 1000;
+                long shiftEndSec = range.getEndTs() / 1000;
+                if (shiftEndSec <= shiftStartSec) {
+                    log.warn("产量汇总: 班次时间范围无效: deviceId={}, shiftStartSec={}, shiftEndSec={}",
+                            device.getId(), shiftStartSec, shiftEndSec);
+                    break;
+                }
+
+                long count = productionRecordRepository.countCompletedInRange(device.getId(), shiftStartSec, shiftEndSec);
+
+                log.debug("产量汇总: 处理班次: deviceId={}, shiftDate={}, shiftCode={}, shiftStartSec={}, shiftEndSec={}, count={}",
+                        device.getId(), Instant.ofEpochMilli(range.getStartTs()).atZone(ZoneId.systemDefault()).toLocalDate(),
+                        range.getShiftCode(), shiftStartSec, shiftEndSec, count);
+
+                LocalDate shiftDate = Instant.ofEpochMilli(range.getStartTs())
+                        .atZone(ZoneId.systemDefault())
+                        .toLocalDate();
+                upsertSummary(device.getId(), shiftDate, range.getShiftCode(), shiftStartSec, shiftEndSec, count, statisticsTimeSeconds);
+                processedCount++;
+
+                // 获取上一个班次
+                if (range.getStartTs() <= startTsMs) {
+                    // 已经处理到时间范围开始时间，停止遍历
+                    log.debug("产量汇总: 已处理到时间范围开始时间: deviceId={}, shiftStartTs={}, startTsMs={}",
+                            device.getId(), range.getStartTs(), startTsMs);
+                    break;
+                }
+
+                ShiftTimeRange previousRange = shiftCalculationService.calculatePreviousShiftRange(
+                        device.getOrgFactoryId(), device.getId(), range.getStartTs());
+                if (previousRange == null || previousRange.getEndTs() == null) {
+                    log.debug("产量汇总: 无法获取上一个班次，停止遍历: deviceId={}", device.getId());
+                    break;
+                }
+
+                // 检查是否已经处理过这个班次（避免重复处理）
+                // 如果上一个班次的结束时间 >= 当前班次的开始时间，说明班次有重叠或顺序错误，停止遍历
+                if (previousRange.getEndTs() >= range.getStartTs()) {
+                    log.warn("产量汇总: 班次时间范围异常，停止遍历: deviceId={}, previousShiftEndTs={}, currentShiftStartTs={}",
+                            device.getId(), previousRange.getEndTs(), range.getStartTs());
+                    break;
+                }
+
+                range = previousRange;
             }
 
-            long shiftStartSec = range.getStartTs() / 1000;
-            long shiftEndSec = range.getEndTs() / 1000;
-            if (shiftEndSec <= shiftStartSec) {
-                log.warn("产量汇总: 班次时间范围无效: deviceId={}, shiftStartSec={}, shiftEndSec={}",
-                        device.getId(), shiftStartSec, shiftEndSec);
-                break;
-            }
-
-            long count = productionRecordRepository.countCompletedInRange(device.getId(), shiftStartSec, shiftEndSec);
-
-            log.debug("产量汇总: 处理班次: deviceId={}, shiftDate={}, shiftCode={}, shiftStartSec={}, shiftEndSec={}, count={}",
-                    device.getId(), Instant.ofEpochMilli(range.getStartTs()).atZone(ZoneId.systemDefault()).toLocalDate(),
-                    range.getShiftCode(), shiftStartSec, shiftEndSec, count);
-
-            LocalDate shiftDate = Instant.ofEpochMilli(range.getStartTs())
-                    .atZone(ZoneId.systemDefault())
-                    .toLocalDate();
-            upsertSummary(device.getId(), shiftDate, range.getShiftCode(), shiftStartSec, shiftEndSec, count, statisticsTimeSeconds);
-            processedCount++;
-
-            // 获取上一个班次
-            if (range.getStartTs() <= startTsMs) {
-                // 已经处理到时间范围开始时间，停止遍历
-                log.debug("产量汇总: 已处理到时间范围开始时间: deviceId={}, shiftStartTs={}, startTsMs={}",
-                        device.getId(), range.getStartTs(), startTsMs);
-                break;
-            }
-
-            ShiftTimeRange previousRange = shiftCalculationService.calculatePreviousShiftRange(
-                    device.getOrgFactoryId(), device.getId(), range.getStartTs());
-            if (previousRange == null || previousRange.getEndTs() == null) {
-                log.debug("产量汇总: 无法获取上一个班次，停止遍历: deviceId={}", device.getId());
-                break;
-            }
-
-            // 检查是否已经处理过这个班次（避免重复处理）
-            // 如果上一个班次的结束时间 >= 当前班次的开始时间，说明班次有重叠或顺序错误，停止遍历
-            if (previousRange.getEndTs() >= range.getStartTs()) {
-                log.warn("产量汇总: 班次时间范围异常，停止遍历: deviceId={}, previousShiftEndTs={}, currentShiftStartTs={}",
-                        device.getId(), previousRange.getEndTs(), range.getStartTs());
-                break;
-            }
-
-            range = previousRange;
+            return processedCount;
+        } finally {
+            // 清除设备编号 MDC，避免线程复用导致设备编号污染
+            clearDeviceCode();
         }
-
-        return processedCount;
     }
 
     private void upsertSummary(Long deviceId,

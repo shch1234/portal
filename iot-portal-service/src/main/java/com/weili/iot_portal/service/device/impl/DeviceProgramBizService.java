@@ -13,6 +13,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.Map;
+
+import static com.weili.iot_portal.service.device.util.DeviceLogContext.*;
 import java.util.stream.Collectors;
 
 /**
@@ -35,50 +37,58 @@ public class DeviceProgramBizService implements IDeviceProgramBizService {
             log.warn("[DeviceProgramBizService] 设备不存在: deviceId={}", deviceId);
             throw new IotPortalException(IotPortalErrorCode.DEVICE_INFO_NOT_FOUND, "设备不存在");
         }
-        
-        Long factoryId = deviceInfo.getOrgFactoryId();
-        if (factoryId == null) {
-            log.warn("[DeviceProgramBizService] 设备未关联工厂，无法查询程序信息: deviceId={}", deviceId);
-            return null;
+
+        // 设置设备编号到 MDC，使日志能够显示设备编号
+        setDeviceCode(deviceInfo);
+
+        try {
+            Long factoryId = deviceInfo.getOrgFactoryId();
+            if (factoryId == null) {
+                log.warn("[DeviceProgramBizService] 设备未关联工厂，无法查询程序信息: deviceId={}", deviceId);
+                return null;
+            }
+
+            // 从Redis缓存获取程序信息（使用正确的factoryId）
+            Map<Object, Object> programData = deviceProgramCacheService.getProgram(factoryId, deviceId);
+
+            if (programData == null || programData.isEmpty()) {
+                log.debug("设备程序信息缓存为空: deviceId={}", deviceId);
+                return null;
+            }
+
+            // 提取程序名称和路径
+            String programName = getStringValue(programData, "programName");
+            String programPath = getStringValue(programData, "programPath");
+
+            // 提取程序上下文（programCtx），用于存放程序信息（执行代码）
+            String programCtx = getStringValue(programData, "programCtx");
+
+            // 提取主G代码和M代码
+            String gCode = getStringValue(programData, "gCode");
+            String mCode = getStringValue(programData, "mCode");
+
+            // 构建G代码详情：提取所有以 gCode 开头的字段（如 gCode1, gCode2 等）
+            String gCodeDetails = buildGCodeDetails(programData, gCode);
+
+            // 构建M代码详情：提取所有以 mCode 开头的字段（如 mCode1, mCode2 等）
+            String mCodeDetails = buildMCodeDetails(programData, mCode);
+
+            // 执行代码从 programCtx 中获取
+            String executeCode = (programCtx != null && !programCtx.trim().isEmpty())
+                    ? programCtx
+                    : null;
+
+            return DeviceProgramRespVO.builder()
+                    .programName(programName)
+                    .programPath(programPath)
+                    .executeCode(executeCode)
+                    .gCodeDetails(gCodeDetails)
+                    .mCodeDetails(mCodeDetails)
+                    .build();
+        } finally {
+            // 清除设备编号 MDC，避免线程复用导致设备编号污染
+            clearDeviceCode();
         }
-        
-        // 从Redis缓存获取程序信息（使用正确的factoryId）
-        Map<Object, Object> programData = deviceProgramCacheService.getProgram(factoryId, deviceId);
-
-        if (programData == null || programData.isEmpty()) {
-            log.debug("设备程序信息缓存为空: deviceId={}", deviceId);
-            return null;
-        }
-
-        // 提取程序名称和路径
-        String programName = getStringValue(programData, "programName");
-        String programPath = getStringValue(programData, "programPath");
-
-        // 提取程序上下文（programCtx），用于存放程序信息（执行代码）
-        String programCtx = getStringValue(programData, "programCtx");
-
-        // 提取主G代码和M代码
-        String gCode = getStringValue(programData, "gCode");
-        String mCode = getStringValue(programData, "mCode");
-
-        // 构建G代码详情：提取所有以 gCode 开头的字段（如 gCode1, gCode2 等）
-        String gCodeDetails = buildGCodeDetails(programData, gCode);
-
-        // 构建M代码详情：提取所有以 mCode 开头的字段（如 mCode1, mCode2 等）
-        String mCodeDetails = buildMCodeDetails(programData, mCode);
-
-        // 执行代码从 programCtx 中获取
-        String executeCode = (programCtx != null && !programCtx.trim().isEmpty()) 
-                ? programCtx 
-                : null;
-
-        return DeviceProgramRespVO.builder()
-                .programName(programName)
-                .programPath(programPath)
-                .executeCode(executeCode) 
-                .gCodeDetails(gCodeDetails)
-                .mCodeDetails(mCodeDetails)
-                .build();
     }
 
     /**

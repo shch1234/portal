@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <!-- 
+        设备编号日志格式配置
+        
+        作用：
+        1. 定义设备编号的 MDC 变量 DEVICE_CODE_PATTERN，用于在日志格式中显示设备编号
+        2. 如果基础框架（weili-boot-parent）没有 logback 配置，提供默认配置
+        
+        使用方式：
+        - 如果基础框架已有 logback 配置，需要在基础框架的配置中添加 ${DEVICE_CODE_PATTERN} 到 pattern 中
+          例如：%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] ${DEVICE_CODE_PATTERN} %-5level %logger{50} - %msg%n
+        - 如果基础框架没有 logback 配置，此文件会提供完整的默认配置
+    -->
+    
+    <!-- 定义设备编号的 MDC 变量（如果 MDC 中没有 deviceCode，则显示空字符串） -->
+    <property name="DEVICE_CODE_PATTERN" value="%X{deviceCode:-}"/>
+    
+    <!-- 
+        如果基础框架没有 logback 配置，这里提供默认配置
+        如果基础框架已有配置，这部分会被忽略（不会覆盖基础配置）
+    -->
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+    
+    <!-- 控制台输出：在 [%thread] 后添加设备编号 -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] ${DEVICE_CODE_PATTERN} %-5level %logger{50} - %msg%n</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+    </appender>
+    
+    <!-- 
+        根日志级别：通过 Spring Boot 配置属性控制，支持 Apollo 动态调整
+        - 默认值：INFO
+        - Apollo 配置：logging.level.root=INFO (或 DEBUG/WARN/ERROR)
+        - 也可以通过 logging.level.* 配置特定包的日志级别
+    -->
+    <springProperty scope="context" name="ROOT_LOG_LEVEL" source="logging.level.root" defaultValue="INFO"/>
+    <root level="${ROOT_LOG_LEVEL}">
+        <appender-ref ref="CONSOLE"/>
+    </root>
+    
+    <!-- 
+        包级别日志配置：通过 Spring Boot 配置属性控制，支持 Apollo 动态调整
+        示例 Apollo 配置：
+        - logging.level.com.weili.iot_portal.service.ingestion=DEBUG
+        - logging.level.com.weili.iot_portal.service.device=INFO
+        - logging.level.com.weili.iot_portal.dal.mapper=TRACE
+        - logging.level.org.springframework=WARN
+        - logging.level.com.xxl.job=WARN
+    -->
+</configuration>
