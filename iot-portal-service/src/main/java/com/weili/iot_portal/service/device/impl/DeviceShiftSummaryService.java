@@ -734,6 +734,7 @@ public class DeviceShiftSummaryService implements IDeviceShiftSummaryService {
         StateStatistics standby = getStateStatistics(stateStats, DeviceStateEnum.STANDBY.name());
         StateStatistics fault = getStateStatistics(stateStats, DeviceStateEnum.FAULT.name());
         StateStatistics shutdown = getStateStatistics(stateStats, DeviceStateEnum.SHUTDOWN.name());
+        StateStatistics unknown = getStateStatistics(stateStats, DeviceStateEnum.UNKNOWN.name());
         StateStatistics missing = getStateStatistics(stateStats, STATE_MISSING);
 
         // 获取班次时长（毫秒），用于验证状态时长是否超过班次时长
@@ -746,6 +747,7 @@ public class DeviceShiftSummaryService implements IDeviceShiftSummaryService {
         long standbyMillis = standby.durationSeconds;
         long faultMillis = fault.durationSeconds;
         long shutdownMillis = shutdown.durationSeconds;
+        long unknownMillis = unknown.durationSeconds;
         long missingMillis = missing.durationSeconds;
 
         if (shiftDurationMillis > 0) {
@@ -777,12 +779,20 @@ public class DeviceShiftSummaryService implements IDeviceShiftSummaryService {
                         shutdownMillis, shiftDurationMillis);
                 shutdownMillis = shiftDurationMillis;
             }
+            if (unknownMillis > shiftDurationMillis) {
+                log.warn("未知状态时长超过班次时长，已限制: deviceId={}, shiftDate={}, shiftCode={}, " +
+                                "unknownMillis={}, shiftDurationMillis={}",
+                        summary.getDeviceInfoId(), summary.getSummaryDate(), summary.getShiftCode(),
+                        unknownMillis, shiftDurationMillis);
+                unknownMillis = shiftDurationMillis;
+            }
         }
 
         summary.setWorkingDurationS((int) workingMillis);
         summary.setStandbyDurationS((int) standbyMillis);
         summary.setFaultDurationS((int) faultMillis);
         summary.setShutdownDurationS((int) shutdownMillis);
+        summary.setUnknownDurationS((int) unknownMillis);
         summary.setMissingDataS((int) missingMillis);
 
         // 确保比例值在 0-1 范围内，防止数据库溢出
@@ -790,6 +800,7 @@ public class DeviceShiftSummaryService implements IDeviceShiftSummaryService {
         summary.setStandbyRatio(clampRatio(standby.ratio));
         summary.setFaultRatio(clampRatio(fault.ratio));
         summary.setShutdownRatio(clampRatio(shutdown.ratio));
+        summary.setUnknownRatio(clampRatio(unknown.ratio));
     }
 
     /**
@@ -867,7 +878,7 @@ public class DeviceShiftSummaryService implements IDeviceShiftSummaryService {
     /**
      * 构建并设置状态统计JSON
      */
-    private void buildAndSetStateStatisticsJson(
+    protected void buildAndSetStateStatisticsJson(
             DeviceStateSummaryDO summary,
             Map<String, StateStatistics> stateStats) {
         

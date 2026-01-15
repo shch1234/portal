@@ -87,6 +87,11 @@ public class DeviceStateSummaryDO implements Serializable {
     private Integer shutdownDurationS;
 
     /**
+     * 未知状态时长（毫秒，冗余字段，对应 unknown_duration_s 列）
+     */
+    private Integer unknownDurationS;
+
+    /**
      * 加工中占比（冗余字段，对应 working_ratio 列）
      */
     private BigDecimal workingRatio;
@@ -105,6 +110,11 @@ public class DeviceStateSummaryDO implements Serializable {
      * 关机占比（冗余字段，对应 shutdown_ratio 列）
      */
     private BigDecimal shutdownRatio;
+
+    /**
+     * 未知状态占比（冗余字段，对应 unknown_ratio 列）
+     */
+    private BigDecimal unknownRatio;
 
     /**
      * 是否已最终确定：1-已确定 0-待确定（班次结束后为1，对应 is_finalized 列）

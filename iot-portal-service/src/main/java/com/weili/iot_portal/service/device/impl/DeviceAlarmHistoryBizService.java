@@ -133,11 +133,14 @@ public class DeviceAlarmHistoryBizService implements IDeviceAlarmHistoryBizServi
 
     /**
      * 计算持续时长（秒）
+     * <p>
+     * 注意：数据库中 duration_s 字段存储的是毫秒，需要转换为秒后返回
+     * </p>
      */
     private Integer calculateDuration(DeviceAlarmHistoryDO alarm) {
-        // 优先使用数据库中已存储的持续时长
+        // 优先使用数据库中已存储的持续时长（数据库存储的是毫秒，需要转换为秒）
         if (alarm.getDurationS() != null) {
-            return alarm.getDurationS();
+            return alarm.getDurationS() / 1000;
         }
 
         // 如果没有存储的持续时长，则根据开始和结束时间计算

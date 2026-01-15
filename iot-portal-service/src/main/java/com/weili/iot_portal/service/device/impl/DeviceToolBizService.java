@@ -306,7 +306,7 @@ public class DeviceToolBizService implements IDeviceToolBizService {
 
         return ToolRecord.builder()
                 .toolNo(record.getToolNo())
-                .toolMagazineNo(record.getToolMagazineNo())
+                .toolHolderNo(record.getToolHolderNo())
                 .startTs(record.getStartTs())
                 .endTs(record.getEndTs())
                 .duration(durationStr)

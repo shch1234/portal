@@ -138,22 +138,25 @@ public class DeviceStateSummaryBizService implements IDeviceStateSummaryBizServi
         int totalWorking = 0;
         int totalShutdown = 0;
         int totalFault = 0;
+        int totalUnknown = 0;
 
         for (DeviceStateSummaryDO summary : summaryList) {
             totalStandby += (summary.getStandbyDurationS() != null ? summary.getStandbyDurationS() : 0);
             totalWorking += (summary.getWorkingDurationS() != null ? summary.getWorkingDurationS() : 0);
             totalShutdown += (summary.getShutdownDurationS() != null ? summary.getShutdownDurationS() : 0);
             totalFault += (summary.getFaultDurationS() != null ? summary.getFaultDurationS() : 0);
+            totalUnknown += (summary.getUnknownDurationS() != null ? summary.getUnknownDurationS() : 0);
         }
 
         // 计算总时长
-        int totalDuration = totalStandby + totalWorking + totalShutdown + totalFault;
+        int totalDuration = totalStandby + totalWorking + totalShutdown + totalFault + totalUnknown;
 
         // 计算百分比
         BigDecimal standbyRatio;
         BigDecimal workingRatio;
         BigDecimal shutdownRatio;
         BigDecimal faultRatio;
+        BigDecimal unknownRatio;
 
         if (totalDuration == 0) {
             // 总时长为0，所有占比都为0
@@ -161,6 +164,7 @@ public class DeviceStateSummaryBizService implements IDeviceStateSummaryBizServi
             workingRatio = BigDecimal.ZERO;
             shutdownRatio = BigDecimal.ZERO;
             faultRatio = BigDecimal.ZERO;
+            unknownRatio = BigDecimal.ZERO;
         } else {
             // 计算各状态的百分比，保留1位小数
             standbyRatio = BigDecimal.valueOf(totalStandby)
@@ -179,21 +183,27 @@ public class DeviceStateSummaryBizService implements IDeviceStateSummaryBizServi
                     .multiply(BigDecimal.valueOf(100))
                     .divide(BigDecimal.valueOf(totalDuration), 1, RoundingMode.HALF_UP);
 
+            unknownRatio = BigDecimal.valueOf(totalUnknown)
+                    .multiply(BigDecimal.valueOf(100))
+                    .divide(BigDecimal.valueOf(totalDuration), 1, RoundingMode.HALF_UP);
+
             // 确保总和为100%
-            BigDecimal sum = standbyRatio.add(workingRatio).add(shutdownRatio).add(faultRatio);
+            BigDecimal sum = standbyRatio.add(workingRatio).add(shutdownRatio).add(faultRatio).add(unknownRatio);
             BigDecimal diff = BigDecimal.valueOf(100).subtract(sum);
 
             // 如果总和不是100，将差值加到最大的那个百分比上
             if (diff.compareTo(BigDecimal.ZERO) != 0) {
                 // 找出最大的占比
-                if (totalStandby >= totalWorking && totalStandby >= totalShutdown && totalStandby >= totalFault) {
+                if (totalStandby >= totalWorking && totalStandby >= totalShutdown && totalStandby >= totalFault && totalStandby >= totalUnknown) {
                     standbyRatio = standbyRatio.add(diff);
-                } else if (totalWorking >= totalShutdown && totalWorking >= totalFault) {
+                } else if (totalWorking >= totalShutdown && totalWorking >= totalFault && totalWorking >= totalUnknown) {
                     workingRatio = workingRatio.add(diff);
-                } else if (totalShutdown >= totalFault) {
+                } else if (totalShutdown >= totalFault && totalShutdown >= totalUnknown) {
                     shutdownRatio = shutdownRatio.add(diff);
-                } else {
+                } else if (totalFault >= totalUnknown) {
                     faultRatio = faultRatio.add(diff);
+                } else {
+                    unknownRatio = unknownRatio.add(diff);
                 }
             }
         }
@@ -203,10 +213,12 @@ public class DeviceStateSummaryBizService implements IDeviceStateSummaryBizServi
                 .workingDur(totalWorking)
                 .shutdownDur(totalShutdown)
                 .faultDur(totalFault)
+                .unknownDur(totalUnknown)
                 .standbyRatio(standbyRatio)
                 .workingRatio(workingRatio)
                 .shutdownRatio(shutdownRatio)
                 .faultRatio(faultRatio)
+                .unknownRatio(unknownRatio)
                 .build();
     }
 

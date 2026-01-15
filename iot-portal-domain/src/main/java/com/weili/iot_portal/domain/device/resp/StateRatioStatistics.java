@@ -30,6 +30,9 @@ public class StateRatioStatistics {
     @Schema(description = "故障状态时长（秒）")
     private Integer faultDur;
 
+    @Schema(description = "未知状态时长（秒）")
+    private Integer unknownDur;
+
     @Schema(description = "待机状态占比（%，保留1位小数）", example = "25.0")
     private BigDecimal standbyRatio;
 
@@ -41,6 +44,9 @@ public class StateRatioStatistics {
 
     @Schema(description = "故障状态占比（%，保留1位小数）", example = "10.0")
     private BigDecimal faultRatio;
+
+    @Schema(description = "未知状态占比（%，保留1位小数）", example = "5.0")
+    private BigDecimal unknownRatio;
 }
 
 

@@ -1,6 +1,7 @@
 package com.weili.iot_portal.service.dashboard.impl;
 
 import com.weili.basic.common.enums.ErrorCodeEnum;
+import com.weili.iot_portal.common.enums.DeviceStateEnum;
 import com.weili.iot_portal.common.exception.IotPortalException;
 import com.weili.iot_portal.dal.dataobject.device.DeviceAlarmHistoryDO;
 import com.weili.iot_portal.dal.dataobject.device.DeviceInfoDO;
@@ -42,11 +43,20 @@ import java.util.stream.Collectors;
 public class DashboardService implements IDashboardService {
 
     /**
-     * 设备状态定义常量
+     * 设备状态编码常量
+     * 与设备状态编码保持一致：0-SHUTDOWN 1-WORKING 2-STANDBY 3-FAULT 255-UNKNOWN/离线
      */
-    private static final String STATE_ONLINE = "0";      // 在线状态
-    private static final String STATE_OFFLINE = "1";     // 离线状态
-    private static final String STATE_FAULT = "2";       // 故障状态
+    private static final String STATE_SHUTDOWN = String.valueOf(DeviceStateEnum.SHUTDOWN.getCode());
+    private static final String STATE_WORKING = String.valueOf(DeviceStateEnum.WORKING.getCode());
+    private static final String STATE_STANDBY = String.valueOf(DeviceStateEnum.STANDBY.getCode());
+    private static final String STATE_FAULT = String.valueOf(DeviceStateEnum.FAULT.getCode());
+    private static final String STATE_OFFLINE = String.valueOf(DeviceStateEnum.UNKNOWN.getCode());
+
+    /**
+     * 心跳状态常量
+     */
+    private static final String HEARTBEAT_ACTIVE = "1";   // 有心跳
+    private static final String HEARTBEAT_INACTIVE = "0";  // 无心跳
 
     /**
      * 指标类型常量
@@ -89,9 +99,11 @@ public class DashboardService implements IDashboardService {
 
         // 2. 统计设备状态
         int totalDevices = monitoredDevices.size();
-        int onlineDevices = 0;
-        int offlineDevices = 0;
-        int faultDevices = 0;
+        int shutdownDevices = 0;  // 状态为0的设备数
+        int workingDevices = 0;    // 状态为1的设备数
+        int standbyDevices = 0;    // 状态为2的设备数
+        int faultDevices = 0;      // 状态为3的设备数
+        int offlineDevices = 0;   // 状态为255的设备数
 
         if (totalDevices == 0) {
             DeviceStateStatisticsRespVO result = new DeviceStateStatisticsRespVO();
@@ -99,6 +111,9 @@ public class DashboardService implements IDashboardService {
             result.setOnlineDevices(0);
             result.setOfflineDevices(0);
             result.setFaultDevices(0);
+            result.setShutdownDevices(0);
+            result.setWorkingDevices(0);
+            result.setStandbyDevices(0);
             return result;
         }
 
@@ -107,41 +122,69 @@ public class DashboardService implements IDashboardService {
                 .map(DeviceInfoDO::getId)
                 .collect(Collectors.toList());
 
-        // 4. 批量从Redis获取设备的实时状态
+        // 4. 批量从Redis获取设备心跳状态
+        Map<Long, String> heartbeatMap = deviceStateCacheService.batchGetHeartbeatStatus(factoryId, deviceIds);
+        
+        // 5. 批量从Redis获取设备的实时状态
         Map<Long, Map<Object, Object>> deviceStateMap = deviceStateCacheService.batchGetState(factoryId, deviceIds);
 
-        // 5. 遍历所有被监控的设备，根据Redis返回的状态进行分类统计
+        // 6. 遍历所有被监控的设备，根据心跳和状态进行分类统计
         for (DeviceInfoDO device : monitoredDevices) {
-            Map<Object, Object> stateData = deviceStateMap.get(device.getId());
+            Long deviceId = device.getId();
+            
+            // 首先判断心跳：没有心跳或没有对应的设备key认为离线
+            String heartbeat = heartbeatMap.get(deviceId);
+            if (heartbeat == null || !HEARTBEAT_ACTIVE.equals(heartbeat)) {
+                // 没有心跳，视为离线
+                offlineDevices++;
+                continue;
+            }
+            
+            // 有心跳时，从deviceState获取设备状态（0,1,2,3,255）
+            Map<Object, Object> stateData = deviceStateMap.get(deviceId);
             String state = null;
-
+            
             if (stateData != null && !stateData.isEmpty()) {
                 Object stateValue = stateData.get(DeviceStateEventFields.STATE);
-                state = stateValue != null ? stateValue.toString() : null;
+                if (stateValue != null) {
+                    state = stateValue.toString();
+                }
             }
-
-            // 根据状态进行分类统计
+            
+            // 根据设备状态进行分类统计
+            // 设备状态：0-SHUTDOWN（关机） 1-WORKING（加工中） 2-STANDBY（待机） 3-FAULT（故障） 255-UNKNOWN（未知/离线）
             if (StringUtils.isBlank(state)) {
-                // 如果Redis中没有状态数据，视为离线
+                // 如果Redis中没有状态数据，视为离线（状态255）
                 offlineDevices++;
-            } else if (STATE_ONLINE.equals(state)) {
-                onlineDevices++;
-            } else if (STATE_OFFLINE.equals(state)) {
-                offlineDevices++;
+            } else if (STATE_SHUTDOWN.equals(state)) {
+                shutdownDevices++;
+            } else if (STATE_WORKING.equals(state)) {
+                workingDevices++;
+            } else if (STATE_STANDBY.equals(state)) {
+                standbyDevices++;
             } else if (STATE_FAULT.equals(state)) {
                 faultDevices++;
+            } else if (STATE_OFFLINE.equals(state)) {
+                // 状态为255，视为离线
+                offlineDevices++;
             } else {
-                // 未知状态，默认视为离线
+                // 未知状态码，视为离线
                 offlineDevices++;
             }
         }
 
-        // 6. 构建返回结果
+        // 7. 计算在线设备数（状态为0,1,2,3的设备总和）
+        int onlineDevices = shutdownDevices + workingDevices + standbyDevices + faultDevices;
+
+        // 8. 构建返回结果
         DeviceStateStatisticsRespVO result = new DeviceStateStatisticsRespVO();
         result.setTotalDevices(totalDevices);
         result.setOnlineDevices(onlineDevices);
         result.setOfflineDevices(offlineDevices);
         result.setFaultDevices(faultDevices);
+        result.setShutdownDevices(shutdownDevices);
+        result.setWorkingDevices(workingDevices);
+        result.setStandbyDevices(standbyDevices);
         return result;
     }
 
@@ -257,28 +300,53 @@ public class DashboardService implements IDashboardService {
                 .map(DeviceInfoDO::getId)
                 .collect(Collectors.toList());
 
-        // 3. 批量从Redis获取设备的实时状态
+        // 3. 批量从Redis获取设备心跳状态
+        Map<Long, String> heartbeatMap = deviceStateCacheService.batchGetHeartbeatStatus(factoryId, deviceIds);
+        
+        // 4. 批量从Redis获取设备的实时状态
         Map<Long, Map<Object, Object>> deviceStateMap = deviceStateCacheService.batchGetState(factoryId, deviceIds);
 
         List<String> deviceTypeCodes = monitoredDevices.stream().map(DeviceInfoDO::getDeviceTypeCode).distinct().toList();
         List<DeviceTypeRelationDO> typeRelationList = deviceTypeRelationRepository.selectByCodes(deviceTypeCodes);
         Map<String, DeviceTypeRelationDO> typeCodeMap = typeRelationList.stream().collect(Collectors.toMap(DeviceTypeRelationDO::getTypeCode, d -> d));
-        // 4. 遍历所有被监控的设备，从批量查询结果中获取状态并组装VO
+        
+        // 5. 遍历所有被监控的设备，从批量查询结果中获取状态并组装VO
         List<DeviceListRespVO> result = new ArrayList<>(monitoredDevices.size());
         for (DeviceInfoDO device : monitoredDevices) {
-            Map<Object, Object> stateData = deviceStateMap.get(device.getId());
-            String state = STATE_OFFLINE; // 默认离线
-
-            if (stateData != null && !stateData.isEmpty()) {
-                Object stateValue = stateData.get(DeviceStateEventFields.STATE);
-                if (stateValue != null) {
-                    state = stateValue.toString();
+            Long deviceId = device.getId();
+            String state = STATE_OFFLINE; // 默认离线（255）
+            
+            // 首先判断心跳：没有心跳或没有对应的设备key认为离线
+            String heartbeat = heartbeatMap.get(deviceId);
+            if (heartbeat != null && HEARTBEAT_ACTIVE.equals(heartbeat)) {
+                // 有心跳时，从deviceState获取设备状态（0,1,2,3）
+                Map<Object, Object> stateData = deviceStateMap.get(deviceId);
+                if (stateData != null && !stateData.isEmpty()) {
+                    Object stateValue = stateData.get(DeviceStateEventFields.STATE);
+                    if (stateValue != null) {
+                        String stateStr = stateValue.toString();
+                        // 只接受有效的设备状态（0,1,2,3），其他情况视为离线（255）
+                        if (STATE_SHUTDOWN.equals(stateStr) || STATE_WORKING.equals(stateStr) 
+                                || STATE_STANDBY.equals(stateStr) || STATE_FAULT.equals(stateStr)) {
+                            state = stateStr;
+                        } else {
+                            // 状态不在 0,1,2,3 范围内，视为离线（255）
+                            state = STATE_OFFLINE;
+                        }
+                    } else {
+                        // deviceState 中没有状态值，视为离线（255）
+                        state = STATE_OFFLINE;
+                    }
+                } else {
+                    // deviceState 的 key 不存在，视为离线（255）
+                    state = STATE_OFFLINE;
                 }
             }
+            // 如果没有心跳，state 保持为 STATE_OFFLINE（255）
 
             // 组装VO
             DeviceListRespVO vo = new DeviceListRespVO();
-            vo.setDeviceId(device.getId());
+            vo.setDeviceId(deviceId);
             vo.setDeviceCode(device.getDeviceCode());
             vo.setDeviceTypeCode(device.getDeviceTypeCode());
             vo.setDeviceTypeName(typeCodeMap.containsKey(device.getDeviceTypeCode()) ?
