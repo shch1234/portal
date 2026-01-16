@@ -134,23 +134,28 @@ public class DeviceToolEventHandler implements WebhookEventHandler {
         // 只有在刀具号不为0且holderNumber不为空时，才写入刀补补偿表
         if (!isUnusedTool && StringUtils.isNotBlank(holderNumber)) {
             compValue = extractCompensationValue(eventData);
-            if (!compValue.isEmpty()) {
+            
+            // 优先使用补偿数据中的 holderNumber（如果存在且不为空）
+            // 这样可以确保与 DeviceToolChangeEventHandler 使用相同的 holderNumber
+            if (compValue != null && !compValue.isEmpty()) {
+                Object holderFromComp = compValue.get(DeviceToolEventFields.HOLDER_NUMBER);
+                if (holderFromComp != null) {
+                    String holderStr = String.valueOf(holderFromComp).trim();
+                    if (!holderStr.isEmpty() && !isZeroValue(holderStr)) {
+                        // 使用补偿数据中的 holderNumber（优先级更高）
+                        log.debug("[DeviceToolEventHandler] 使用补偿数据中的holderNumber: 原值={}, 新值={}", 
+                                holderNumber, holderStr);
+                        holderNumber = holderStr;
+                    }
+                }
+            }
+            
+            if (compValue != null && !compValue.isEmpty()) {
                 // 写入刀补补偿表（版本化覆盖）
                 upsertCompensation(deviceInfoId, orgFactoryId, holderNumber, compValue, eventTimestamp);
             } else {
                 log.warn("[DeviceToolEventHandler] 刀补号存在但补偿数据为空，跳过刀补补偿表写入: deviceId={}, holderNumber={}", 
                         deviceInfoId, holderNumber);
-            }
-        }
-        // 保证实时缓存中的 toolMagazineNo（holderNumber）与后续入库一致：
-        // 如果 holderNumber 为空但补偿对象中包含 HOLDER_NUMBER，则使用之填充
-        if (StringUtils.isBlank(holderNumber) && compValue != null && !compValue.isEmpty()) {
-            Object holderFromComp = compValue.get(DeviceToolEventFields.HOLDER_NUMBER);
-            if (holderFromComp != null) {
-                String holderStr = String.valueOf(holderFromComp).trim();
-                if (!holderStr.isEmpty() && !isZeroValue(holderStr)) {
-                    holderNumber = holderStr;
-                }
             }
         }
         
