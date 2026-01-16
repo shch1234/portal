@@ -307,46 +307,86 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
         Map<String, Object> sourceData = eventData != null ? eventData : telemetryData;
 
         if (sourceData == null) {
+            log.debug("[DeviceToolChangeEventHandler] 提取补偿快照: eventData和telemetryData都为空");
             return null;
         }
+        
+        log.debug("[DeviceToolChangeEventHandler] 提取补偿快照: sourceData字段={}", sourceData.keySet());
 
         // 优先检查是否存在 compensation 对象（结构化格式）
         Object compensationObj = sourceData.get(DeviceToolEventFields.COMPENSATION_FIELD);
-        if (compensationObj != null && compensationObj instanceof Map) {
-            // 结构化格式：提取 toolNo、holderNumber 和 compensation 对象
-            @SuppressWarnings("unchecked")
-            Map<String, Object> compensationMap = (Map<String, Object>) compensationObj;
+        if (compensationObj != null) {
+            Map<String, Object> compensationMap = null;
+            
+            if (compensationObj instanceof Map) {
+                // 结构化格式：compensation 是对象
+                @SuppressWarnings("unchecked")
+                Map<String, Object> compMap = (Map<String, Object>) compensationObj;
+                compensationMap = compMap;
+            } else if (compensationObj instanceof String) {
+                // 结构化格式：compensation 是JSON字符串（需要解析）
+                try {
+                    String jsonStr = ((String) compensationObj).trim();
+                    if (!jsonStr.isEmpty() && jsonStr.startsWith("{")) {
+                        compensationMap = JsonUtils.parseObject(jsonStr, new TypeReference<Map<String, Object>>() {});
+                        if (compensationMap == null || compensationMap.isEmpty()) {
+                            log.warn("[DeviceToolChangeEventHandler] 解析compensation JSON字符串为空: {}", jsonStr);
+                            compensationMap = null;
+                        }
+                    } else {
+                        log.warn("[DeviceToolChangeEventHandler] compensation JSON字符串格式不正确，期望对象格式: {}", jsonStr);
+                    }
+                } catch (Exception e) {
+                    log.warn("[DeviceToolChangeEventHandler] 解析compensation JSON字符串失败: {}, error={}", 
+                            compensationObj, e.getMessage());
+                }
+            } else {
+                log.warn("[DeviceToolChangeEventHandler] compensation字段格式不正确，期望Map或String，实际类型: {}", 
+                        compensationObj.getClass().getName());
+            }
+            
+            // 如果成功提取到compensation对象，构建快照
+            if (compensationMap != null && !compensationMap.isEmpty()) {
+                // 提取 toolNo（统一使用toolNo，与数据库保持一致）
+                // 注意：允许值为0，0表示"未使用刀具"，这是一个有效的状态
+                Object toolNumberObj = sourceData.get(DeviceToolEventFields.TOOL_NO);
+                if (toolNumberObj != null) {
+                    snapshot.put(DeviceToolEventFields.TOOL_NO, toolNumberObj);
+                }
 
-            // 提取 toolNo（统一使用toolNo，与数据库保持一致）
-            // 注意：允许值为0，0表示"未使用刀具"，这是一个有效的状态
-            Object toolNumberObj = sourceData.get(DeviceToolEventFields.TOOL_NO);
-            if (toolNumberObj != null) {
-                snapshot.put(DeviceToolEventFields.TOOL_NO, toolNumberObj);
-            }
+                // 提取 holderNumber（优先级：compensationMap内部 > sourceData顶层字段）
+                // 1. 优先从 compensationMap 内部提取（如果 compensation 是JSON字符串，holderNumber可能在内部）
+                Object holderNumberObj = null;
+                if (compensationMap.containsKey(DeviceToolEventFields.HOLDER_NUMBER)) {
+                    holderNumberObj = compensationMap.get(DeviceToolEventFields.HOLDER_NUMBER);
+                }
+                
+                // 2. 如果 compensationMap 中没有，从 sourceData 顶层字段提取（按优先级：hNo > toolEdgeNumber > dNo > holderNumber）
+                if (holderNumberObj == null || isZeroValue(String.valueOf(holderNumberObj))) {
+                    holderNumberObj = sourceData.get(DeviceToolEventFields.H_NO);
+                }
+                if (holderNumberObj == null || isZeroValue(String.valueOf(holderNumberObj))) {
+                    holderNumberObj = sourceData.get(DeviceToolEventFields.TOOL_EDGE_NUMBER);
+                }
+                if (holderNumberObj == null || isZeroValue(String.valueOf(holderNumberObj))) {
+                    holderNumberObj = sourceData.get(DeviceToolEventFields.D_NO);
+                }
+                if (holderNumberObj == null || isZeroValue(String.valueOf(holderNumberObj))) {
+                    holderNumberObj = sourceData.get(DeviceToolEventFields.HOLDER_NUMBER);
+                }
+                
+                // 最终检查：如果值不为null且不为0，才添加到快照
+                if (holderNumberObj != null && !isZeroValue(String.valueOf(holderNumberObj))) {
+                    snapshot.put(DeviceToolEventFields.HOLDER_NUMBER, holderNumberObj);
+                }
 
-            // 提取 holderNumber（按优先级：hNo > toolEdgeNumber > dNo > holderNumber）
-            // 过滤0值：如果值为0，表示未使用刀补，不提取
-            Object holderNumberObj = sourceData.get(DeviceToolEventFields.H_NO);
-            if (holderNumberObj == null || isZeroValue(String.valueOf(holderNumberObj))) {
-                holderNumberObj = sourceData.get(DeviceToolEventFields.TOOL_EDGE_NUMBER);
-            }
-            if (holderNumberObj == null || isZeroValue(String.valueOf(holderNumberObj))) {
-                holderNumberObj = sourceData.get(DeviceToolEventFields.D_NO);
-            }
-            if (holderNumberObj == null || isZeroValue(String.valueOf(holderNumberObj))) {
-                holderNumberObj = sourceData.get(DeviceToolEventFields.HOLDER_NUMBER);
-            }
-            // 最终检查：如果值不为null且不为0，才添加到快照
-            if (holderNumberObj != null && !isZeroValue(String.valueOf(holderNumberObj))) {
-                snapshot.put(DeviceToolEventFields.HOLDER_NUMBER, holderNumberObj);
-            }
+                // 提取完整的 compensation 对象（已解析的Map）
+                snapshot.put(DeviceToolEventFields.COMPENSATION_FIELD, compensationMap);
 
-            // 提取完整的 compensation 对象
-            snapshot.put(DeviceToolEventFields.COMPENSATION_FIELD, compensationMap);
-
-            log.debug("[DeviceToolChangeEventHandler] 提取结构化补偿快照: toolNo={}, holderNumber={}, compensation keys={}",
-                    toolNumberObj, holderNumberObj, compensationMap.keySet());
-            return snapshot;
+                log.debug("[DeviceToolChangeEventHandler] 提取结构化补偿快照: toolNo={}, holderNumber={}, compensation keys={}",
+                        toolNumberObj, holderNumberObj, compensationMap.keySet());
+                return snapshot;
+            }
         }
 
         // 降级到扁平化提取：提取所有以 offset/comp 开头的字段
@@ -377,7 +417,27 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
             });
         }
 
+        // 如果提取到了扁平化补偿数据，尝试提取 holderNumber（从 eventData 或 telemetryData 顶层字段）
         if (!snapshot.isEmpty()) {
+            // 如果快照中没有 holderNumber，尝试从顶层字段提取
+            if (!snapshot.containsKey(DeviceToolEventFields.HOLDER_NUMBER)) {
+                Map<String, Object> sourceForHolder = eventData != null ? eventData : telemetryData;
+                if (sourceForHolder != null) {
+                    Object holderNumberObj = sourceForHolder.get(DeviceToolEventFields.H_NO);
+                    if (holderNumberObj == null || isZeroValue(String.valueOf(holderNumberObj))) {
+                        holderNumberObj = sourceForHolder.get(DeviceToolEventFields.TOOL_EDGE_NUMBER);
+                    }
+                    if (holderNumberObj == null || isZeroValue(String.valueOf(holderNumberObj))) {
+                        holderNumberObj = sourceForHolder.get(DeviceToolEventFields.D_NO);
+                    }
+                    if (holderNumberObj == null || isZeroValue(String.valueOf(holderNumberObj))) {
+                        holderNumberObj = sourceForHolder.get(DeviceToolEventFields.HOLDER_NUMBER);
+                    }
+                    if (holderNumberObj != null && !isZeroValue(String.valueOf(holderNumberObj))) {
+                        snapshot.put(DeviceToolEventFields.HOLDER_NUMBER, holderNumberObj);
+                    }
+                }
+            }
             log.debug("[DeviceToolChangeEventHandler] 提取扁平化补偿快照: keys={}", snapshot.keySet());
         }
 
@@ -1017,9 +1077,13 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
         
         // 条件2：compensationSnapshot 不为空
         if (compensationSnapshot == null || compensationSnapshot.isEmpty()) {
-            log.debug("[DeviceToolChangeEventHandler] 补偿快照为空，跳过补偿表写入: deviceId={}", deviceInfoId);
+            log.warn("[DeviceToolChangeEventHandler] 补偿快照为空，跳过补偿表写入: deviceId={}, currentToolNo={}", 
+                    deviceInfoId, currentToolNo);
             return;
         }
+        
+        log.debug("[DeviceToolChangeEventHandler] 尝试写入补偿数据: deviceId={}, currentToolNo={}, compensationSnapshot字段={}", 
+                deviceInfoId, currentToolNo, compensationSnapshot.keySet());
         
         // 提取 holderNumber（优先级：compensationSnapshot.holderNumber > toolMagazineNo）
         String holderNumber = null;
@@ -1038,17 +1102,21 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
         
         // 条件3：holderNumber 不为空且不为 "0"
         if (StringUtils.isBlank(holderNumber) || isZeroValue(holderNumber)) {
-            log.debug("[DeviceToolChangeEventHandler] 刀补号为空或为0，跳过补偿表写入: deviceId={}", deviceInfoId);
+            log.warn("[DeviceToolChangeEventHandler] 刀补号为空或为0，跳过补偿表写入: deviceId={}, currentToolNo={}, compensationSnapshot字段={}", 
+                    deviceInfoId, currentToolNo, compensationSnapshot.keySet());
             return;
         }
         
         // 提取补偿数据
         Map<String, Object> compValue = extractCompensationFromSnapshot(compensationSnapshot);
         
+        log.debug("[DeviceToolChangeEventHandler] 从快照中提取补偿数据: deviceId={}, holderNumber={}, compValue字段={}", 
+                deviceInfoId, holderNumber, compValue != null ? compValue.keySet() : "null");
+        
         // 条件4：补偿数据不为空
         if (compValue == null || compValue.isEmpty()) {
-            log.debug("[DeviceToolChangeEventHandler] 补偿数据为空，跳过补偿表写入: deviceId={}, holderNumber={}", 
-                    deviceInfoId, holderNumber);
+            log.warn("[DeviceToolChangeEventHandler] 补偿数据为空，跳过补偿表写入: deviceId={}, holderNumber={}, compensationSnapshot字段={}", 
+                    deviceInfoId, holderNumber, compensationSnapshot.keySet());
             return;
         }
         
