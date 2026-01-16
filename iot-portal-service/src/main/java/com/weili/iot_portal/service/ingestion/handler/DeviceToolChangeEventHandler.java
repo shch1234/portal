@@ -197,13 +197,16 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
             }
         }
 
-        // 如果从顶层字段提取到了 holderNumber，添加到 compensationSnapshot
-        // 这样在 createToolRecord 中就能正确设置 toolHolderNo
-        if (extractedHolderNumber != null) {
-            if (compensationSnapshot == null) {
-                compensationSnapshot = new HashMap<>();
-            }
-            if (!compensationSnapshot.containsKey(DeviceToolEventFields.HOLDER_NUMBER)) {
+        // 如果从顶层字段提取到了 holderNumber，且 compensationSnapshot 不为空（有补偿数据），才添加到 compensationSnapshot
+        // 注意：只有当 compensationSnapshot 有补偿数据时，才添加 holderNumber，避免创建只有 holderNumber 而没有补偿数据的快照
+        // 这样在 createToolRecord 中就能正确设置 toolHolderNo，同时在 tryWriteCompensation 中也能正确提取补偿数据
+        if (extractedHolderNumber != null && compensationSnapshot != null && !compensationSnapshot.isEmpty()) {
+            // 检查 compensationSnapshot 是否包含补偿数据（不仅仅是 holderNumber）
+            boolean hasCompensationData = compensationSnapshot.containsKey(DeviceToolEventFields.COMPENSATION_FIELD) ||
+                    compensationSnapshot.keySet().stream().anyMatch(key -> 
+                            key != null && DeviceToolEventFields.isCompensationField(key));
+            
+            if (hasCompensationData && !compensationSnapshot.containsKey(DeviceToolEventFields.HOLDER_NUMBER)) {
                 compensationSnapshot.put(DeviceToolEventFields.HOLDER_NUMBER, extractedHolderNumber);
             }
         }
