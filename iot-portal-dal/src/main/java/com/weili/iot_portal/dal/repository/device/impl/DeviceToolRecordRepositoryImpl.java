@@ -97,6 +97,22 @@ public class DeviceToolRecordRepositoryImpl implements DeviceToolRecordRepositor
     }
 
     @Override
+    public DeviceToolRecordDO findByDeviceIdAndToolNoAndTimeRange(Long deviceId, String toolNo, Long startTs, Long timeRangeMs) {
+        if (deviceId == null || toolNo == null || startTs == null || timeRangeMs == null || timeRangeMs < 0) {
+            return null;
+        }
+        
+        LambdaQueryWrapper<DeviceToolRecordDO> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(DeviceToolRecordDO::getDeviceInfoId, deviceId)
+                .eq(DeviceToolRecordDO::getToolNo, toolNo)
+                .ge(DeviceToolRecordDO::getStartTs, startTs - timeRangeMs)
+                .le(DeviceToolRecordDO::getStartTs, startTs + timeRangeMs)
+                .orderByDesc(DeviceToolRecordDO::getStartTs)
+                .last("LIMIT 1");
+        return mapper.selectOne(wrapper);
+    }
+
+    @Override
     public void deleteById(Long id) {
         if (id == null) {
             return;

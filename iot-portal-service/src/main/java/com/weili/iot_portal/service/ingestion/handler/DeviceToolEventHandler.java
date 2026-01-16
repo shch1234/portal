@@ -314,66 +314,92 @@ public class DeviceToolEventHandler implements WebhookEventHandler {
 
 
     /**
-     * 提取补偿值：仅支持结构化补偿对象格式
+     * 提取补偿值：支持结构化补偿对象格式和扁平化格式
      * <p>
      * 支持的数据格式：
-     * 补偿对象：{"compensation": {"geom": {"offsetX": 0.5, "offsetY": -0.3}, "wear": {"compX": 0.1}}}
+     * 1. 结构化格式：{"compensation": {"geom": {"offsetX": 0.5, "offsetY": -0.3}, "wear": {"compX": 0.1}}}
+     * 2. 扁平化格式：{"offsetX": 0.5, "offsetY": -0.3, "offsetZ": 0.1, "compX": 0.05, ...}
+     * </p>
+     * <p>
+     * 提取策略（优先级从高到低）：
+     * 1. 优先查找 compensation 字段（结构化格式）
+     * 2. 如果不存在，降级到扁平化格式提取（offsetX, offsetY, offsetZ, offsetR, compX, compY, compZ, compR 等字段）
      * </p>
      *
      * @param eventData 事件数据
-     * @return 补偿值映射（结构化格式），如果不存在补偿数据返回空Map
+     * @return 补偿值映射，如果不存在补偿数据返回空Map
      */
     private Map<String, Object> extractCompensationValue(Map<String, Object> eventData) {
         Map<String, Object> compensation = new HashMap<>();
         
-        // 查找结构化补偿字段（compensation）
-        Object compensationObj = eventData.get(DeviceToolEventFields.COMPENSATION_FIELD);
-        
-        if (compensationObj == null) {
-            log.warn("[DeviceToolEventHandler] 未找到补偿数据（compensation字段），跳过刀补补偿表写入");
+        if (eventData == null || eventData.isEmpty()) {
             return compensation;
         }
         
-        // 处理结构化补偿数据
-        if (compensationObj instanceof Map) {
-            @SuppressWarnings("unchecked")
-            Map<String, Object> compMap = (Map<String, Object>) compensationObj;
-            compensation.putAll(compMap);
-            log.debug("[DeviceToolEventHandler] 使用补偿对象格式: {}", compensation.keySet());
-        } else if (compensationObj instanceof String) {
-            // 如果补偿数据是JSON字符串，需要先解析
-            try {
-                String jsonStr = ((String) compensationObj).trim();
-                if (jsonStr.isEmpty()) {
-                    log.warn("[DeviceToolEventHandler] 补偿数据字符串为空");
-                    return compensation;
-                }
-                
-                // 解析为对象格式
-                if (jsonStr.startsWith("{")) {
-                    try {
+        // 调试日志：记录事件数据字段
+        log.debug("[DeviceToolEventHandler] 事件数据字段: {}", eventData.keySet());
+        
+        // 1. 优先查找结构化补偿字段（compensation）
+        Object compensationObj = eventData.get(DeviceToolEventFields.COMPENSATION_FIELD);
+        
+        // 调试日志：记录compensation字段的类型和值
+        if (compensationObj != null) {
+            log.debug("[DeviceToolEventHandler] compensation字段类型: {}, 值: {}", 
+                    compensationObj.getClass().getName(), compensationObj);
+        } else {
+            log.debug("[DeviceToolEventHandler] compensation字段不存在");
+        }
+        
+        if (compensationObj != null) {
+            // 处理结构化补偿数据
+            if (compensationObj instanceof Map) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> compMap = (Map<String, Object>) compensationObj;
+                compensation.putAll(compMap);
+                log.debug("[DeviceToolEventHandler] 使用补偿对象格式: {}", compensation.keySet());
+                return compensation;
+            } else if (compensationObj instanceof String) {
+                // 如果补偿数据是JSON字符串，需要先解析
+                try {
+                    String jsonStr = ((String) compensationObj).trim();
+                    if (!jsonStr.isEmpty() && jsonStr.startsWith("{")) {
                         Map<String, Object> compMap = JsonUtils.parseObject(jsonStr, new TypeReference<Map<String, Object>>() {});
                         if (compMap != null && !compMap.isEmpty()) {
                             compensation.putAll(compMap);
                             log.debug("[DeviceToolEventHandler] 从JSON字符串解析补偿对象格式: {}", compensation.keySet());
-                        } else {
-                            log.warn("[DeviceToolEventHandler] 解析补偿对象为空: {}", jsonStr);
+                            return compensation;
                         }
-                    } catch (Exception e) {
-                        log.warn("[DeviceToolEventHandler] 解析补偿对象JSON字符串失败: {}, error={}", 
-                                jsonStr, e.getMessage());
                     }
-                } else {
-                    log.warn("[DeviceToolEventHandler] 补偿数据字符串格式不正确，期望对象格式: {}", jsonStr);
+                } catch (Exception e) {
+                    log.warn("[DeviceToolEventHandler] 解析补偿对象JSON字符串失败: {}, error={}", 
+                            compensationObj, e.getMessage());
                 }
-            } catch (Exception e) {
-                log.warn("[DeviceToolEventHandler] 处理补偿数据字符串时发生异常: {}, error={}", 
-                        compensationObj, e.getMessage());
+            } else {
+                log.warn("[DeviceToolEventHandler] 补偿数据格式不正确，期望Map或String，实际类型: {}", 
+                        compensationObj.getClass().getName());
             }
-        } else {
-            log.warn("[DeviceToolEventHandler] 补偿数据格式不正确，期望Map或String，实际类型: {}", 
-                    compensationObj.getClass().getName());
         }
+        
+        // 2. 降级到扁平化提取：提取所有以 offset/comp 开头的字段
+        eventData.forEach((k, v) -> {
+            if (k == null || v == null) {
+                return;
+            }
+            String key = k.trim();
+            // 提取所有补偿相关字段（offset/comp 开头）
+            if (DeviceToolEventFields.isCompensationField(key)) {
+                compensation.put(key, v);
+            }
+        });
+        
+        if (!compensation.isEmpty()) {
+            log.debug("[DeviceToolEventHandler] 使用扁平化补偿格式: {}", compensation.keySet());
+        } else {
+            log.warn("[DeviceToolEventHandler] 未找到补偿数据（compensation字段或offset/comp字段），跳过刀补补偿表写入");
+        }
+        
+        // 调试日志：记录最终提取的补偿数据
+        log.debug("[DeviceToolEventHandler] 提取的补偿数据: {}, 是否为空: {}", compensation, compensation.isEmpty());
         
         return compensation;
     }
