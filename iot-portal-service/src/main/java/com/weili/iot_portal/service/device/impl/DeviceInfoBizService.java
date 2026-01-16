@@ -516,6 +516,7 @@ public class DeviceInfoBizService implements IDeviceInfoBizService {
 
     /**
      * 批量查询有未结束报警的设备ID集合
+     * 优化：使用专门的方法只查询设备ID，避免查询完整对象，提高性能
      * 
      * @param deviceList 设备列表
      * @return 有未结束报警的设备ID集合
@@ -535,20 +536,21 @@ public class DeviceInfoBizService implements IDeviceInfoBizService {
             return Collections.emptySet();
         }
         
-        // 批量查询未结束的报警（isActive=1）
-        DeviceAlarmHistoryQuery query = new DeviceAlarmHistoryQuery();
-        query.setDeviceIds(deviceIds);
-        query.setIsActive(1);
-        query.setPageNo(1);
-        query.setPageSize(10000); // 设置一个较大的值以获取所有结果
+        // 如果设备ID列表过长，分批查询以避免 IN 查询性能问题
+        // MySQL 的 IN 查询建议不超过 1000 个元素
+        final int BATCH_SIZE = 1000;
+        Set<Long> result = new HashSet<>();
         
-        PageResult<DeviceAlarmHistoryDO> alarmPageResult = deviceAlarmHistoryRepository.selectPage(query);
+        for (int i = 0; i < deviceIds.size(); i += BATCH_SIZE) {
+            int end = Math.min(i + BATCH_SIZE, deviceIds.size());
+            List<Long> batch = deviceIds.subList(i, end);
+            
+            // 使用优化后的方法：只查询设备ID字段，性能更好
+            List<Long> batchResult = deviceAlarmHistoryRepository.findDeviceIdsWithActiveAlarm(batch);
+            result.addAll(batchResult);
+        }
         
-        // 提取有报警的设备ID（去重）
-        return alarmPageResult.getList().stream()
-                .map(DeviceAlarmHistoryDO::getDeviceInfoId)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toSet());
+        return result;
     }
 
 }

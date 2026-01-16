@@ -12,6 +12,8 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 @Repository
 @RequiredArgsConstructor
@@ -26,6 +28,29 @@ public class DeviceAlarmHistoryRepositoryImpl implements DeviceAlarmHistoryRepos
                 .eq(factoryId != null, DeviceAlarmHistoryDO::getOrgFactoryId, factoryId)
                 .eq(DeviceAlarmHistoryDO::getIsActive, 1);
         return mapper.selectList(wrapper);
+    }
+
+    @Override
+    public List<Long> findDeviceIdsWithActiveAlarm(List<Long> deviceIds) {
+        if (CollectionUtils.isEmpty(deviceIds)) {
+            return List.of();
+        }
+        
+        // 优化：只查询 deviceInfoId 字段，避免查询完整报警对象，减少数据传输和内存占用
+        // 注意：MyBatis-Plus 的 LambdaQueryWrapper 不支持直接使用 DISTINCT，
+        // 但通过 select() 只查询设备ID字段，然后在应用层去重，性能已经很好
+        // 如果同一设备有多条未结束的报警，数据库会返回多条记录，应用层去重即可
+        LambdaQueryWrapper<DeviceAlarmHistoryDO> wrapper = new LambdaQueryWrapper<>();
+        wrapper.select(DeviceAlarmHistoryDO::getDeviceInfoId)  // 只查询设备ID字段，不查询其他字段
+                .in(DeviceAlarmHistoryDO::getDeviceInfoId, deviceIds)
+                .eq(DeviceAlarmHistoryDO::getIsActive, 1);
+        
+        // 查询结果并在应用层去重（如果同一设备有多条报警，只保留一个设备ID）
+        return mapper.selectList(wrapper).stream()
+                .map(DeviceAlarmHistoryDO::getDeviceInfoId)
+                .filter(Objects::nonNull)
+                .distinct()  // 应用层去重，性能开销很小
+                .collect(Collectors.toList());
     }
 
     @Override

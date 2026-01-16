@@ -148,21 +148,22 @@ public class DeviceInfoRepositoryImpl implements DeviceInfoRepository {
     }
 
     private void applySort(LambdaQueryWrapper<DeviceInfoDO> wrapper, String sortBy, String sortDirection) {
+        // 始终先按是否监控排序，监控中的排在前面（降序：true在前）
         wrapper.orderByDesc(DeviceInfoDO::getIsMonitored);
         
         if (StringUtils.isBlank(sortBy)) {
-            // 如果没有指定排序字段，则按创建时间降序作为次要排序
-            wrapper.orderByDesc(DeviceInfoDO::getCreateTime);
+            // 如果没有指定排序字段，则按创建时间升序作为次要排序（后创建的排在后面）
+            wrapper.orderByAsc(DeviceInfoDO::getCreateTime);
             return;
         }
 
         boolean asc = !"desc".equalsIgnoreCase(sortDirection);
-        // 根据排序字段应用相应的排序规则
         switch (sortBy) {
             case "deviceCode" -> wrapper.orderBy(true, asc, DeviceInfoDO::getDeviceCode);
             case "deviceName" -> wrapper.orderBy(true, asc, DeviceInfoDO::getDeviceName);
             case "updatedTime" -> wrapper.orderBy(true, asc, DeviceInfoDO::getUpdateTime);
-            default -> wrapper.orderByDesc(DeviceInfoDO::getCreateTime);
+            case "createTime" -> wrapper.orderBy(true, asc, DeviceInfoDO::getCreateTime);
+            default -> wrapper.orderByAsc(DeviceInfoDO::getCreateTime);  // 默认按创建时间升序（后创建的排在后面）
         }
     }
 }

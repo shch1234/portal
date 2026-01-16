@@ -11,6 +11,15 @@ public interface DeviceAlarmHistoryRepository {
     List<DeviceAlarmHistoryDO> findActiveByDevice(Long factoryId, Long deviceId);
 
     /**
+     * 查询有未结束报警的设备ID列表（去重）
+     * 用于批量判断设备是否有报警，性能优化：只查询设备ID字段
+     * 
+     * @param deviceIds 设备ID列表
+     * @return 有未结束报警的设备ID集合
+     */
+    List<Long> findDeviceIdsWithActiveAlarm(List<Long> deviceIds);
+
+    /**
      * 分页查询设备告警历史
      * @return 告警历史列表
      */
