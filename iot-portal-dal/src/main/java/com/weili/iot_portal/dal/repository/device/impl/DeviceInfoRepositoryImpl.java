@@ -148,8 +148,11 @@ public class DeviceInfoRepositoryImpl implements DeviceInfoRepository {
     }
 
     private void applySort(LambdaQueryWrapper<DeviceInfoDO> wrapper, String sortBy, String sortDirection) {
+        wrapper.orderByDesc(DeviceInfoDO::getIsMonitored);
+        
         if (StringUtils.isBlank(sortBy)) {
-            wrapper.orderBy(true, false, DeviceInfoDO::getCreateTime);
+            // 如果没有指定排序字段，则按创建时间降序作为次要排序
+            wrapper.orderByDesc(DeviceInfoDO::getCreateTime);
             return;
         }
 
@@ -159,7 +162,7 @@ public class DeviceInfoRepositoryImpl implements DeviceInfoRepository {
             case "deviceCode" -> wrapper.orderBy(true, asc, DeviceInfoDO::getDeviceCode);
             case "deviceName" -> wrapper.orderBy(true, asc, DeviceInfoDO::getDeviceName);
             case "updatedTime" -> wrapper.orderBy(true, asc, DeviceInfoDO::getUpdateTime);
-            default -> wrapper.orderBy(true, false, DeviceInfoDO::getCreateTime);
+            default -> wrapper.orderByDesc(DeviceInfoDO::getCreateTime);
         }
     }
 }

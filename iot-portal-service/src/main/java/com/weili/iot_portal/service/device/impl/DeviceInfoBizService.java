@@ -6,6 +6,7 @@ import com.weili.basic.common.util.BeanUtils;
 import com.weili.iot_portal.common.exception.IotPortalErrorCode;
 import com.weili.iot_portal.common.exception.IotPortalException;
 import com.weili.iot_portal.dal.dataobject.device.*;
+import com.weili.iot_portal.dal.ddd.device.DeviceAlarmHistoryQuery;
 import com.weili.iot_portal.dal.ddd.device.DeviceBaseInfoPageQuery;
 import com.weili.iot_portal.dal.repository.device.*;
 import com.weili.iot_portal.domain.device.req.*;
@@ -54,6 +55,9 @@ public class DeviceInfoBizService implements IDeviceInfoBizService {
 
     @Resource
     private IDeviceModelBizService deviceModelBizService;
+
+    @Resource
+    private DeviceAlarmHistoryRepository deviceAlarmHistoryRepository;
 
 
     @Override
@@ -307,9 +311,24 @@ public class DeviceInfoBizService implements IDeviceInfoBizService {
         }
         PageResult<DeviceInfoDO> pageResult = deviceInfoRepository.selectPage(pageQuery);
         PageResult<DeviceInfoRespVO> result = BeanUtils.toBean(pageResult, DeviceInfoRespVO.class);
-        for (DeviceInfoRespVO row : result.getList()) {
+        
+        // 批量查询设备的未结束报警状态
+        Set<Long> deviceIdsWithAlarm = getDeviceIdsWithActiveAlarm(pageResult.getList());
+        
+        // 组装设备详细信息并设置报警状态
+        List<DeviceInfoDO> deviceDOList = pageResult.getList();
+        List<DeviceInfoRespVO> deviceVOList = result.getList();
+        for (int i = 0; i < deviceVOList.size(); i++) {
+            DeviceInfoRespVO row = deviceVOList.get(i);
             // 组装设备详细信息
             assembleDeviceInfoDetails(row);
+            // 设置是否报警字段
+            if (i < deviceDOList.size()) {
+                Long deviceId = deviceDOList.get(i).getId();
+                row.setHasAlarm(deviceIdsWithAlarm.contains(deviceId));
+            } else {
+                row.setHasAlarm(false);
+            }
         }
         return result;
     }
@@ -493,6 +512,43 @@ public class DeviceInfoBizService implements IDeviceInfoBizService {
         }
         DeviceOrgRelationDO orgRelation = orgRelationMap.get(orgId);
         return orgRelation != null ? orgRelation.getUnitName() : null;
+    }
+
+    /**
+     * 批量查询有未结束报警的设备ID集合
+     * 
+     * @param deviceList 设备列表
+     * @return 有未结束报警的设备ID集合
+     */
+    private Set<Long> getDeviceIdsWithActiveAlarm(List<DeviceInfoDO> deviceList) {
+        if (deviceList == null || deviceList.isEmpty()) {
+            return Collections.emptySet();
+        }
+        
+        // 提取所有设备ID
+        List<Long> deviceIds = deviceList.stream()
+                .map(DeviceInfoDO::getId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+        
+        if (deviceIds.isEmpty()) {
+            return Collections.emptySet();
+        }
+        
+        // 批量查询未结束的报警（isActive=1）
+        DeviceAlarmHistoryQuery query = new DeviceAlarmHistoryQuery();
+        query.setDeviceIds(deviceIds);
+        query.setIsActive(1);
+        query.setPageNo(1);
+        query.setPageSize(10000); // 设置一个较大的值以获取所有结果
+        
+        PageResult<DeviceAlarmHistoryDO> alarmPageResult = deviceAlarmHistoryRepository.selectPage(query);
+        
+        // 提取有报警的设备ID（去重）
+        return alarmPageResult.getList().stream()
+                .map(DeviceAlarmHistoryDO::getDeviceInfoId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
     }
 
 }
