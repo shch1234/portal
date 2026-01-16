@@ -1003,7 +1003,7 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
         // 1. 先查Redis缓存（性能优化：减少数据库查询）
         Map<String, Object> cachedCompValue = deviceToolCacheService.getActiveCompensation(deviceId, holderNumber);
         if (cachedCompValue != null && Objects.equals(cachedCompValue, compValue)) {
-            log.debug("[DeviceToolChangeEventHandler] 刀补值未变化（缓存命中），跳过写入: deviceId={}, holderNumber={}", 
+            log.info("[DeviceToolChangeEventHandler] 刀补值未变化（缓存命中），跳过写入: deviceId={}, holderNumber={}", 
                     deviceId, holderNumber);
             return;
         }
@@ -1015,7 +1015,7 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
         if (active != null && Objects.equals(active.getCompValueJson(), compValue)) {
             // 缓存可能过期或不存在，更新缓存
             deviceToolCacheService.cacheActiveCompensation(deviceId, holderNumber, compValue);
-            log.debug("[DeviceToolChangeEventHandler] 刀补值未变化（数据库确认），跳过写入: deviceId={}, holderNumber={}", 
+            log.info("[DeviceToolChangeEventHandler] 刀补值未变化（数据库确认），跳过写入: deviceId={}, holderNumber={}", 
                     deviceId, holderNumber);
             return;
         }
@@ -1029,7 +1029,7 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
         
         // 4. 如果找到活跃记录但补偿值不同，关闭旧记录
         if (active != null) {
-            log.debug("[DeviceToolChangeEventHandler] 刀补值变化，关闭旧记录并创建新记录: deviceId={}, holderNumber={}, oldVersion={}", 
+            log.info("[DeviceToolChangeEventHandler] 刀补值变化，关闭旧记录并创建新记录: deviceId={}, holderNumber={}, oldVersion={}", 
                     deviceId, holderNumber, active.getVersion());
             // 使用 LambdaUpdateWrapper 仅更新 active 和 end_ts 字段，避免更新其他字段导致唯一约束冲突
             deviceToolCompensationRepository.deactivateById(active.getId(), ts, DeviceToolEventFields.ACTIVE_STATUS_DISABLED);
@@ -1037,7 +1037,7 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
             // 删除旧缓存（补偿值已变化）
             deviceToolCacheService.deleteActiveCompensation(deviceId, holderNumber);
         } else {
-            log.debug("[DeviceToolChangeEventHandler] 首次写入刀补数据: deviceId={}, holderNumber={}", 
+            log.info("[DeviceToolChangeEventHandler] 首次写入刀补数据: deviceId={}, holderNumber={}", 
                     deviceId, holderNumber);
         }
 
@@ -1132,7 +1132,15 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
         
         // 写入补偿表
         // 注意：如果写入失败，抛出异常让事务回滚，确保刀具记录和补偿数据的一致性
-        upsertCompensation(deviceInfoId, orgFactoryId, holderNumber, compValue, eventTimestamp);
+        try {
+            upsertCompensation(deviceInfoId, orgFactoryId, holderNumber, compValue, eventTimestamp);
+            log.info("[DeviceToolChangeEventHandler] 补偿数据写入完成: deviceId={}, holderNumber={}", 
+                    deviceInfoId, holderNumber);
+        } catch (Exception e) {
+            log.error("[DeviceToolChangeEventHandler] 补偿数据写入失败: deviceId={}, holderNumber={}, error={}", 
+                    deviceInfoId, holderNumber, e.getMessage(), e);
+            throw e; // 重新抛出异常，让事务回滚
+        }
     }
 
     // ==================== 记录创建方法 ====================
