@@ -87,11 +87,15 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void handle(WebhookInboxDO inbox, WebhookRequest request) throws Exception {
-        log.debug("[Webhook-Handler-DeviceToolChange] 处理设备换刀事件: messageId={}, eventType={}, deviceCode={}",
+        log.info("[Webhook-Handler-DeviceToolChange] 处理设备换刀事件: messageId={}, eventType={}, deviceCode={}",
                 request.getMessageId(), request.getEventType(), request.getDeviceCode());
 
         // 1. 解析事件数据
         EventData eventData = parseEventData(request);
+        
+        log.info("[DeviceToolChangeEventHandler] 解析事件数据完成: deviceCode={}, currentToolNo={}, previousToolNo={}, compensationSnapshot={}",
+                request.getDeviceCode(), eventData.currentToolNo(), eventData.previousToolNo(), 
+                eventData.compensationSnapshot() != null ? eventData.compensationSnapshot().keySet() : "null");
 
         // 2. 解析设备信息
         DeviceIdentity identity = webhookHandlerUtils.resolveDeviceIdentity(request);
@@ -310,11 +314,11 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
         Map<String, Object> sourceData = eventData != null ? eventData : telemetryData;
 
         if (sourceData == null) {
-            log.debug("[DeviceToolChangeEventHandler] 提取补偿快照: eventData和telemetryData都为空");
+            log.warn("[DeviceToolChangeEventHandler] 提取补偿快照: eventData和telemetryData都为空");
             return null;
         }
         
-        log.debug("[DeviceToolChangeEventHandler] 提取补偿快照: sourceData字段={}", sourceData.keySet());
+        log.info("[DeviceToolChangeEventHandler] 提取补偿快照: sourceData字段={}", sourceData.keySet());
 
         // 优先检查是否存在 compensation 对象（结构化格式）
         Object compensationObj = sourceData.get(DeviceToolEventFields.COMPENSATION_FIELD);
@@ -386,7 +390,7 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
                 // 提取完整的 compensation 对象（已解析的Map）
                 snapshot.put(DeviceToolEventFields.COMPENSATION_FIELD, compensationMap);
 
-                log.debug("[DeviceToolChangeEventHandler] 提取结构化补偿快照: toolNo={}, holderNumber={}, compensation keys={}",
+                log.info("[DeviceToolChangeEventHandler] 提取结构化补偿快照: toolNo={}, holderNumber={}, compensation keys={}",
                         toolNumberObj, holderNumberObj, compensationMap.keySet());
                 return snapshot;
             }
@@ -441,9 +445,12 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
                     }
                 }
             }
-            log.debug("[DeviceToolChangeEventHandler] 提取扁平化补偿快照: keys={}", snapshot.keySet());
+            log.info("[DeviceToolChangeEventHandler] 提取扁平化补偿快照: keys={}", snapshot.keySet());
         }
 
+        if (snapshot.isEmpty()) {
+            log.warn("[DeviceToolChangeEventHandler] 提取补偿快照: 未找到补偿数据，返回null");
+        }
         return snapshot.isEmpty() ? null : snapshot;
     }
 
@@ -488,7 +495,7 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
         String currentToolNo = eventData.currentToolNo();
         long eventTimestamp = eventData.eventTimestamp();
 
-        log.debug("[DeviceToolChangeEventHandler] 处理换刀转换: deviceInfoId={}, previousToolNo={}, currentToolNo={}, timestamp={}",
+        log.info("[DeviceToolChangeEventHandler] 处理换刀转换: deviceInfoId={}, previousToolNo={}, currentToolNo={}, timestamp={}",
                 deviceInfoId, previousToolNo, currentToolNo, eventTimestamp);
 
         // 判断处理场景
@@ -1085,7 +1092,7 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
             return;
         }
         
-        log.debug("[DeviceToolChangeEventHandler] 尝试写入补偿数据: deviceId={}, currentToolNo={}, compensationSnapshot字段={}", 
+        log.info("[DeviceToolChangeEventHandler] 尝试写入补偿数据: deviceId={}, currentToolNo={}, compensationSnapshot字段={}", 
                 deviceInfoId, currentToolNo, compensationSnapshot.keySet());
         
         // 提取 holderNumber（优先级：compensationSnapshot.holderNumber > toolMagazineNo）
@@ -1113,7 +1120,7 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
         // 提取补偿数据
         Map<String, Object> compValue = extractCompensationFromSnapshot(compensationSnapshot);
         
-        log.debug("[DeviceToolChangeEventHandler] 从快照中提取补偿数据: deviceId={}, holderNumber={}, compValue字段={}", 
+        log.info("[DeviceToolChangeEventHandler] 从快照中提取补偿数据: deviceId={}, holderNumber={}, compValue字段={}", 
                 deviceInfoId, holderNumber, compValue != null ? compValue.keySet() : "null");
         
         // 条件4：补偿数据不为空
