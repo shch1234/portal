@@ -2,14 +2,13 @@ package com.weili.iot_portal.service.ingestion.handler;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.weili.basic.common.util.JsonUtils;
-import com.weili.iot_portal.dal.dataobject.device.DeviceToolCompensationDO;
 import com.weili.iot_portal.dal.dataobject.device.DeviceToolRecordDO;
 import com.weili.iot_portal.dal.dataobject.ingestion.WebhookInboxDO;
-import com.weili.iot_portal.dal.repository.device.DeviceToolCompensationRepository;
 import com.weili.iot_portal.dal.repository.device.DeviceToolRecordRepository;
 import com.weili.iot_portal.domain.ingestion.DeviceIdentity;
 import com.weili.iot_portal.domain.ingestion.WebhookRequest;
 import com.weili.iot_portal.service.cache.DeviceToolCacheService;
+import com.weili.iot_portal.service.device.DeviceToolCompensationService;
 import com.weili.iot_portal.service.ingestion.WebhookEventHandler;
 import com.weili.iot_portal.service.ingestion.WebhookProcessingStrategy;
 import com.weili.iot_portal.service.ingestion.handler.fields.DeviceToolEventFields;
@@ -21,7 +20,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
 
 /**
  * 设备刀具事件处理器
@@ -46,7 +44,7 @@ public class DeviceToolEventHandler implements WebhookEventHandler {
 
     private final WebhookHandlerUtils webhookHandlerUtils;
     private final DeviceToolCacheService deviceToolCacheService;
-    private final DeviceToolCompensationRepository deviceToolCompensationRepository;
+    private final DeviceToolCompensationService deviceToolCompensationService;
     private final DeviceToolRecordRepository deviceToolRecordRepository;
 
     @Override
@@ -152,7 +150,8 @@ public class DeviceToolEventHandler implements WebhookEventHandler {
             
             if (compValue != null && !compValue.isEmpty()) {
                 // 写入刀补补偿表（版本化覆盖）
-                upsertCompensation(deviceInfoId, orgFactoryId, holderNumber, compValue, eventTimestamp);
+                deviceToolCompensationService.upsertCompensation(deviceInfoId, orgFactoryId, holderNumber, compValue, eventTimestamp,
+                        "[DeviceToolEventHandler]");
             } else {
                 log.warn("[DeviceToolEventHandler] 刀补号存在但补偿数据为空，跳过刀补补偿表写入: deviceId={}, holderNumber={}", 
                         deviceInfoId, holderNumber);
@@ -410,91 +409,5 @@ public class DeviceToolEventHandler implements WebhookEventHandler {
     }
     
 
-    /**
-     * 版本化覆盖：刀补补偿数据的写入逻辑
-     * <p>
-     * 业务规则：
-     * 1. 一个设备可以有多个刀补号（deviceId + toolHolderNo 唯一标识）
-     * 2. 一个刀补号对应一组刀补数据（compValueJson）
-     * 3. 如果表中没有该设备的该刀补号，就写入新记录（版本号=1）
-     * 4. 如果已经有该刀补号，但刀补值不一样，则做版本管理：
-     *    - 关闭旧记录（设置 endTs 和 active=0）
-     *    - 创建新记录（版本号=旧版本号+1）
-     * 5. 如果已经有该刀补号，且刀补值相同，则跳过（不做任何操作）
-     * </p>
-     * <p>
-     * 性能优化：
-     * - 先查Redis缓存，如果缓存命中且值相同，直接跳过（减少数据库查询）
-     * - 如果缓存未命中或值不同，再查数据库
-     * - 写入数据库后，同步更新缓存
-     * </p>
-     * 
-     * @param deviceId 设备ID
-     * @param factoryId 工厂ID
-     * @param holderNumber 刀补号
-     * @param compValue 刀补值（JSON Map）
-     * @param eventTimestamp 事件时间戳（毫秒）
-     */
-    private void upsertCompensation(Long deviceId, Long factoryId,
-                                    String holderNumber, Map<String, Object> compValue, Long eventTimestamp) {
-        // 1. 先查Redis缓存（性能优化：减少数据库查询）
-        Map<String, Object> cachedCompValue = deviceToolCacheService.getActiveCompensation(deviceId, holderNumber);
-        if (cachedCompValue != null && Objects.equals(cachedCompValue, compValue)) {
-            log.debug("[DeviceToolEventHandler] 刀补值未变化（缓存命中），跳过写入: deviceId={}, holderNumber={}", 
-                    deviceId, holderNumber);
-            return;
-        }
-        
-        // 2. 缓存未命中或值不同，查询数据库
-        DeviceToolCompensationDO active = deviceToolCompensationRepository.findActive(deviceId, holderNumber);
-        
-        // 3. 如果找到活跃记录且补偿值相同，更新缓存并跳过写入
-        if (active != null && Objects.equals(active.getCompValueJson(), compValue)) {
-            // 缓存可能过期或不存在，更新缓存
-            deviceToolCacheService.cacheActiveCompensation(deviceId, holderNumber, compValue);
-            log.debug("[DeviceToolEventHandler] 刀补值未变化（数据库确认），跳过写入: deviceId={}, holderNumber={}", 
-                    deviceId, holderNumber);
-            return;
-        }
-
-        // 时间戳使用毫秒（数据库存储单位为毫秒）
-        long ts = eventTimestamp != null 
-                ? eventTimestamp 
-                : System.currentTimeMillis();
-        
-        int nextVersion = DeviceToolEventFields.INITIAL_VERSION;
-        
-        // 4. 如果找到活跃记录但补偿值不同，关闭旧记录
-        if (active != null) {
-            log.debug("[DeviceToolEventHandler] 刀补值变化，关闭旧记录并创建新记录: deviceId={}, holderNumber={}, oldVersion={}", 
-                    deviceId, holderNumber, active.getVersion());
-            // 使用 LambdaUpdateWrapper 仅更新 active 和 end_ts 字段，避免更新其他字段导致唯一约束冲突
-            deviceToolCompensationRepository.deactivateById(active.getId(), ts, DeviceToolEventFields.ACTIVE_STATUS_DISABLED);
-            nextVersion = (active.getVersion() != null ? active.getVersion() + 1 : DeviceToolEventFields.INITIAL_VERSION);
-            // 删除旧缓存（补偿值已变化）
-            deviceToolCacheService.deleteActiveCompensation(deviceId, holderNumber);
-        } else {
-            log.debug("[DeviceToolEventHandler] 首次写入刀补数据: deviceId={}, holderNumber={}", 
-                    deviceId, holderNumber);
-        }
-
-        // 5. 创建新记录
-        DeviceToolCompensationDO record = new DeviceToolCompensationDO();
-        record.setDeviceInfoId(deviceId);
-        record.setOrgFactoryId(factoryId);
-        record.setToolHolderNo(holderNumber);
-        record.setCompValueJson(compValue);
-        record.setVersion(nextVersion);
-        record.setStartTs(ts);
-        record.setEndTs(null);  // NULL 表示当前有效
-        record.setActive(DeviceToolEventFields.ACTIVE_STATUS_ENABLED);
-        deviceToolCompensationRepository.insert(record);
-        
-        // 6. 同步更新缓存（写入成功后）
-        deviceToolCacheService.cacheActiveCompensation(deviceId, holderNumber, compValue);
-        
-        log.info("[DeviceToolEventHandler] 刀补数据写入成功: deviceId={}, holderNumber={}, version={}", 
-                deviceId, holderNumber, nextVersion);
-    }
 }
 

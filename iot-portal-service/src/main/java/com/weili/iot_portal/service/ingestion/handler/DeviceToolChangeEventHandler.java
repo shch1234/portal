@@ -6,15 +6,13 @@ import com.weili.iot_portal.common.enums.TransitionType;
 import com.weili.iot_portal.common.exception.IotPortalErrorCode;
 import com.weili.iot_portal.common.exception.IotPortalException;
 import com.weili.iot_portal.common.utils.WebhookTimestampUtils;
-import com.weili.iot_portal.dal.dataobject.device.DeviceToolCompensationDO;
 import com.weili.iot_portal.dal.dataobject.device.DeviceToolRecordDO;
 import com.weili.iot_portal.dal.dataobject.ingestion.WebhookInboxDO;
-import com.weili.iot_portal.dal.repository.device.DeviceToolCompensationRepository;
 import com.weili.iot_portal.dal.repository.device.DeviceToolRecordRepository;
 import com.weili.iot_portal.domain.ingestion.DeviceIdentity;
 import com.weili.iot_portal.domain.ingestion.WebhookRequest;
 import com.weili.iot_portal.service.cache.DeviceLockService;
-import com.weili.iot_portal.service.cache.DeviceToolCacheService;
+import com.weili.iot_portal.service.device.DeviceToolCompensationService;
 import com.weili.iot_portal.service.ingestion.WebhookEventHandler;
 import com.weili.iot_portal.service.ingestion.WebhookFailLogService;
 import com.weili.iot_portal.service.ingestion.WebhookProcessingStrategy;
@@ -28,7 +26,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -60,8 +57,7 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
     private static final long DEDUPLICATION_TIME_RANGE_MS = 3000L;
 
     private final DeviceToolRecordRepository deviceToolRecordRepository;
-    private final DeviceToolCompensationRepository deviceToolCompensationRepository;
-    private final DeviceToolCacheService deviceToolCacheService;
+    private final DeviceToolCompensationService deviceToolCompensationService;
     private final DeviceLockService deviceLockService;
     private final WebhookHandlerUtils webhookHandlerUtils;
     private final WebhookFailLogService webhookFailLogService;
@@ -987,80 +983,6 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
     }
 
     /**
-     * 版本化覆盖：刀补补偿数据的写入逻辑
-     * <p>
-     * 复用 DeviceToolEventHandler.upsertCompensation 的逻辑和约束
-     * </p>
-     * 
-     * @param deviceId 设备ID
-     * @param factoryId 工厂ID
-     * @param holderNumber 刀补号
-     * @param compValue 刀补值（JSON Map）
-     * @param eventTimestamp 事件时间戳（毫秒）
-     */
-    private void upsertCompensation(Long deviceId, Long factoryId,
-                                    String holderNumber, Map<String, Object> compValue, Long eventTimestamp) {
-        // 1. 先查Redis缓存（性能优化：减少数据库查询）
-        Map<String, Object> cachedCompValue = deviceToolCacheService.getActiveCompensation(deviceId, holderNumber);
-        if (cachedCompValue != null && Objects.equals(cachedCompValue, compValue)) {
-            log.info("[DeviceToolChangeEventHandler] 刀补值未变化（缓存命中），跳过写入: deviceId={}, holderNumber={}", 
-                    deviceId, holderNumber);
-            return;
-        }
-        
-        // 2. 缓存未命中或值不同，查询数据库
-        DeviceToolCompensationDO active = deviceToolCompensationRepository.findActive(deviceId, holderNumber);
-        
-        // 3. 如果找到活跃记录且补偿值相同，更新缓存并跳过写入
-        if (active != null && Objects.equals(active.getCompValueJson(), compValue)) {
-            // 缓存可能过期或不存在，更新缓存
-            deviceToolCacheService.cacheActiveCompensation(deviceId, holderNumber, compValue);
-            log.info("[DeviceToolChangeEventHandler] 刀补值未变化（数据库确认），跳过写入: deviceId={}, holderNumber={}", 
-                    deviceId, holderNumber);
-            return;
-        }
-
-        // 时间戳使用毫秒（数据库存储单位为毫秒）
-        long ts = eventTimestamp != null 
-                ? eventTimestamp 
-                : System.currentTimeMillis();
-        
-        int nextVersion = DeviceToolEventFields.INITIAL_VERSION;
-        
-        // 4. 如果找到活跃记录但补偿值不同，关闭旧记录
-        if (active != null) {
-            log.info("[DeviceToolChangeEventHandler] 刀补值变化，关闭旧记录并创建新记录: deviceId={}, holderNumber={}, oldVersion={}", 
-                    deviceId, holderNumber, active.getVersion());
-            // 使用 LambdaUpdateWrapper 仅更新 active 和 end_ts 字段，避免更新其他字段导致唯一约束冲突
-            deviceToolCompensationRepository.deactivateById(active.getId(), ts, DeviceToolEventFields.ACTIVE_STATUS_DISABLED);
-            nextVersion = (active.getVersion() != null ? active.getVersion() + 1 : DeviceToolEventFields.INITIAL_VERSION);
-            // 删除旧缓存（补偿值已变化）
-            deviceToolCacheService.deleteActiveCompensation(deviceId, holderNumber);
-        } else {
-            log.info("[DeviceToolChangeEventHandler] 首次写入刀补数据: deviceId={}, holderNumber={}", 
-                    deviceId, holderNumber);
-        }
-
-        // 5. 创建新记录
-        DeviceToolCompensationDO record = new DeviceToolCompensationDO();
-        record.setDeviceInfoId(deviceId);
-        record.setOrgFactoryId(factoryId);
-        record.setToolHolderNo(holderNumber);
-        record.setCompValueJson(compValue);
-        record.setVersion(nextVersion);
-        record.setStartTs(ts);
-        record.setEndTs(null);  // NULL 表示当前有效
-        record.setActive(DeviceToolEventFields.ACTIVE_STATUS_ENABLED);
-        deviceToolCompensationRepository.insert(record);
-        
-        // 6. 同步更新缓存（写入成功后）
-        deviceToolCacheService.cacheActiveCompensation(deviceId, holderNumber, compValue);
-        
-        log.info("[DeviceToolChangeEventHandler] 刀补数据写入成功: deviceId={}, holderNumber={}, version={}", 
-                deviceId, holderNumber, nextVersion);
-    }
-
-    /**
      * 尝试写入补偿数据（如果满足条件）
      * <p>
      * 写入条件：
@@ -1132,15 +1054,10 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
         
         // 写入补偿表
         // 注意：如果写入失败，抛出异常让事务回滚，确保刀具记录和补偿数据的一致性
-        try {
-            upsertCompensation(deviceInfoId, orgFactoryId, holderNumber, compValue, eventTimestamp);
-            log.info("[DeviceToolChangeEventHandler] 补偿数据写入完成: deviceId={}, holderNumber={}", 
-                    deviceInfoId, holderNumber);
-        } catch (Exception e) {
-            log.error("[DeviceToolChangeEventHandler] 补偿数据写入失败: deviceId={}, holderNumber={}, error={}", 
-                    deviceInfoId, holderNumber, e.getMessage(), e);
-            throw e; // 重新抛出异常，让事务回滚
-        }
+        // 注意：upsertCompensation 内部可能会因为缓存命中或数据库值相同而跳过写入
+        // 这种情况下不会抛出异常，但也不会实际写入数据库
+        deviceToolCompensationService.upsertCompensation(deviceInfoId, orgFactoryId, holderNumber, compValue, eventTimestamp,
+                "[DeviceToolChangeEventHandler]");
     }
 
     // ==================== 记录创建方法 ====================
