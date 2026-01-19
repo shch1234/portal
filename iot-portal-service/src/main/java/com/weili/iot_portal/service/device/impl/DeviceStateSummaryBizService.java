@@ -38,6 +38,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static com.weili.iot_portal.service.device.util.DeviceLogContext.*;
 
@@ -169,7 +170,7 @@ public class DeviceStateSummaryBizService implements IDeviceStateSummaryBizServi
             return DeviceStateSummaryRespVO.builder()
                     .currentState(stateValue)
                     .currentHeart("1".equals(heartbeat))
-                    .ratioStatistics(buildRatioStatistics(summaryList))
+                    .ratioStatistics(buildRatioStatistics(summaryList, stateRecordList, queryStartTs, queryEndTs, currentTime))
                     .timelineData(buildTimelineData(stateRecordList, queryStartTs, queryEndTs))
                     .build();
         } finally {
@@ -180,25 +181,122 @@ public class DeviceStateSummaryBizService implements IDeviceStateSummaryBizServi
 
     /**
      * 构建状态占比统计（饼图数据）
+     * <p>
+     * 重要：需要统计未结束的状态，与 timelineData 保持一致
+     * </p>
+     * 
+     * @param summaryList 汇总数据列表（已结束的班次）
+     * @param stateRecordList 状态记录列表（包含未结束的状态）
+     * @param queryStartTs 查询开始时间戳（毫秒）
+     * @param queryEndTs 查询结束时间戳（毫秒）
+     * @param currentTime 当前时间戳（毫秒）
+     * @return 状态占比统计
      */
-    private StateRatioStatistics buildRatioStatistics(List<DeviceStateSummaryDO> summaryList) {
-        // 汇总各状态的时长
-        int totalStandby = 0;
-        int totalWorking = 0;
-        int totalShutdown = 0;
-        int totalFault = 0;
-        int totalUnknown = 0;
+    private StateRatioStatistics buildRatioStatistics(List<DeviceStateSummaryDO> summaryList,
+                                                      List<DeviceStateRecordDO> stateRecordList,
+                                                      long queryStartTs, long queryEndTs, long currentTime) {
+        // 汇总各状态的时长（毫秒）
+        long totalStandbyMillis = 0;
+        long totalWorkingMillis = 0;
+        long totalShutdownMillis = 0;
+        long totalFaultMillis = 0;
+        long totalUnknownMillis = 0;
 
+        // 1. 累加已结束班次的汇总数据（注意：DeviceStateSummaryDO 的 *DurationS 字段实际存储的是毫秒）
         for (DeviceStateSummaryDO summary : summaryList) {
-            totalStandby += (summary.getStandbyDurationS() != null ? summary.getStandbyDurationS() : 0);
-            totalWorking += (summary.getWorkingDurationS() != null ? summary.getWorkingDurationS() : 0);
-            totalShutdown += (summary.getShutdownDurationS() != null ? summary.getShutdownDurationS() : 0);
-            totalFault += (summary.getFaultDurationS() != null ? summary.getFaultDurationS() : 0);
-            totalUnknown += (summary.getUnknownDurationS() != null ? summary.getUnknownDurationS() : 0);
+            // 获取汇总数据的时间范围
+            Long shiftStartTs = summary.getShiftStartTs();
+            Long shiftEndTs = summary.getShiftEndTs();
+            
+            // 如果汇总数据的时间范围与查询范围有交集，累加该汇总数据
+            if (shiftStartTs != null && shiftEndTs != null) {
+                long effectiveStart = Math.max(shiftStartTs, queryStartTs);
+                long effectiveEnd = Math.min(shiftEndTs, queryEndTs);
+                
+                if (effectiveEnd > effectiveStart) {
+                    // 计算在查询范围内的比例
+                    long shiftDurationMillis = shiftEndTs - shiftStartTs;
+                    if (shiftDurationMillis > 0) {
+                        double ratio = (double)(effectiveEnd - effectiveStart) / shiftDurationMillis;
+                        
+                        long standbyMillis = summary.getStandbyDurationS() != null ? summary.getStandbyDurationS() : 0;
+                        long workingMillis = summary.getWorkingDurationS() != null ? summary.getWorkingDurationS() : 0;
+                        long shutdownMillis = summary.getShutdownDurationS() != null ? summary.getShutdownDurationS() : 0;
+                        long faultMillis = summary.getFaultDurationS() != null ? summary.getFaultDurationS() : 0;
+                        long unknownMillis = summary.getUnknownDurationS() != null ? summary.getUnknownDurationS() : 0;
+                        
+                        totalStandbyMillis += Math.round(standbyMillis * ratio);
+                        totalWorkingMillis += Math.round(workingMillis * ratio);
+                        totalShutdownMillis += Math.round(shutdownMillis * ratio);
+                        totalFaultMillis += Math.round(faultMillis * ratio);
+                        totalUnknownMillis += Math.round(unknownMillis * ratio);
+                    }
+                }
+            }
         }
+        
+        // 2. 统计未结束的状态（与 buildTimelineData 逻辑一致）
+        if (stateRecordList != null && !stateRecordList.isEmpty()) {
+            // 分离已结束和未结束的状态记录
+            List<DeviceStateRecordDO> ongoingRecords = stateRecordList.stream()
+                    .filter(r -> r.getEndTs() == null)
+                    .collect(Collectors.toList());
+            
+            // 如果有多条未结束的状态，只保留最新的一条（startTs最大的）
+            DeviceStateRecordDO latestOngoingRecord = null;
+            if (!ongoingRecords.isEmpty()) {
+                latestOngoingRecord = ongoingRecords.stream()
+                        .max(Comparator.comparingLong(DeviceStateRecordDO::getStartTs))
+                        .orElse(null);
+            }
+            
+            // 统计未结束的状态在查询时间范围内的时长
+            if (latestOngoingRecord != null) {
+                long recordStartTs = latestOngoingRecord.getStartTs() != null 
+                        ? latestOngoingRecord.getStartTs() : queryStartTs;
+                // 进行中状态使用当前时间作为结束时间，但不能超过查询结束时间
+                long recordEndTs = Math.min(currentTime, queryEndTs);
+                
+                // 取交集
+                long effectiveStart = Math.max(recordStartTs, queryStartTs);
+                long effectiveEnd = Math.min(recordEndTs, queryEndTs);
+                
+                // 如果记录与查询范围有交集，累加该状态的时长
+                if (effectiveEnd > effectiveStart) {
+                    long durationMillis = effectiveEnd - effectiveStart;
+                    DeviceStateEnum stateEnum = DeviceStateEnum.fromCode(latestOngoingRecord.getStateCode());
+                    String stateName = stateEnum.name();
+                    
+                    switch (stateName) {
+                        case "STANDBY":
+                            totalStandbyMillis += durationMillis;
+                            break;
+                        case "WORKING":
+                            totalWorkingMillis += durationMillis;
+                            break;
+                        case "SHUTDOWN":
+                            totalShutdownMillis += durationMillis;
+                            break;
+                        case "FAULT":
+                            totalFaultMillis += durationMillis;
+                            break;
+                        case "UNKNOWN":
+                            totalUnknownMillis += durationMillis;
+                            break;
+                    }
+                }
+            }
+        }
+        
+        // 转换为秒（与 timelineData 的 durationS 单位保持一致）
+        Long totalStandby = totalStandbyMillis / 1000;
+        Long totalWorking = totalWorkingMillis / 1000;
+        Long totalShutdown = totalShutdownMillis / 1000;
+        Long totalFault = totalFaultMillis / 1000;
+        Long totalUnknown = totalUnknownMillis / 1000;
 
-        // 计算总时长
-        int totalDuration = totalStandby + totalWorking + totalShutdown + totalFault + totalUnknown;
+        // 计算总时长（秒）
+        long totalDuration = totalStandby + totalWorking + totalShutdown + totalFault + totalUnknown;
 
         // 计算百分比
         BigDecimal standbyRatio;

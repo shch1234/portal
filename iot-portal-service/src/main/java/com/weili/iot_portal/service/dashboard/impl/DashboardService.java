@@ -209,7 +209,26 @@ public class DashboardService implements IDashboardService {
         Map<Long, DeviceInfoDO> deviceMap = devices.stream()
                 .collect(Collectors.toMap(DeviceInfoDO::getId, Function.identity()));
 
-        // 4. 组装返回结果
+        // 4. 收集所有设备类型编码，批量查询设备类型信息
+        List<String> deviceTypeCodes = devices.stream()
+                .map(DeviceInfoDO::getDeviceTypeCode)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+        
+        Map<String, String> deviceTypeNameMap = new HashMap<>();
+        if (!deviceTypeCodes.isEmpty()) {
+            List<DeviceTypeRelationDO> deviceTypes = deviceTypeRelationRepository.selectByCodes(deviceTypeCodes);
+            deviceTypeNameMap = deviceTypes.stream()
+                    .filter(type -> type.getDescription() != null)
+                    .collect(Collectors.toMap(
+                            DeviceTypeRelationDO::getTypeCode,
+                            DeviceTypeRelationDO::getDescription,
+                            (existing, replacement) -> existing // 如果有重复，保留第一个
+                    ));
+        }
+
+        // 5. 组装返回结果
         List<AlarmDurationTopRespVO> result = new ArrayList<>();
         for (DeviceAlarmHistoryDO alarm : alarmHistories) {
             AlarmDurationTopRespVO vo = new AlarmDurationTopRespVO();
@@ -218,6 +237,10 @@ public class DashboardService implements IDashboardService {
             if (device != null) {
                 vo.setDeviceCode(device.getDeviceCode());
                 vo.setDeviceTypeCode(device.getDeviceTypeCode());
+                // 设置设备类型名称
+                if (device.getDeviceTypeCode() != null) {
+                    vo.setDeviceTypeName(deviceTypeNameMap.get(device.getDeviceTypeCode()));
+                }
             }
 
             vo.setAlarmText(alarm.getAlarmText());
