@@ -520,8 +520,8 @@ public class DeviceInfoBizService implements IDeviceInfoBizService {
      * 1. device_info.device_type_code 存储的是子类型编码（如 CNC_MACHINING_CENTER）
      * 2. 通过子类型编码查询 device_type_relation 表获取：
      *    - 子类型名称（description）
-     *    - 父类型编码（parent_type_code）
-     * 3. 通过父类型编码查询父类型信息，获取父类型名称（description）
+     *    - 父类型编码（parent_type_code）或父类型ID（parent_type_id）
+     * 3. 通过父类型编码或父类型ID查询父类型信息，获取父类型名称（description）
      */
     private void assembleDeviceTypeInfo(DeviceInfoRespVO respVO) {
         // device_info.device_type_code 存储的是子类型编码
@@ -533,14 +533,23 @@ public class DeviceInfoBizService implements IDeviceInfoBizService {
                 respVO.setDeviceSubTypeCode(subTypeDO.getTypeCode());
                 respVO.setDeviceSubTypeName(subTypeDO.getDescription());
                 
-                // 2. 通过子类型的 parent_type_code 查询父类型信息
-                if (StringUtils.isNotBlank(subTypeDO.getParentTypeCode())) {
-                    DeviceTypeRelationDO parentTypeDO = deviceTypeRelationBizService.getDeviceTypeRelationByCode(subTypeDO.getParentTypeCode());
-                    if (parentTypeDO != null) {
-                        // 设置父类型编码和名称
-                        respVO.setDeviceTypeCode(parentTypeDO.getTypeCode());
-                        respVO.setDeviceTypeName(parentTypeDO.getDescription());
-                    }
+                // 2. 通过子类型的 parent_type_id 或 parent_type_code 查询父类型信息
+                DeviceTypeRelationDO parentTypeDO = null;
+                
+                // 优先使用 parent_type_id 查询
+                if (subTypeDO.getParentTypeId() != null) {
+                    parentTypeDO = deviceTypeRelationBizService.getDeviceTypeRelation(subTypeDO.getParentTypeId());
+                }
+                
+                // 如果 parent_type_id 为空，使用 parent_type_code 查询
+                if (parentTypeDO == null && StringUtils.isNotBlank(subTypeDO.getParentTypeCode())) {
+                    parentTypeDO = deviceTypeRelationBizService.getDeviceTypeRelationByCode(subTypeDO.getParentTypeCode());
+                }
+                
+                if (parentTypeDO != null) {
+                    // 设置父类型编码和名称
+                    respVO.setDeviceTypeCode(parentTypeDO.getTypeCode());
+                    respVO.setDeviceTypeName(parentTypeDO.getDescription());
                 }
             }
         }
