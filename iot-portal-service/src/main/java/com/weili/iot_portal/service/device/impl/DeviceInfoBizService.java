@@ -68,9 +68,19 @@ public class DeviceInfoBizService implements IDeviceInfoBizService {
         validateDeviceCodeUnique(null, createReqVO.getDeviceCode());
         // 验证设备型号存在
         validateDeviceModelExists(createReqVO.getDeviceModelId());
+        // 验证设备类型编码：deviceTypeCode 或 deviceSubTypeCode 至少有一个不为空
+        if (StringUtils.isBlank(createReqVO.getDeviceSubTypeCode()) && StringUtils.isBlank(createReqVO.getDeviceTypeCode())) {
+            throw new IotPortalException(IotPortalErrorCode.DEFAULT_ERROR, "设备类型编码或设备子类型编码至少需要提供一个");
+        }
 
         // 创建设备基本信息
         DeviceInfoDO deviceInfo = BeanUtils.toBean(createReqVO, DeviceInfoDO.class);
+        
+        // 如果提供了deviceSubTypeCode，优先使用它作为device_type_code（device_info表存储的是子类型编码）
+        if (StringUtils.isNotBlank(createReqVO.getDeviceSubTypeCode())) {
+            deviceInfo.setDeviceTypeCode(createReqVO.getDeviceSubTypeCode());
+        }
+        
         deviceInfoRepository.insert(deviceInfo);
         Long deviceInfoId = deviceInfo.getId();
 
@@ -115,10 +125,23 @@ public class DeviceInfoBizService implements IDeviceInfoBizService {
         validateDeviceCodeUnique(updateReqVO.getId(), updateReqVO.getDeviceCode());
         // 验证设备型号存在
         validateDeviceModelExists(updateReqVO.getDeviceModelId());
+        // 验证设备类型编码：如果提供了deviceTypeCode或deviceSubTypeCode，至少有一个不为空
+        // 如果两者都为空，则保持原有的device_type_code不变（不进行验证）
 
         // 更新设备基本信息
         DeviceInfoDO deviceInfo = BeanUtils.toBean(updateReqVO, DeviceInfoDO.class);
         deviceInfo.setId(existingDevice.getId());
+        
+        // 如果提供了deviceSubTypeCode，优先使用它作为device_type_code（device_info表存储的是子类型编码）
+        if (StringUtils.isNotBlank(updateReqVO.getDeviceSubTypeCode())) {
+            deviceInfo.setDeviceTypeCode(updateReqVO.getDeviceSubTypeCode());
+        } else if (StringUtils.isNotBlank(updateReqVO.getDeviceTypeCode())) {
+            // 如果没有提供deviceSubTypeCode，但有deviceTypeCode，则使用deviceTypeCode
+            // 注意：这种情况可能表示设备类型从子类型改为主类型，或者向后兼容
+            deviceInfo.setDeviceTypeCode(updateReqVO.getDeviceTypeCode());
+        }
+        // 如果两者都为空，则deviceInfo.getDeviceTypeCode()保持BeanUtils转换后的值（可能是null，会被忽略）
+        
         deviceInfoRepository.update(deviceInfo);
 
         // 更新设备位置信息
