@@ -1025,6 +1025,7 @@ public class DeviceMetricsSummaryService implements IDeviceMetricsSummaryService
         record.setPerformance(normalizeRate(result.getPerformance()));
         record.setQuality(normalizeRate(result.getQuality()));
         record.setUtilizationRate(normalizeRate(result.getUtilizationRate()));
+        record.setFaultRate(normalizeRate(result.getFaultRate()));
         record.setWorkingHours(result.getWorkingHours());
         record.setPlannedDowntimeS((int) plannedDowntimeSeconds);
         record.setUnplannedDowntimeS((int) millisToSeconds(result.getUnplannedDowntimeMillis()));

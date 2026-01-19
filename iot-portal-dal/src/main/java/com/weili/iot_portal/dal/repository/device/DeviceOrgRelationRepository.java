@@ -16,7 +16,7 @@ public interface DeviceOrgRelationRepository {
 
     Optional<DeviceOrgRelationDO> findByUnitCode(String unitCode);
 
-    List<DeviceOrgRelationDO> findByParentId(String parentId);
+    List<DeviceOrgRelationDO> findByParentId(Long parentId);
 
     boolean existsByUnitCode(String unitCode, String excludeId);
 

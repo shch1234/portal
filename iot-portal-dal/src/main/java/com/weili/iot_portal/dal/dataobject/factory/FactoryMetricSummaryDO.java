@@ -51,6 +51,8 @@ public class FactoryMetricSummaryDO implements Serializable {
     private BigDecimal averageQuality;
     /** 平均利用率 */
     private BigDecimal averageUtilizationRate;
+    /** 平均故障率（故障停机总时间 ÷ 计划运行时间，范围0-1，加权平均） */
+    private BigDecimal averageFaultRate;
     /** 平均加工时长（小时） */
     private BigDecimal averageWorkingHours;
     /** 总加工数量 */

@@ -54,10 +54,12 @@ public class MetricCalculator {
         // 3. 设备开动率（设备利用率/可用率）
         BigDecimal utilizationRate = calculateAvailabilityRate(context);
         
-        // 4. 故障率
+        // 4. 故障率（故障停机总时间 ÷ 计划运行时间）
         BigDecimal faultRatePercent = calculateFaultRate(context);
+        // 转换为0-1范围的小数形式（用于存储到数据库字段）
+        BigDecimal faultRate = faultRatePercent.divide(PERCENTAGE_DIVISOR, 4, RoundingMode.HALF_UP);
         
-        // 5. 质量率
+        // 5. 质量合格率
         BigDecimal quality = calculateQuality(context);
         
         // 6. OEE
@@ -101,7 +103,7 @@ public class MetricCalculator {
         calcData.put("workingMillis", context.getWorkingMillis());
         
         return new MetricCalculationResult(
-                oee, availability, performance, quality, utilizationRate, workingHours, actualCycleS,
+                oee, availability, performance, quality, utilizationRate, faultRate, workingHours, actualCycleS,
                 context.getUnplannedDowntimeMillis(), context.getActualOutput(), context.getQualifiedOutput(),
                 metrics, calcData
         );
@@ -223,6 +225,7 @@ public class MetricCalculator {
                 .divide(BigDecimal.valueOf(context.getPlannedRuntimeMillis()), 4, RoundingMode.HALF_UP)
                 .multiply(PERCENTAGE_DIVISOR);
     }
+    
     
     /**
      * 计算质量率

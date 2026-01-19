@@ -91,7 +91,8 @@ public class MetricsSummaryQueryService implements IMetricsSummaryQueryService {
                 DeviceMetricSummaryDO::getOee,
                 DeviceMetricSummaryDO::getAvailability,
                 DeviceMetricSummaryDO::getPerformance,
-                DeviceMetricSummaryDO::getUtilizationRate
+                DeviceMetricSummaryDO::getUtilizationRate,
+                DeviceMetricSummaryDO::getFaultRate
         );
 
         respVO.setMetricDetails(detailList);
@@ -143,7 +144,8 @@ public class MetricsSummaryQueryService implements IMetricsSummaryQueryService {
                 FactoryMetricSummaryDO::getAverageOee,
                 FactoryMetricSummaryDO::getAverageAvailability,
                 FactoryMetricSummaryDO::getAveragePerformance,
-                FactoryMetricSummaryDO::getAverageUtilizationRate
+                FactoryMetricSummaryDO::getAverageUtilizationRate,
+                FactoryMetricSummaryDO::getAverageFaultRate
         );
 
         respVO.setMetricDetails(detailList);
@@ -198,6 +200,7 @@ public class MetricsSummaryQueryService implements IMetricsSummaryQueryService {
      * @param availabilityGetter    可用率获取函数
      * @param performanceGetter     性能率获取函数
      * @param utilizationRateGetter 利用率获取函数
+     * @param faultRateGetter       故障率获取函数（0-1范围的小数）
      * @param <T>                   指标类型
      * @return 指标明细列表
      */
@@ -208,7 +211,8 @@ public class MetricsSummaryQueryService implements IMetricsSummaryQueryService {
             Function<T, BigDecimal> oeeGetter,
             Function<T, BigDecimal> availabilityGetter,
             Function<T, BigDecimal> performanceGetter,
-            Function<T, BigDecimal> utilizationRateGetter) {
+            Function<T, BigDecimal> utilizationRateGetter,
+            Function<T, BigDecimal> faultRateGetter) {
 
         List<MetricStatisticsRespVO.MetricDetailVO> detailList = new ArrayList<>();
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("MM-dd");
@@ -227,8 +231,11 @@ public class MetricsSummaryQueryService implements IMetricsSummaryQueryService {
                 detail.setPerformance(calculateAverage(dayMetrics, performanceGetter));
                 detail.setUtilizationRate(calculateAverage(dayMetrics, utilizationRateGetter));
 
-                // 停机率 = 100 - 可用率
-                detail.setDowntimeRate(calculateDowntimeRate(detail.getAvailability()));
+                // 停机率：使用故障率（从数据库字段faultRate读取，转换为百分比）
+                BigDecimal faultRate = calculateAverage(dayMetrics, faultRateGetter);
+                detail.setDowntimeRate(faultRate != null 
+                        ? faultRate.multiply(BigDecimal.valueOf(100)).setScale(1, RoundingMode.HALF_UP)
+                        : BigDecimal.ZERO);
             } else {
                 // 没有数据的日期，设置为0
                 setDefaultMetricValues(detail);
@@ -238,21 +245,6 @@ public class MetricsSummaryQueryService implements IMetricsSummaryQueryService {
         return detailList;
     }
 
-    /**
-     * 计算停机率
-     * <p>
-     * 停机率 = 100 - 可用率
-     *
-     * @param availability 可用率
-     * @return 停机率
-     */
-    private BigDecimal calculateDowntimeRate(BigDecimal availability) {
-        if (availability != null) {
-            return BigDecimal.valueOf(100).subtract(availability)
-                    .setScale(1, RoundingMode.HALF_UP);
-        }
-        return BigDecimal.ZERO;
-    }
 
     /**
      * 设置默认指标值（全部为0）
@@ -318,8 +310,7 @@ public class MetricsSummaryQueryService implements IMetricsSummaryQueryService {
         // 设备开动率（设备利用率）：uptimeRate -> utilizationRate
         detail.setUtilizationRate(toPercentage(snapshot.getUptimeRate()));
 
-        // 停机率：faultRate -> downtimeRate
-        // 注意：停机率也可以计算为 100 - 可用率，但这里直接使用 faultRate
+        // 停机率：faultRate -> downtimeRate（使用故障率）
         detail.setDowntimeRate(toPercentage(snapshot.getFaultRate()));
 
         return detail;
@@ -361,8 +352,7 @@ public class MetricsSummaryQueryService implements IMetricsSummaryQueryService {
         // 设备开动率（设备利用率）：uptimeRate -> utilizationRate
         detail.setUtilizationRate(toPercentage(snapshot.getUptimeRate()));
 
-        // 停机率：faultRate -> downtimeRate
-        // 注意：停机率也可以计算为 100 - 可用率，但这里直接使用 faultRate
+        // 停机率：faultRate -> downtimeRate（使用故障率）
         detail.setDowntimeRate(toPercentage(snapshot.getFaultRate()));
 
         return detail;
@@ -531,7 +521,7 @@ public class MetricsSummaryQueryService implements IMetricsSummaryQueryService {
 
     /**
      * 构建停机率TopN列表
-     * 停机率 = 100 - 可用率
+     * 停机率 = 故障率（从faultRate字段读取）
      *
      * @param metrics       设备指标列表
      * @param deviceInfoMap 设备信息Map
@@ -544,12 +534,12 @@ public class MetricsSummaryQueryService implements IMetricsSummaryQueryService {
             int topN) {
 
         return metrics.stream()
-                .filter(m -> m.getAvailability() != null)
+                .filter(m -> m.getFaultRate() != null)
                 .sorted((m1, m2) -> {
-                    // 停机率越高越靠前，即可用率越低越靠前
-                    BigDecimal v1 = m1.getAvailability();
-                    BigDecimal v2 = m2.getAvailability();
-                    return v1.compareTo(v2); // 升序排列（可用率低的在前）
+                    // 停机率（故障率）越高越靠前
+                    BigDecimal v1 = m1.getFaultRate();
+                    BigDecimal v2 = m2.getFaultRate();
+                    return v2.compareTo(v1); // 降序排列（故障率高的在前）
                 })
                 .limit(topN)
                 .map(metric -> {
@@ -560,11 +550,8 @@ public class MetricsSummaryQueryService implements IMetricsSummaryQueryService {
                         vo.setDeviceCode(deviceInfo.getDeviceCode());
                         vo.setDeviceName(deviceInfo.getDeviceName());
                     }
-                    // 停机率 = 100 - 可用率（转换为百分比）
-                    BigDecimal availability = metric.getAvailability();
-                    BigDecimal downtimeRate = BigDecimal.valueOf(100)
-                            .subtract(toPercentage(availability));
-                    vo.setValue(downtimeRate);
+                    // 停机率 = 故障率（转换为百分比）
+                    vo.setValue(toPercentage(metric.getFaultRate()));
                     return vo;
                 })
                 .collect(Collectors.toList());

@@ -42,7 +42,7 @@ public class DeviceOrgRelationDO extends BaseDO {
     /**
      * 父级组织ID（关联 device_org_relation.id，对应 org_parent_id 列）
      */
-    private String orgParentId;
+    private Long orgParentId;
 
     /**
      * 层级：1厂区、2车间、3产线（对应 level_no 列）

@@ -40,21 +40,21 @@ public class DeviceOrgRelationBizService implements IDeviceOrgRelationBizService
     public Long createDeviceOrgRelation(DeviceOrgRelationSaveReqVO createReqVO) {
         // 验证组织单元编码唯一性
         validateUnitCodeUnique(null, createReqVO.getUnitCode());
-        // 如果存在父级，验证父级存在
-        String orgParentId = createReqVO.getOrgParentId();
+        // 如果存在父级，验证父级存在并处理父级ID
+        Long orgParentId = null;
         if (StrUtil.isNotBlank(createReqVO.getOrgParentId())) {
             List<String> ids = Arrays.stream(createReqVO.getOrgParentId().split(",")).toList();
             ids.forEach(this::validateDeviceOrgRelationExists);
-            if (ids.size() == 2) {
-                createReqVO.setOrgParentId(ids.get(1));
-            } else {
-                createReqVO.setOrgParentId(ids.get(0));
-            }
+            // 确定最终的父级ID（如果有两个ID，取第二个；否则取第一个）
+            String finalParentIdStr = ids.size() == 2 ? ids.get(1) : ids.get(0);
+            orgParentId = Long.parseLong(finalParentIdStr);
+            createReqVO.setOrgParentId(finalParentIdStr);
         }
         DeviceOrgRelationDO deviceOrgRelation = BeanUtils.toBean(createReqVO, DeviceOrgRelationDO.class);
         // 构建层级路径
         buildPath(deviceOrgRelation);
         deviceOrgRelation.setLevelNo(UnitTypeEnum.ofLevelNo(createReqVO.getUnitTypeValue()));
+        // 设置父级ID（Long类型）
         deviceOrgRelation.setOrgParentId(orgParentId);
         deviceOrgRelationRepository.insert(deviceOrgRelation);
         return deviceOrgRelation.getId();
@@ -68,21 +68,23 @@ public class DeviceOrgRelationBizService implements IDeviceOrgRelationBizService
         // 验证组织单元编码唯一性
         validateUnitCodeUnique(updateReqVO.getId(), updateReqVO.getUnitCode());
         // 如果存在父级，验证父级存在且不能是自己
+        Long orgParentId = null;
         if (StrUtil.isNotBlank(updateReqVO.getOrgParentId())) {
             if (updateReqVO.getOrgParentId().equals(updateReqVO.getId())) {
                 throw new IotPortalException(IotPortalErrorCode.DEFAULT_ERROR, "父级组织不能是自己");
             }
             List<String> ids = Arrays.stream(updateReqVO.getOrgParentId().split(",")).toList();
             ids.forEach(this::validateDeviceOrgRelationExists);
-            if (ids.size() == 2) {
-                updateReqVO.setOrgParentId(ids.get(1));
-            } else {
-                updateReqVO.setOrgParentId(ids.get(0));
-            }
+            // 确定最终的父级ID（如果有两个ID，取第二个；否则取第一个）
+            String finalParentIdStr = ids.size() == 2 ? ids.get(1) : ids.get(0);
+            orgParentId = Long.parseLong(finalParentIdStr);
+            updateReqVO.setOrgParentId(finalParentIdStr);
         }
 
         DeviceOrgRelationDO deviceOrgRelation = BeanUtils.toBean(updateReqVO, DeviceOrgRelationDO.class);
         deviceOrgRelation.setLevelNo(UnitTypeEnum.ofLevelNo(updateReqVO.getUnitTypeValue()));
+        // 设置父级ID（Long类型）
+        deviceOrgRelation.setOrgParentId(orgParentId);
         // 构建层级路径
         buildPath(deviceOrgRelation);
         deviceOrgRelationRepository.update(deviceOrgRelation);
@@ -93,7 +95,8 @@ public class DeviceOrgRelationBizService implements IDeviceOrgRelationBizService
     public void deleteDeviceOrgRelation(String id) {
         validateDeviceOrgRelationExists(id);
         // 检查是否存在子组织单元
-        List<DeviceOrgRelationDO> children = deviceOrgRelationRepository.findByParentId(id);
+        Long parentId = Long.parseLong(id);
+        List<DeviceOrgRelationDO> children = deviceOrgRelationRepository.findByParentId(parentId);
         if (!children.isEmpty()) {
             throw new IotPortalException(IotPortalErrorCode.DEVICE_ORG_HAS_CHILDREN);
         }
@@ -142,12 +145,12 @@ public class DeviceOrgRelationBizService implements IDeviceOrgRelationBizService
         List<DeviceOrgRelationDO> productionLines = typeMap.getOrDefault(UnitTypeEnum.PRODUCTION_LINE.getCode(), Collections.emptyList());
 
         // 按父级ID分组车间和产线
-        Map<String, List<DeviceOrgRelationDO>> workshopsByFactoryId = workshops.stream()
-                .filter(w -> StrUtil.isNotBlank(w.getOrgParentId()))
+        Map<Long, List<DeviceOrgRelationDO>> workshopsByFactoryId = workshops.stream()
+                .filter(w -> w.getOrgParentId() != null)
                 .collect(Collectors.groupingBy(DeviceOrgRelationDO::getOrgParentId));
 
-        Map<String, List<DeviceOrgRelationDO>> productionLinesByWorkshopId = productionLines.stream()
-                .filter(p -> StrUtil.isNotBlank(p.getOrgParentId()))
+        Map<Long, List<DeviceOrgRelationDO>> productionLinesByWorkshopId = productionLines.stream()
+                .filter(p -> p.getOrgParentId() != null)
                 .collect(Collectors.groupingBy(DeviceOrgRelationDO::getOrgParentId));
 
         // 构建三层结构
@@ -159,7 +162,7 @@ public class DeviceOrgRelationBizService implements IDeviceOrgRelationBizService
             factoryVO.setUnitName(factory.getUnitName());
 
             // 获取该工厂下的车间列表
-            List<DeviceOrgRelationDO> factoryWorkshops = workshopsByFactoryId.getOrDefault(String.valueOf(factory.getId()), Collections.emptyList());
+            List<DeviceOrgRelationDO> factoryWorkshops = workshopsByFactoryId.getOrDefault(factory.getId(), Collections.emptyList());
             List<DeviceOrgRelationSubRespVO.WorkshopVO> workshopVOs = new ArrayList<>();
 
             for (DeviceOrgRelationDO workshop : factoryWorkshops) {
@@ -169,7 +172,7 @@ public class DeviceOrgRelationBizService implements IDeviceOrgRelationBizService
                 workshopVO.setUnitName(workshop.getUnitName());
 
                 // 获取该车间下的产线列表
-                List<DeviceOrgRelationDO> workshopProductionLines = productionLinesByWorkshopId.getOrDefault(String.valueOf(workshop.getId()), Collections.emptyList());
+                List<DeviceOrgRelationDO> workshopProductionLines = productionLinesByWorkshopId.getOrDefault(workshop.getId(), Collections.emptyList());
                 List<DeviceOrgRelationSubRespVO.ProductionLineVO> productionLineVOs = new ArrayList<>();
 
                 for (DeviceOrgRelationDO productionLine : workshopProductionLines) {
@@ -222,12 +225,12 @@ public class DeviceOrgRelationBizService implements IDeviceOrgRelationBizService
      * 构建层级路径
      */
     private void buildPath(DeviceOrgRelationDO deviceOrgRelation) {
-        if (StrUtil.isBlank(deviceOrgRelation.getOrgParentId())) {
+        if (deviceOrgRelation.getOrgParentId() == null) {
             // 根节点，路径就是自己的编码
             deviceOrgRelation.setPath("/" + deviceOrgRelation.getUnitCode());
         } else {
             // 获取父级路径，拼接自己的编码
-            Optional<DeviceOrgRelationDO> parent = deviceOrgRelationRepository.findById(deviceOrgRelation.getOrgParentId());
+            Optional<DeviceOrgRelationDO> parent = deviceOrgRelationRepository.findById(String.valueOf(deviceOrgRelation.getOrgParentId()));
             if (parent.isPresent()) {
                 String parentPath = parent.get().getPath();
                 deviceOrgRelation.setPath(parentPath + "/" + deviceOrgRelation.getUnitCode());

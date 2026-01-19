@@ -117,11 +117,60 @@ public class DeviceStateSummaryBizService implements IDeviceStateSummaryBizServi
                 endShiftDate
         );
 
+        // 5. 计算查询的时间范围（用于截断 timelineData，与 ratioStatistics 保持一致）
+        long queryStartTs = Long.MAX_VALUE;
+        long queryEndTs = Long.MIN_VALUE;
+        
+        // 计算查询日期范围内所有班次的时间范围
+        DeviceShiftConfigDO config = shiftConfigService.getCurrentConfiguration(
+                deviceInfo.getOrgFactoryId(), queryReqVO.getDeviceId(), currentTime);
+        if (config != null && config.getShifts() != null && !config.getShifts().isEmpty()) {
+            for (LocalDate date = startShiftDate; !date.isAfter(endShiftDate); date = date.plusDays(1)) {
+                for (DeviceShiftDefinition shiftDef : config.getShifts()) {
+                    LocalTime startTime = LocalTime.parse(shiftDef.getStartTime(), DateTimeFormatter.ofPattern("HH:mm:ss"));
+                    LocalDateTime shiftStartDateTime = date.atTime(startTime);
+                    long referenceTimestamp = shiftStartDateTime.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
+                    
+                    java.util.Optional<ShiftTimeRange> shiftRangeOpt = shiftCalculationService.calculateAndValidateShiftRange(
+                            deviceInfo.getOrgFactoryId(), queryReqVO.getDeviceId(), referenceTimestamp, date, shiftDef.getCode());
+                    
+                    if (shiftRangeOpt.isPresent()) {
+                        ShiftTimeRange shiftRange = shiftRangeOpt.get();
+                        if (shiftRange.getStartTs() != null && shiftRange.getStartTs() < queryStartTs) {
+                            queryStartTs = shiftRange.getStartTs();
+                        }
+                        long shiftEnd = shiftRange.getEndTs() != null && shiftRange.getEndTs() > currentTime 
+                                ? currentTime : (shiftRange.getEndTs() != null ? shiftRange.getEndTs() : currentTime);
+                        if (shiftEnd > queryEndTs) {
+                            queryEndTs = shiftEnd;
+                        }
+                    }
+                }
+            }
+        }
+        
+        // 如果无法计算时间范围，使用记录的最小和最大时间戳
+        if (queryStartTs == Long.MAX_VALUE || queryEndTs == Long.MIN_VALUE) {
+            if (!stateRecordList.isEmpty()) {
+                queryStartTs = stateRecordList.stream()
+                        .mapToLong(r -> r.getStartTs() != null ? r.getStartTs() : Long.MAX_VALUE)
+                        .min().orElse(Long.MAX_VALUE);
+                queryEndTs = Math.max(
+                        stateRecordList.stream()
+                                .mapToLong(r -> r.getEndTs() != null ? r.getEndTs() : currentTime)
+                                .max().orElse(Long.MIN_VALUE),
+                        currentTime);
+            } else {
+                queryStartTs = currentTime;
+                queryEndTs = currentTime;
+            }
+        }
+
             return DeviceStateSummaryRespVO.builder()
                     .currentState(stateValue)
                     .currentHeart("1".equals(heartbeat))
                     .ratioStatistics(buildRatioStatistics(summaryList))
-                    .timelineData(buildTimelineData(stateRecordList))
+                    .timelineData(buildTimelineData(stateRecordList, queryStartTs, queryEndTs))
                     .build();
         } finally {
             // 清除设备编号 MDC，避免线程复用导致设备编号污染
@@ -229,8 +278,18 @@ public class DeviceStateSummaryBizService implements IDeviceStateSummaryBizServi
      * 对于未结束的状态（endTs == null），只显示最新的一条（startTs最大的），使用当前时间作为结束时间
      * 历史的未结束状态会被过滤掉，避免显示错误的历史数据
      * </p>
+     * <p>
+     * 重要：对记录进行时间范围截断，与 ratioStatistics 保持一致
+     * 即使记录已经按班次拆分，但可能包含查询范围之外的时间，需要截断到查询时间范围内
+     * </p>
+     * 
+     * @param stateRecordList 状态记录列表
+     * @param queryStartTs 查询开始时间戳（毫秒）
+     * @param queryEndTs 查询结束时间戳（毫秒）
+     * @return 时间轴数据列表
      */
-    private List<StateTimeSegment> buildTimelineData(List<DeviceStateRecordDO> stateRecordList) {
+    private List<StateTimeSegment> buildTimelineData(List<DeviceStateRecordDO> stateRecordList, 
+                                                      long queryStartTs, long queryEndTs) {
         if (stateRecordList == null || stateRecordList.isEmpty()) {
             return new ArrayList<>();
         }
@@ -261,27 +320,60 @@ public class DeviceStateSummaryBizService implements IDeviceStateSummaryBizServi
 
         // 处理已结束的状态记录
         for (DeviceStateRecordDO record : endedRecords) {
+            // 计算记录在查询时间范围内的有效时间范围（与 calculateStatistics 逻辑一致）
+            long recordStartTs = record.getStartTs() != null ? record.getStartTs() : queryStartTs;
+            long recordEndTs = record.getEndTs() != null ? record.getEndTs() : queryEndTs;
+            
+            // 取交集（与 calculateStatistics 第56-57行逻辑一致）
+            long effectiveStart = Math.max(recordStartTs, queryStartTs);
+            long effectiveEnd = Math.min(recordEndTs, queryEndTs);
+            
+            // 如果记录与查询范围没有交集，跳过
+            if (recordStartTs >= queryEndTs || effectiveEnd <= queryStartTs) {
+                continue;
+            }
+            
             DeviceStateEnum stateEnum = DeviceStateEnum.fromCode(record.getStateCode());
+            // 计算持续时间（秒）：(有效结束时间 - 有效开始时间) / 1000
+            long durationS = (effectiveEnd - effectiveStart) / 1000;
             StateTimeSegment segment = StateTimeSegment.builder()
                     .stateCode(stateEnum.name())
                     .stateName(stateEnum.getDescription())
-                    .startTime(record.getStartTs())
-                    .endTime(record.getEndTs())
+                    .startTime(effectiveStart)
+                    .endTime(effectiveEnd)
+                    .durationS(durationS)
                     .build();
             timelineData.add(segment);
         }
 
         // 处理最新的未结束状态（如果存在）
         if (latestOngoingRecord != null) {
-            DeviceStateEnum stateEnum = DeviceStateEnum.fromCode(latestOngoingRecord.getStateCode());
-            // 使用当前时间作为结束时间，确保进行中的状态也能显示
-            StateTimeSegment segment = StateTimeSegment.builder()
-                    .stateCode(stateEnum.name())
-                    .stateName(stateEnum.getDescription())
-                    .startTime(latestOngoingRecord.getStartTs())
-                    .endTime(currentTime)
-                    .build();
-            timelineData.add(segment);
+            // 计算记录在查询时间范围内的有效时间范围
+            long recordStartTs = latestOngoingRecord.getStartTs() != null 
+                    ? latestOngoingRecord.getStartTs() : queryStartTs;
+            // 进行中状态使用当前时间作为结束时间，但不能超过查询结束时间
+            long recordEndTs = Math.min(currentTime, queryEndTs);
+            
+            // 取交集
+            long effectiveStart = Math.max(recordStartTs, queryStartTs);
+            long effectiveEnd = Math.min(recordEndTs, queryEndTs);
+            
+            // 如果记录与查询范围没有交集，跳过
+            if (recordStartTs >= queryEndTs || effectiveEnd <= queryStartTs) {
+                // 不添加，跳过
+            } else {
+                DeviceStateEnum stateEnum = DeviceStateEnum.fromCode(latestOngoingRecord.getStateCode());
+                // 计算持续时间（秒）：(有效结束时间 - 有效开始时间) / 1000
+                long durationS = (effectiveEnd - effectiveStart) / 1000;
+                StateTimeSegment segment = StateTimeSegment.builder()
+                        .stateCode(stateEnum.name())
+                        .stateName(stateEnum.getDescription())
+                        .startTime(effectiveStart)
+                        .endTime(effectiveEnd)
+                        .durationS(durationS)
+                        .build();
+                timelineData.add(segment);
+            }
         }
 
         // 额外排序保障：确保按开始时间升序，即使数据库查询未正确排序

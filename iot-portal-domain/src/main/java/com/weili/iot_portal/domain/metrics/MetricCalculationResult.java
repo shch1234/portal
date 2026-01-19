@@ -13,6 +13,7 @@ import java.util.Map;
  *   <li>性能率（Performance Rate）</li>
  *   <li>质量率（Quality Rate）</li>
  *   <li>设备利用率（Utilization Rate）</li>
+ *   <li>故障率（Fault Rate）</li>
  *   <li>其他辅助指标（加工时长、实际节拍等）</li>
  * </ul>
  * <p>
@@ -46,6 +47,12 @@ public class MetricCalculationResult {
      * 设备利用率（设备开动率），0-1之间的小数
      */
     private final BigDecimal utilizationRate;
+    
+    /**
+     * 故障率，0-1之间的小数
+     * 故障率 = 故障停机总时间 ÷ 计划运行时间 × 100%
+     */
+    private final BigDecimal faultRate;
     
     /**
      * 加工时长（小时）
@@ -86,8 +93,8 @@ public class MetricCalculationResult {
     private final Map<String, Object> calcData;
     
     public MetricCalculationResult(BigDecimal oee, BigDecimal availability, BigDecimal performance,
-                                 BigDecimal quality, BigDecimal utilizationRate, BigDecimal workingHours,
-                                 BigDecimal actualCycleS, long unplannedDowntimeMillis,
+                                 BigDecimal quality, BigDecimal utilizationRate, BigDecimal faultRate,
+                                 BigDecimal workingHours, BigDecimal actualCycleS, long unplannedDowntimeMillis,
                                  long actualOutput, long qualifiedOutput,
                                  Map<String, Object> metrics, Map<String, Object> calcData) {
         this.oee = oee;
@@ -95,6 +102,7 @@ public class MetricCalculationResult {
         this.performance = performance;
         this.quality = quality;
         this.utilizationRate = utilizationRate;
+        this.faultRate = faultRate;
         this.workingHours = workingHours;
         this.actualCycleS = actualCycleS;
         this.unplannedDowntimeMillis = unplannedDowntimeMillis;
@@ -110,6 +118,7 @@ public class MetricCalculationResult {
     public BigDecimal getPerformance() { return performance; }
     public BigDecimal getQuality() { return quality; }
     public BigDecimal getUtilizationRate() { return utilizationRate; }
+    public BigDecimal getFaultRate() { return faultRate; }
     public BigDecimal getWorkingHours() { return workingHours; }
     public BigDecimal getActualCycleS() { return actualCycleS; }
     public long getUnplannedDowntimeMillis() { return unplannedDowntimeMillis; }

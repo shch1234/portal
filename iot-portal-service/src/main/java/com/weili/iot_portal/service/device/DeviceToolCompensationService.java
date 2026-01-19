@@ -68,7 +68,7 @@ public class DeviceToolCompensationService {
             DeviceToolCompensationDO active = deviceToolCompensationRepository.findActive(deviceId, holderNumber);
             if (active != null) {
                 // 数据库中存在记录，缓存一致，跳过写入
-                log.info("{} 刀补值未变化（缓存命中且数据库确认），跳过写入: deviceId={}, holderNumber={}",
+                log.debug("{} 刀补值未变化（缓存命中且数据库确认），跳过写入: deviceId={}, holderNumber={}",
                         logPrefix, deviceId, holderNumber);
                 return;
             } else {
@@ -87,7 +87,7 @@ public class DeviceToolCompensationService {
         if (active != null && Objects.equals(active.getCompValueJson(), compValue)) {
             // 缓存可能过期或不存在，更新缓存
             deviceToolCacheService.cacheActiveCompensation(deviceId, holderNumber, compValue);
-            log.info("{} 刀补值未变化（数据库确认），跳过写入: deviceId={}, holderNumber={}",
+            log.debug("{} 刀补值未变化（数据库确认），跳过写入: deviceId={}, holderNumber={}",
                     logPrefix, deviceId, holderNumber);
             return;
         }
@@ -101,7 +101,7 @@ public class DeviceToolCompensationService {
 
         // 4. 如果找到活跃记录但补偿值不同，关闭旧记录
         if (active != null) {
-            log.info("{} 刀补值变化，关闭旧记录并创建新记录: deviceId={}, holderNumber={}, oldVersion={}",
+            log.debug("{} 刀补值变化，关闭旧记录并创建新记录: deviceId={}, holderNumber={}, oldVersion={}",
                     logPrefix, deviceId, holderNumber, active.getVersion());
             // 使用 LambdaUpdateWrapper 仅更新 active 和 end_ts 字段，避免更新其他字段导致唯一约束冲突
             deviceToolCompensationRepository.deactivateById(active.getId(), ts, DeviceToolEventFields.ACTIVE_STATUS_DISABLED);
@@ -109,7 +109,7 @@ public class DeviceToolCompensationService {
             // 删除旧缓存（补偿值已变化）
             deviceToolCacheService.deleteActiveCompensation(deviceId, holderNumber);
         } else {
-            log.info("{} 首次写入刀补数据: deviceId={}, holderNumber={}",
+            log.debug("{} 首次写入刀补数据: deviceId={}, holderNumber={}",
                     logPrefix, deviceId, holderNumber);
         }
 
@@ -128,7 +128,7 @@ public class DeviceToolCompensationService {
         // 6. 同步更新缓存（写入成功后）
         deviceToolCacheService.cacheActiveCompensation(deviceId, holderNumber, compValue);
 
-        log.info("{} 刀补数据写入成功: deviceId={}, holderNumber={}, version={}",
+        log.debug("{} 刀补数据写入成功: deviceId={}, holderNumber={}, version={}",
                 logPrefix, deviceId, holderNumber, nextVersion);
     }
 }

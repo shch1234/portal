@@ -67,17 +67,17 @@ public class DeviceMetricSummaryDO implements Serializable {
     private BigDecimal oee;
 
     /**
-     * 可用率（对应 availability 列，DECIMAL(5,4)，范围0-1）
+     * 时间开动率（对应 availability 列，DECIMAL(5,4)，范围0-1）
      */
     private BigDecimal availability;
 
     /**
-     * 性能率（对应 performance 列，DECIMAL(5,4)，范围0-1）
+     * 性能开动率（对应 performance 列，DECIMAL(5,4)，范围0-1）
      */
     private BigDecimal performance;
 
     /**
-     * 质量率（对应 quality 列，DECIMAL(5,4)，范围0-1）
+     * 质量合格率（对应 quality 列，DECIMAL(5,4)，范围0-1）
      */
     private BigDecimal quality;
 
@@ -85,6 +85,14 @@ public class DeviceMetricSummaryDO implements Serializable {
      * 设备利用率（对应 utilization_rate 列，DECIMAL(5,4)，范围0-1）
      */
     private BigDecimal utilizationRate;
+
+    /**
+     * 故障率（对应 fault_rate 列，DECIMAL(5,4)，范围0-1）
+     * 故障率 = 故障停机总时间 ÷ 计划运行时间 × 100%
+     * 故障停机时间是设备状态为故障的总时间
+     * 计划运行时间 = 班次时间 - 计划停机时间
+     */
+    private BigDecimal faultRate;
 
     /**
      * 加工时长（小时，对应 working_hours 列，DECIMAL(10,2)）
