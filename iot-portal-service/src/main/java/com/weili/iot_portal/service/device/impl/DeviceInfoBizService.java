@@ -3,6 +3,7 @@ package com.weili.iot_portal.service.device.impl;
 import cn.hutool.core.util.StrUtil;
 import com.weili.basic.common.model.PageResult;
 import com.weili.basic.common.util.BeanUtils;
+import com.weili.iot_portal.common.enums.UnitTypeEnum;
 import com.weili.iot_portal.common.exception.IotPortalErrorCode;
 import com.weili.iot_portal.common.exception.IotPortalException;
 import com.weili.iot_portal.dal.dataobject.device.*;
@@ -353,30 +354,33 @@ public class DeviceInfoBizService implements IDeviceInfoBizService {
         }
         options.setDeviceTypes(deviceTypes);
 
-        // 获取厂区列表（仅启用状态，层级1）
+        // 获取厂区列表（仅启用状态，层级1，类型为FACTORY）
         DeviceOrgRelationPageReqVO factoryPageReq = new DeviceOrgRelationPageReqVO();
         factoryPageReq.setIsActive(true);
         factoryPageReq.setLevelNo(1);
+        factoryPageReq.setUnitTypeValue(UnitTypeEnum.FACTORY.getCode());
         factoryPageReq.setPageNo(1);
         factoryPageReq.setPageSize(10000);
         PageResult<DeviceOrgRelationDO> factoryPageResult = deviceOrgRelationBizService.getDeviceOrgRelationPage(factoryPageReq);
         List<DeviceOrgRelationRespVO> factories = BeanUtils.toBean(factoryPageResult.getList(), DeviceOrgRelationRespVO.class);
         options.setFactories(factories);
 
-        // 获取车间列表（仅启用状态，层级2）
+        // 获取车间列表（仅启用状态，层级2，类型为WORKSHOP）
         DeviceOrgRelationPageReqVO workshopPageReq = new DeviceOrgRelationPageReqVO();
         workshopPageReq.setIsActive(true);
         workshopPageReq.setLevelNo(2);
+        workshopPageReq.setUnitTypeValue(UnitTypeEnum.WORKSHOP.getCode());
         workshopPageReq.setPageNo(1);
         workshopPageReq.setPageSize(10000);
         PageResult<DeviceOrgRelationDO> workshopPageResult = deviceOrgRelationBizService.getDeviceOrgRelationPage(workshopPageReq);
         List<DeviceOrgRelationRespVO> workshops = BeanUtils.toBean(workshopPageResult.getList(), DeviceOrgRelationRespVO.class);
         options.setWorkshops(workshops);
 
-        // 获取产线列表（仅启用状态，层级3）
+        // 获取产线列表（仅启用状态，层级3，类型为PRODUCTION_LINE）
         DeviceOrgRelationPageReqVO productionLinePageReq = new DeviceOrgRelationPageReqVO();
         productionLinePageReq.setIsActive(true);
         productionLinePageReq.setLevelNo(3);
+        productionLinePageReq.setUnitTypeValue(UnitTypeEnum.PRODUCTION_LINE.getCode());
         productionLinePageReq.setPageNo(1);
         productionLinePageReq.setPageSize(10000);
         PageResult<DeviceOrgRelationDO> productionLinePageResult = deviceOrgRelationBizService.getDeviceOrgRelationPage(productionLinePageReq);

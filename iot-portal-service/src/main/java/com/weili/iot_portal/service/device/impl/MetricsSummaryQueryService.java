@@ -371,22 +371,19 @@ public class MetricsSummaryQueryService implements IMetricsSummaryQueryService {
     public List<MetricDeviceDataRespVO> getDeviceMetricTop(MetricDeviceDataReqVO reqVO) {
         Long orgFactoryId = reqVO.getOrgFactoryId();
         LocalDate shiftDate = reqVO.getStartTime();
+        Integer shiftCode = reqVO.getShiftCode();
         int topN = reqVO.getTop() != null ? reqVO.getTop() : 5;
         if (shiftDate == null) {
             shiftDate = LocalDate.now();
         }
 
-        // 查询指定日期的所有班次数据
+        // 查询指定日期的班次数据（如果指定了班次编码，则只查询该班次）
         List<DeviceMetricSummaryDO> allMetrics = deviceMetricSummaryRepository
-                .selectByFactoryAndShift(orgFactoryId, shiftDate, reqVO.getShiftCode());
+                .selectByFactoryAndShift(orgFactoryId, shiftDate, shiftCode);
 
         if (allMetrics.isEmpty()) {
             return new ArrayList<>();
         }
-
-        // 按班次分组
-        Map<Integer, List<DeviceMetricSummaryDO>> shiftMetricsMap = allMetrics.stream()
-                .collect(Collectors.groupingBy(DeviceMetricSummaryDO::getShiftCode));
 
         // 批量查询设备信息
         List<Long> deviceIds = allMetrics.stream()
@@ -400,39 +397,72 @@ public class MetricsSummaryQueryService implements IMetricsSummaryQueryService {
         // 构建响应数据
         List<MetricDeviceDataRespVO> result = new ArrayList<>();
 
-        // 对每个班次构建TopN数据
-        for (Map.Entry<Integer, List<DeviceMetricSummaryDO>> entry : shiftMetricsMap.entrySet()) {
-            Integer shiftCode = entry.getKey();
-            List<DeviceMetricSummaryDO> shiftMetrics = entry.getValue();
-
+        // 如果指定了班次编码，直接处理该班次的数据；否则按班次分组处理所有班次
+        if (shiftCode != null) {
+            // 指定了班次编码，直接处理该班次数据
             MetricDeviceDataRespVO respVO = new MetricDeviceDataRespVO();
             respVO.setShiftDate(shiftDate);
             respVO.setShiftCode(shiftCode);
 
             // 时间开动率TopN（availability）
-            respVO.setAvailability(buildTopNDeviceList(shiftMetrics, deviceInfoMap, topN,
+            respVO.setAvailability(buildTopNDeviceList(allMetrics, deviceInfoMap, topN,
                     DeviceMetricSummaryDO::getAvailability));
 
             // 性能开动率TopN（performance）
-            respVO.setPerformance(buildTopNDeviceList(shiftMetrics, deviceInfoMap, topN,
+            respVO.setPerformance(buildTopNDeviceList(allMetrics, deviceInfoMap, topN,
                     DeviceMetricSummaryDO::getPerformance));
 
             // OEE指标TopN
-            respVO.setOee(buildTopNDeviceList(shiftMetrics, deviceInfoMap, topN,
+            respVO.setOee(buildTopNDeviceList(allMetrics, deviceInfoMap, topN,
                     DeviceMetricSummaryDO::getOee));
 
             // 设备开动率TopN（utilizationRate）
-            respVO.setUtilizationRate(buildTopNDeviceList(shiftMetrics, deviceInfoMap, topN,
+            respVO.setUtilizationRate(buildTopNDeviceList(allMetrics, deviceInfoMap, topN,
                     DeviceMetricSummaryDO::getUtilizationRate));
 
             // 停机率TopN（100 - availability，降序排列）
-            respVO.setDowntimeRate(buildDowntimeRateTopN(shiftMetrics, deviceInfoMap, topN));
+            respVO.setDowntimeRate(buildDowntimeRateTopN(allMetrics, deviceInfoMap, topN));
 
             result.add(respVO);
-        }
+        } else {
+            // 未指定班次编码，按班次分组处理所有班次
+            Map<Integer, List<DeviceMetricSummaryDO>> shiftMetricsMap = allMetrics.stream()
+                    .collect(Collectors.groupingBy(DeviceMetricSummaryDO::getShiftCode));
 
-        // 按班次编码排序
-        result.sort(Comparator.comparing(MetricDeviceDataRespVO::getShiftCode));
+            // 对每个班次构建TopN数据
+            for (Map.Entry<Integer, List<DeviceMetricSummaryDO>> entry : shiftMetricsMap.entrySet()) {
+                Integer currentShiftCode = entry.getKey();
+                List<DeviceMetricSummaryDO> shiftMetrics = entry.getValue();
+
+                MetricDeviceDataRespVO respVO = new MetricDeviceDataRespVO();
+                respVO.setShiftDate(shiftDate);
+                respVO.setShiftCode(currentShiftCode);
+
+                // 时间开动率TopN（availability）
+                respVO.setAvailability(buildTopNDeviceList(shiftMetrics, deviceInfoMap, topN,
+                        DeviceMetricSummaryDO::getAvailability));
+
+                // 性能开动率TopN（performance）
+                respVO.setPerformance(buildTopNDeviceList(shiftMetrics, deviceInfoMap, topN,
+                        DeviceMetricSummaryDO::getPerformance));
+
+                // OEE指标TopN
+                respVO.setOee(buildTopNDeviceList(shiftMetrics, deviceInfoMap, topN,
+                        DeviceMetricSummaryDO::getOee));
+
+                // 设备开动率TopN（utilizationRate）
+                respVO.setUtilizationRate(buildTopNDeviceList(shiftMetrics, deviceInfoMap, topN,
+                        DeviceMetricSummaryDO::getUtilizationRate));
+
+                // 停机率TopN（100 - availability，降序排列）
+                respVO.setDowntimeRate(buildDowntimeRateTopN(shiftMetrics, deviceInfoMap, topN));
+
+                result.add(respVO);
+            }
+
+            // 按班次编码排序
+            result.sort(Comparator.comparing(MetricDeviceDataRespVO::getShiftCode));
+        }
 
         return result;
     }
