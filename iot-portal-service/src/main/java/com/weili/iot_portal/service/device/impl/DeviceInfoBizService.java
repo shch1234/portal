@@ -517,29 +517,29 @@ public class DeviceInfoBizService implements IDeviceInfoBizService {
     /**
      * 组装设备类型信息
      * 逻辑：
-     * 1. device_info.device_type_code 存储的是主类型编码（如 MACHINE_TOOL）
-     * 2. device_model.device_type_code 存储的是子类型编码（如 CNC_MACHINING_CENTER）
-     * 3. 需要分别查询主类型和子类型，设置对应的编码和名称
+     * 1. device_info.device_type_code 存储的是子类型编码（如 CNC_MACHINING_CENTER）
+     * 2. 通过子类型编码查询 device_type_relation 表获取：
+     *    - 子类型名称（description）
+     *    - 父类型编码（parent_type_code）
+     * 3. 通过父类型编码查询父类型信息，获取父类型名称（description）
      */
     private void assembleDeviceTypeInfo(DeviceInfoRespVO respVO) {
-        // 1. 查询主类型（device_info.device_type_code）
+        // device_info.device_type_code 存储的是子类型编码
         if (StringUtils.isNotBlank(respVO.getDeviceTypeCode())) {
-            DeviceTypeRelationDO mainTypeDO = deviceTypeRelationBizService.getDeviceTypeRelationByCode(respVO.getDeviceTypeCode());
-            if (mainTypeDO != null) {
-                // 设置主类型名称
-                respVO.setDeviceTypeName(mainTypeDO.getDescription());
+            // 1. 查询子类型信息
+            DeviceTypeRelationDO subTypeDO = deviceTypeRelationBizService.getDeviceTypeRelationByCode(respVO.getDeviceTypeCode());
+            if (subTypeDO != null) {
+                // 设置子类型编码和名称
+                respVO.setDeviceSubTypeCode(subTypeDO.getTypeCode());
+                respVO.setDeviceSubTypeName(subTypeDO.getDescription());
                 
-                // 2. 如果设备有型号，通过型号查询子类型（device_model.device_type_code）
-                if (respVO.getDeviceModelId() != null) {
-                    DeviceModelDO deviceModel = deviceModelBizService.getDeviceModel(respVO.getDeviceModelId());
-                    if (deviceModel != null && StringUtils.isNotBlank(deviceModel.getDeviceTypeCode())) {
-                        // 查询子类型
-                        DeviceTypeRelationDO subTypeDO = deviceTypeRelationBizService.getDeviceTypeRelationByCode(deviceModel.getDeviceTypeCode());
-                        if (subTypeDO != null) {
-                            // 设置子类型编码和名称
-                            respVO.setDeviceSubTypeCode(subTypeDO.getTypeCode());
-                            respVO.setDeviceSubTypeName(subTypeDO.getDescription());
-                        }
+                // 2. 通过子类型的 parent_type_code 查询父类型信息
+                if (StringUtils.isNotBlank(subTypeDO.getParentTypeCode())) {
+                    DeviceTypeRelationDO parentTypeDO = deviceTypeRelationBizService.getDeviceTypeRelationByCode(subTypeDO.getParentTypeCode());
+                    if (parentTypeDO != null) {
+                        // 设置父类型编码和名称
+                        respVO.setDeviceTypeCode(parentTypeDO.getTypeCode());
+                        respVO.setDeviceTypeName(parentTypeDO.getDescription());
                     }
                 }
             }
