@@ -69,11 +69,12 @@ public class DeviceAlarmHistoryRepositoryImpl implements DeviceAlarmHistoryRepos
         if (query.getIsActive() != null) {
             wrapper.eq(DeviceAlarmHistoryDO::getIsActive, query.getIsActive());
         }
+        // 时间范围查询：startTime 查询 startTs >= startTime 的记录，endTime 查询 startTs <= endTime 的记录
         if (query.getStartTime() != null) {
-            wrapper.eq(DeviceAlarmHistoryDO::getStartTs, query.getStartTime());
+            wrapper.ge(DeviceAlarmHistoryDO::getStartTs, query.getStartTime());
         }
         if (query.getEndTime() != null) {
-            wrapper.eq(DeviceAlarmHistoryDO::getEndTs, query.getEndTime());
+            wrapper.le(DeviceAlarmHistoryDO::getStartTs, query.getEndTime());
         }
         wrapper.orderByDesc(DeviceAlarmHistoryDO::getStartTs);
         Page<DeviceAlarmHistoryDO> result = mapper.selectPage(page, wrapper);

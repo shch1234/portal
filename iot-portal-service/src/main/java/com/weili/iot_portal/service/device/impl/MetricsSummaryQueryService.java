@@ -19,6 +19,7 @@ import com.weili.iot_portal.service.cache.FactoryMetricsCacheService;
 import com.weili.iot_portal.service.device.IMetricsSummaryQueryService;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -372,14 +373,37 @@ public class MetricsSummaryQueryService implements IMetricsSummaryQueryService {
         Long orgFactoryId = reqVO.getOrgFactoryId();
         LocalDate shiftDate = reqVO.getStartTime();
         Integer shiftCode = reqVO.getShiftCode();
+        String deviceCode = reqVO.getDeviceCode();
         int topN = reqVO.getTop() != null ? reqVO.getTop() : 5;
         if (shiftDate == null) {
             shiftDate = LocalDate.now();
         }
 
-        // 查询指定日期的班次数据（如果指定了班次编码，则只查询该班次）
+        // 如果指定了设备编码，先查询设备ID
+        final Long deviceInfoId;
+        if (StringUtils.isNotBlank(deviceCode)) {
+            Optional<DeviceInfoDO> deviceInfo = deviceInfoRepository.findByDeviceCode(deviceCode);
+            if (deviceInfo.isEmpty()) {
+                // 如果设备不存在，返回空结果
+                return new ArrayList<>();
+            }
+            deviceInfoId = deviceInfo.get().getId();
+        } else {
+            deviceInfoId = null;
+        }
+
+        // 查询指定日期的班次数据
+        // 筛选条件：orgFactoryId（工厂ID，为null时查询所有工厂）、shiftDate（班次日期）、shiftCode（班次编码，为null时查询所有班次）
         List<DeviceMetricSummaryDO> allMetrics = deviceMetricSummaryRepository
                 .selectByFactoryAndShift(orgFactoryId, shiftDate, shiftCode);
+
+        // 如果指定了设备编码，过滤出该设备的数据
+        if (deviceInfoId != null) {
+            final Long finalDeviceInfoId = deviceInfoId;
+            allMetrics = allMetrics.stream()
+                    .filter(metric -> finalDeviceInfoId.equals(metric.getDeviceInfoId()))
+                    .collect(Collectors.toList());
+        }
 
         if (allMetrics.isEmpty()) {
             return new ArrayList<>();

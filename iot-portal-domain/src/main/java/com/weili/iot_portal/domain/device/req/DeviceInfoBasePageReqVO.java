@@ -47,5 +47,8 @@ public class DeviceInfoBasePageReqVO extends PageParam {
 
     @Schema(description = "是否监控：true-监控 false-不监控", example = "true")
     private Boolean isMonitored;
+
+    @Schema(description = "是否有报警：1-有报警 0-无报警", example = "1")
+    private Integer hasAlarm;
 }
 
