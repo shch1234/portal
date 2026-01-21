@@ -17,6 +17,7 @@ import com.weili.iot_portal.domain.ingestion.RealtimeMetricSnapshot;
 import com.weili.iot_portal.service.cache.DeviceMetricsCacheService;
 import com.weili.iot_portal.service.cache.FactoryMetricsCacheService;
 import com.weili.iot_portal.service.device.IMetricsSummaryQueryService;
+import com.weili.iot_portal.service.shift.IShiftCalculationService;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -49,6 +50,8 @@ public class MetricsSummaryQueryService implements IMetricsSummaryQueryService {
     private FactoryMetricsCacheService factoryMetricsCacheService;
     @Resource
     private FactoryMetricSummaryRepository factoryMetricSummaryRepository;
+    @Resource
+    private IShiftCalculationService shiftCalculationService;
 
     @Override
     public MetricStatisticsRespVO getDeviceMetricStatistics(MetricStatisticsReqVO queryReqVO) {
@@ -60,15 +63,7 @@ public class MetricsSummaryQueryService implements IMetricsSummaryQueryService {
         }
         DeviceInfoDO deviceInfoDO = optional.get();
 
-        // 1. 当前指标值：从缓存获取实时指标快照
-        Optional<RealtimeMetricSnapshot> snapshotOptional = deviceMetricsCacheService.getDeviceRealtimeMetrics(deviceInfoDO.getOrgFactoryId(), deviceInfoId);
-        RealtimeMetricSnapshot snapshot = snapshotOptional.orElse(RealtimeMetricSnapshot.empty());
-
-        // 将实时指标快照转换为 MetricDetailVO
-        MetricStatisticsRespVO.MetricDetailVO currentMetric = convertSnapshotToMetricDetail(snapshot);
-        respVO.setCurrentMetricValue(currentMetric);
-
-        // 2. 指标明细列表：根据是否传参决定查询范围
+        // 1. 指标明细列表：根据是否传参决定查询范围
         LocalDate[] dateRange = calculateDateRange(queryReqVO.getStartTime(), queryReqVO.getEndTime());
         LocalDate startShiftDate = dateRange[0];
         LocalDate endShiftDate = dateRange[1];
@@ -95,6 +90,35 @@ public class MetricsSummaryQueryService implements IMetricsSummaryQueryService {
                 DeviceMetricSummaryDO::getFaultRate
         );
 
+        // 2. 如果明细列表中包含今天的日期，用当前实时指标值替换今天的数据
+        LocalDate todayShiftDate = shiftCalculationService.getShiftDate(
+                deviceInfoDO.getOrgFactoryId(), deviceInfoId, System.currentTimeMillis());
+        if (todayShiftDate != null) {
+            // 从缓存获取实时指标快照
+            Optional<RealtimeMetricSnapshot> snapshotOptional = deviceMetricsCacheService.getDeviceRealtimeMetrics(
+                    deviceInfoDO.getOrgFactoryId(), deviceInfoId);
+            if (snapshotOptional.isPresent()) {
+                RealtimeMetricSnapshot snapshot = snapshotOptional.get();
+                MetricStatisticsRespVO.MetricDetailVO currentMetric = convertSnapshotToMetricDetail(snapshot);
+                
+                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("MM-dd");
+                String todayLabel = todayShiftDate.format(formatter);
+                
+                // 查找今天的数据并替换
+                for (MetricStatisticsRespVO.MetricDetailVO detail : detailList) {
+                    if (todayLabel.equals(detail.getDateLabel())) {
+                        // 用当前实时指标值替换今天的数据
+                        detail.setOee(currentMetric.getOee());
+                        detail.setAvailability(currentMetric.getAvailability());
+                        detail.setPerformance(currentMetric.getPerformance());
+                        detail.setUtilizationRate(currentMetric.getUtilizationRate());
+                        detail.setDowntimeRate(currentMetric.getDowntimeRate());
+                        break;
+                    }
+                }
+            }
+        }
+
         respVO.setMetricDetails(detailList);
         return respVO;
     }
@@ -108,19 +132,7 @@ public class MetricsSummaryQueryService implements IMetricsSummaryQueryService {
             throw new IotPortalException(IotPortalErrorCode.FACTORY_ID_EMPTY);
         }
 
-        // 1. 当前指标值：从缓存获取工厂实时指标快照
-        Optional<FactoryRealtimeMetricSnapshot> snapshotOptional =
-                factoryMetricsCacheService.getFactoryRealtimeMetrics(orgFactoryId);
-        FactoryRealtimeMetricSnapshot snapshot =
-                snapshotOptional.orElse(null);
-
-        // 将工厂实时指标快照转换为 MetricDetailVO
-        MetricStatisticsRespVO.MetricDetailVO currentMetric = snapshot != null
-                ? convertFactorySnapshotToMetricDetail(snapshot)
-                : new MetricStatisticsRespVO.MetricDetailVO();
-        respVO.setCurrentMetricValue(currentMetric);
-
-        // 2. 指标明细列表：根据是否传参决定查询范围
+        // 1. 指标明细列表：根据是否传参决定查询范围
         LocalDate[] dateRange = calculateDateRange(reqVO.getStartTime(), reqVO.getEndTime());
         LocalDate startShiftDate = dateRange[0];
         LocalDate endShiftDate = dateRange[1];
@@ -147,6 +159,41 @@ public class MetricsSummaryQueryService implements IMetricsSummaryQueryService {
                 FactoryMetricSummaryDO::getAverageUtilizationRate,
                 FactoryMetricSummaryDO::getAverageFaultRate
         );
+
+        // 2. 如果明细列表中包含今天的日期，用当前实时指标值替换今天的数据
+        // 获取工厂下的一个设备来获取班次日期（工厂下所有设备的班次日期应该相同）
+        List<DeviceInfoDO> factoryDevices = deviceInfoRepository.findMonitoredDevices(orgFactoryId);
+        if (!factoryDevices.isEmpty()) {
+            DeviceInfoDO sampleDevice = factoryDevices.get(0);
+            LocalDate todayShiftDate = shiftCalculationService.getShiftDate(
+                    orgFactoryId, sampleDevice.getId(), System.currentTimeMillis());
+            if (todayShiftDate != null) {
+                // 从缓存获取工厂实时指标快照
+                Optional<FactoryRealtimeMetricSnapshot> snapshotOptional = 
+                        factoryMetricsCacheService.getFactoryRealtimeMetrics(orgFactoryId);
+                if (snapshotOptional.isPresent()) {
+                    FactoryRealtimeMetricSnapshot snapshot = snapshotOptional.get();
+                    MetricStatisticsRespVO.MetricDetailVO currentMetric = 
+                            convertFactorySnapshotToMetricDetail(snapshot);
+                    
+                    DateTimeFormatter formatter = DateTimeFormatter.ofPattern("MM-dd");
+                    String todayLabel = todayShiftDate.format(formatter);
+                    
+                    // 查找今天的数据并替换
+                    for (MetricStatisticsRespVO.MetricDetailVO detail : detailList) {
+                        if (todayLabel.equals(detail.getDateLabel())) {
+                            // 用当前实时指标值替换今天的数据
+                            detail.setOee(currentMetric.getOee());
+                            detail.setAvailability(currentMetric.getAvailability());
+                            detail.setPerformance(currentMetric.getPerformance());
+                            detail.setUtilizationRate(currentMetric.getUtilizationRate());
+                            detail.setDowntimeRate(currentMetric.getDowntimeRate());
+                            break;
+                        }
+                    }
+                }
+            }
+        }
 
         respVO.setMetricDetails(detailList);
         return respVO;
@@ -291,29 +338,50 @@ public class MetricsSummaryQueryService implements IMetricsSummaryQueryService {
     /**
      * 将实时指标快照转换为 MetricDetailVO
      * <p>
-     * 实时指标快照已经是百分比形式（0-1），需要转换为（0-100）
+     * 注意：Redis中存储的实时指标快照已经是百分比形式（0-100），不需要再次转换
+     * 因为 DeviceMetricsService.convertToPercentages 已经将 0-1 范围的值转换为百分比
      *
-     * @param snapshot 实时指标快照
+     * @param snapshot 实时指标快照（值已经是百分比形式 0-100）
      * @return MetricDetailVO
      */
     private MetricStatisticsRespVO.MetricDetailVO convertSnapshotToMetricDetail(RealtimeMetricSnapshot snapshot) {
         MetricStatisticsRespVO.MetricDetailVO detail = new MetricStatisticsRespVO.MetricDetailVO();
-        // OEE（整体设备效率）：已经是 0-1 范围，转换为百分比 0-100
-        detail.setOee(toPercentage(snapshot.getOee()));
+        // OEE（整体设备效率）：已经是百分比形式（0-100），直接使用
+        detail.setOee(normalizeMetricValue(snapshot.getOee()));
 
         // 时间开动率（可用率）：availabilityRate -> availability
-        detail.setAvailability(toPercentage(snapshot.getAvailabilityRate()));
+        detail.setAvailability(normalizeMetricValue(snapshot.getAvailabilityRate()));
 
         // 性能开动率（性能率）：performanceRate -> performance
-        detail.setPerformance(toPercentage(snapshot.getPerformanceRate()));
+        detail.setPerformance(normalizeMetricValue(snapshot.getPerformanceRate()));
 
         // 设备开动率（设备利用率）：uptimeRate -> utilizationRate
-        detail.setUtilizationRate(toPercentage(snapshot.getUptimeRate()));
+        detail.setUtilizationRate(normalizeMetricValue(snapshot.getUptimeRate()));
 
         // 停机率：faultRate -> downtimeRate（使用故障率）
-        detail.setDowntimeRate(toPercentage(snapshot.getFaultRate()));
+        detail.setDowntimeRate(normalizeMetricValue(snapshot.getFaultRate()));
 
         return detail;
+    }
+
+    /**
+     * 规范化指标值（确保是百分比形式 0-100）
+     * <p>
+     * Redis中存储的实时指标快照已经是百分比形式（0-100），因为：
+     * 1. DeviceMetricsService.convertToPercentages 已将 0-1 范围的值乘以 100
+     * 2. FactoryRealtimeMetricsService 聚合设备级指标时，累加和计算的都是百分比值
+     * <p>
+     * 因此，这里只需要直接使用 Redis 中的值，保留1位小数即可
+     *
+     * @param value 指标值（已经是百分比形式 0-100）
+     * @return 规范化后的百分比值（0-100，保留1位小数）
+     */
+    private BigDecimal normalizeMetricValue(BigDecimal value) {
+        if (value == null) {
+            return BigDecimal.ZERO;
+        }
+        // Redis 中存储的值已经是百分比形式（0-100），直接返回（保留1位小数）
+        return value.setScale(1, RoundingMode.HALF_UP);
     }
 
     /**
@@ -333,27 +401,28 @@ public class MetricsSummaryQueryService implements IMetricsSummaryQueryService {
     /**
      * 将工厂实时指标快照转换为 MetricDetailVO
      * <p>
-     * 工厂实时指标快照已经是百分比形式（0-1），需要转换为（0-100）
+     * 注意：Redis中存储的工厂实时指标快照已经是百分比形式（0-100），不需要再次转换
+     * 因为 FactoryRealtimeMetricsService 已经将 0-1 范围的值转换为百分比
      *
-     * @param snapshot 工厂实时指标快照
+     * @param snapshot 工厂实时指标快照（值已经是百分比形式 0-100）
      * @return MetricDetailVO
      */
     private MetricStatisticsRespVO.MetricDetailVO convertFactorySnapshotToMetricDetail(FactoryRealtimeMetricSnapshot snapshot) {
         MetricStatisticsRespVO.MetricDetailVO detail = new MetricStatisticsRespVO.MetricDetailVO();
-        // OEE（整体设备效率）：已经是 0-1 范围，转换为百分比 0-100
-        detail.setOee(toPercentage(snapshot.getOee()));
+        // OEE（整体设备效率）：已经是百分比形式（0-100），直接使用
+        detail.setOee(normalizeMetricValue(snapshot.getOee()));
 
         // 时间开动率（可用率）：availabilityRate -> availability
-        detail.setAvailability(toPercentage(snapshot.getAvailabilityRate()));
+        detail.setAvailability(normalizeMetricValue(snapshot.getAvailabilityRate()));
 
         // 性能开动率（性能率）：performanceRate -> performance
-        detail.setPerformance(toPercentage(snapshot.getPerformanceRate()));
+        detail.setPerformance(normalizeMetricValue(snapshot.getPerformanceRate()));
 
         // 设备开动率（设备利用率）：uptimeRate -> utilizationRate
-        detail.setUtilizationRate(toPercentage(snapshot.getUptimeRate()));
+        detail.setUtilizationRate(normalizeMetricValue(snapshot.getUptimeRate()));
 
         // 停机率：faultRate -> downtimeRate（使用故障率）
-        detail.setDowntimeRate(toPercentage(snapshot.getFaultRate()));
+        detail.setDowntimeRate(normalizeMetricValue(snapshot.getFaultRate()));
 
         return detail;
     }

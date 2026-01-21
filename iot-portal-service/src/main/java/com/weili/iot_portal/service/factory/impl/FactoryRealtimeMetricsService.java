@@ -7,12 +7,18 @@ import com.weili.iot_portal.service.cache.FactoryMetricsCacheService;
 import com.weili.iot_portal.service.device.ICheckpointService;
 import com.weili.iot_portal.service.device.IDeviceMetricsService;
 import com.weili.iot_portal.service.shift.IShiftCalculationService;
+import com.weili.iot_portal.service.shift.IShiftConfigService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -31,10 +37,12 @@ public class FactoryRealtimeMetricsService {
     private static final long MILLIS_PER_SECOND = 1000L;
     private static final int DECIMAL_SCALE = 4;
     private static final long MAX_TIMESTAMP_DIFF_SECONDS = 600L; // 10分钟
+    private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm:ss");
 
     private final DeviceInfoRepository deviceInfoRepository;
     private final ICheckpointService<CheckpointData> checkpointService;
     private final IShiftCalculationService shiftCalculationService;
+    private final IShiftConfigService shiftConfigService;
     private final IDeviceMetricsService deviceMetricsService;
     private final FactoryMetricsCacheService factoryMetricsCacheService;
 
@@ -43,11 +51,13 @@ public class FactoryRealtimeMetricsService {
             @Qualifier("factoryMetricsCheckpointService")
             ICheckpointService<CheckpointData> checkpointService,
             IShiftCalculationService shiftCalculationService,
+            IShiftConfigService shiftConfigService,
             IDeviceMetricsService deviceMetricsService,
             FactoryMetricsCacheService factoryMetricsCacheService) {
         this.deviceInfoRepository = deviceInfoRepository;
         this.checkpointService = checkpointService;
         this.shiftCalculationService = shiftCalculationService;
+        this.shiftConfigService = shiftConfigService;
         this.deviceMetricsService = deviceMetricsService;
         this.factoryMetricsCacheService = factoryMetricsCacheService;
     }
@@ -242,18 +252,41 @@ public class FactoryRealtimeMetricsService {
     }
 
     /**
-     * 计算计划运行时长（秒）
+     * 计算权重（秒）
+     * <p>
+     * 工厂级实时指标权重计算：计算从班次日期第一个班次开始时间到当前时间的"已过日历时长"。
+     * 这与设备级实时指标计算保持一致，使用已过时长作为权重。
+     * </p>
      */
     private long calculatePlannedDurationSeconds(Long factoryId, Long deviceId, long calcTimeSeconds) {
         long calcTimeMs = secondsToMillis(calcTimeSeconds);
-        ShiftTimeRange shift = shiftCalculationService.calculateShiftRange(factoryId, deviceId, calcTimeMs);
-        if (shift == null || shift.getStartTs() == null) {
+        
+        // 1. 获取当前时间对应的班次日期（考虑跨天班次）
+        LocalDate shiftDate = shiftCalculationService.getShiftDate(factoryId, deviceId, calcTimeMs);
+        if (shiftDate == null) {
+            log.debug("工厂实时指标权重计算: 无法计算班次日期，返回0: factoryId={}, deviceId={}", 
+                    factoryId, deviceId);
             return 0;
         }
-        long startSec = shift.getStartTs() / MILLIS_PER_SECOND;
-        long endSec = (shift.getEndTs() != null && shift.getEndTs() <= calcTimeMs 
-                ? shift.getEndTs() : calcTimeMs) / MILLIS_PER_SECOND;
-        return Math.max(0, endSec - startSec);
+        
+        // 2. 获取班次配置，找到第一个班次的开始时间
+        com.weili.iot_portal.dal.dataobject.device.DeviceShiftConfigDO shiftConfig = 
+                shiftConfigService.getCurrentConfiguration(factoryId, deviceId, calcTimeMs);
+        if (shiftConfig == null || shiftConfig.getShifts() == null || shiftConfig.getShifts().isEmpty()) {
+            log.debug("工厂实时指标权重计算: 无法获取班次配置，返回0: factoryId={}, deviceId={}", 
+                    factoryId, deviceId);
+            return 0;
+        }
+        
+        // 3. 使用工具类计算已过日历时长
+        com.weili.iot_portal.dal.dataobject.device.DeviceShiftDefinition firstShift = shiftConfig.getShifts().get(0);
+        return com.weili.iot_portal.service.device.util.StateDurationUtils.calculateElapsedCalendarSeconds(
+                shiftDate,
+                firstShift.getStartTime(),
+                firstShift.getEndTime(),
+                firstShift.getCrossDay(),
+                calcTimeMs
+        );
     }
 
     /**

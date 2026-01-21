@@ -13,9 +13,6 @@ import java.util.List;
 @Data
 public class MetricStatisticsRespVO {
 
-    @Schema(description = "当前指标值（根据查询类型返回对应指标的当前值，百分比形式 0-100）", example = "50.0")
-    private MetricDetailVO currentMetricValue;
-
     @Schema(description = "指标明细列表（按日期展示）")
     private List<MetricDetailVO> metricDetails;
 

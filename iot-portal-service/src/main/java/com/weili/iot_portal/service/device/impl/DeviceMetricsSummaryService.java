@@ -10,6 +10,8 @@ import com.weili.iot_portal.domain.metrics.MetricCalculationResult;
 import com.weili.iot_portal.domain.metrics.MetricCalculator;
 import com.weili.iot_portal.service.device.ICheckpointService;
 import com.weili.iot_portal.service.device.IDeviceMetricsSummaryService;
+import com.weili.iot_portal.service.device.util.StateDurationUtils;
+import com.weili.iot_portal.service.device.util.StateDurationUtils.StateDurations;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
@@ -814,14 +816,15 @@ public class DeviceMetricsSummaryService implements IDeviceMetricsSummaryService
         long plannedDowntimeMillis = secondsToMillis(plannedDowntimeSeconds);
         long plannedRuntimeMillis = Math.max(0, shiftDurationMillis - plannedDowntimeMillis);
 
-        // 状态时长（单位：毫秒）
-        long standbyMillis = getSafe(stateSummary.getStandbyDurationS());
-        long faultMillis = getSafe(stateSummary.getFaultDurationS());
-        long shutdownMillis = getSafe(stateSummary.getShutdownDurationS());
-        long workingMillis = getSafe(stateSummary.getWorkingDurationS());
+        // 使用工具类提取状态时长（单位：毫秒）
+        StateDurations stateDurations = StateDurationUtils.extractStateDurations(stateSummary);
+        long standbyMillis = stateDurations.getStandbyMillis();
+        long faultMillis = stateDurations.getFaultMillis();
+        long shutdownMillis = stateDurations.getShutdownMillis();
+        long workingMillis = stateDurations.getWorkingMillis();
 
-        // 非计划停机时长（单位：毫秒）
-        long unplannedDowntimeMillis = standbyMillis + faultMillis + shutdownMillis;
+        // 使用工具类计算非计划停机时长（单位：毫秒）
+        long unplannedDowntimeMillis = stateDurations.getUnplannedDowntimeMillis();
 
         // 实际运行时长（单位：毫秒）= 计划运行时长 - 非计划停机时长
         long actualRuntimeMillis = Math.max(0, plannedRuntimeMillis - unplannedDowntimeMillis);
