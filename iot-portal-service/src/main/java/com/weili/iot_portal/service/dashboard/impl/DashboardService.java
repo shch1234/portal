@@ -282,20 +282,24 @@ public class DashboardService implements IDashboardService {
             BigDecimal value = BigDecimal.ZERO;
 
             if (dayData != null && !dayData.isEmpty()) {
-                // 计算当天所有班次的平均值
+                // 计算当天所有班次的平均值（数据库存储的是小数格式 0-1）
+                BigDecimal averageValue = BigDecimal.ZERO;
                 if (METRIC_TYPE_OEE.equals(metricType)) {
-                    value = dayData.stream()
+                    averageValue = dayData.stream()
                             .map(FactoryMetricSummaryDO::getAverageOee)
                             .filter(Objects::nonNull)
                             .reduce(BigDecimal.ZERO, BigDecimal::add)
                             .divide(BigDecimal.valueOf(dayData.size()), 4, RoundingMode.HALF_UP);
                 } else if (METRIC_TYPE_UTILIZATION.equals(metricType)) {
-                    value = dayData.stream()
+                    averageValue = dayData.stream()
                             .map(FactoryMetricSummaryDO::getAverageUtilizationRate)
                             .filter(Objects::nonNull)
                             .reduce(BigDecimal.ZERO, BigDecimal::add)
                             .divide(BigDecimal.valueOf(dayData.size()), 4, RoundingMode.HALF_UP);
                 }
+                // 转换为百分比形式（0-100），保留1位小数
+                value = averageValue.multiply(BigDecimal.valueOf(100))
+                        .setScale(1, RoundingMode.HALF_UP);
             }
 
             yAxis.add(value);
