@@ -133,7 +133,10 @@ public class FactoryRealtimeMetricsService {
                 batchSize, timeoutMillis, processedIds);
         
         // 设置总设备数（用于计算数据完整性）
-        result.totalDevices = devices.size();
+        // result.totalDevices = devices.size();
+        // 注意：只统计有实时指标数据的设备数，与数据库存储逻辑保持一致
+        // 数据库存储时，totalDevices 只包含有设备指标汇总数据的设备数
+        result.totalDevices = result.validDevices;
 
         // 4. 持久化结果
         if (result.isCompleted()) {

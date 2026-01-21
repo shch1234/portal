@@ -391,19 +391,31 @@ public class MetricsSummaryQueryService implements IMetricsSummaryQueryService {
     private MetricStatisticsRespVO.MetricDetailVO convertFactorySnapshotToMetricDetail(FactoryRealtimeMetricSnapshot snapshot) {
         MetricStatisticsRespVO.MetricDetailVO detail = new MetricStatisticsRespVO.MetricDetailVO();
         // OEE（整体设备效率）：Redis中是小数（0-1），转换为百分比（0-100）
-        detail.setOee(toPercentage(snapshot.getOee()));
+        BigDecimal oeePercent = toPercentage(snapshot.getOee());
+        detail.setOee(oeePercent);
 
         // 时间开动率（可用率）：availabilityRate -> availability
-        detail.setAvailability(toPercentage(snapshot.getAvailabilityRate()));
+        BigDecimal availabilityPercent = toPercentage(snapshot.getAvailabilityRate());
+        detail.setAvailability(availabilityPercent);
 
         // 性能开动率（性能率）：performanceRate -> performance
-        detail.setPerformance(toPercentage(snapshot.getPerformanceRate()));
+        BigDecimal performancePercent = toPercentage(snapshot.getPerformanceRate());
+        detail.setPerformance(performancePercent);
 
         // 设备开动率（设备利用率）：uptimeRate -> utilizationRate
-        detail.setUtilizationRate(toPercentage(snapshot.getUptimeRate()));
+        BigDecimal utilizationPercent = toPercentage(snapshot.getUptimeRate());
+        detail.setUtilizationRate(utilizationPercent);
 
         // 停机率：faultRate -> downtimeRate（使用故障率）
-        detail.setDowntimeRate(toPercentage(snapshot.getFaultRate()));
+        BigDecimal downtimePercent = toPercentage(snapshot.getFaultRate());
+        detail.setDowntimeRate(downtimePercent);
+
+        // 调试日志：记录从Redis读取的原始值（小数格式）和转换后的百分比值
+        log.debug("工厂实时指标转换: 原始值(小数) oee={}, availability={}, performance={}, utilization={}, fault={}, " +
+                        "转换后(百分比) oee={}, availability={}, performance={}, utilization={}, fault={}",
+                snapshot.getOee(), snapshot.getAvailabilityRate(), snapshot.getPerformanceRate(),
+                snapshot.getUptimeRate(), snapshot.getFaultRate(),
+                oeePercent, availabilityPercent, performancePercent, utilizationPercent, downtimePercent);
 
         return detail;
     }
