@@ -293,11 +293,19 @@ public class FactoryRealtimeMetricsService {
      * 写入工厂实时指标到缓存（通过缓存服务）
      */
     private void writeFactoryRealtimeMetrics(Long factoryId, AggregationResult result, long updatedAtSec) {
-        BigDecimal oee = calculateWeightedAverage(result.sumOee, result.sumWeight);
-        BigDecimal uptime = calculateWeightedAverage(result.sumUptime, result.sumWeight);
-        BigDecimal perf = calculateWeightedAverage(result.sumPerf, result.sumWeight);
-        BigDecimal avail = calculateWeightedAverage(result.sumAvail, result.sumWeight);
-        BigDecimal fault = calculateWeightedAverage(result.sumFault, result.sumWeight);
+        // 计算加权平均值（结果是百分比形式 0-100）
+        BigDecimal oeePercent = calculateWeightedAverage(result.sumOee, result.sumWeight);
+        BigDecimal uptimePercent = calculateWeightedAverage(result.sumUptime, result.sumWeight);
+        BigDecimal perfPercent = calculateWeightedAverage(result.sumPerf, result.sumWeight);
+        BigDecimal availPercent = calculateWeightedAverage(result.sumAvail, result.sumWeight);
+        BigDecimal faultPercent = calculateWeightedAverage(result.sumFault, result.sumWeight);
+
+        // 转换为小数形式（0-1范围），与数据库字段格式保持一致
+        BigDecimal oee = oeePercent.divide(BigDecimal.valueOf(100), DECIMAL_SCALE, RoundingMode.HALF_UP);
+        BigDecimal uptime = uptimePercent.divide(BigDecimal.valueOf(100), DECIMAL_SCALE, RoundingMode.HALF_UP);
+        BigDecimal perf = perfPercent.divide(BigDecimal.valueOf(100), DECIMAL_SCALE, RoundingMode.HALF_UP);
+        BigDecimal avail = availPercent.divide(BigDecimal.valueOf(100), DECIMAL_SCALE, RoundingMode.HALF_UP);
+        BigDecimal fault = faultPercent.divide(BigDecimal.valueOf(100), DECIMAL_SCALE, RoundingMode.HALF_UP);
 
         BigDecimal dataCompleteness = result.totalDevices == 0
                 ? BigDecimal.ZERO

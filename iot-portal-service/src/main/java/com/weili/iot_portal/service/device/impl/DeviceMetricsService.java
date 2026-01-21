@@ -25,6 +25,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -597,21 +598,23 @@ public class DeviceMetricsService implements IDeviceMetricsService {
     }
     
     /**
-     * 将指标计算结果转换为百分比形式（用于Redis存储）
+     * 将指标计算结果转换为小数形式（用于Redis存储，统一存储为0-1范围的小数）
      * 
      * @param result 指标计算结果
-     * @return 百分比形式的指标
+     * @return 小数形式的指标（0-1范围）
      */
     private RealtimeMetricsPercentages convertToPercentages(MetricCalculationResult result) {
-        // 从 metrics Map 中获取 faultRate（已经是百分比形式）
-        BigDecimal faultRate = extractFaultRateFromMetrics(result.getMetrics());
+        // 从 metrics Map 中获取 faultRate（百分比形式），需要除以100转换为小数（0-1）
+        BigDecimal faultRatePercent = extractFaultRateFromMetrics(result.getMetrics());
+        BigDecimal faultRate = faultRatePercent.divide(PERCENTAGE_MULTIPLIER, 4, RoundingMode.HALF_UP);
         
+        // 所有指标统一存储为小数形式（0-1范围），与数据库字段格式保持一致
         return new RealtimeMetricsPercentages(
-                result.getAvailability().multiply(PERCENTAGE_MULTIPLIER),      // Uptime Rate
-                result.getPerformance().multiply(PERCENTAGE_MULTIPLIER),        // Performance Rate
-                faultRate,                                                     // Fault Rate (已经是百分比)
-                result.getOee().multiply(PERCENTAGE_MULTIPLIER),               // OEE
-                result.getUtilizationRate().multiply(PERCENTAGE_MULTIPLIER)    // Availability Rate
+                result.getAvailability(),      // Availability: 小数（0-1）
+                result.getPerformance(),        // Performance: 小数（0-1）
+                faultRate,                     // Fault Rate: 小数（0-1）
+                result.getOee(),               // OEE: 小数（0-1）
+                result.getUtilizationRate()     // Utilization Rate: 小数（0-1）
         );
     }
     
@@ -619,7 +622,7 @@ public class DeviceMetricsService implements IDeviceMetricsService {
      * 从 metrics Map 中提取故障率
      * 
      * @param metrics 指标Map
-     * @return 故障率（百分比），如果不存在则返回0
+     * @return 故障率（百分比形式 0-100），如果不存在则返回0
      */
     private BigDecimal extractFaultRateFromMetrics(Map<String, Object> metrics) {
         if (metrics == null) {

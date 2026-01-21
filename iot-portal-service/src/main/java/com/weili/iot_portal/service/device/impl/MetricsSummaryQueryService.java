@@ -272,17 +272,15 @@ public class MetricsSummaryQueryService implements IMetricsSummaryQueryService {
 
             List<T> dayMetrics = dailyMetricsMap.get(date);
             if (dayMetrics != null && !dayMetrics.isEmpty()) {
-                // 计算当天各指标的平均值
+                // 计算当天各指标的平均值（已转换为百分比形式 0-100）
                 detail.setOee(calculateAverage(dayMetrics, oeeGetter));
                 detail.setAvailability(calculateAverage(dayMetrics, availabilityGetter));
                 detail.setPerformance(calculateAverage(dayMetrics, performanceGetter));
                 detail.setUtilizationRate(calculateAverage(dayMetrics, utilizationRateGetter));
 
-                // 停机率：使用故障率（从数据库字段faultRate读取，转换为百分比）
+                // 停机率：使用故障率（从数据库字段faultRate读取，calculateAverage已转换为百分比形式 0-100）
                 BigDecimal faultRate = calculateAverage(dayMetrics, faultRateGetter);
-                detail.setDowntimeRate(faultRate != null 
-                        ? faultRate.multiply(BigDecimal.valueOf(100)).setScale(1, RoundingMode.HALF_UP)
-                        : BigDecimal.ZERO);
+                detail.setDowntimeRate(faultRate != null ? faultRate : BigDecimal.ZERO);
             } else {
                 // 没有数据的日期，设置为0
                 setDefaultMetricValues(detail);
@@ -338,57 +336,40 @@ public class MetricsSummaryQueryService implements IMetricsSummaryQueryService {
     /**
      * 将实时指标快照转换为 MetricDetailVO
      * <p>
-     * 注意：Redis中存储的实时指标快照已经是百分比形式（0-100），不需要再次转换
-     * 因为 DeviceMetricsService.convertToPercentages 已经将 0-1 范围的值转换为百分比
+     * 注意：Redis中存储的实时指标快照是小数形式（0-1），需要转换为百分比形式（0-100）返回
+     * 与数据库字段格式保持一致（数据库存储小数，接口返回百分比）
      *
-     * @param snapshot 实时指标快照（值已经是百分比形式 0-100）
-     * @return MetricDetailVO
+     * @param snapshot 实时指标快照（值是小数形式 0-1）
+     * @return MetricDetailVO（值是百分比形式 0-100）
      */
     private MetricStatisticsRespVO.MetricDetailVO convertSnapshotToMetricDetail(RealtimeMetricSnapshot snapshot) {
         MetricStatisticsRespVO.MetricDetailVO detail = new MetricStatisticsRespVO.MetricDetailVO();
-        // OEE（整体设备效率）：已经是百分比形式（0-100），直接使用
-        detail.setOee(normalizeMetricValue(snapshot.getOee()));
+        // OEE（整体设备效率）：Redis中是小数（0-1），转换为百分比（0-100）
+        detail.setOee(toPercentage(snapshot.getOee()));
 
         // 时间开动率（可用率）：availabilityRate -> availability
-        detail.setAvailability(normalizeMetricValue(snapshot.getAvailabilityRate()));
+        detail.setAvailability(toPercentage(snapshot.getAvailabilityRate()));
 
         // 性能开动率（性能率）：performanceRate -> performance
-        detail.setPerformance(normalizeMetricValue(snapshot.getPerformanceRate()));
+        detail.setPerformance(toPercentage(snapshot.getPerformanceRate()));
 
         // 设备开动率（设备利用率）：uptimeRate -> utilizationRate
-        detail.setUtilizationRate(normalizeMetricValue(snapshot.getUptimeRate()));
+        detail.setUtilizationRate(toPercentage(snapshot.getUptimeRate()));
 
         // 停机率：faultRate -> downtimeRate（使用故障率）
-        detail.setDowntimeRate(normalizeMetricValue(snapshot.getFaultRate()));
+        detail.setDowntimeRate(toPercentage(snapshot.getFaultRate()));
 
         return detail;
     }
 
     /**
-     * 规范化指标值（确保是百分比形式 0-100）
-     * <p>
-     * Redis中存储的实时指标快照已经是百分比形式（0-100），因为：
-     * 1. DeviceMetricsService.convertToPercentages 已将 0-1 范围的值乘以 100
-     * 2. FactoryRealtimeMetricsService 聚合设备级指标时，累加和计算的都是百分比值
-     * <p>
-     * 因此，这里只需要直接使用 Redis 中的值，保留1位小数即可
-     *
-     * @param value 指标值（已经是百分比形式 0-100）
-     * @return 规范化后的百分比值（0-100，保留1位小数）
-     */
-    private BigDecimal normalizeMetricValue(BigDecimal value) {
-        if (value == null) {
-            return BigDecimal.ZERO;
-        }
-        // Redis 中存储的值已经是百分比形式（0-100），直接返回（保留1位小数）
-        return value.setScale(1, RoundingMode.HALF_UP);
-    }
-
-    /**
      * 将 0-1 范围的比率转换为 0-100 的百分比
+     * <p>
+     * Redis中存储的实时指标快照是小数形式（0-1），需要转换为百分比形式（0-100）返回
+     * 与数据库字段格式保持一致（数据库存储小数，接口返回百分比）
      *
-     * @param rate 比率值（0-1）
-     * @return 百分比值（0-100）
+     * @param rate 比率值（0-1范围的小数）
+     * @return 百分比值（0-100，保留1位小数）
      */
     private BigDecimal toPercentage(BigDecimal rate) {
         if (rate == null) {
@@ -401,28 +382,28 @@ public class MetricsSummaryQueryService implements IMetricsSummaryQueryService {
     /**
      * 将工厂实时指标快照转换为 MetricDetailVO
      * <p>
-     * 注意：Redis中存储的工厂实时指标快照已经是百分比形式（0-100），不需要再次转换
-     * 因为 FactoryRealtimeMetricsService 已经将 0-1 范围的值转换为百分比
+     * 注意：Redis中存储的工厂实时指标快照是小数形式（0-1），需要转换为百分比形式（0-100）返回
+     * 与数据库字段格式保持一致（数据库存储小数，接口返回百分比）
      *
-     * @param snapshot 工厂实时指标快照（值已经是百分比形式 0-100）
-     * @return MetricDetailVO
+     * @param snapshot 工厂实时指标快照（值是小数形式 0-1）
+     * @return MetricDetailVO（值是百分比形式 0-100）
      */
     private MetricStatisticsRespVO.MetricDetailVO convertFactorySnapshotToMetricDetail(FactoryRealtimeMetricSnapshot snapshot) {
         MetricStatisticsRespVO.MetricDetailVO detail = new MetricStatisticsRespVO.MetricDetailVO();
-        // OEE（整体设备效率）：已经是百分比形式（0-100），直接使用
-        detail.setOee(normalizeMetricValue(snapshot.getOee()));
+        // OEE（整体设备效率）：Redis中是小数（0-1），转换为百分比（0-100）
+        detail.setOee(toPercentage(snapshot.getOee()));
 
         // 时间开动率（可用率）：availabilityRate -> availability
-        detail.setAvailability(normalizeMetricValue(snapshot.getAvailabilityRate()));
+        detail.setAvailability(toPercentage(snapshot.getAvailabilityRate()));
 
         // 性能开动率（性能率）：performanceRate -> performance
-        detail.setPerformance(normalizeMetricValue(snapshot.getPerformanceRate()));
+        detail.setPerformance(toPercentage(snapshot.getPerformanceRate()));
 
         // 设备开动率（设备利用率）：uptimeRate -> utilizationRate
-        detail.setUtilizationRate(normalizeMetricValue(snapshot.getUptimeRate()));
+        detail.setUtilizationRate(toPercentage(snapshot.getUptimeRate()));
 
         // 停机率：faultRate -> downtimeRate（使用故障率）
-        detail.setDowntimeRate(normalizeMetricValue(snapshot.getFaultRate()));
+        detail.setDowntimeRate(toPercentage(snapshot.getFaultRate()));
 
         return detail;
     }
