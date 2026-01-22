@@ -88,6 +88,12 @@ public class DeviceProductionSummaryQueryService implements IDeviceProductionSum
                     ));
         }
 
+        // 如果日期范围包含今日，将今日的数据合并到 dailyProductionMap 中
+        if (!currentShiftDate.isBefore(startShiftDate) && !currentShiftDate.isAfter(endShiftDate)) {
+            // 如果汇总表中已有今天的数据，则累加；否则直接设置
+            dailyProductionMap.merge(currentShiftDate, (int) currentShiftCount, Integer::sum);
+        }
+
         // 构建图表数据（按日期排序）
         // 重要：必须保持横坐标完整，即使某些日期没有数据也要返回（值为0），确保前端能正确渲染图表
         List<DeviceProductionStatisticsRespVO.ProductionDetailVO> detailList = new ArrayList<>();
