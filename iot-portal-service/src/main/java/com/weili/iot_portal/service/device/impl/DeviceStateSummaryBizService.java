@@ -133,71 +133,35 @@ public class DeviceStateSummaryBizService implements IDeviceStateSummaryBizServi
                 endShiftDate = currentShiftDate;
             }
 
-            // 3. 先计算查询的时间范围（用于查询 timelineData，确保包含跨天班次的数据）
-            // 重要：必须先计算时间范围，然后按时间戳范围查询，而不是按 shiftDate 查询
-            // 因为跨天班次（如第二班 20:00-次日08:00）的数据可能分布在不同的 shiftDate 中
+            // 3. 直接按日期查询状态记录数据（用于时间轴）
+            // 简化逻辑：不需要强调班次概念，直接用日期查询 device_state_record 表
+            // 如果表里有第二班的数据，会自动包含（因为第二班的数据的 shiftDate 就是当天）
+            // 数据已经按 start_ts 排序，确保时间顺序正确
+            List<DeviceStateRecordDO> stateRecordList = deviceStateRecordRepository.selectByShiftDateRange(
+                    queryReqVO.getDeviceId(),
+                    startShiftDate,
+                    endShiftDate
+            );
+            
+            // 4. 计算查询的时间范围（用于截断 timelineData，与 ratioStatistics 保持一致）
+            // 使用记录的实际时间范围，确保包含正在进行中的状态
             long queryStartTs = Long.MAX_VALUE;
             long queryEndTs = Long.MIN_VALUE;
             
-            // 计算查询日期范围内所有班次的时间范围
-            DeviceShiftConfigDO config = shiftConfigService.getCurrentConfiguration(
-                    deviceInfo.getOrgFactoryId(), queryReqVO.getDeviceId(), currentTime);
-            if (config != null && config.getShifts() != null && !config.getShifts().isEmpty()) {
-                for (LocalDate date = startShiftDate; !date.isAfter(endShiftDate); date = date.plusDays(1)) {
-                    for (DeviceShiftDefinition shiftDef : config.getShifts()) {
-                        LocalTime startTime = LocalTime.parse(shiftDef.getStartTime(), DateTimeFormatter.ofPattern("HH:mm:ss"));
-                        LocalDateTime shiftStartDateTime = date.atTime(startTime);
-                        long referenceTimestamp = shiftStartDateTime.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
-                        
-                        java.util.Optional<ShiftTimeRange> shiftRangeOpt = shiftCalculationService.calculateAndValidateShiftRange(
-                                deviceInfo.getOrgFactoryId(), queryReqVO.getDeviceId(), referenceTimestamp, date, shiftDef.getCode());
-                        
-                        if (shiftRangeOpt.isPresent()) {
-                            ShiftTimeRange shiftRange = shiftRangeOpt.get();
-                            if (shiftRange.getStartTs() != null && shiftRange.getStartTs() < queryStartTs) {
-                                queryStartTs = shiftRange.getStartTs();
-                            }
-                            long shiftEnd = shiftRange.getEndTs() != null && shiftRange.getEndTs() > currentTime 
-                                    ? currentTime : (shiftRange.getEndTs() != null ? shiftRange.getEndTs() : currentTime);
-                            if (shiftEnd > queryEndTs) {
-                                queryEndTs = shiftEnd;
-                            }
-                        }
-                    }
-                }
-            }
-            
-            // 4. 查询状态记录数据（用于时间轴）
-            // 优先使用时间戳范围查询，确保能获取到跨天班次的所有数据
-            List<DeviceStateRecordDO> stateRecordList;
-            if (queryStartTs != Long.MAX_VALUE && queryEndTs != Long.MIN_VALUE) {
-                // 使用时间戳范围查询，能获取到所有班次的数据（包括跨天班次）
-                stateRecordList = deviceStateRecordRepository.selectByRange(
-                        queryReqVO.getDeviceId(),
-                        queryStartTs,
-                        queryEndTs
-                );
+            if (!stateRecordList.isEmpty()) {
+                // 使用记录的最小开始时间和最大结束时间（或当前时间）
+                queryStartTs = stateRecordList.stream()
+                        .mapToLong(r -> r.getStartTs() != null ? r.getStartTs() : Long.MAX_VALUE)
+                        .min().orElse(Long.MAX_VALUE);
+                queryEndTs = Math.max(
+                        stateRecordList.stream()
+                                .mapToLong(r -> r.getEndTs() != null ? r.getEndTs() : currentTime)
+                                .max().orElse(Long.MIN_VALUE),
+                        currentTime);
             } else {
-                // 如果无法计算时间范围，回退到按 shiftDate 查询
-                stateRecordList = deviceStateRecordRepository.selectByShiftDateRange(
-                        queryReqVO.getDeviceId(),
-                        startShiftDate,
-                        endShiftDate
-                );
-                // 如果无法计算时间范围，使用记录的最小和最大时间戳
-                if (!stateRecordList.isEmpty()) {
-                    queryStartTs = stateRecordList.stream()
-                            .mapToLong(r -> r.getStartTs() != null ? r.getStartTs() : Long.MAX_VALUE)
-                            .min().orElse(Long.MAX_VALUE);
-                    queryEndTs = Math.max(
-                            stateRecordList.stream()
-                                    .mapToLong(r -> r.getEndTs() != null ? r.getEndTs() : currentTime)
-                                    .max().orElse(Long.MIN_VALUE),
-                            currentTime);
-                } else {
-                    queryStartTs = currentTime;
-                    queryEndTs = currentTime;
-                }
+                // 如果没有记录，使用当前时间
+                queryStartTs = currentTime;
+                queryEndTs = currentTime;
             }
 
             return DeviceStateSummaryRespVO.builder()
