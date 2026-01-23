@@ -169,6 +169,30 @@ public class DeviceStateRecordRepositoryImpl implements DeviceStateRecordReposit
         return deviceStateRecordMapper.selectList(wrapper);
     }
 
+    @Override
+    public List<DeviceStateRecordDO> findAllOngoing(Long startTsAfter, Integer limit) {
+        LambdaQueryWrapper<DeviceStateRecordDO> wrapper = new LambdaQueryWrapper<>();
+        
+        // 只查询进行中的记录（end_ts IS NULL）
+        wrapper.isNull(DeviceStateRecordDO::getEndTs);
+        
+        // 性能优化：只查询最近的数据（避免扫描过旧的数据）
+        // 通常只需要检查最近24-48小时内的记录，因为超过这个时间应该已经被处理或过期
+        if (startTsAfter != null) {
+            wrapper.ge(DeviceStateRecordDO::getStartTs, startTsAfter);
+        }
+        
+        // 按开始时间升序排列，优先处理较早的记录
+        wrapper.orderByAsc(DeviceStateRecordDO::getStartTs);
+        
+        // 限制返回数量，用于分批处理
+        if (limit != null && limit > 0) {
+            wrapper.last("limit " + limit);
+        }
+        
+        return deviceStateRecordMapper.selectList(wrapper);
+    }
+
     /**
      * 构建基础查询条件（对应 device_state_record 表的字段）
      */
