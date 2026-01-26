@@ -7,7 +7,7 @@
     <parent>
         <groupId>com.weili.boot</groupId>
         <artifactId>weili-boot-parent</artifactId>
-        <version>1.0.8.1</version>
+        <version>1.0.8-SNAPSHOT</version>
     </parent>
 
     <groupId>com.weili.iot-portal</groupId>
@@ -30,7 +30,7 @@
         <maven.compiler.source>17</maven.compiler.source>
         <maven.compiler.target>17</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <weili-basic.version>1.0.8.1</weili-basic.version>
+        <weili-basic.version>1.0.8-SNAPSHOT</weili-basic.version>
         <spring-maven-plugin.version>3.4.5</spring-maven-plugin.version>
     </properties>
 
