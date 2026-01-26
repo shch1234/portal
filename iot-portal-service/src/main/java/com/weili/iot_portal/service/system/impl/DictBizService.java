@@ -142,14 +142,10 @@ public class DictBizService implements IDictBizService {
 
 
     private void validateDictTypeNameUnique(Long id, String name) {
-        DictTypeDO dictType = dictTypeRepository.selectByName(name);
-        if (dictType == null) {
-            return;
-        }
-        if (id == null) {
-            throw new ServiceException(ErrorCodeConstants.DICT_TYPE_NAME_DUPLICATE);
-        }
-        if (!dictType.getId().equals(id)) {
+        DictTypeDO dictType = id == null 
+                ? dictTypeRepository.selectByName(name)
+                : dictTypeRepository.selectByNameExcludingId(name, id);
+        if (dictType != null) {
             throw new ServiceException(ErrorCodeConstants.DICT_TYPE_NAME_DUPLICATE);
         }
     }
@@ -158,14 +154,10 @@ public class DictBizService implements IDictBizService {
         if (StrUtil.isEmpty(type)) {
             return;
         }
-        DictTypeDO dictType = dictTypeRepository.selectByType(type);
-        if (dictType == null) {
-            return;
-        }
-        if (id == null) {
-            throw new ServiceException(ErrorCodeConstants.DICT_TYPE_TYPE_DUPLICATE);
-        }
-        if (!dictType.getId().equals(id)) {
+        DictTypeDO dictType = id == null 
+                ? dictTypeRepository.selectByType(type)
+                : dictTypeRepository.selectByTypeExcludingId(type, id);
+        if (dictType != null) {
             throw new ServiceException(ErrorCodeConstants.DICT_TYPE_TYPE_DUPLICATE);
         }
     }
