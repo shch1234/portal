@@ -120,13 +120,26 @@ public class DeviceAxisBizService implements IDeviceAxisBizService {
                     Map<String, BigDecimal> coords = entry.getValue();
                     return AxisCoordinate.builder()
                             .axisName(axisName)
-                            .absolute(coords.get("absolute"))
-                            .relative(coords.get("relative"))
-                            .machine(coords.get("machine"))
-                            .remaining(coords.get("remaining"))
+                            .absolute(roundToThreeDecimals(coords.get("absolute")))
+                            .relative(roundToThreeDecimals(coords.get("relative")))
+                            .machine(roundToThreeDecimals(coords.get("machine")))
+                            .remaining(roundToThreeDecimals(coords.get("remaining")))
                             .build();
                 })
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * 将 BigDecimal 值四舍五入到三位小数
+     *
+     * @param value 原始值
+     * @return 保留三位小数的值，如果原始值为 null 则返回 null
+     */
+    private BigDecimal roundToThreeDecimals(BigDecimal value) {
+        if (value == null) {
+            return null;
+        }
+        return value.setScale(3, RoundingMode.HALF_UP);
     }
 
     /**
