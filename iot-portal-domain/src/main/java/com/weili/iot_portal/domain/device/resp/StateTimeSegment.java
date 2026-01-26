@@ -31,5 +31,8 @@ public class StateTimeSegment {
     @Schema(description = "结束时间（毫秒时间戳，返回时自动转为 yyyy-MM-dd HH:mm:ss）", example = "1731474000000")
     @JsonSerialize(using = TimestampLongSerializer.class)
     private Long endTime;
+
+    @Schema(description = "持续时间（秒）", example = "3600")
+    private Long durationS;
 }
 

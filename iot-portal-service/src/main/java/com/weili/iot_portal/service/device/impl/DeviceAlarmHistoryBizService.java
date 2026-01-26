@@ -51,6 +51,8 @@ public class DeviceAlarmHistoryBizService implements IDeviceAlarmHistoryBizServi
     @Override
     public PageResult<AlarmHistoryRespVO> queryAlarmManageList(DeviceAlarmHistoryQueryReqVO queryReqVO) {
         DeviceAlarmHistoryQuery historyQuery = BeanUtils.toBean(queryReqVO, DeviceAlarmHistoryQuery.class);
+        
+        // 处理设备编码筛选：通过设备编码查询设备ID列表
         if (StringUtils.isNotBlank(queryReqVO.getDeviceCode())) {
             DeviceBaseInfoPageQuery pageQuery = new DeviceBaseInfoPageQuery();
             pageQuery.setDeviceCode(queryReqVO.getDeviceCode());
@@ -58,8 +60,17 @@ public class DeviceAlarmHistoryBizService implements IDeviceAlarmHistoryBizServi
             PageResult<DeviceInfoDO> pageResult = deviceInfoRepository.selectPage(pageQuery);
             if (CollectionUtils.isNotEmpty(pageResult.getList())) {
                 historyQuery.setDeviceIds(pageResult.getList().stream().map(DeviceInfoDO::getId).distinct().toList());
+            } else {
+                // 如果设备编码查询不到设备，返回空结果
+                return new PageResult<>(new ArrayList<>(), 0L);
             }
         }
+        
+        // 处理工厂ID筛选：DeviceAlarmHistoryQueryReqVO使用orgFactoryId，DeviceAlarmHistoryQuery使用factoryId
+        if (queryReqVO.getOrgFactoryId() != null) {
+            historyQuery.setFactoryId(queryReqVO.getOrgFactoryId());
+        }
+        
         PageResult<DeviceAlarmHistoryDO> pageResult = deviceAlarmHistoryRepository.selectPage(historyQuery);
 
         List<Long> deviceIds = pageResult.getList().stream().map(DeviceAlarmHistoryDO::getDeviceInfoId).distinct().toList();

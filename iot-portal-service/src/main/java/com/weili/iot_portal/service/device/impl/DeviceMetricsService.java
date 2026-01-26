@@ -15,13 +15,18 @@ import com.weili.iot_portal.domain.metrics.MetricCalculator;
 import com.weili.iot_portal.service.cache.DeviceMetricsCacheService;
 import com.weili.iot_portal.service.device.ICheckpointService;
 import com.weili.iot_portal.service.device.IDeviceMetricsService;
+import com.weili.iot_portal.service.device.util.StateDurationUtils;
+import com.weili.iot_portal.service.device.util.StateDurationUtils.StateDurations;
 import com.weili.iot_portal.service.shift.IShiftCalculationService;
+import com.weili.iot_portal.service.shift.IShiftConfigService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.LocalDate;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -45,6 +50,7 @@ public class DeviceMetricsService implements IDeviceMetricsService {
     private final DeviceParamConfigRepository deviceParamConfigRepository;
     private final DeviceProductionRecordRepository deviceProductionRecordRepository;
     private final IShiftCalculationService shiftCalculationService;
+    private final IShiftConfigService shiftConfigService;
     private final DeviceMetricsCacheService deviceMetricsCacheService;
     private final ICheckpointService<CheckpointData> checkpointService;
 
@@ -54,6 +60,7 @@ public class DeviceMetricsService implements IDeviceMetricsService {
                                 DeviceParamConfigRepository deviceParamConfigRepository,
                                 DeviceProductionRecordRepository deviceProductionRecordRepository,
                                 IShiftCalculationService shiftCalculationService,
+                                IShiftConfigService shiftConfigService,
                                 DeviceMetricsCacheService deviceMetricsCacheService,
                                 @Qualifier("deviceMetricsCheckpointService")
                                 ICheckpointService<CheckpointData> checkpointService) {
@@ -62,6 +69,7 @@ public class DeviceMetricsService implements IDeviceMetricsService {
         this.deviceParamConfigRepository = deviceParamConfigRepository;
         this.deviceProductionRecordRepository = deviceProductionRecordRepository;
         this.shiftCalculationService = shiftCalculationService;
+        this.shiftConfigService = shiftConfigService;
         this.deviceMetricsCacheService = deviceMetricsCacheService;
         this.checkpointService = checkpointService;
     }
@@ -336,41 +344,61 @@ public class DeviceMetricsService implements IDeviceMetricsService {
         Long deviceId = device.getId();
         long nowMs = System.currentTimeMillis();
         
-        // 1. 计算班次时间范围
-        ShiftTimeRange shift = shiftCalculationService.calculateShiftRange(factoryId, deviceId, nowMs);
-        if (shift == null || shift.getStartTs() == null) {
-            log.debug("无法计算班次时间范围，跳过设备: deviceId={}", deviceId);
+        // 1. 获取当前时间对应的班次日期（考虑跨天班次）
+        LocalDate shiftDate = shiftCalculationService.getShiftDate(factoryId, deviceId, nowMs);
+        if (shiftDate == null) {
+            log.debug("无法计算班次日期，跳过设备: deviceId={}", deviceId);
             return null;
         }
         
-        long shiftStartMillis = shift.getStartTs();
-        // 实时指标计算：如果班次未结束，使用当前时间；如果班次已结束，使用班次结束时间
-        long shiftEndMillis = shift.getEndTs() != null && shift.getEndTs() <= nowMs 
-                ? shift.getEndTs() : nowMs;
+        // 2. 直接使用班次日期查询状态记录（device_state_record表已记录计算好的班次日期）
+        List<DeviceStateRecordDO> stateRecords = deviceStateRecordRepository.selectByShiftDateRange(
+                deviceId, shiftDate, shiftDate);
         
-        // 2. 从预加载的参数配置中获取计划停机时长
-        long plannedDowntime = extractParameterValueFromList(deviceParams, PARAM_PLANNED_DOWNTIME, deviceId);
+        // 3. 获取班次配置，确定班次数量（2班制或3班制）
+        com.weili.iot_portal.dal.dataobject.device.DeviceShiftConfigDO shiftConfig = 
+                shiftConfigService.getCurrentConfiguration(factoryId, deviceId, nowMs);
+        int shiftCount = (shiftConfig != null && shiftConfig.getShiftMode() != null) 
+                ? shiftConfig.getShiftMode() 
+                : 2; // 默认2班制
         
-        // 3. 计算班次时长和计划运行时长
-        long shiftDurationMillis = Math.max(0, shiftEndMillis - shiftStartMillis);
-        long plannedRuntimeMillis = Math.max(0, shiftDurationMillis - plannedDowntime * MILLIS_PER_SECOND);
+        // 4. 从预加载的参数配置中获取单个班次的计划停机时长（秒）
+        long plannedDowntimePerShift = extractParameterValueFromList(deviceParams, PARAM_PLANNED_DOWNTIME, deviceId);
+        // 计算一天的总计划停机时长：单个班次计划停机时长 × 班次数量
+        // 例如：2班制，单个班次计划停机1小时，则一天总计划停机2小时
+        long plannedDowntime = plannedDowntimePerShift * shiftCount;
         
-        // 4. 汇总状态持续时间
-        Map<String, Long> stateDurationsMap = sumStateDurations(deviceId, shiftStartMillis, shiftEndMillis, nowMs);
-        StateDurations stateDurations = extractStateDurations(stateDurationsMap);
+        // 5. 使用工具类汇总状态持续时间（包括正在进行中的状态）
+        // 注意：对于正在进行中的状态，使用当前时间作为结束时间
+        StateDurations stateDurations = StateDurationUtils.sumStateDurationsFromRecords(stateRecords, nowMs);
+        
+        // 6. 计算已过日历时长（从该班次日期最早的状态记录开始时间到当前时间）
+        // 如果状态记录为空，使用当前时间（避免除零错误）
+        long dayStartMillis = stateRecords.isEmpty() 
+                ? nowMs 
+                : stateRecords.stream()
+                        .mapToLong(r -> r.getStartTs() != null ? r.getStartTs() : Long.MAX_VALUE)
+                        .min()
+                        .orElse(nowMs);
+        long dayEndMillis = nowMs; // 当前时间作为结束时间
+        
+        // 7. 计算当天时长和计划运行时长
+        // 注意：实时指标计算中，计划运行时长使用当天时长减去一天的总计划停机时长
+        long dayDurationMillis = Math.max(0, dayEndMillis - dayStartMillis);
+        long plannedRuntimeMillis = Math.max(0, dayDurationMillis - plannedDowntime * MILLIS_PER_SECOND);
         long actualRuntimeMillis = Math.max(0, plannedRuntimeMillis - stateDurations.getUnplannedDowntimeMillis());
         
-        // 5. 获取产量和理论节拍（如果未配置，会从 device_production_record 获取默认值）
+        // 8. 获取产量和理论节拍（如果未配置，会从 device_production_record 获取默认值）
         long actualOutput = deviceProductionRecordRepository.countCompletedInRange(
-                deviceId, shiftStartMillis / MILLIS_PER_SECOND, shiftEndMillis / MILLIS_PER_SECOND);
+                deviceId, dayStartMillis / MILLIS_PER_SECOND, dayEndMillis / MILLIS_PER_SECOND);
         long theoreticalCycle = extractParameterValueFromList(deviceParams, PARAM_THEORETICAL_CYCLE, deviceId);
         
-        // 6. 计算已过日历时长
-        long elapsedCalendarMillis = Math.max(1, nowMs - shiftStartMillis);
+        // 9. 计算已过日历时长（从该班次日期最早的状态记录开始时间到当前时间）
+        long elapsedCalendarMillis = Math.max(1, nowMs - dayStartMillis);
         
         return new RealtimeCalculationData(
-                factoryId, deviceId, nowMs, shiftStartMillis, shiftEndMillis,
-                shiftDurationMillis, plannedDowntime, plannedRuntimeMillis,
+                factoryId, deviceId, nowMs, dayStartMillis, dayEndMillis,
+                dayDurationMillis, plannedDowntime, plannedRuntimeMillis,
                 stateDurations, actualRuntimeMillis, actualOutput, theoreticalCycle,
                 elapsedCalendarMillis
         );
@@ -389,71 +417,6 @@ public class DeviceMetricsService implements IDeviceMetricsService {
         return prepareCalculationDataWithParams(device, deviceParams);
     }
     
-    /**
-     * 从状态持续时间Map中提取各状态的时长
-     * 
-     * @param stateDurations 状态持续时间Map
-     * @return 状态持续时间封装对象
-     */
-    private StateDurations extractStateDurations(Map<String, Long> stateDurations) {
-        return new StateDurations(
-                stateDurations.getOrDefault(DeviceStateEnum.WORKING.name(), 0L),
-                stateDurations.getOrDefault(DeviceStateEnum.STANDBY.name(), 0L),
-                stateDurations.getOrDefault(DeviceStateEnum.FAULT.name(), 0L),
-                stateDurations.getOrDefault(DeviceStateEnum.SHUTDOWN.name(), 0L)
-        );
-    }
-
-    /**
-     * 汇总状态持续时间
-     * <p>
-     * 说明：
-     * <ul>
-     *   <li>统计已结束的状态记录（endTs != null）</li>
-     *   <li>统计正在进行中的状态（endTs == null），使用当前时间作为结束时间</li>
-     *   <li>计算状态记录在统计时间范围内的持续时间</li>
-     *   <li>实时指标计算需要反映设备的当前状态，所以应该统计正在进行中的状态</li>
-     * </ul>
-     * 
-     * @param deviceId 设备ID
-     * @param startMillis 开始时间（毫秒）
-     * @param endMillis 结束时间（毫秒）
-     * @param nowMillis 当前时间（毫秒），用于正在进行中的状态
-     * @return 状态持续时长Map，key为状态名称，value为持续时长（毫秒）
-     */
-    private Map<String, Long> sumStateDurations(Long deviceId, long startMillis, long endMillis, long nowMillis) {
-        List<DeviceStateRecordDO> timelines = deviceStateRecordRepository.selectByRange(deviceId, startMillis, endMillis);
-        Map<String, Long> result = new HashMap<>();
-        for (DeviceStateRecordDO t : timelines) {
-            Integer stateCode = t.getStateCode();
-            if (stateCode == null) {
-                continue;
-            }
-            
-            // 将数字编码转换为状态名称
-            DeviceStateEnum stateEnum = DeviceStateEnum.fromCode(stateCode);
-            String state = stateEnum.name();
-            
-            // 计算状态记录在统计时间范围内的持续时间
-            // segStart: 状态开始时间与统计开始时间的较大值
-            // segEnd: 状态结束时间（如果正在进行中，使用当前时间）与统计结束时间的较小值
-            long segStart = Math.max(startMillis, t.getStartTs());
-            long segEnd;
-            if (t.getEndTs() != null) {
-                // 已结束的状态：使用状态结束时间
-                segEnd = Math.min(endMillis, t.getEndTs());
-            } else {
-                // 正在进行中的状态：使用当前时间（但不能超过统计结束时间）
-                segEnd = Math.min(endMillis, nowMillis);
-            }
-            
-            if (segEnd > segStart) {
-                long dur = segEnd - segStart;
-                result.merge(state.toUpperCase(), dur, Long::sum);
-            }
-        }
-        return result;
-    }
 
     /**
      * 获取理论周期（秒）
@@ -617,7 +580,7 @@ public class DeviceMetricsService implements IDeviceMetricsService {
         long qualifiedOutput = data.getActualOutput();
         
         return new MetricCalculationContext(
-                data.getShiftDurationMillis(),           // 班次时长（毫秒）
+                data.getShiftDurationMillis(),           // 当天时长（毫秒，从班次日期第一个班次开始到当前时间）
                 data.getPlannedDowntime(),               // 计划停机时长（秒）
                 plannedDowntimeMillis,                    // 计划停机时长（毫秒）
                 data.getPlannedRuntimeMillis(),           // 计划运行时长（毫秒）
@@ -635,21 +598,23 @@ public class DeviceMetricsService implements IDeviceMetricsService {
     }
     
     /**
-     * 将指标计算结果转换为百分比形式（用于Redis存储）
+     * 将指标计算结果转换为小数形式（用于Redis存储，统一存储为0-1范围的小数）
      * 
      * @param result 指标计算结果
-     * @return 百分比形式的指标
+     * @return 小数形式的指标（0-1范围）
      */
     private RealtimeMetricsPercentages convertToPercentages(MetricCalculationResult result) {
-        // 从 metrics Map 中获取 faultRate（已经是百分比形式）
-        BigDecimal faultRate = extractFaultRateFromMetrics(result.getMetrics());
+        // 从 metrics Map 中获取 faultRate（百分比形式），需要除以100转换为小数（0-1）
+        BigDecimal faultRatePercent = extractFaultRateFromMetrics(result.getMetrics());
+        BigDecimal faultRate = faultRatePercent.divide(PERCENTAGE_MULTIPLIER, 4, RoundingMode.HALF_UP);
         
+        // 所有指标统一存储为小数形式（0-1范围），与数据库字段格式保持一致
         return new RealtimeMetricsPercentages(
-                result.getAvailability().multiply(PERCENTAGE_MULTIPLIER),      // Uptime Rate
-                result.getPerformance().multiply(PERCENTAGE_MULTIPLIER),        // Performance Rate
-                faultRate,                                                     // Fault Rate (已经是百分比)
-                result.getOee().multiply(PERCENTAGE_MULTIPLIER),               // OEE
-                result.getUtilizationRate().multiply(PERCENTAGE_MULTIPLIER)    // Availability Rate
+                result.getAvailability(),      // Availability: 小数（0-1）
+                result.getPerformance(),        // Performance: 小数（0-1）
+                faultRate,                     // Fault Rate: 小数（0-1）
+                result.getOee(),               // OEE: 小数（0-1）
+                result.getUtilizationRate()     // Utilization Rate: 小数（0-1）
         );
     }
     
@@ -657,7 +622,7 @@ public class DeviceMetricsService implements IDeviceMetricsService {
      * 从 metrics Map 中提取故障率
      * 
      * @param metrics 指标Map
-     * @return 故障率（百分比），如果不存在则返回0
+     * @return 故障率（百分比形式 0-100），如果不存在则返回0
      */
     private BigDecimal extractFaultRateFromMetrics(Map<String, Object> metrics) {
         if (metrics == null) {
@@ -694,21 +659,25 @@ public class DeviceMetricsService implements IDeviceMetricsService {
     
     /**
      * 实时计算数据封装类
+     * <p>
+     * 注意：实时指标计算使用"班次日期"的时间范围（从该班次日期的第一个班次开始时间到当前时间），
+     * 而不是"当前班次"的时间范围。
+     * </p>
      */
     private static class RealtimeCalculationData {
         private final Long factoryId;
         private final Long deviceId;
         private final long nowMs;
-        private final long shiftStartMillis;
-        private final long shiftEndMillis;
-        private final long shiftDurationMillis;
-        private final long plannedDowntime;
+        private final long shiftStartMillis;  // 班次日期第一个班次的开始时间（毫秒）
+        private final long shiftEndMillis;    // 当前时间（毫秒）
+        private final long shiftDurationMillis;  // 当天时长（毫秒，从班次日期第一个班次开始到当前时间）
+        private final long plannedDowntime;  // 一天的总计划停机时长（秒）= 单个班次计划停机时长 × 班次数量（2班制×2，3班制×3）
         private final long plannedRuntimeMillis;
         private final StateDurations stateDurations;
         private final long actualRuntimeMillis;
         private final long actualOutput;
         private final long theoreticalCycle;
-        private final long elapsedCalendarMillis;
+        private final long elapsedCalendarMillis;  // 已过日历时长（毫秒，从班次日期第一个班次开始到当前时间）
         
         public RealtimeCalculationData(Long factoryId, Long deviceId, long nowMs,
                                       long shiftStartMillis, long shiftEndMillis,
@@ -745,35 +714,6 @@ public class DeviceMetricsService implements IDeviceMetricsService {
         public long getElapsedCalendarMillis() { return elapsedCalendarMillis; }
     }
     
-    /**
-     * 状态持续时间封装类
-     */
-    private static class StateDurations {
-        private final long workingMillis;
-        private final long standbyMillis;
-        private final long faultMillis;
-        private final long shutdownMillis;
-        
-        public StateDurations(long workingMillis, long standbyMillis, long faultMillis, long shutdownMillis) {
-            this.workingMillis = workingMillis;
-            this.standbyMillis = standbyMillis;
-            this.faultMillis = faultMillis;
-            this.shutdownMillis = shutdownMillis;
-        }
-        
-        public long getWorkingMillis() { return workingMillis; }
-        public long getStandbyMillis() { return standbyMillis; }
-        public long getFaultMillis() { return faultMillis; }
-        public long getShutdownMillis() { return shutdownMillis; }
-        
-        /**
-         * 计算非计划停机时长（毫秒）
-         * 非计划停机 = 待机 + 故障 + 关机
-         */
-        public long getUnplannedDowntimeMillis() {
-            return standbyMillis + faultMillis + shutdownMillis;
-        }
-    }
     
     /**
      * 实时指标百分比封装类

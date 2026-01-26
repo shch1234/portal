@@ -43,6 +43,18 @@ public interface DeviceToolRecordRepository {
     List<DeviceToolRecordDO> findAllOngoingByToolNo(Long deviceId, String toolNo);
 
     /**
+     * 查询是否存在相同刀具号和时间戳接近的记录（用于去重检查）
+     * 检查时间戳在指定范围内的记录，避免并发创建重复记录
+     *
+     * @param deviceId 设备ID
+     * @param toolNo 刀具号
+     * @param startTs 开始时间戳（毫秒）
+     * @param timeRangeMs 时间范围（毫秒），检查 startTs ± timeRangeMs 范围内的记录
+     * @return 如果存在则返回记录，否则返回null
+     */
+    DeviceToolRecordDO findByDeviceIdAndToolNoAndTimeRange(Long deviceId, String toolNo, Long startTs, Long timeRangeMs);
+
+    /**
      * 插入单条记录
      */
     void insert(DeviceToolRecordDO record);

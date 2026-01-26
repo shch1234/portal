@@ -536,6 +536,7 @@ public class FactoryShiftMetricsSummaryService {
         record.setAveragePerformance(avgMetrics.avgPerformance);
         record.setAverageQuality(null);
         record.setAverageUtilizationRate(avgMetrics.avgUtilization);
+        record.setAverageFaultRate(avgMetrics.avgFault);
         record.setAverageWorkingHours(null);
         record.setTotalProductionCount(0);
         record.setTotalQualifiedCount(0);

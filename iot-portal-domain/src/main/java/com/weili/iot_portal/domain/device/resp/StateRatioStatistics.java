@@ -19,19 +19,19 @@ import java.math.BigDecimal;
 public class StateRatioStatistics {
 
     @Schema(description = "待机状态时长（秒）")
-    private Integer standbyDur;
+    private Long standbyDur;
 
     @Schema(description = "加工状态时长（秒）")
-    private Integer workingDur;
+    private Long workingDur;
 
     @Schema(description = "关机状态时长（秒）")
-    private Integer shutdownDur;
+    private Long shutdownDur;
 
     @Schema(description = "故障状态时长（秒）")
-    private Integer faultDur;
+    private Long faultDur;
 
     @Schema(description = "未知状态时长（秒）")
-    private Integer unknownDur;
+    private Long unknownDur;
 
     @Schema(description = "待机状态占比（%，保留1位小数）", example = "25.0")
     private BigDecimal standbyRatio;

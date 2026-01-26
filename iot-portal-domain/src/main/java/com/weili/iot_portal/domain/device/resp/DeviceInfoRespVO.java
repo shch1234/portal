@@ -68,6 +68,9 @@ public class DeviceInfoRespVO {
     @Schema(description = "是否监控：true-监控 false-不监控")
     private Boolean isMonitored;
 
+    @Schema(description = "是否报警：true-有未结束的报警 false-无报警")
+    private Boolean hasAlarm;
+
     @Schema(description = "扩展属性（JSON）")
     private Map<String, Object> extraProperties;
 

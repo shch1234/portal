@@ -1050,6 +1050,10 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
      * 3. 如果不跨班次但超时长，截断到班次结束
      * 4. 否则创建单条记录
      * </p>
+     * <p>
+     * 改进：对于进行中状态，即使 checkIfCrossesShift 返回 false，如果 effectiveEndTs 超过了开始班次的结束时间，
+     * 也应该进行跨班次拆分，确保跨天场景能正确截断。
+     * </p>
      *
      * @param deviceInfoId 设备ID
      * @param orgFactoryId 工厂ID
@@ -1072,6 +1076,15 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
         // 先检查是否跨班次（无论是否超时长，都需要先检查跨班次，避免丢失数据）
         boolean crossesShift = timeRangeRecordHandler.checkIfCrossesShift(
                 orgFactoryId, deviceInfoId, startTs, effectiveEndTs);
+        
+        // 对于进行中状态，额外检查：如果 effectiveEndTs 超过了开始班次的结束时间，也应该进行跨班次拆分
+        // 这可以处理跨天场景，确保能正确截断（例如：前一天的第二班延续到今天的第一班）
+        if (!crossesShift && isOngoing && effectiveEndTs > shiftEndTs) {
+            log.debug("[DeviceStateEventHandler] 进行中状态超过开始班次结束时间，进行跨班次拆分: deviceId={}, stateCode={}, " +
+                            "startTs={}, shiftEndTs={}, effectiveEndTs={}",
+                    deviceInfoId, stateCode, startTs, shiftEndTs, effectiveEndTs);
+            crossesShift = true;
+        }
 
         if (crossesShift) {
             // 跨班次：按班次拆分（统一处理逻辑）

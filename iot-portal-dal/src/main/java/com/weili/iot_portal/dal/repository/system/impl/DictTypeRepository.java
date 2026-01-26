@@ -50,7 +50,21 @@ public class DictTypeRepository extends ServiceImpl<DictTypeMapper, DictTypeDO> 
 
     @Override
     public DictTypeDO selectByType(String type) {
-        return super.getOne(new LambdaQueryWrapper<DictTypeDO>().eq(DictTypeDO::getType, type));
+        List<DictTypeDO> list = super.list(new LambdaQueryWrapper<DictTypeDO>()
+                .eq(DictTypeDO::getType, type)
+                .last("LIMIT 1"));
+        return list.isEmpty() ? null : list.get(0);
+    }
+
+    @Override
+    public DictTypeDO selectByTypeExcludingId(String type, Long excludeId) {
+        LambdaQueryWrapper<DictTypeDO> wrapper = new LambdaQueryWrapper<DictTypeDO>()
+                .eq(DictTypeDO::getType, type);
+        if (excludeId != null) {
+            wrapper.ne(DictTypeDO::getId, excludeId);
+        }
+        List<DictTypeDO> list = super.list(wrapper.last("LIMIT 1"));
+        return list.isEmpty() ? null : list.get(0);
     }
 
     @Override
@@ -60,7 +74,21 @@ public class DictTypeRepository extends ServiceImpl<DictTypeMapper, DictTypeDO> 
 
     @Override
     public DictTypeDO selectByName(String name) {
-        return super.getOne(new LambdaQueryWrapper<DictTypeDO>().eq(DictTypeDO::getName, name));
+        List<DictTypeDO> list = super.list(new LambdaQueryWrapper<DictTypeDO>()
+                .eq(DictTypeDO::getName, name)
+                .last("LIMIT 1"));
+        return list.isEmpty() ? null : list.get(0);
+    }
+
+    @Override
+    public DictTypeDO selectByNameExcludingId(String name, Long excludeId) {
+        LambdaQueryWrapper<DictTypeDO> wrapper = new LambdaQueryWrapper<DictTypeDO>()
+                .eq(DictTypeDO::getName, name);
+        if (excludeId != null) {
+            wrapper.ne(DictTypeDO::getId, excludeId);
+        }
+        List<DictTypeDO> list = super.list(wrapper.last("LIMIT 1"));
+        return list.isEmpty() ? null : list.get(0);
     }
 
     @Override

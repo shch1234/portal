@@ -3,9 +3,11 @@ package com.weili.iot_portal.service.device.impl;
 import cn.hutool.core.util.StrUtil;
 import com.weili.basic.common.model.PageResult;
 import com.weili.basic.common.util.BeanUtils;
+import com.weili.iot_portal.common.enums.UnitTypeEnum;
 import com.weili.iot_portal.common.exception.IotPortalErrorCode;
 import com.weili.iot_portal.common.exception.IotPortalException;
 import com.weili.iot_portal.dal.dataobject.device.*;
+import com.weili.iot_portal.dal.ddd.device.DeviceAlarmHistoryQuery;
 import com.weili.iot_portal.dal.ddd.device.DeviceBaseInfoPageQuery;
 import com.weili.iot_portal.dal.repository.device.*;
 import com.weili.iot_portal.domain.device.req.*;
@@ -55,6 +57,9 @@ public class DeviceInfoBizService implements IDeviceInfoBizService {
     @Resource
     private IDeviceModelBizService deviceModelBizService;
 
+    @Resource
+    private DeviceAlarmHistoryRepository deviceAlarmHistoryRepository;
+
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -63,9 +68,19 @@ public class DeviceInfoBizService implements IDeviceInfoBizService {
         validateDeviceCodeUnique(null, createReqVO.getDeviceCode());
         // 验证设备型号存在
         validateDeviceModelExists(createReqVO.getDeviceModelId());
+        // 验证设备类型编码：deviceTypeCode 或 deviceSubTypeCode 至少有一个不为空
+        if (StringUtils.isBlank(createReqVO.getDeviceSubTypeCode()) && StringUtils.isBlank(createReqVO.getDeviceTypeCode())) {
+            throw new IotPortalException(IotPortalErrorCode.DEFAULT_ERROR, "设备类型编码或设备子类型编码至少需要提供一个");
+        }
 
         // 创建设备基本信息
         DeviceInfoDO deviceInfo = BeanUtils.toBean(createReqVO, DeviceInfoDO.class);
+        
+        // 如果提供了deviceSubTypeCode，优先使用它作为device_type_code（device_info表存储的是子类型编码）
+        if (StringUtils.isNotBlank(createReqVO.getDeviceSubTypeCode())) {
+            deviceInfo.setDeviceTypeCode(createReqVO.getDeviceSubTypeCode());
+        }
+        
         deviceInfoRepository.insert(deviceInfo);
         Long deviceInfoId = deviceInfo.getId();
 
@@ -110,10 +125,23 @@ public class DeviceInfoBizService implements IDeviceInfoBizService {
         validateDeviceCodeUnique(updateReqVO.getId(), updateReqVO.getDeviceCode());
         // 验证设备型号存在
         validateDeviceModelExists(updateReqVO.getDeviceModelId());
+        // 验证设备类型编码：如果提供了deviceTypeCode或deviceSubTypeCode，至少有一个不为空
+        // 如果两者都为空，则保持原有的device_type_code不变（不进行验证）
 
         // 更新设备基本信息
         DeviceInfoDO deviceInfo = BeanUtils.toBean(updateReqVO, DeviceInfoDO.class);
         deviceInfo.setId(existingDevice.getId());
+        
+        // 如果提供了deviceSubTypeCode，优先使用它作为device_type_code（device_info表存储的是子类型编码）
+        if (StringUtils.isNotBlank(updateReqVO.getDeviceSubTypeCode())) {
+            deviceInfo.setDeviceTypeCode(updateReqVO.getDeviceSubTypeCode());
+        } else if (StringUtils.isNotBlank(updateReqVO.getDeviceTypeCode())) {
+            // 如果没有提供deviceSubTypeCode，但有deviceTypeCode，则使用deviceTypeCode
+            // 注意：这种情况可能表示设备类型从子类型改为主类型，或者向后兼容
+            deviceInfo.setDeviceTypeCode(updateReqVO.getDeviceTypeCode());
+        }
+        // 如果两者都为空，则deviceInfo.getDeviceTypeCode()保持BeanUtils转换后的值（可能是null，会被忽略）
+        
         deviceInfoRepository.update(deviceInfo);
 
         // 更新设备位置信息
@@ -305,11 +333,79 @@ public class DeviceInfoBizService implements IDeviceInfoBizService {
         if (StringUtils.isNotBlank(pageReqVO.getOrgFactoryId())) {
             pageQuery.setOrgFactoryIds(Collections.singletonList(pageReqVO.getOrgFactoryId()));
         }
+
+        // 如果指定了hasAlarm筛选条件，需要先查询所有符合条件的设备ID，然后根据报警状态筛选
+        if (pageReqVO.getHasAlarm() != null) {
+            // 先查询所有符合条件的设备ID（不考虑hasAlarm和分页）
+            DeviceBaseInfoPageQuery allDeviceQuery = new DeviceBaseInfoPageQuery();
+            allDeviceQuery.setDeviceCode(pageQuery.getDeviceCode());
+            allDeviceQuery.setDeviceName(pageQuery.getDeviceName());
+            allDeviceQuery.setDeviceTypeCodes(pageQuery.getDeviceTypeCodes());
+            allDeviceQuery.setDeviceModelIds(pageQuery.getDeviceModelIds());
+            allDeviceQuery.setOrgFactoryIds(pageQuery.getOrgFactoryIds());
+            allDeviceQuery.setOrgWorkshopIds(pageQuery.getOrgWorkshopIds());
+            allDeviceQuery.setOrgProductionLineIds(pageQuery.getOrgProductionLineIds());
+            allDeviceQuery.setDeviceStatuses(pageQuery.getDeviceStatuses());
+            allDeviceQuery.setIsMonitored(pageQuery.getIsMonitored());
+            allDeviceQuery.setPageNo(1);
+            allDeviceQuery.setPageSize(10000); // 设置一个很大的值以获取所有数据
+            
+            PageResult<DeviceInfoDO> allDeviceResult = deviceInfoRepository.selectPage(allDeviceQuery);
+            List<Long> allDeviceIds = allDeviceResult.getList().stream()
+                    .map(DeviceInfoDO::getId)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toList());
+            
+            if (allDeviceIds.isEmpty()) {
+                return PageResult.empty();
+            }
+            
+            // 查询有报警的设备ID列表
+            List<Long> deviceIdsWithAlarm = deviceAlarmHistoryRepository.findDeviceIdsWithActiveAlarm(allDeviceIds);
+            Set<Long> deviceIdsWithAlarmSet = new HashSet<>(deviceIdsWithAlarm);
+            
+            // 根据hasAlarm筛选设备ID
+            List<Long> filteredDeviceIds;
+            if (pageReqVO.getHasAlarm() == 1) {
+                // 只保留有报警的设备ID
+                filteredDeviceIds = allDeviceIds.stream()
+                        .filter(deviceIdsWithAlarmSet::contains)
+                        .collect(Collectors.toList());
+            } else {
+                // 只保留没有报警的设备ID
+                filteredDeviceIds = allDeviceIds.stream()
+                        .filter(id -> !deviceIdsWithAlarmSet.contains(id))
+                        .collect(Collectors.toList());
+            }
+            
+            if (filteredDeviceIds.isEmpty()) {
+                return PageResult.empty();
+            }
+            
+            // 对筛选后的设备ID进行分页查询
+            pageQuery.setDeviceIds(filteredDeviceIds);
+        }
+        
         PageResult<DeviceInfoDO> pageResult = deviceInfoRepository.selectPage(pageQuery);
         PageResult<DeviceInfoRespVO> result = BeanUtils.toBean(pageResult, DeviceInfoRespVO.class);
-        for (DeviceInfoRespVO row : result.getList()) {
+        
+        // 批量查询设备的未结束报警状态
+        Set<Long> deviceIdsWithAlarm = getDeviceIdsWithActiveAlarm(pageResult.getList());
+        
+        // 组装设备详细信息并设置报警状态
+        List<DeviceInfoDO> deviceDOList = pageResult.getList();
+        List<DeviceInfoRespVO> deviceVOList = result.getList();
+        for (int i = 0; i < deviceVOList.size(); i++) {
+            DeviceInfoRespVO row = deviceVOList.get(i);
             // 组装设备详细信息
             assembleDeviceInfoDetails(row);
+            // 设置是否报警字段
+            if (i < deviceDOList.size()) {
+                Long deviceId = deviceDOList.get(i).getId();
+                row.setHasAlarm(deviceIdsWithAlarm.contains(deviceId));
+            } else {
+                row.setHasAlarm(false);
+            }
         }
         return result;
     }
@@ -334,30 +430,33 @@ public class DeviceInfoBizService implements IDeviceInfoBizService {
         }
         options.setDeviceTypes(deviceTypes);
 
-        // 获取厂区列表（仅启用状态，层级1）
+        // 获取厂区列表（仅启用状态，层级1，类型为FACTORY）
         DeviceOrgRelationPageReqVO factoryPageReq = new DeviceOrgRelationPageReqVO();
         factoryPageReq.setIsActive(true);
         factoryPageReq.setLevelNo(1);
+        factoryPageReq.setUnitTypeValue(UnitTypeEnum.FACTORY.getCode());
         factoryPageReq.setPageNo(1);
         factoryPageReq.setPageSize(10000);
         PageResult<DeviceOrgRelationDO> factoryPageResult = deviceOrgRelationBizService.getDeviceOrgRelationPage(factoryPageReq);
         List<DeviceOrgRelationRespVO> factories = BeanUtils.toBean(factoryPageResult.getList(), DeviceOrgRelationRespVO.class);
         options.setFactories(factories);
 
-        // 获取车间列表（仅启用状态，层级2）
+        // 获取车间列表（仅启用状态，层级2，类型为WORKSHOP）
         DeviceOrgRelationPageReqVO workshopPageReq = new DeviceOrgRelationPageReqVO();
         workshopPageReq.setIsActive(true);
         workshopPageReq.setLevelNo(2);
+        workshopPageReq.setUnitTypeValue(UnitTypeEnum.WORKSHOP.getCode());
         workshopPageReq.setPageNo(1);
         workshopPageReq.setPageSize(10000);
         PageResult<DeviceOrgRelationDO> workshopPageResult = deviceOrgRelationBizService.getDeviceOrgRelationPage(workshopPageReq);
         List<DeviceOrgRelationRespVO> workshops = BeanUtils.toBean(workshopPageResult.getList(), DeviceOrgRelationRespVO.class);
         options.setWorkshops(workshops);
 
-        // 获取产线列表（仅启用状态，层级3）
+        // 获取产线列表（仅启用状态，层级3，类型为PRODUCTION_LINE）
         DeviceOrgRelationPageReqVO productionLinePageReq = new DeviceOrgRelationPageReqVO();
         productionLinePageReq.setIsActive(true);
         productionLinePageReq.setLevelNo(3);
+        productionLinePageReq.setUnitTypeValue(UnitTypeEnum.PRODUCTION_LINE.getCode());
         productionLinePageReq.setPageNo(1);
         productionLinePageReq.setPageSize(10000);
         PageResult<DeviceOrgRelationDO> productionLinePageResult = deviceOrgRelationBizService.getDeviceOrgRelationPage(productionLinePageReq);
@@ -440,16 +539,40 @@ public class DeviceInfoBizService implements IDeviceInfoBizService {
 
     /**
      * 组装设备类型信息
+     * 逻辑：
+     * 1. device_info.device_type_code 存储的是子类型编码（如 CNC_MACHINING_CENTER）
+     * 2. 通过子类型编码查询 device_type_relation 表获取：
+     *    - 子类型名称（description）
+     *    - 父类型编码（parent_type_code）或父类型ID（parent_type_id）
+     * 3. 通过父类型编码或父类型ID查询父类型信息，获取父类型名称（description）
      */
     private void assembleDeviceTypeInfo(DeviceInfoRespVO respVO) {
-        DeviceTypeRelationDO relationDO = deviceTypeRelationBizService.getDeviceTypeRelationByCode(respVO.getDeviceTypeCode());
-        if (relationDO != null) {
-            respVO.setDeviceSubTypeName(relationDO.getDescription());
-            Long parentTypeId = relationDO.getParentTypeId();
-            if (parentTypeId != null) {
-                DeviceTypeRelationDO parentRelDO = deviceTypeRelationBizService.getDeviceTypeRelation(parentTypeId);
-                if (parentRelDO != null) {
-                    respVO.setDeviceTypeName(parentRelDO.getDescription());
+        // device_info.device_type_code 存储的是子类型编码
+        if (StringUtils.isNotBlank(respVO.getDeviceTypeCode())) {
+            // 1. 查询子类型信息
+            DeviceTypeRelationDO subTypeDO = deviceTypeRelationBizService.getDeviceTypeRelationByCode(respVO.getDeviceTypeCode());
+            if (subTypeDO != null) {
+                // 设置子类型编码和名称
+                respVO.setDeviceSubTypeCode(subTypeDO.getTypeCode());
+                respVO.setDeviceSubTypeName(subTypeDO.getDescription());
+                
+                // 2. 通过子类型的 parent_type_id 或 parent_type_code 查询父类型信息
+                DeviceTypeRelationDO parentTypeDO = null;
+                
+                // 优先使用 parent_type_id 查询
+                if (subTypeDO.getParentTypeId() != null) {
+                    parentTypeDO = deviceTypeRelationBizService.getDeviceTypeRelation(subTypeDO.getParentTypeId());
+                }
+                
+                // 如果 parent_type_id 为空，使用 parent_type_code 查询
+                if (parentTypeDO == null && StringUtils.isNotBlank(subTypeDO.getParentTypeCode())) {
+                    parentTypeDO = deviceTypeRelationBizService.getDeviceTypeRelationByCode(subTypeDO.getParentTypeCode());
+                }
+                
+                if (parentTypeDO != null) {
+                    // 设置父类型编码和名称
+                    respVO.setDeviceTypeCode(parentTypeDO.getTypeCode());
+                    respVO.setDeviceTypeName(parentTypeDO.getDescription());
                 }
             }
         }
@@ -493,6 +616,45 @@ public class DeviceInfoBizService implements IDeviceInfoBizService {
         }
         DeviceOrgRelationDO orgRelation = orgRelationMap.get(orgId);
         return orgRelation != null ? orgRelation.getUnitName() : null;
+    }
+
+    /**
+     * 批量查询有未结束报警的设备ID集合
+     * 优化：使用专门的方法只查询设备ID，避免查询完整对象，提高性能
+     * 
+     * @param deviceList 设备列表
+     * @return 有未结束报警的设备ID集合
+     */
+    private Set<Long> getDeviceIdsWithActiveAlarm(List<DeviceInfoDO> deviceList) {
+        if (deviceList == null || deviceList.isEmpty()) {
+            return Collections.emptySet();
+        }
+        
+        // 提取所有设备ID
+        List<Long> deviceIds = deviceList.stream()
+                .map(DeviceInfoDO::getId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+        
+        if (deviceIds.isEmpty()) {
+            return Collections.emptySet();
+        }
+        
+        // 如果设备ID列表过长，分批查询以避免 IN 查询性能问题
+        // MySQL 的 IN 查询建议不超过 1000 个元素
+        final int BATCH_SIZE = 1000;
+        Set<Long> result = new HashSet<>();
+        
+        for (int i = 0; i < deviceIds.size(); i += BATCH_SIZE) {
+            int end = Math.min(i + BATCH_SIZE, deviceIds.size());
+            List<Long> batch = deviceIds.subList(i, end);
+            
+            // 使用优化后的方法：只查询设备ID字段，性能更好
+            List<Long> batchResult = deviceAlarmHistoryRepository.findDeviceIdsWithActiveAlarm(batch);
+            result.addAll(batchResult);
+        }
+        
+        return result;
     }
 
 }

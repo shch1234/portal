@@ -64,10 +64,14 @@ public class DeviceOrgRelationController {
     public CommonResult<DeviceOrgRelationRespVO> getDeviceOrgRelation(@RequestParam("id") String id) {
         DeviceOrgRelationDO deviceOrgRelation = deviceOrgRelationBizService.getDeviceOrgRelation(id);
         DeviceOrgRelationRespVO respVO = BeanUtils.toBean(deviceOrgRelation, DeviceOrgRelationRespVO.class);
-        //补充父id
-        if (deviceOrgRelation.getLevelNo() == 3) {
-            DeviceOrgRelationDO parentOrgRelation = deviceOrgRelationBizService.getDeviceOrgRelation(deviceOrgRelation.getOrgParentId());
-            if (parentOrgRelation != null) {
+        // 转换 orgParentId 从 Long 到 String（用于响应）
+        if (deviceOrgRelation.getOrgParentId() != null) {
+            respVO.setOrgParentId(String.valueOf(deviceOrgRelation.getOrgParentId()));
+        }
+        //补充父id（产线需要显示车间ID和产线ID）
+        if (deviceOrgRelation.getLevelNo() == 3 && deviceOrgRelation.getOrgParentId() != null) {
+            DeviceOrgRelationDO parentOrgRelation = deviceOrgRelationBizService.getDeviceOrgRelation(String.valueOf(deviceOrgRelation.getOrgParentId()));
+            if (parentOrgRelation != null && parentOrgRelation.getOrgParentId() != null) {
                 respVO.setOrgParentId(parentOrgRelation.getOrgParentId() + "," + deviceOrgRelation.getOrgParentId());
             }
         }
@@ -78,7 +82,19 @@ public class DeviceOrgRelationController {
     @Operation(summary = "分页查询设备组织单元")
     public CommonResult<PageResult<DeviceOrgRelationRespVO>> getDeviceOrgRelationPage(@Valid DeviceOrgRelationPageReqVO pageReqVO) {
         PageResult<DeviceOrgRelationDO> pageResult = deviceOrgRelationBizService.getDeviceOrgRelationPage(pageReqVO);
-        return CommonResult.success(BeanUtils.toBean(pageResult, DeviceOrgRelationRespVO.class));
+        PageResult<DeviceOrgRelationRespVO> result = BeanUtils.toBean(pageResult, DeviceOrgRelationRespVO.class);
+        // 转换 orgParentId 从 Long 到 String（用于响应）
+        // BeanUtils.toBean 转换 PageResult 时会保持列表顺序，所以可以直接通过索引匹配
+        List<DeviceOrgRelationDO> originalList = pageResult.getList();
+        List<DeviceOrgRelationRespVO> respList = result.getList();
+        for (int i = 0; i < respList.size() && i < originalList.size(); i++) {
+            DeviceOrgRelationRespVO respVO = respList.get(i);
+            DeviceOrgRelationDO original = originalList.get(i);
+            if (original.getOrgParentId() != null) {
+                respVO.setOrgParentId(String.valueOf(original.getOrgParentId()));
+            }
+        }
+        return CommonResult.success(result);
     }
 
     @GetMapping("/options")

@@ -22,8 +22,11 @@ public class AlarmDurationTopRespVO implements Serializable {
     @Schema(description = "设备编号")
     private String deviceCode;
 
-    @Schema(description = "设备类型")
+    @Schema(description = "设备类型编码")
     private String deviceTypeCode;
+
+    @Schema(description = "设备类型名称")
+    private String deviceTypeName;
 
     @Schema(description = "报警内容")
     private String alarmText;

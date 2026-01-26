@@ -53,6 +53,18 @@ public interface DeviceStateRecordRepository {
      */
     Optional<DeviceStateRecordDO> findLatestState(Long deviceId);
 
+    /**
+     * 查询所有进行中的状态记录（end_ts IS NULL）
+     * <p>
+     * 用于定时任务扫描跨班次记录
+     * </p>
+     *
+     * @param startTsAfter 只查询开始时间在此时间之后的记录（用于性能优化，避免扫描过旧的数据）
+     * @param limit 限制返回的记录数量（用于分批处理）
+     * @return 进行中的状态记录列表，按开始时间升序排列
+     */
+    List<DeviceStateRecordDO> findAllOngoing(Long startTsAfter, Integer limit);
+
     void insert(DeviceStateRecordDO record);
 
     void update(DeviceStateRecordDO record);

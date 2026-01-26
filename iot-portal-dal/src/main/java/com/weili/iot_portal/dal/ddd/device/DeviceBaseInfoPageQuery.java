@@ -64,6 +64,11 @@ public class DeviceBaseInfoPageQuery extends PageParam {
      */
     private Boolean hasAlarm;
 
+    /**
+     * 设备ID列表（用于根据hasAlarm筛选后的设备ID列表进行查询）
+     */
+    private List<Long> deviceIds;
+
     private String sortBy;
 
     private String sortDirection;

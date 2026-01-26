@@ -34,7 +34,7 @@ public class DeviceOrgRelationRepositoryImpl implements DeviceOrgRelationReposit
     }
 
     @Override
-    public List<DeviceOrgRelationDO> findByParentId(String parentId) {
+    public List<DeviceOrgRelationDO> findByParentId(Long parentId) {
         return mapper.selectList(new LambdaQueryWrapper<DeviceOrgRelationDO>().eq(DeviceOrgRelationDO::getOrgParentId, parentId));
     }
 
@@ -61,7 +61,12 @@ public class DeviceOrgRelationRepositoryImpl implements DeviceOrgRelationReposit
             wrapper.in(DeviceOrgRelationDO::getUnitTypeValue, query.getUnitTypeValue());
         }
         if (StringUtils.isNotBlank(query.getOrgParentId())) {
-            wrapper.eq(DeviceOrgRelationDO::getOrgParentId, query.getOrgParentId());
+            try {
+                Long orgParentId = Long.parseLong(query.getOrgParentId());
+                wrapper.eq(DeviceOrgRelationDO::getOrgParentId, orgParentId);
+            } catch (NumberFormatException e) {
+                // 如果无法解析为Long，忽略该查询条件
+            }
         }
         if (query.getLevelNo() != null) {
             wrapper.eq(DeviceOrgRelationDO::getLevelNo, query.getLevelNo());

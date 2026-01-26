@@ -1,6 +1,8 @@
 package com.weili.iot_portal.domain.permission;
 
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.weili.basic.common.model.BaseVO;
+import com.weili.iot_portal.common.serializer.StatusIntegerDeserializer;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -28,6 +30,7 @@ public class RoleSaveReqVO  extends BaseVO {
     private Integer sort;
 
     @Schema(description = "状态", requiredMode = Schema.RequiredMode.REQUIRED)
+    @JsonDeserialize(using = StatusIntegerDeserializer.class)
     private Integer status;
 
     @Schema(description = "备注")

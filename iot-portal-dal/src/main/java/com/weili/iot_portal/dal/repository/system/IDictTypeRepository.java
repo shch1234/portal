@@ -23,9 +23,13 @@ public interface IDictTypeRepository {
 
     DictTypeDO selectByType(String type);
 
+    DictTypeDO selectByTypeExcludingId(String type, Long excludeId);
+
     DictTypeDO getById(Long id);
 
     DictTypeDO selectByName(String name);
+
+    DictTypeDO selectByNameExcludingId(String name, Long excludeId);
 
     List<DictTypeDO> selectList();
 }

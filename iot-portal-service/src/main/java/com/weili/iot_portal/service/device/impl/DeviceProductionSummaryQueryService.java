@@ -71,11 +71,20 @@ public class DeviceProductionSummaryQueryService implements IDeviceProductionSum
             endShiftDate = LocalDate.now();
             startShiftDate = endShiftDate.minusDays(6); // 包含今天共7天
         }
+        
+        // 判断查询范围是否包含今日
+        boolean includesToday = !currentShiftDate.isBefore(startShiftDate) && !currentShiftDate.isAfter(endShiftDate);
+        
         // 从 device_production_summary 查询日期范围内的汇总数据
+        // 如果结束日期包含今日，自动将结束日期改为前一天，排除今日的数据（避免包含已结束班次的数据）
+        LocalDate summaryQueryEndDate = !endShiftDate.isBefore(currentShiftDate)
+                ? currentShiftDate.minusDays(1)  // 如果结束日期包含今日，查询到前一天
+                : endShiftDate;  // 不包含今日，使用原始结束日期
+        
         List<DeviceProductionSummaryDO> summaryList = productionSummaryRepository.findByShiftDateRange(
                 deviceInfoId,
                 startShiftDate,
-                endShiftDate
+                summaryQueryEndDate
         );
 
         // 按日期分组汇总（一天可能有多个班次）
@@ -86,6 +95,11 @@ public class DeviceProductionSummaryQueryService implements IDeviceProductionSum
                             DeviceProductionSummaryDO::getShiftDate,
                             Collectors.summingInt(s -> s.getPartCount() != null ? s.getPartCount() : 0)
                     ));
+        }
+
+        // 如果日期范围包含今日，使用实时统计的数据填充今日的数据
+        if (includesToday) {
+            dailyProductionMap.put(currentShiftDate, (int) currentShiftCount);
         }
 
         // 构建图表数据（按日期排序）

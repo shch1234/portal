@@ -17,8 +17,10 @@ import com.weili.iot_portal.domain.ingestion.RealtimeMetricSnapshot;
 import com.weili.iot_portal.service.cache.DeviceMetricsCacheService;
 import com.weili.iot_portal.service.cache.FactoryMetricsCacheService;
 import com.weili.iot_portal.service.device.IMetricsSummaryQueryService;
+import com.weili.iot_portal.service.shift.IShiftCalculationService;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -48,6 +50,8 @@ public class MetricsSummaryQueryService implements IMetricsSummaryQueryService {
     private FactoryMetricsCacheService factoryMetricsCacheService;
     @Resource
     private FactoryMetricSummaryRepository factoryMetricSummaryRepository;
+    @Resource
+    private IShiftCalculationService shiftCalculationService;
 
     @Override
     public MetricStatisticsRespVO getDeviceMetricStatistics(MetricStatisticsReqVO queryReqVO) {
@@ -59,15 +63,7 @@ public class MetricsSummaryQueryService implements IMetricsSummaryQueryService {
         }
         DeviceInfoDO deviceInfoDO = optional.get();
 
-        // 1. 当前指标值：从缓存获取实时指标快照
-        Optional<RealtimeMetricSnapshot> snapshotOptional = deviceMetricsCacheService.getDeviceRealtimeMetrics(deviceInfoDO.getOrgFactoryId(), deviceInfoId);
-        RealtimeMetricSnapshot snapshot = snapshotOptional.orElse(RealtimeMetricSnapshot.empty());
-
-        // 将实时指标快照转换为 MetricDetailVO
-        MetricStatisticsRespVO.MetricDetailVO currentMetric = convertSnapshotToMetricDetail(snapshot);
-        respVO.setCurrentMetricValue(currentMetric);
-
-        // 2. 指标明细列表：根据是否传参决定查询范围
+        // 1. 指标明细列表：根据是否传参决定查询范围
         LocalDate[] dateRange = calculateDateRange(queryReqVO.getStartTime(), queryReqVO.getEndTime());
         LocalDate startShiftDate = dateRange[0];
         LocalDate endShiftDate = dateRange[1];
@@ -90,8 +86,38 @@ public class MetricsSummaryQueryService implements IMetricsSummaryQueryService {
                 DeviceMetricSummaryDO::getOee,
                 DeviceMetricSummaryDO::getAvailability,
                 DeviceMetricSummaryDO::getPerformance,
-                DeviceMetricSummaryDO::getUtilizationRate
+                DeviceMetricSummaryDO::getUtilizationRate,
+                DeviceMetricSummaryDO::getFaultRate
         );
+
+        // 2. 如果明细列表中包含今天的日期，用当前实时指标值替换今天的数据
+        LocalDate todayShiftDate = shiftCalculationService.getShiftDate(
+                deviceInfoDO.getOrgFactoryId(), deviceInfoId, System.currentTimeMillis());
+        if (todayShiftDate != null) {
+            // 从缓存获取实时指标快照
+            Optional<RealtimeMetricSnapshot> snapshotOptional = deviceMetricsCacheService.getDeviceRealtimeMetrics(
+                    deviceInfoDO.getOrgFactoryId(), deviceInfoId);
+            if (snapshotOptional.isPresent()) {
+                RealtimeMetricSnapshot snapshot = snapshotOptional.get();
+                MetricStatisticsRespVO.MetricDetailVO currentMetric = convertSnapshotToMetricDetail(snapshot);
+                
+                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("MM-dd");
+                String todayLabel = todayShiftDate.format(formatter);
+                
+                // 查找今天的数据并替换
+                for (MetricStatisticsRespVO.MetricDetailVO detail : detailList) {
+                    if (todayLabel.equals(detail.getDateLabel())) {
+                        // 用当前实时指标值替换今天的数据
+                        detail.setOee(currentMetric.getOee());
+                        detail.setAvailability(currentMetric.getAvailability());
+                        detail.setPerformance(currentMetric.getPerformance());
+                        detail.setUtilizationRate(currentMetric.getUtilizationRate());
+                        detail.setDowntimeRate(currentMetric.getDowntimeRate());
+                        break;
+                    }
+                }
+            }
+        }
 
         respVO.setMetricDetails(detailList);
         return respVO;
@@ -106,19 +132,7 @@ public class MetricsSummaryQueryService implements IMetricsSummaryQueryService {
             throw new IotPortalException(IotPortalErrorCode.FACTORY_ID_EMPTY);
         }
 
-        // 1. 当前指标值：从缓存获取工厂实时指标快照
-        Optional<FactoryRealtimeMetricSnapshot> snapshotOptional =
-                factoryMetricsCacheService.getFactoryRealtimeMetrics(orgFactoryId);
-        FactoryRealtimeMetricSnapshot snapshot =
-                snapshotOptional.orElse(null);
-
-        // 将工厂实时指标快照转换为 MetricDetailVO
-        MetricStatisticsRespVO.MetricDetailVO currentMetric = snapshot != null
-                ? convertFactorySnapshotToMetricDetail(snapshot)
-                : new MetricStatisticsRespVO.MetricDetailVO();
-        respVO.setCurrentMetricValue(currentMetric);
-
-        // 2. 指标明细列表：根据是否传参决定查询范围
+        // 1. 指标明细列表：根据是否传参决定查询范围
         LocalDate[] dateRange = calculateDateRange(reqVO.getStartTime(), reqVO.getEndTime());
         LocalDate startShiftDate = dateRange[0];
         LocalDate endShiftDate = dateRange[1];
@@ -142,8 +156,44 @@ public class MetricsSummaryQueryService implements IMetricsSummaryQueryService {
                 FactoryMetricSummaryDO::getAverageOee,
                 FactoryMetricSummaryDO::getAverageAvailability,
                 FactoryMetricSummaryDO::getAveragePerformance,
-                FactoryMetricSummaryDO::getAverageUtilizationRate
+                FactoryMetricSummaryDO::getAverageUtilizationRate,
+                FactoryMetricSummaryDO::getAverageFaultRate
         );
+
+        // 2. 如果明细列表中包含今天的日期，用当前实时指标值替换今天的数据
+        // 获取工厂下的一个设备来获取班次日期（工厂下所有设备的班次日期应该相同）
+        List<DeviceInfoDO> factoryDevices = deviceInfoRepository.findMonitoredDevices(orgFactoryId);
+        if (!factoryDevices.isEmpty()) {
+            DeviceInfoDO sampleDevice = factoryDevices.get(0);
+            LocalDate todayShiftDate = shiftCalculationService.getShiftDate(
+                    orgFactoryId, sampleDevice.getId(), System.currentTimeMillis());
+            if (todayShiftDate != null) {
+                // 从缓存获取工厂实时指标快照
+                Optional<FactoryRealtimeMetricSnapshot> snapshotOptional = 
+                        factoryMetricsCacheService.getFactoryRealtimeMetrics(orgFactoryId);
+                if (snapshotOptional.isPresent()) {
+                    FactoryRealtimeMetricSnapshot snapshot = snapshotOptional.get();
+                    MetricStatisticsRespVO.MetricDetailVO currentMetric = 
+                            convertFactorySnapshotToMetricDetail(snapshot);
+                    
+                    DateTimeFormatter formatter = DateTimeFormatter.ofPattern("MM-dd");
+                    String todayLabel = todayShiftDate.format(formatter);
+                    
+                    // 查找今天的数据并替换
+                    for (MetricStatisticsRespVO.MetricDetailVO detail : detailList) {
+                        if (todayLabel.equals(detail.getDateLabel())) {
+                            // 用当前实时指标值替换今天的数据
+                            detail.setOee(currentMetric.getOee());
+                            detail.setAvailability(currentMetric.getAvailability());
+                            detail.setPerformance(currentMetric.getPerformance());
+                            detail.setUtilizationRate(currentMetric.getUtilizationRate());
+                            detail.setDowntimeRate(currentMetric.getDowntimeRate());
+                            break;
+                        }
+                    }
+                }
+            }
+        }
 
         respVO.setMetricDetails(detailList);
         return respVO;
@@ -197,6 +247,7 @@ public class MetricsSummaryQueryService implements IMetricsSummaryQueryService {
      * @param availabilityGetter    可用率获取函数
      * @param performanceGetter     性能率获取函数
      * @param utilizationRateGetter 利用率获取函数
+     * @param faultRateGetter       故障率获取函数（0-1范围的小数）
      * @param <T>                   指标类型
      * @return 指标明细列表
      */
@@ -207,7 +258,8 @@ public class MetricsSummaryQueryService implements IMetricsSummaryQueryService {
             Function<T, BigDecimal> oeeGetter,
             Function<T, BigDecimal> availabilityGetter,
             Function<T, BigDecimal> performanceGetter,
-            Function<T, BigDecimal> utilizationRateGetter) {
+            Function<T, BigDecimal> utilizationRateGetter,
+            Function<T, BigDecimal> faultRateGetter) {
 
         List<MetricStatisticsRespVO.MetricDetailVO> detailList = new ArrayList<>();
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("MM-dd");
@@ -220,14 +272,15 @@ public class MetricsSummaryQueryService implements IMetricsSummaryQueryService {
 
             List<T> dayMetrics = dailyMetricsMap.get(date);
             if (dayMetrics != null && !dayMetrics.isEmpty()) {
-                // 计算当天各指标的平均值
+                // 计算当天各指标的平均值（已转换为百分比形式 0-100）
                 detail.setOee(calculateAverage(dayMetrics, oeeGetter));
                 detail.setAvailability(calculateAverage(dayMetrics, availabilityGetter));
                 detail.setPerformance(calculateAverage(dayMetrics, performanceGetter));
                 detail.setUtilizationRate(calculateAverage(dayMetrics, utilizationRateGetter));
 
-                // 停机率 = 100 - 可用率
-                detail.setDowntimeRate(calculateDowntimeRate(detail.getAvailability()));
+                // 停机率：使用故障率（从数据库字段faultRate读取，calculateAverage已转换为百分比形式 0-100）
+                BigDecimal faultRate = calculateAverage(dayMetrics, faultRateGetter);
+                detail.setDowntimeRate(faultRate != null ? faultRate : BigDecimal.ZERO);
             } else {
                 // 没有数据的日期，设置为0
                 setDefaultMetricValues(detail);
@@ -237,21 +290,6 @@ public class MetricsSummaryQueryService implements IMetricsSummaryQueryService {
         return detailList;
     }
 
-    /**
-     * 计算停机率
-     * <p>
-     * 停机率 = 100 - 可用率
-     *
-     * @param availability 可用率
-     * @return 停机率
-     */
-    private BigDecimal calculateDowntimeRate(BigDecimal availability) {
-        if (availability != null) {
-            return BigDecimal.valueOf(100).subtract(availability)
-                    .setScale(1, RoundingMode.HALF_UP);
-        }
-        return BigDecimal.ZERO;
-    }
 
     /**
      * 设置默认指标值（全部为0）
@@ -298,14 +336,15 @@ public class MetricsSummaryQueryService implements IMetricsSummaryQueryService {
     /**
      * 将实时指标快照转换为 MetricDetailVO
      * <p>
-     * 实时指标快照已经是百分比形式（0-1），需要转换为（0-100）
+     * 注意：Redis中存储的实时指标快照是小数形式（0-1），需要转换为百分比形式（0-100）返回
+     * 与数据库字段格式保持一致（数据库存储小数，接口返回百分比）
      *
-     * @param snapshot 实时指标快照
-     * @return MetricDetailVO
+     * @param snapshot 实时指标快照（值是小数形式 0-1）
+     * @return MetricDetailVO（值是百分比形式 0-100）
      */
     private MetricStatisticsRespVO.MetricDetailVO convertSnapshotToMetricDetail(RealtimeMetricSnapshot snapshot) {
         MetricStatisticsRespVO.MetricDetailVO detail = new MetricStatisticsRespVO.MetricDetailVO();
-        // OEE（整体设备效率）：已经是 0-1 范围，转换为百分比 0-100
+        // OEE（整体设备效率）：Redis中是小数（0-1），转换为百分比（0-100）
         detail.setOee(toPercentage(snapshot.getOee()));
 
         // 时间开动率（可用率）：availabilityRate -> availability
@@ -317,8 +356,7 @@ public class MetricsSummaryQueryService implements IMetricsSummaryQueryService {
         // 设备开动率（设备利用率）：uptimeRate -> utilizationRate
         detail.setUtilizationRate(toPercentage(snapshot.getUptimeRate()));
 
-        // 停机率：faultRate -> downtimeRate
-        // 注意：停机率也可以计算为 100 - 可用率，但这里直接使用 faultRate
+        // 停机率：faultRate -> downtimeRate（使用故障率）
         detail.setDowntimeRate(toPercentage(snapshot.getFaultRate()));
 
         return detail;
@@ -326,9 +364,12 @@ public class MetricsSummaryQueryService implements IMetricsSummaryQueryService {
 
     /**
      * 将 0-1 范围的比率转换为 0-100 的百分比
+     * <p>
+     * Redis中存储的实时指标快照是小数形式（0-1），需要转换为百分比形式（0-100）返回
+     * 与数据库字段格式保持一致（数据库存储小数，接口返回百分比）
      *
-     * @param rate 比率值（0-1）
-     * @return 百分比值（0-100）
+     * @param rate 比率值（0-1范围的小数）
+     * @return 百分比值（0-100，保留1位小数）
      */
     private BigDecimal toPercentage(BigDecimal rate) {
         if (rate == null) {
@@ -341,28 +382,40 @@ public class MetricsSummaryQueryService implements IMetricsSummaryQueryService {
     /**
      * 将工厂实时指标快照转换为 MetricDetailVO
      * <p>
-     * 工厂实时指标快照已经是百分比形式（0-1），需要转换为（0-100）
+     * 注意：Redis中存储的工厂实时指标快照是小数形式（0-1），需要转换为百分比形式（0-100）返回
+     * 与数据库字段格式保持一致（数据库存储小数，接口返回百分比）
      *
-     * @param snapshot 工厂实时指标快照
-     * @return MetricDetailVO
+     * @param snapshot 工厂实时指标快照（值是小数形式 0-1）
+     * @return MetricDetailVO（值是百分比形式 0-100）
      */
     private MetricStatisticsRespVO.MetricDetailVO convertFactorySnapshotToMetricDetail(FactoryRealtimeMetricSnapshot snapshot) {
         MetricStatisticsRespVO.MetricDetailVO detail = new MetricStatisticsRespVO.MetricDetailVO();
-        // OEE（整体设备效率）：已经是 0-1 范围，转换为百分比 0-100
-        detail.setOee(toPercentage(snapshot.getOee()));
+        // OEE（整体设备效率）：Redis中是小数（0-1），转换为百分比（0-100）
+        BigDecimal oeePercent = toPercentage(snapshot.getOee());
+        detail.setOee(oeePercent);
 
         // 时间开动率（可用率）：availabilityRate -> availability
-        detail.setAvailability(toPercentage(snapshot.getAvailabilityRate()));
+        BigDecimal availabilityPercent = toPercentage(snapshot.getAvailabilityRate());
+        detail.setAvailability(availabilityPercent);
 
         // 性能开动率（性能率）：performanceRate -> performance
-        detail.setPerformance(toPercentage(snapshot.getPerformanceRate()));
+        BigDecimal performancePercent = toPercentage(snapshot.getPerformanceRate());
+        detail.setPerformance(performancePercent);
 
         // 设备开动率（设备利用率）：uptimeRate -> utilizationRate
-        detail.setUtilizationRate(toPercentage(snapshot.getUptimeRate()));
+        BigDecimal utilizationPercent = toPercentage(snapshot.getUptimeRate());
+        detail.setUtilizationRate(utilizationPercent);
 
-        // 停机率：faultRate -> downtimeRate
-        // 注意：停机率也可以计算为 100 - 可用率，但这里直接使用 faultRate
-        detail.setDowntimeRate(toPercentage(snapshot.getFaultRate()));
+        // 停机率：faultRate -> downtimeRate（使用故障率）
+        BigDecimal downtimePercent = toPercentage(snapshot.getFaultRate());
+        detail.setDowntimeRate(downtimePercent);
+
+        // 调试日志：记录从Redis读取的原始值（小数格式）和转换后的百分比值
+        log.debug("工厂实时指标转换: 原始值(小数) oee={}, availability={}, performance={}, utilization={}, fault={}, " +
+                        "转换后(百分比) oee={}, availability={}, performance={}, utilization={}, fault={}",
+                snapshot.getOee(), snapshot.getAvailabilityRate(), snapshot.getPerformanceRate(),
+                snapshot.getUptimeRate(), snapshot.getFaultRate(),
+                oeePercent, availabilityPercent, performancePercent, utilizationPercent, downtimePercent);
 
         return detail;
     }
@@ -371,22 +424,42 @@ public class MetricsSummaryQueryService implements IMetricsSummaryQueryService {
     public List<MetricDeviceDataRespVO> getDeviceMetricTop(MetricDeviceDataReqVO reqVO) {
         Long orgFactoryId = reqVO.getOrgFactoryId();
         LocalDate shiftDate = reqVO.getStartTime();
+        Integer shiftCode = reqVO.getShiftCode();
+        String deviceCode = reqVO.getDeviceCode();
         int topN = reqVO.getTop() != null ? reqVO.getTop() : 5;
         if (shiftDate == null) {
             shiftDate = LocalDate.now();
         }
 
-        // 查询指定日期的所有班次数据
+        // 如果指定了设备编码，先查询设备ID
+        final Long deviceInfoId;
+        if (StringUtils.isNotBlank(deviceCode)) {
+            Optional<DeviceInfoDO> deviceInfo = deviceInfoRepository.findByDeviceCode(deviceCode);
+            if (deviceInfo.isEmpty()) {
+                // 如果设备不存在，返回空结果
+                return new ArrayList<>();
+            }
+            deviceInfoId = deviceInfo.get().getId();
+        } else {
+            deviceInfoId = null;
+        }
+
+        // 查询指定日期的班次数据
+        // 筛选条件：orgFactoryId（工厂ID，为null时查询所有工厂）、shiftDate（班次日期）、shiftCode（班次编码，为null时查询所有班次）
         List<DeviceMetricSummaryDO> allMetrics = deviceMetricSummaryRepository
-                .selectByFactoryAndShift(orgFactoryId, shiftDate, reqVO.getShiftCode());
+                .selectByFactoryAndShift(orgFactoryId, shiftDate, shiftCode);
+
+        // 如果指定了设备编码，过滤出该设备的数据
+        if (deviceInfoId != null) {
+            final Long finalDeviceInfoId = deviceInfoId;
+            allMetrics = allMetrics.stream()
+                    .filter(metric -> finalDeviceInfoId.equals(metric.getDeviceInfoId()))
+                    .collect(Collectors.toList());
+        }
 
         if (allMetrics.isEmpty()) {
             return new ArrayList<>();
         }
-
-        // 按班次分组
-        Map<Integer, List<DeviceMetricSummaryDO>> shiftMetricsMap = allMetrics.stream()
-                .collect(Collectors.groupingBy(DeviceMetricSummaryDO::getShiftCode));
 
         // 批量查询设备信息
         List<Long> deviceIds = allMetrics.stream()
@@ -400,39 +473,72 @@ public class MetricsSummaryQueryService implements IMetricsSummaryQueryService {
         // 构建响应数据
         List<MetricDeviceDataRespVO> result = new ArrayList<>();
 
-        // 对每个班次构建TopN数据
-        for (Map.Entry<Integer, List<DeviceMetricSummaryDO>> entry : shiftMetricsMap.entrySet()) {
-            Integer shiftCode = entry.getKey();
-            List<DeviceMetricSummaryDO> shiftMetrics = entry.getValue();
-
+        // 如果指定了班次编码，直接处理该班次的数据；否则按班次分组处理所有班次
+        if (shiftCode != null) {
+            // 指定了班次编码，直接处理该班次数据
             MetricDeviceDataRespVO respVO = new MetricDeviceDataRespVO();
             respVO.setShiftDate(shiftDate);
             respVO.setShiftCode(shiftCode);
 
             // 时间开动率TopN（availability）
-            respVO.setAvailability(buildTopNDeviceList(shiftMetrics, deviceInfoMap, topN,
+            respVO.setAvailability(buildTopNDeviceList(allMetrics, deviceInfoMap, topN,
                     DeviceMetricSummaryDO::getAvailability));
 
             // 性能开动率TopN（performance）
-            respVO.setPerformance(buildTopNDeviceList(shiftMetrics, deviceInfoMap, topN,
+            respVO.setPerformance(buildTopNDeviceList(allMetrics, deviceInfoMap, topN,
                     DeviceMetricSummaryDO::getPerformance));
 
             // OEE指标TopN
-            respVO.setOee(buildTopNDeviceList(shiftMetrics, deviceInfoMap, topN,
+            respVO.setOee(buildTopNDeviceList(allMetrics, deviceInfoMap, topN,
                     DeviceMetricSummaryDO::getOee));
 
             // 设备开动率TopN（utilizationRate）
-            respVO.setUtilizationRate(buildTopNDeviceList(shiftMetrics, deviceInfoMap, topN,
+            respVO.setUtilizationRate(buildTopNDeviceList(allMetrics, deviceInfoMap, topN,
                     DeviceMetricSummaryDO::getUtilizationRate));
 
             // 停机率TopN（100 - availability，降序排列）
-            respVO.setDowntimeRate(buildDowntimeRateTopN(shiftMetrics, deviceInfoMap, topN));
+            respVO.setDowntimeRate(buildDowntimeRateTopN(allMetrics, deviceInfoMap, topN));
 
             result.add(respVO);
-        }
+        } else {
+            // 未指定班次编码，按班次分组处理所有班次
+            Map<Integer, List<DeviceMetricSummaryDO>> shiftMetricsMap = allMetrics.stream()
+                    .collect(Collectors.groupingBy(DeviceMetricSummaryDO::getShiftCode));
 
-        // 按班次编码排序
-        result.sort(Comparator.comparing(MetricDeviceDataRespVO::getShiftCode));
+            // 对每个班次构建TopN数据
+            for (Map.Entry<Integer, List<DeviceMetricSummaryDO>> entry : shiftMetricsMap.entrySet()) {
+                Integer currentShiftCode = entry.getKey();
+                List<DeviceMetricSummaryDO> shiftMetrics = entry.getValue();
+
+                MetricDeviceDataRespVO respVO = new MetricDeviceDataRespVO();
+                respVO.setShiftDate(shiftDate);
+                respVO.setShiftCode(currentShiftCode);
+
+                // 时间开动率TopN（availability）
+                respVO.setAvailability(buildTopNDeviceList(shiftMetrics, deviceInfoMap, topN,
+                        DeviceMetricSummaryDO::getAvailability));
+
+                // 性能开动率TopN（performance）
+                respVO.setPerformance(buildTopNDeviceList(shiftMetrics, deviceInfoMap, topN,
+                        DeviceMetricSummaryDO::getPerformance));
+
+                // OEE指标TopN
+                respVO.setOee(buildTopNDeviceList(shiftMetrics, deviceInfoMap, topN,
+                        DeviceMetricSummaryDO::getOee));
+
+                // 设备开动率TopN（utilizationRate）
+                respVO.setUtilizationRate(buildTopNDeviceList(shiftMetrics, deviceInfoMap, topN,
+                        DeviceMetricSummaryDO::getUtilizationRate));
+
+                // 停机率TopN（100 - availability，降序排列）
+                respVO.setDowntimeRate(buildDowntimeRateTopN(shiftMetrics, deviceInfoMap, topN));
+
+                result.add(respVO);
+            }
+
+            // 按班次编码排序
+            result.sort(Comparator.comparing(MetricDeviceDataRespVO::getShiftCode));
+        }
 
         return result;
     }
@@ -477,7 +583,7 @@ public class MetricsSummaryQueryService implements IMetricsSummaryQueryService {
 
     /**
      * 构建停机率TopN列表
-     * 停机率 = 100 - 可用率
+     * 停机率 = 故障率（从faultRate字段读取）
      *
      * @param metrics       设备指标列表
      * @param deviceInfoMap 设备信息Map
@@ -490,12 +596,12 @@ public class MetricsSummaryQueryService implements IMetricsSummaryQueryService {
             int topN) {
 
         return metrics.stream()
-                .filter(m -> m.getAvailability() != null)
+                .filter(m -> m.getFaultRate() != null)
                 .sorted((m1, m2) -> {
-                    // 停机率越高越靠前，即可用率越低越靠前
-                    BigDecimal v1 = m1.getAvailability();
-                    BigDecimal v2 = m2.getAvailability();
-                    return v1.compareTo(v2); // 升序排列（可用率低的在前）
+                    // 停机率（故障率）越高越靠前
+                    BigDecimal v1 = m1.getFaultRate();
+                    BigDecimal v2 = m2.getFaultRate();
+                    return v2.compareTo(v1); // 降序排列（故障率高的在前）
                 })
                 .limit(topN)
                 .map(metric -> {
@@ -506,11 +612,8 @@ public class MetricsSummaryQueryService implements IMetricsSummaryQueryService {
                         vo.setDeviceCode(deviceInfo.getDeviceCode());
                         vo.setDeviceName(deviceInfo.getDeviceName());
                     }
-                    // 停机率 = 100 - 可用率（转换为百分比）
-                    BigDecimal availability = metric.getAvailability();
-                    BigDecimal downtimeRate = BigDecimal.valueOf(100)
-                            .subtract(toPercentage(availability));
-                    vo.setValue(downtimeRate);
+                    // 停机率 = 故障率（转换为百分比）
+                    vo.setValue(toPercentage(metric.getFaultRate()));
                     return vo;
                 })
                 .collect(Collectors.toList());

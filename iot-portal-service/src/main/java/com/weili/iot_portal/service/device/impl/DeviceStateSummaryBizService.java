@@ -8,6 +8,7 @@ import com.weili.iot_portal.dal.dataobject.device.DeviceShiftConfigDO;
 import com.weili.iot_portal.dal.dataobject.device.DeviceShiftDefinition;
 import com.weili.iot_portal.dal.dataobject.device.DeviceStateRecordDO;
 import com.weili.iot_portal.dal.dataobject.device.DeviceStateSummaryDO;
+import com.weili.iot_portal.dal.repository.device.DeviceInfoRepository;
 import com.weili.iot_portal.dal.repository.device.DeviceStateRecordRepository;
 import com.weili.iot_portal.dal.repository.device.DeviceStateSummaryRepository;
 import com.weili.iot_portal.domain.device.req.DeviceStateSummaryQueryReqVO;
@@ -35,9 +36,15 @@ import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.stream.Collectors;
+
+import com.weili.iot_portal.service.device.util.StateDurationUtils;
+import com.weili.iot_portal.service.device.util.StateDurationUtils.StateDurations;
 
 import static com.weili.iot_portal.service.device.util.DeviceLogContext.*;
 
@@ -50,6 +57,8 @@ public class DeviceStateSummaryBizService implements IDeviceStateSummaryBizServi
 
     @Resource
     private IDeviceInfoBizService deviceInfoBizService;
+    @Resource
+    private DeviceInfoRepository deviceInfoRepository;
     @Resource
     private DeviceStateCacheService deviceStateCacheService;
     @Resource
@@ -78,50 +87,96 @@ public class DeviceStateSummaryBizService implements IDeviceStateSummaryBizServi
         
         try {
             String stateValue = deviceStateCacheService.getStateValue(deviceInfo.getOrgFactoryId(), deviceInfo.getId());
-        String heartbeat = deviceStateCacheService.getHeartbeat(deviceInfo.getOrgFactoryId(), deviceInfo.getId());
+            String heartbeat = deviceStateCacheService.getHeartbeat(deviceInfo.getOrgFactoryId(), deviceInfo.getId());
 
-        // 1. 获取当前时间对应的班次日期（考虑跨天班次）
-        // 例如：2026-1-15 04:00 属于 2026-1-14 的第二班，则 currentShiftDate = 2026-1-14
-        long currentTime = System.currentTimeMillis();
-        LocalDate currentShiftDate = shiftCalculationService.getShiftDate(
-                deviceInfo.getOrgFactoryId(), queryReqVO.getDeviceId(), currentTime);
-        
-        // 2. 处理查询日期范围
-        LocalDate startShiftDate = queryReqVO.getStartTime();
-        LocalDate endShiftDate = queryReqVO.getEndTime();
-        
-        // 如果没有传日期，默认使用当前班次日期（班次角度的"今天"）
-        if (startShiftDate == null || endShiftDate == null) {
-            startShiftDate = currentShiftDate;
-            endShiftDate = currentShiftDate;
-        }
-        
-        // 如果结束日期是未来，截断到当前班次日期
-        if (endShiftDate.isAfter(currentShiftDate)) {
-            endShiftDate = currentShiftDate;
-        }
-        
-        // 3. 查询汇总数据（用于饼图）
-        List<DeviceStateSummaryDO> summaryList = querySummaryData(
-                queryReqVO.getDeviceId(),
-                deviceInfo.getOrgFactoryId(),
-                startShiftDate,
-                endShiftDate,
-                currentShiftDate
-        );
+            // 0.1 判断设备是否已经开始采集数据（Redis中没有对应的键值对）
+            // stateValue == null 表示状态键不存在，heartbeat == "0" 表示心跳键不存在（getHeartbeat在键不存在时返回"0"）
+            boolean hasRedisData = stateValue != null || "1".equals(heartbeat);
+            if (!hasRedisData) {
+                // 根据设备编号再次确认设备是否存在于 device_info 表中
+                Optional<DeviceInfoDO> deviceInfoOpt = deviceInfoRepository.findByDeviceCode(deviceInfo.getDeviceCode());
+                if (deviceInfoOpt.isPresent()) {
+                    // 设备存在，认为是离线设备，返回固定的离线数据
+                    // ratioStatistics 返回 null，表示没有采集数据（区别于数据为0的情况）
+                    return DeviceStateSummaryRespVO.builder()
+                            .currentState(String.valueOf(DeviceStateEnum.UNKNOWN.getCode()))  // UNKNOWN状态（离线）
+                            .currentHeart(false)
+                            .ratioStatistics(null)  // 没有采集数据，返回null
+                            .timelineData(new ArrayList<>())
+                            .build();
+                } else {
+                    // 设备不存在，打印报警信息并返回 null
+                    log.warn("[设备状态汇总] 设备不存在于 device_info 表中，设备编号: {}, 设备ID: {}", 
+                            deviceInfo.getDeviceCode(), queryReqVO.getDeviceId());
+                    return null;
+                }
+            }
 
-        // 4. 查询状态记录数据（用于时间轴）
-        List<DeviceStateRecordDO> stateRecordList = deviceStateRecordRepository.selectByShiftDateRange(
-                queryReqVO.getDeviceId(),
-                startShiftDate,
-                endShiftDate
-        );
+            // 1. 获取当前时间对应的班次日期（考虑跨天班次）
+            // 例如：2026-1-15 04:00 属于 2026-1-14 的第二班，则 currentShiftDate = 2026-1-14
+            long currentTime = System.currentTimeMillis();
+            LocalDate currentShiftDate = shiftCalculationService.getShiftDate(
+                    deviceInfo.getOrgFactoryId(), queryReqVO.getDeviceId(), currentTime);
+            
+            // 2. 处理查询日期范围
+            LocalDate startShiftDate = queryReqVO.getStartTime();
+            LocalDate endShiftDate = queryReqVO.getEndTime();
+            
+            // 如果没有传日期，默认使用当前班次日期（班次角度的"今天"）
+            if (startShiftDate == null || endShiftDate == null) {
+                startShiftDate = currentShiftDate;
+                endShiftDate = currentShiftDate;
+            }
+            
+            // 如果结束日期是未来，截断到当前班次日期
+            if (endShiftDate.isAfter(currentShiftDate)) {
+                endShiftDate = currentShiftDate;
+            }
+
+            // 3. 直接按日期查询状态记录数据（用于时间轴）
+            // 简化逻辑：不需要强调班次概念，直接用日期查询 device_state_record 表
+            // 如果表里有第二班的数据，会自动包含（因为第二班的数据的 shiftDate 就是当天）
+            // 数据已经按 start_ts 排序，确保时间顺序正确
+            List<DeviceStateRecordDO> stateRecordList = deviceStateRecordRepository.selectByShiftDateRange(
+                    queryReqVO.getDeviceId(),
+                    startShiftDate,
+                    endShiftDate
+            );
+            
+            // 4. 计算查询的时间范围（用于截断 timelineData，与 ratioStatistics 保持一致）
+            // 使用记录的实际时间范围，确保包含正在进行中的状态
+            long queryStartTs = Long.MAX_VALUE;
+            long queryEndTs = Long.MIN_VALUE;
+            
+            if (!stateRecordList.isEmpty()) {
+                // 使用记录的最小开始时间和最大结束时间（或当前时间）
+                queryStartTs = stateRecordList.stream()
+                        .mapToLong(r -> r.getStartTs() != null ? r.getStartTs() : Long.MAX_VALUE)
+                        .min().orElse(Long.MAX_VALUE);
+                queryEndTs = Math.max(
+                        stateRecordList.stream()
+                                .mapToLong(r -> r.getEndTs() != null ? r.getEndTs() : currentTime)
+                                .max().orElse(Long.MIN_VALUE),
+                        currentTime);
+            } else {
+                // 如果没有记录，使用当前时间
+                queryStartTs = currentTime;
+                queryEndTs = currentTime;
+            }
 
             return DeviceStateSummaryRespVO.builder()
                     .currentState(stateValue)
                     .currentHeart("1".equals(heartbeat))
-                    .ratioStatistics(buildRatioStatistics(summaryList))
-                    .timelineData(buildTimelineData(stateRecordList))
+                    .ratioStatistics(buildRatioStatistics(
+                            queryReqVO.getDeviceId(),
+                            deviceInfo.getOrgFactoryId(),
+                            startShiftDate,
+                            endShiftDate,
+                            currentShiftDate,
+                            queryStartTs,
+                            queryEndTs,
+                            currentTime))
+                    .timelineData(buildTimelineData(stateRecordList, queryStartTs, queryEndTs))
                     .build();
         } finally {
             // 清除设备编号 MDC，避免线程复用导致设备编号污染
@@ -131,82 +186,126 @@ public class DeviceStateSummaryBizService implements IDeviceStateSummaryBizServi
 
     /**
      * 构建状态占比统计（饼图数据）
+     * <p>
+     * 重要：需要统计未结束的状态，与 timelineData 保持一致
+     * </p>
+     * 
+     * @param deviceId 设备ID
+     * @param factoryId 工厂ID
+     * @param startShiftDate 开始班次日期
+     * @param endShiftDate 结束班次日期
+     * @param currentShiftDate 当前班次日期
+     * @param queryStartTs 查询开始时间戳（毫秒）
+     * @param queryEndTs 查询结束时间戳（毫秒）
+     * @param currentTime 当前时间戳（毫秒）
+     * @return 状态占比统计
      */
-    private StateRatioStatistics buildRatioStatistics(List<DeviceStateSummaryDO> summaryList) {
-        // 汇总各状态的时长
-        int totalStandby = 0;
-        int totalWorking = 0;
-        int totalShutdown = 0;
-        int totalFault = 0;
-        int totalUnknown = 0;
-
-        for (DeviceStateSummaryDO summary : summaryList) {
-            totalStandby += (summary.getStandbyDurationS() != null ? summary.getStandbyDurationS() : 0);
-            totalWorking += (summary.getWorkingDurationS() != null ? summary.getWorkingDurationS() : 0);
-            totalShutdown += (summary.getShutdownDurationS() != null ? summary.getShutdownDurationS() : 0);
-            totalFault += (summary.getFaultDurationS() != null ? summary.getFaultDurationS() : 0);
-            totalUnknown += (summary.getUnknownDurationS() != null ? summary.getUnknownDurationS() : 0);
-        }
-
-        // 计算总时长
-        int totalDuration = totalStandby + totalWorking + totalShutdown + totalFault + totalUnknown;
-
-        // 计算百分比
-        BigDecimal standbyRatio;
-        BigDecimal workingRatio;
-        BigDecimal shutdownRatio;
-        BigDecimal faultRatio;
-        BigDecimal unknownRatio;
-
-        if (totalDuration == 0) {
-            // 总时长为0，所有占比都为0
-            standbyRatio = BigDecimal.ZERO;
-            workingRatio = BigDecimal.ZERO;
-            shutdownRatio = BigDecimal.ZERO;
-            faultRatio = BigDecimal.ZERO;
-            unknownRatio = BigDecimal.ZERO;
-        } else {
-            // 计算各状态的百分比，保留1位小数
-            standbyRatio = BigDecimal.valueOf(totalStandby)
-                    .multiply(BigDecimal.valueOf(100))
-                    .divide(BigDecimal.valueOf(totalDuration), 1, RoundingMode.HALF_UP);
-
-            workingRatio = BigDecimal.valueOf(totalWorking)
-                    .multiply(BigDecimal.valueOf(100))
-                    .divide(BigDecimal.valueOf(totalDuration), 1, RoundingMode.HALF_UP);
-
-            shutdownRatio = BigDecimal.valueOf(totalShutdown)
-                    .multiply(BigDecimal.valueOf(100))
-                    .divide(BigDecimal.valueOf(totalDuration), 1, RoundingMode.HALF_UP);
-
-            faultRatio = BigDecimal.valueOf(totalFault)
-                    .multiply(BigDecimal.valueOf(100))
-                    .divide(BigDecimal.valueOf(totalDuration), 1, RoundingMode.HALF_UP);
-
-            unknownRatio = BigDecimal.valueOf(totalUnknown)
-                    .multiply(BigDecimal.valueOf(100))
-                    .divide(BigDecimal.valueOf(totalDuration), 1, RoundingMode.HALF_UP);
-
-            // 确保总和为100%
-            BigDecimal sum = standbyRatio.add(workingRatio).add(shutdownRatio).add(faultRatio).add(unknownRatio);
-            BigDecimal diff = BigDecimal.valueOf(100).subtract(sum);
-
-            // 如果总和不是100，将差值加到最大的那个百分比上
-            if (diff.compareTo(BigDecimal.ZERO) != 0) {
-                // 找出最大的占比
-                if (totalStandby >= totalWorking && totalStandby >= totalShutdown && totalStandby >= totalFault && totalStandby >= totalUnknown) {
-                    standbyRatio = standbyRatio.add(diff);
-                } else if (totalWorking >= totalShutdown && totalWorking >= totalFault && totalWorking >= totalUnknown) {
-                    workingRatio = workingRatio.add(diff);
-                } else if (totalShutdown >= totalFault && totalShutdown >= totalUnknown) {
-                    shutdownRatio = shutdownRatio.add(diff);
-                } else if (totalFault >= totalUnknown) {
-                    faultRatio = faultRatio.add(diff);
-                } else {
-                    unknownRatio = unknownRatio.add(diff);
-                }
+    private StateRatioStatistics buildRatioStatistics(
+            Long deviceId,
+            Long factoryId,
+            LocalDate startShiftDate,
+            LocalDate endShiftDate,
+            LocalDate currentShiftDate,
+            long queryStartTs,
+            long queryEndTs,
+            long currentTime) {
+        
+        StateDurations totalDurations = StateDurationUtils.extractStateDurations(null); // 空对象，用于累加
+        
+        // 1. 统计历史班次（已结束的班次）
+        List<LocalDate> historyDates = new ArrayList<>();
+        for (LocalDate date = startShiftDate; !date.isAfter(endShiftDate); date = date.plusDays(1)) {
+            if (date.isBefore(currentShiftDate)) {
+                historyDates.add(date);
             }
         }
+        
+        if (!historyDates.isEmpty()) {
+            // 使用工具类统计历史班次（优先使用汇总表，缺失的从记录表汇总）
+            // 注意：工具类返回的是整个班次日期的汇总，而查询范围是完整的班次日期范围，所以不需要计算比例
+            StateDurations historyDurations = StateDurationUtils.sumStateDurationsFromShiftDates(
+                    deviceId,
+                    historyDates,
+                    deviceStateSummaryRepository,
+                    deviceStateRecordRepository);
+            totalDurations = totalDurations.add(historyDurations);
+        }
+        
+        // 2. 统计当前班次（如果查询范围包含当前班次日期）
+        if (!startShiftDate.isAfter(currentShiftDate) && !endShiftDate.isBefore(currentShiftDate)) {
+            // 使用工具类统计当前班次（包括未结束的状态）
+            // 注意：工具类返回的是当前班次从开始到当前时间的汇总，而查询范围是完整的班次日期范围，所以不需要计算比例
+            StateDurations todayDurations = StateDurationUtils.sumStateDurationsForToday(
+                    factoryId,
+                    deviceId,
+                    currentTime,
+                    shiftCalculationService::getShiftDate,
+                    deviceStateRecordRepository);
+            totalDurations = totalDurations.add(todayDurations);
+        }
+        
+        // 3. 转换为秒并计算百分比
+        return buildStateRatioStatistics(totalDurations);
+    }
+
+
+    /**
+     * 查找最新的未结束状态记录
+     *
+     * @param stateRecordList 状态记录列表
+     * @return 最新的未结束状态记录，如果没有则返回null
+     */
+    private DeviceStateRecordDO findLatestOngoingRecord(List<DeviceStateRecordDO> stateRecordList) {
+        if (stateRecordList == null || stateRecordList.isEmpty()) {
+            return null;
+        }
+        
+        return stateRecordList.stream()
+                .filter(r -> r.getEndTs() == null)
+                .max(Comparator.comparingLong(DeviceStateRecordDO::getStartTs))
+                .orElse(null);
+    }
+
+    /**
+     * 计算未结束状态记录在查询时间范围内的时长
+     *
+     * @param record 未结束的状态记录
+     * @param queryStartTs 查询开始时间戳
+     * @param queryEndTs 查询结束时间戳
+     * @param currentTime 当前时间戳
+     * @return 时长（毫秒），如果没有交集返回0
+     */
+    private long calculateOngoingRecordDuration(DeviceStateRecordDO record,
+                                                long queryStartTs, long queryEndTs, long currentTime) {
+        long recordStartTs = record.getStartTs() != null ? record.getStartTs() : queryStartTs;
+        long recordEndTs = Math.min(currentTime, queryEndTs);
+        
+        long effectiveStart = Math.max(recordStartTs, queryStartTs);
+        long effectiveEnd = Math.min(recordEndTs, queryEndTs);
+        
+        return effectiveEnd > effectiveStart ? effectiveEnd - effectiveStart : 0L;
+    }
+
+    /**
+     * 构建状态占比统计对象
+     *
+     * @param durations 状态时长对象
+     * @return 状态占比统计对象
+     */
+    private StateRatioStatistics buildStateRatioStatistics(StateDurations durations) {
+        // 转换为秒（与 timelineData 的 durationS 单位保持一致）
+        long totalStandby = durations.getStandbyMillis() / 1000;
+        long totalWorking = durations.getWorkingMillis() / 1000;
+        long totalShutdown = durations.getShutdownMillis() / 1000;
+        long totalFault = durations.getFaultMillis() / 1000;
+        long totalUnknown = durations.getUnknownMillis() / 1000;
+
+        // 计算总时长（秒）
+        long totalDuration = totalStandby + totalWorking + totalShutdown + totalFault + totalUnknown;
+
+        // 计算百分比
+        BigDecimal[] ratios = calculatePercentages(
+                totalStandby, totalWorking, totalShutdown, totalFault, totalUnknown, totalDuration);
 
         return StateRatioStatistics.builder()
                 .standbyDur(totalStandby)
@@ -214,12 +313,72 @@ public class DeviceStateSummaryBizService implements IDeviceStateSummaryBizServi
                 .shutdownDur(totalShutdown)
                 .faultDur(totalFault)
                 .unknownDur(totalUnknown)
-                .standbyRatio(standbyRatio)
-                .workingRatio(workingRatio)
-                .shutdownRatio(shutdownRatio)
-                .faultRatio(faultRatio)
-                .unknownRatio(unknownRatio)
+                .standbyRatio(ratios[0])
+                .workingRatio(ratios[1])
+                .shutdownRatio(ratios[2])
+                .faultRatio(ratios[3])
+                .unknownRatio(ratios[4])
                 .build();
+    }
+
+    /**
+     * 计算各状态的百分比，确保总和为100%
+     *
+     * @param standby 待机时长（秒）
+     * @param working 加工时长（秒）
+     * @param shutdown 关机时长（秒）
+     * @param fault 故障时长（秒）
+     * @param unknown 未知时长（秒）
+     * @param totalDuration 总时长（秒）
+     * @return 百分比数组 [standbyRatio, workingRatio, shutdownRatio, faultRatio, unknownRatio]
+     */
+    private BigDecimal[] calculatePercentages(long standby, long working, long shutdown, 
+                                              long fault, long unknown, long totalDuration) {
+        BigDecimal[] ratios = new BigDecimal[5];
+        
+        if (totalDuration == 0) {
+            // 总时长为0，所有占比都为0
+            Arrays.fill(ratios, BigDecimal.ZERO);
+            return ratios;
+        }
+        
+        // 计算各状态的百分比，保留1位小数
+        ratios[0] = calculatePercentage(standby, totalDuration);
+        ratios[1] = calculatePercentage(working, totalDuration);
+        ratios[2] = calculatePercentage(shutdown, totalDuration);
+        ratios[3] = calculatePercentage(fault, totalDuration);
+        ratios[4] = calculatePercentage(unknown, totalDuration);
+        
+        // 确保总和为100%
+        BigDecimal sum = Arrays.stream(ratios).reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal diff = BigDecimal.valueOf(100).subtract(sum);
+        
+        if (diff.compareTo(BigDecimal.ZERO) != 0) {
+            // 找出最大的时长，将差值加到对应的百分比上
+            long[] durations = {standby, working, shutdown, fault, unknown};
+            int maxIndex = 0;
+            for (int i = 1; i < durations.length; i++) {
+                if (durations[i] > durations[maxIndex]) {
+                    maxIndex = i;
+                }
+            }
+            ratios[maxIndex] = ratios[maxIndex].add(diff);
+        }
+        
+        return ratios;
+    }
+
+    /**
+     * 计算百分比
+     *
+     * @param value 值
+     * @param total 总值
+     * @return 百分比（保留1位小数）
+     */
+    private BigDecimal calculatePercentage(long value, long total) {
+        return BigDecimal.valueOf(value)
+                .multiply(BigDecimal.valueOf(100))
+                .divide(BigDecimal.valueOf(total), 1, RoundingMode.HALF_UP);
     }
 
     /**
@@ -229,8 +388,18 @@ public class DeviceStateSummaryBizService implements IDeviceStateSummaryBizServi
      * 对于未结束的状态（endTs == null），只显示最新的一条（startTs最大的），使用当前时间作为结束时间
      * 历史的未结束状态会被过滤掉，避免显示错误的历史数据
      * </p>
+     * <p>
+     * 重要：对记录进行时间范围截断，与 ratioStatistics 保持一致
+     * 即使记录已经按班次拆分，但可能包含查询范围之外的时间，需要截断到查询时间范围内
+     * </p>
+     * 
+     * @param stateRecordList 状态记录列表
+     * @param queryStartTs 查询开始时间戳（毫秒）
+     * @param queryEndTs 查询结束时间戳（毫秒）
+     * @return 时间轴数据列表
      */
-    private List<StateTimeSegment> buildTimelineData(List<DeviceStateRecordDO> stateRecordList) {
+    private List<StateTimeSegment> buildTimelineData(List<DeviceStateRecordDO> stateRecordList, 
+                                                      long queryStartTs, long queryEndTs) {
         if (stateRecordList == null || stateRecordList.isEmpty()) {
             return new ArrayList<>();
         }
@@ -261,27 +430,60 @@ public class DeviceStateSummaryBizService implements IDeviceStateSummaryBizServi
 
         // 处理已结束的状态记录
         for (DeviceStateRecordDO record : endedRecords) {
+            // 计算记录在查询时间范围内的有效时间范围（与 calculateStatistics 逻辑一致）
+            long recordStartTs = record.getStartTs() != null ? record.getStartTs() : queryStartTs;
+            long recordEndTs = record.getEndTs() != null ? record.getEndTs() : queryEndTs;
+            
+            // 取交集（与 calculateStatistics 第56-57行逻辑一致）
+            long effectiveStart = Math.max(recordStartTs, queryStartTs);
+            long effectiveEnd = Math.min(recordEndTs, queryEndTs);
+            
+            // 如果记录与查询范围没有交集，跳过
+            if (recordStartTs >= queryEndTs || effectiveEnd <= queryStartTs) {
+                continue;
+            }
+            
             DeviceStateEnum stateEnum = DeviceStateEnum.fromCode(record.getStateCode());
+            // 计算持续时间（秒）：(有效结束时间 - 有效开始时间) / 1000
+            long durationS = (effectiveEnd - effectiveStart) / 1000;
             StateTimeSegment segment = StateTimeSegment.builder()
                     .stateCode(stateEnum.name())
                     .stateName(stateEnum.getDescription())
-                    .startTime(record.getStartTs())
-                    .endTime(record.getEndTs())
+                    .startTime(effectiveStart)
+                    .endTime(effectiveEnd)
+                    .durationS(durationS)
                     .build();
             timelineData.add(segment);
         }
 
         // 处理最新的未结束状态（如果存在）
         if (latestOngoingRecord != null) {
-            DeviceStateEnum stateEnum = DeviceStateEnum.fromCode(latestOngoingRecord.getStateCode());
-            // 使用当前时间作为结束时间，确保进行中的状态也能显示
-            StateTimeSegment segment = StateTimeSegment.builder()
-                    .stateCode(stateEnum.name())
-                    .stateName(stateEnum.getDescription())
-                    .startTime(latestOngoingRecord.getStartTs())
-                    .endTime(currentTime)
-                    .build();
-            timelineData.add(segment);
+            // 计算记录在查询时间范围内的有效时间范围
+            long recordStartTs = latestOngoingRecord.getStartTs() != null 
+                    ? latestOngoingRecord.getStartTs() : queryStartTs;
+            // 进行中状态使用当前时间作为结束时间，但不能超过查询结束时间
+            long recordEndTs = Math.min(currentTime, queryEndTs);
+            
+            // 取交集
+            long effectiveStart = Math.max(recordStartTs, queryStartTs);
+            long effectiveEnd = Math.min(recordEndTs, queryEndTs);
+            
+            // 如果记录与查询范围没有交集，跳过
+            if (recordStartTs >= queryEndTs || effectiveEnd <= queryStartTs) {
+                // 不添加，跳过
+            } else {
+                DeviceStateEnum stateEnum = DeviceStateEnum.fromCode(latestOngoingRecord.getStateCode());
+                // 计算持续时间（秒）：(有效结束时间 - 有效开始时间) / 1000
+                long durationS = (effectiveEnd - effectiveStart) / 1000;
+                StateTimeSegment segment = StateTimeSegment.builder()
+                        .stateCode(stateEnum.name())
+                        .stateName(stateEnum.getDescription())
+                        .startTime(effectiveStart)
+                        .endTime(effectiveEnd)
+                        .durationS(durationS)
+                        .build();
+                timelineData.add(segment);
+            }
         }
 
         // 额外排序保障：确保按开始时间升序，即使数据库查询未正确排序

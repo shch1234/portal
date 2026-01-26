@@ -20,12 +20,13 @@ import java.util.Optional;
  * 工厂级OEE相关指标的实时缓存（聚合设备级指标）
  * </p>
  * Redis Hash结构：
+ * 注意：指标值存储的是小数形式（0-1范围），与数据库字段格式保持一致
  * {
- *   "metric.oee": "84.5",
- *   "metric.uptimeRate": "95.5",
- *   "metric.performanceRate": "88.2",
- *   "metric.availabilityRate": "92.3",
- *   "metric.faultRate": "2.1",
+ *   "metric.oee": "0.845",        // 小数形式，表示84.5%
+ *   "metric.uptimeRate": "0.955",  // 小数形式，表示95.5%
+ *   "metric.performanceRate": "0.882",  // 小数形式，表示88.2%
+ *   "metric.availabilityRate": "0.923", // 小数形式，表示92.3%
+ *   "metric.faultRate": "0.021",   // 小数形式，表示2.1%
  *   "meta.sumWeight": "28800",
  *   "meta.validDevices": "45",
  *   "meta.totalDevices": "50",

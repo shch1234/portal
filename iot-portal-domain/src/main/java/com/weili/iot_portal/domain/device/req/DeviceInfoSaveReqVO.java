@@ -31,10 +31,13 @@ public class DeviceInfoSaveReqVO {
     @Size(max = 255, message = "设备名称长度不能超过255个字符")
     private String deviceName;
 
-    @Schema(description = "设备类型编码", requiredMode = Schema.RequiredMode.REQUIRED, example = "CNC_5AXIS")
-    @NotBlank(message = "设备类型编码不能为空")
+    @Schema(description = "设备类型编码（父类型编码）", example = "MACHINE_TOOL")
     @Size(max = 100, message = "设备类型编码长度不能超过100个字符")
     private String deviceTypeCode;
+
+    @Schema(description = "设备子类型编码（子类型编码，如果提供则优先使用，将写入device_type_code字段）", example = "CNC_MACHINING_CENTER")
+    @Size(max = 100, message = "设备子类型编码长度不能超过100个字符")
+    private String deviceSubTypeCode;
 
     @Schema(description = "设备型号ID", requiredMode = Schema.RequiredMode.REQUIRED, example = "123456789")
     @NotNull

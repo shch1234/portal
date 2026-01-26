@@ -1,5 +1,7 @@
 package com.weili.iot_portal.domain.system;
 
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.weili.iot_portal.common.serializer.StatusIntegerDeserializer;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -26,6 +28,7 @@ public class DictTypeSaveReqVO {
 
     @Schema(description = "状态，参见 StatusEnum 枚举类", requiredMode = Schema.RequiredMode.REQUIRED, example = "1")
     @NotNull(message = "状态不能为空")
+    @JsonDeserialize(using = StatusIntegerDeserializer.class)
     private Integer status;
 
     @Schema(description = "备注", example = "快乐的备注")

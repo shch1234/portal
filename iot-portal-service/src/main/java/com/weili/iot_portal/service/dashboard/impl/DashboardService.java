@@ -209,7 +209,26 @@ public class DashboardService implements IDashboardService {
         Map<Long, DeviceInfoDO> deviceMap = devices.stream()
                 .collect(Collectors.toMap(DeviceInfoDO::getId, Function.identity()));
 
-        // 4. 组装返回结果
+        // 4. 收集所有设备类型编码，批量查询设备类型信息
+        List<String> deviceTypeCodes = devices.stream()
+                .map(DeviceInfoDO::getDeviceTypeCode)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+        
+        Map<String, String> deviceTypeNameMap = new HashMap<>();
+        if (!deviceTypeCodes.isEmpty()) {
+            List<DeviceTypeRelationDO> deviceTypes = deviceTypeRelationRepository.selectByCodes(deviceTypeCodes);
+            deviceTypeNameMap = deviceTypes.stream()
+                    .filter(type -> type.getDescription() != null)
+                    .collect(Collectors.toMap(
+                            DeviceTypeRelationDO::getTypeCode,
+                            DeviceTypeRelationDO::getDescription,
+                            (existing, replacement) -> existing // 如果有重复，保留第一个
+                    ));
+        }
+
+        // 5. 组装返回结果
         List<AlarmDurationTopRespVO> result = new ArrayList<>();
         for (DeviceAlarmHistoryDO alarm : alarmHistories) {
             AlarmDurationTopRespVO vo = new AlarmDurationTopRespVO();
@@ -218,6 +237,10 @@ public class DashboardService implements IDashboardService {
             if (device != null) {
                 vo.setDeviceCode(device.getDeviceCode());
                 vo.setDeviceTypeCode(device.getDeviceTypeCode());
+                // 设置设备类型名称
+                if (device.getDeviceTypeCode() != null) {
+                    vo.setDeviceTypeName(deviceTypeNameMap.get(device.getDeviceTypeCode()));
+                }
             }
 
             vo.setAlarmText(alarm.getAlarmText());
@@ -259,20 +282,24 @@ public class DashboardService implements IDashboardService {
             BigDecimal value = BigDecimal.ZERO;
 
             if (dayData != null && !dayData.isEmpty()) {
-                // 计算当天所有班次的平均值
+                // 计算当天所有班次的平均值（数据库存储的是小数格式 0-1）
+                BigDecimal averageValue = BigDecimal.ZERO;
                 if (METRIC_TYPE_OEE.equals(metricType)) {
-                    value = dayData.stream()
+                    averageValue = dayData.stream()
                             .map(FactoryMetricSummaryDO::getAverageOee)
                             .filter(Objects::nonNull)
                             .reduce(BigDecimal.ZERO, BigDecimal::add)
                             .divide(BigDecimal.valueOf(dayData.size()), 4, RoundingMode.HALF_UP);
                 } else if (METRIC_TYPE_UTILIZATION.equals(metricType)) {
-                    value = dayData.stream()
+                    averageValue = dayData.stream()
                             .map(FactoryMetricSummaryDO::getAverageUtilizationRate)
                             .filter(Objects::nonNull)
                             .reduce(BigDecimal.ZERO, BigDecimal::add)
                             .divide(BigDecimal.valueOf(dayData.size()), 4, RoundingMode.HALF_UP);
                 }
+                // 转换为百分比形式（0-100），保留1位小数
+                value = averageValue.multiply(BigDecimal.valueOf(100))
+                        .setScale(1, RoundingMode.HALF_UP);
             }
 
             yAxis.add(value);

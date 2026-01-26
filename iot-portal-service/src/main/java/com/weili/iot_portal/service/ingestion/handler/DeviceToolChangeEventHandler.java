@@ -1,5 +1,7 @@
 package com.weili.iot_portal.service.ingestion.handler;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.weili.basic.common.util.JsonUtils;
 import com.weili.iot_portal.common.enums.TransitionType;
 import com.weili.iot_portal.common.exception.IotPortalErrorCode;
 import com.weili.iot_portal.common.exception.IotPortalException;
@@ -10,6 +12,7 @@ import com.weili.iot_portal.dal.repository.device.DeviceToolRecordRepository;
 import com.weili.iot_portal.domain.ingestion.DeviceIdentity;
 import com.weili.iot_portal.domain.ingestion.WebhookRequest;
 import com.weili.iot_portal.service.cache.DeviceLockService;
+import com.weili.iot_portal.service.device.DeviceToolCompensationService;
 import com.weili.iot_portal.service.ingestion.WebhookEventHandler;
 import com.weili.iot_portal.service.ingestion.WebhookFailLogService;
 import com.weili.iot_portal.service.ingestion.WebhookProcessingStrategy;
@@ -47,7 +50,14 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class DeviceToolChangeEventHandler implements WebhookEventHandler {
 
+    /**
+     * 去重检查的时间范围（毫秒）
+     * 如果存在相同设备ID、相同刀具号、时间戳在此范围内的记录，视为重复记录
+     */
+    private static final long DEDUPLICATION_TIME_RANGE_MS = 3000L;
+
     private final DeviceToolRecordRepository deviceToolRecordRepository;
+    private final DeviceToolCompensationService deviceToolCompensationService;
     private final DeviceLockService deviceLockService;
     private final WebhookHandlerUtils webhookHandlerUtils;
     private final WebhookFailLogService webhookFailLogService;
@@ -73,11 +83,15 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void handle(WebhookInboxDO inbox, WebhookRequest request) throws Exception {
-        log.debug("[Webhook-Handler-DeviceToolChange] 处理设备换刀事件: messageId={}, eventType={}, deviceCode={}",
+        log.info("[Webhook-Handler-DeviceToolChange] 处理设备换刀事件: messageId={}, eventType={}, deviceCode={}",
                 request.getMessageId(), request.getEventType(), request.getDeviceCode());
 
         // 1. 解析事件数据
         EventData eventData = parseEventData(request);
+        
+        log.info("[DeviceToolChangeEventHandler] 解析事件数据完成: deviceCode={}, currentToolNo={}, previousToolNo={}, compensationSnapshot={}",
+                request.getDeviceCode(), eventData.currentToolNo(), eventData.previousToolNo(), 
+                eventData.compensationSnapshot() != null ? eventData.compensationSnapshot().keySet() : "null");
 
         // 2. 解析设备信息
         DeviceIdentity identity = webhookHandlerUtils.resolveDeviceIdentity(request);
@@ -183,13 +197,16 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
             }
         }
 
-        // 如果从顶层字段提取到了 holderNumber，添加到 compensationSnapshot
-        // 这样在 createToolRecord 中就能正确设置 toolHolderNo
-        if (extractedHolderNumber != null) {
-            if (compensationSnapshot == null) {
-                compensationSnapshot = new HashMap<>();
-            }
-            if (!compensationSnapshot.containsKey(DeviceToolEventFields.HOLDER_NUMBER)) {
+        // 如果从顶层字段提取到了 holderNumber，且 compensationSnapshot 不为空（有补偿数据），才添加到 compensationSnapshot
+        // 注意：只有当 compensationSnapshot 有补偿数据时，才添加 holderNumber，避免创建只有 holderNumber 而没有补偿数据的快照
+        // 这样在 createToolRecord 中就能正确设置 toolHolderNo，同时在 tryWriteCompensation 中也能正确提取补偿数据
+        if (extractedHolderNumber != null && compensationSnapshot != null && !compensationSnapshot.isEmpty()) {
+            // 检查 compensationSnapshot 是否包含补偿数据（不仅仅是 holderNumber）
+            boolean hasCompensationData = compensationSnapshot.containsKey(DeviceToolEventFields.COMPENSATION_FIELD) ||
+                    compensationSnapshot.keySet().stream().anyMatch(key -> 
+                            key != null && DeviceToolEventFields.isCompensationField(key));
+            
+            if (hasCompensationData && !compensationSnapshot.containsKey(DeviceToolEventFields.HOLDER_NUMBER)) {
                 compensationSnapshot.put(DeviceToolEventFields.HOLDER_NUMBER, extractedHolderNumber);
             }
         }
@@ -293,46 +310,86 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
         Map<String, Object> sourceData = eventData != null ? eventData : telemetryData;
 
         if (sourceData == null) {
+            log.warn("[DeviceToolChangeEventHandler] 提取补偿快照: eventData和telemetryData都为空");
             return null;
         }
+        
+        log.info("[DeviceToolChangeEventHandler] 提取补偿快照: sourceData字段={}", sourceData.keySet());
 
         // 优先检查是否存在 compensation 对象（结构化格式）
         Object compensationObj = sourceData.get(DeviceToolEventFields.COMPENSATION_FIELD);
-        if (compensationObj != null && compensationObj instanceof Map) {
-            // 结构化格式：提取 toolNo、holderNumber 和 compensation 对象
-            @SuppressWarnings("unchecked")
-            Map<String, Object> compensationMap = (Map<String, Object>) compensationObj;
+        if (compensationObj != null) {
+            Map<String, Object> compensationMap = null;
+            
+            if (compensationObj instanceof Map) {
+                // 结构化格式：compensation 是对象
+                @SuppressWarnings("unchecked")
+                Map<String, Object> compMap = (Map<String, Object>) compensationObj;
+                compensationMap = compMap;
+            } else if (compensationObj instanceof String) {
+                // 结构化格式：compensation 是JSON字符串（需要解析）
+                try {
+                    String jsonStr = ((String) compensationObj).trim();
+                    if (!jsonStr.isEmpty() && jsonStr.startsWith("{")) {
+                        compensationMap = JsonUtils.parseObject(jsonStr, new TypeReference<Map<String, Object>>() {});
+                        if (compensationMap == null || compensationMap.isEmpty()) {
+                            log.warn("[DeviceToolChangeEventHandler] 解析compensation JSON字符串为空: {}", jsonStr);
+                            compensationMap = null;
+                        }
+                    } else {
+                        log.warn("[DeviceToolChangeEventHandler] compensation JSON字符串格式不正确，期望对象格式: {}", jsonStr);
+                    }
+                } catch (Exception e) {
+                    log.warn("[DeviceToolChangeEventHandler] 解析compensation JSON字符串失败: {}, error={}", 
+                            compensationObj, e.getMessage());
+                }
+            } else {
+                log.warn("[DeviceToolChangeEventHandler] compensation字段格式不正确，期望Map或String，实际类型: {}", 
+                        compensationObj.getClass().getName());
+            }
+            
+            // 如果成功提取到compensation对象，构建快照
+            if (compensationMap != null && !compensationMap.isEmpty()) {
+                // 提取 toolNo（统一使用toolNo，与数据库保持一致）
+                // 注意：允许值为0，0表示"未使用刀具"，这是一个有效的状态
+                Object toolNumberObj = sourceData.get(DeviceToolEventFields.TOOL_NO);
+                if (toolNumberObj != null) {
+                    snapshot.put(DeviceToolEventFields.TOOL_NO, toolNumberObj);
+                }
 
-            // 提取 toolNo（统一使用toolNo，与数据库保持一致）
-            // 注意：允许值为0，0表示"未使用刀具"，这是一个有效的状态
-            Object toolNumberObj = sourceData.get(DeviceToolEventFields.TOOL_NO);
-            if (toolNumberObj != null) {
-                snapshot.put(DeviceToolEventFields.TOOL_NO, toolNumberObj);
-            }
+                // 提取 holderNumber（优先级：compensationMap内部 > sourceData顶层字段）
+                // 1. 优先从 compensationMap 内部提取（如果 compensation 是JSON字符串，holderNumber可能在内部）
+                Object holderNumberObj = null;
+                if (compensationMap.containsKey(DeviceToolEventFields.HOLDER_NUMBER)) {
+                    holderNumberObj = compensationMap.get(DeviceToolEventFields.HOLDER_NUMBER);
+                }
+                
+                // 2. 如果 compensationMap 中没有，从 sourceData 顶层字段提取（按优先级：hNo > toolEdgeNumber > dNo > holderNumber）
+                if (holderNumberObj == null || isZeroValue(String.valueOf(holderNumberObj))) {
+                    holderNumberObj = sourceData.get(DeviceToolEventFields.H_NO);
+                }
+                if (holderNumberObj == null || isZeroValue(String.valueOf(holderNumberObj))) {
+                    holderNumberObj = sourceData.get(DeviceToolEventFields.TOOL_EDGE_NUMBER);
+                }
+                if (holderNumberObj == null || isZeroValue(String.valueOf(holderNumberObj))) {
+                    holderNumberObj = sourceData.get(DeviceToolEventFields.D_NO);
+                }
+                if (holderNumberObj == null || isZeroValue(String.valueOf(holderNumberObj))) {
+                    holderNumberObj = sourceData.get(DeviceToolEventFields.HOLDER_NUMBER);
+                }
+                
+                // 最终检查：如果值不为null且不为0，才添加到快照
+                if (holderNumberObj != null && !isZeroValue(String.valueOf(holderNumberObj))) {
+                    snapshot.put(DeviceToolEventFields.HOLDER_NUMBER, holderNumberObj);
+                }
 
-            // 提取 holderNumber（按优先级：hNo > toolEdgeNumber > dNo > holderNumber）
-            // 过滤0值：如果值为0，表示未使用刀补，不提取
-            Object holderNumberObj = sourceData.get(DeviceToolEventFields.H_NO);
-            if (holderNumberObj == null || isZeroValue(String.valueOf(holderNumberObj))) {
-                holderNumberObj = sourceData.get(DeviceToolEventFields.TOOL_EDGE_NUMBER);
-            }
-            if (holderNumberObj == null || isZeroValue(String.valueOf(holderNumberObj))) {
-                holderNumberObj = sourceData.get(DeviceToolEventFields.D_NO);
-            }
-            if (holderNumberObj == null || isZeroValue(String.valueOf(holderNumberObj))) {
-                holderNumberObj = sourceData.get(DeviceToolEventFields.HOLDER_NUMBER);
-            }
-            // 最终检查：如果值不为null且不为0，才添加到快照
-            if (holderNumberObj != null && !isZeroValue(String.valueOf(holderNumberObj))) {
-                snapshot.put(DeviceToolEventFields.HOLDER_NUMBER, holderNumberObj);
-            }
+                // 提取完整的 compensation 对象（已解析的Map）
+                snapshot.put(DeviceToolEventFields.COMPENSATION_FIELD, compensationMap);
 
-            // 提取完整的 compensation 对象
-            snapshot.put(DeviceToolEventFields.COMPENSATION_FIELD, compensationMap);
-
-            log.debug("[DeviceToolChangeEventHandler] 提取结构化补偿快照: toolNo={}, holderNumber={}, compensation keys={}",
-                    toolNumberObj, holderNumberObj, compensationMap.keySet());
-            return snapshot;
+                log.info("[DeviceToolChangeEventHandler] 提取结构化补偿快照: toolNo={}, holderNumber={}, compensation keys={}",
+                        toolNumberObj, holderNumberObj, compensationMap.keySet());
+                return snapshot;
+            }
         }
 
         // 降级到扁平化提取：提取所有以 offset/comp 开头的字段
@@ -363,10 +420,33 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
             });
         }
 
+        // 如果提取到了扁平化补偿数据，尝试提取 holderNumber（从 eventData 或 telemetryData 顶层字段）
         if (!snapshot.isEmpty()) {
-            log.debug("[DeviceToolChangeEventHandler] 提取扁平化补偿快照: keys={}", snapshot.keySet());
+            // 如果快照中没有 holderNumber，尝试从顶层字段提取
+            if (!snapshot.containsKey(DeviceToolEventFields.HOLDER_NUMBER)) {
+                Map<String, Object> sourceForHolder = eventData != null ? eventData : telemetryData;
+                if (sourceForHolder != null) {
+                    Object holderNumberObj = sourceForHolder.get(DeviceToolEventFields.H_NO);
+                    if (holderNumberObj == null || isZeroValue(String.valueOf(holderNumberObj))) {
+                        holderNumberObj = sourceForHolder.get(DeviceToolEventFields.TOOL_EDGE_NUMBER);
+                    }
+                    if (holderNumberObj == null || isZeroValue(String.valueOf(holderNumberObj))) {
+                        holderNumberObj = sourceForHolder.get(DeviceToolEventFields.D_NO);
+                    }
+                    if (holderNumberObj == null || isZeroValue(String.valueOf(holderNumberObj))) {
+                        holderNumberObj = sourceForHolder.get(DeviceToolEventFields.HOLDER_NUMBER);
+                    }
+                    if (holderNumberObj != null && !isZeroValue(String.valueOf(holderNumberObj))) {
+                        snapshot.put(DeviceToolEventFields.HOLDER_NUMBER, holderNumberObj);
+                    }
+                }
+            }
+            log.info("[DeviceToolChangeEventHandler] 提取扁平化补偿快照: keys={}", snapshot.keySet());
         }
 
+        if (snapshot.isEmpty()) {
+            log.warn("[DeviceToolChangeEventHandler] 提取补偿快照: 未找到补偿数据，返回null");
+        }
         return snapshot.isEmpty() ? null : snapshot;
     }
 
@@ -411,7 +491,7 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
         String currentToolNo = eventData.currentToolNo();
         long eventTimestamp = eventData.eventTimestamp();
 
-        log.debug("[DeviceToolChangeEventHandler] 处理换刀转换: deviceInfoId={}, previousToolNo={}, currentToolNo={}, timestamp={}",
+        log.info("[DeviceToolChangeEventHandler] 处理换刀转换: deviceInfoId={}, previousToolNo={}, currentToolNo={}, timestamp={}",
                 deviceInfoId, previousToolNo, currentToolNo, eventTimestamp);
 
         // 判断处理场景
@@ -503,6 +583,29 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
     // ==================== 换刀处理场景 ====================
 
     /**
+     * 去重检查：检查是否存在相同时间戳的记录，避免并发创建重复记录
+     *
+     * @param deviceInfoId 设备ID
+     * @param currentToolNo 当前刀具号
+     * @param eventTimestamp 事件时间戳（毫秒）
+     * @param logPrefix 日志前缀（用于区分不同场景，如"时间戳异常但"）
+     * @return 如果存在重复记录则返回true，否则返回false
+     */
+    private boolean checkAndSkipIfDuplicate(Long deviceInfoId, String currentToolNo, long eventTimestamp, String logPrefix) {
+        DeviceToolRecordDO existing = deviceToolRecordRepository.findByDeviceIdAndToolNoAndTimeRange(
+                deviceInfoId, currentToolNo, eventTimestamp, DEDUPLICATION_TIME_RANGE_MS);
+        if (existing != null) {
+            long timeDiff = Math.abs(existing.getStartTs() - eventTimestamp);
+            log.warn("[DeviceToolChangeEventHandler] {}存在相同时间戳的记录，跳过插入以避免重复: " +
+                     "deviceId={}, toolNo={}, eventTimestamp={}, existing.id={}, existing.startTs={}, " +
+                     "时间差={}ms",
+                     logPrefix, deviceInfoId, currentToolNo, eventTimestamp, existing.getId(), existing.getStartTs(), timeDiff);
+            return true;
+        }
+        return false;
+    }
+
+    /**
      * 数据库无记录（首次记录）
      * <p>
      * 参考 DeviceStateEventHandler.handleFirstRecord 的逻辑：
@@ -511,6 +614,7 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
      * <p>
      * 特殊处理：
      * - 如果 currentToolNo 为 "0"（未使用刀具），不创建新记录（因为0表示未使用刀具，不会写入device_tool_record表）
+     * - 增加去重检查：在插入前检查是否存在相同时间戳的记录（±3秒内），避免并发创建重复记录
      * </p>
      */
     private void handleFirstRecord(Long deviceInfoId, Long orgFactoryId, EventData eventData) {
@@ -524,6 +628,11 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
             return;
         }
 
+        // 去重检查：检查是否存在相同时间戳的记录，避免并发创建重复记录
+        if (checkAndSkipIfDuplicate(deviceInfoId, currentToolNo, eventTimestamp, "")) {
+            return;
+        }
+
         log.debug("[DeviceToolChangeEventHandler] 数据库无记录，插入首次刀具记录: deviceInfoId={}, toolNo={}, timestamp={}",
                 deviceInfoId, currentToolNo, eventTimestamp);
 
@@ -533,6 +642,9 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
 
         log.debug("[DeviceToolChangeEventHandler] 插入首次刀具记录: 刀号={}, startTs={}",
                 currentToolNo, newRecord.getStartTs());
+        
+        // 尝试写入补偿数据
+        tryWriteCompensation(deviceInfoId, orgFactoryId, eventData, eventTimestamp);
     }
 
     /**
@@ -579,12 +691,20 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
             return;
         }
 
+        // 去重检查：检查是否存在相同时间戳的记录，避免并发创建重复记录
+        if (checkAndSkipIfDuplicate(deviceInfoId, currentToolNo, eventTimestamp, "")) {
+            return;
+        }
+
         // 插入新刀具记录
         DeviceToolRecordDO newRecord = createToolRecord(deviceInfoId, orgFactoryId, eventData, eventTimestamp);
         deviceToolRecordRepository.insert(newRecord);
 
         log.debug("[DeviceToolChangeEventHandler] 插入新刀具记录: 刀号={}, startTs={}",
                 currentToolNo, newRecord.getStartTs());
+        
+        // 尝试写入补偿数据
+        tryWriteCompensation(deviceInfoId, orgFactoryId, eventData, eventTimestamp);
     }
 
     /**
@@ -647,12 +767,20 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
             return;
         }
 
+        // 去重检查：检查是否存在相同时间戳的记录，避免并发创建重复记录
+        if (checkAndSkipIfDuplicate(deviceInfoId, currentToolNo, eventTimestamp, "")) {
+            return;
+        }
+
         // 插入新记录
         DeviceToolRecordDO newRecord = createToolRecord(deviceInfoId, orgFactoryId, eventData, eventTimestamp);
         deviceToolRecordRepository.insert(newRecord);
 
         log.debug("[DeviceToolChangeEventHandler] 插入新刀具记录: 刀号={}, startTs={}",
                 currentToolNo, newRecord.getStartTs());
+        
+        // 尝试写入补偿数据
+        tryWriteCompensation(deviceInfoId, orgFactoryId, eventData, eventTimestamp);
     }
 
     /**
@@ -713,12 +841,20 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
             return;
         }
 
+        // 去重检查：检查是否存在相同时间戳的记录，避免并发创建重复记录
+        if (checkAndSkipIfDuplicate(deviceInfoId, currentToolNo, eventTimestamp, "")) {
+            return;
+        }
+
         // 插入新记录
         DeviceToolRecordDO newRecord = createToolRecord(deviceInfoId, orgFactoryId, eventData, eventTimestamp);
         deviceToolRecordRepository.insert(newRecord);
 
         log.debug("[DeviceToolChangeEventHandler] 插入新刀具记录: 刀号={}, startTs={}",
                 currentToolNo, newRecord.getStartTs());
+        
+        // 尝试写入补偿数据
+        tryWriteCompensation(deviceInfoId, orgFactoryId, eventData, eventTimestamp);
     }
 
     /**
@@ -758,9 +894,170 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
             return;
         }
 
+        // 去重检查：检查是否存在相同时间戳的记录，避免并发创建重复记录
+        if (checkAndSkipIfDuplicate(deviceInfoId, currentToolNo, eventTimestamp, "时间戳异常但")) {
+            return;
+        }
+
         // 插入新记录，使用事件时间戳（毫秒级）
         DeviceToolRecordDO newRecord = createToolRecord(deviceInfoId, orgFactoryId, eventData, eventTimestamp);
         deviceToolRecordRepository.insert(newRecord);
+        
+        // 尝试写入补偿数据
+        tryWriteCompensation(deviceInfoId, orgFactoryId, eventData, eventTimestamp);
+    }
+
+    // ==================== 补偿数据写入方法 ====================
+
+    /**
+     * 从 compensationSnapshot 中提取补偿数据
+     * <p>
+     * 支持的数据格式：
+     * 1. 结构化格式（compensation 是对象）：{"compensation": {"geom": {...}, "wear": {...}}, "holderNumber": "29-1"}
+     * 2. 结构化格式（compensation 是JSON字符串）：{"compensation": "{\"geom\":{...},\"wear\":{...}}", "holderNumber": "29-1"}
+     * 3. 扁平化格式：{"offsetX": 0.5, "offsetY": -0.3, "offsetZ": 0.1, "compX": 0.05, ...}
+     * </p>
+     *
+     * @param compensationSnapshot 补偿数据快照
+     * @return 补偿值映射，如果不存在补偿数据返回空Map
+     */
+    private Map<String, Object> extractCompensationFromSnapshot(Map<String, Object> compensationSnapshot) {
+        Map<String, Object> compensation = new HashMap<>();
+        
+        if (compensationSnapshot == null || compensationSnapshot.isEmpty()) {
+            return compensation;
+        }
+        
+        // 1. 优先查找 compensation 字段（结构化格式）
+        Object compensationObj = compensationSnapshot.get(DeviceToolEventFields.COMPENSATION_FIELD);
+        
+        if (compensationObj != null) {
+            // 处理结构化补偿数据
+            if (compensationObj instanceof Map) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> compMap = (Map<String, Object>) compensationObj;
+                compensation.putAll(compMap);
+                log.debug("[DeviceToolChangeEventHandler] 从快照中提取补偿对象格式: {}", compensation.keySet());
+                return compensation;
+            } else if (compensationObj instanceof String) {
+                // 如果补偿数据是JSON字符串，需要先解析
+                try {
+                    String jsonStr = ((String) compensationObj).trim();
+                    if (!jsonStr.isEmpty() && jsonStr.startsWith("{")) {
+                        Map<String, Object> compMap = JsonUtils.parseObject(jsonStr, new TypeReference<Map<String, Object>>() {});
+                        if (compMap != null && !compMap.isEmpty()) {
+                            compensation.putAll(compMap);
+                            log.debug("[DeviceToolChangeEventHandler] 从快照中解析JSON字符串补偿对象格式: {}", compensation.keySet());
+                            return compensation;
+                        }
+                    }
+                } catch (Exception e) {
+                    log.warn("[DeviceToolChangeEventHandler] 解析快照中补偿对象JSON字符串失败: {}, error={}", 
+                            compensationObj, e.getMessage());
+                }
+            } else {
+                log.warn("[DeviceToolChangeEventHandler] 快照中补偿数据格式不正确，期望Map或String，实际类型: {}", 
+                        compensationObj.getClass().getName());
+            }
+        }
+        
+        // 2. 降级到扁平化提取：提取所有以 offset/comp 开头的字段
+        compensationSnapshot.forEach((k, v) -> {
+            if (k == null || v == null) {
+                return;
+            }
+            String key = k.trim();
+            // 排除 holderNumber 字段（不是补偿数据）
+            if (!DeviceToolEventFields.HOLDER_NUMBER.equalsIgnoreCase(key) 
+                    && !DeviceToolEventFields.TOOL_NO.equalsIgnoreCase(key)
+                    && DeviceToolEventFields.isCompensationField(key)) {
+                compensation.put(key, v);
+            }
+        });
+        
+        if (!compensation.isEmpty()) {
+            log.debug("[DeviceToolChangeEventHandler] 从快照中提取扁平化补偿格式: {}", compensation.keySet());
+        }
+        
+        return compensation;
+    }
+
+    /**
+     * 尝试写入补偿数据（如果满足条件）
+     * <p>
+     * 写入条件：
+     * 1. currentToolNo 不为 "0"（未使用刀具）
+     * 2. holderNumber 不为空且不为 "0"
+     * 3. compensationSnapshot 不为空
+     * 4. 补偿数据不为空（提取后不为空Map）
+     * </p>
+     *
+     * @param deviceInfoId 设备ID
+     * @param orgFactoryId 工厂ID
+     * @param eventData 事件数据
+     * @param eventTimestamp 事件时间戳
+     */
+    private void tryWriteCompensation(Long deviceInfoId, Long orgFactoryId, EventData eventData, long eventTimestamp) {
+        String currentToolNo = eventData.currentToolNo();
+        Map<String, Object> compensationSnapshot = eventData.compensationSnapshot();
+        
+        // 条件1：currentToolNo 不为 "0"（未使用刀具）
+        if (DeviceToolEventFields.isUnusedTool(currentToolNo)) {
+            log.debug("[DeviceToolChangeEventHandler] 刀具号为0（未使用刀具），跳过补偿表写入: deviceId={}", deviceInfoId);
+            return;
+        }
+        
+        // 条件2：compensationSnapshot 不为空
+        if (compensationSnapshot == null || compensationSnapshot.isEmpty()) {
+            log.warn("[DeviceToolChangeEventHandler] 补偿快照为空，跳过补偿表写入: deviceId={}, currentToolNo={}", 
+                    deviceInfoId, currentToolNo);
+            return;
+        }
+        
+        log.info("[DeviceToolChangeEventHandler] 尝试写入补偿数据: deviceId={}, currentToolNo={}, compensationSnapshot字段={}", 
+                deviceInfoId, currentToolNo, compensationSnapshot.keySet());
+        
+        // 提取 holderNumber（优先级：compensationSnapshot.holderNumber > toolMagazineNo）
+        String holderNumber = null;
+        Object holderObj = compensationSnapshot.get(DeviceToolEventFields.HOLDER_NUMBER);
+        if (holderObj != null && !isZeroValue(String.valueOf(holderObj))) {
+            holderNumber = String.valueOf(holderObj).trim();
+        }
+        
+        // 如果 compensationSnapshot 中没有，尝试从 toolMagazineNo 中提取
+        if ((holderNumber == null || isZeroValue(holderNumber)) && StringUtils.isNotBlank(eventData.toolMagazineNo())) {
+            String toolMagazineNo = eventData.toolMagazineNo();
+            if (!isZeroValue(toolMagazineNo)) {
+                holderNumber = toolMagazineNo;
+            }
+        }
+        
+        // 条件3：holderNumber 不为空且不为 "0"
+        if (StringUtils.isBlank(holderNumber) || isZeroValue(holderNumber)) {
+            log.warn("[DeviceToolChangeEventHandler] 刀补号为空或为0，跳过补偿表写入: deviceId={}, currentToolNo={}, compensationSnapshot字段={}", 
+                    deviceInfoId, currentToolNo, compensationSnapshot.keySet());
+            return;
+        }
+        
+        // 提取补偿数据
+        Map<String, Object> compValue = extractCompensationFromSnapshot(compensationSnapshot);
+        
+        log.info("[DeviceToolChangeEventHandler] 从快照中提取补偿数据: deviceId={}, holderNumber={}, compValue字段={}", 
+                deviceInfoId, holderNumber, compValue != null ? compValue.keySet() : "null");
+        
+        // 条件4：补偿数据不为空
+        if (compValue == null || compValue.isEmpty()) {
+            log.warn("[DeviceToolChangeEventHandler] 补偿数据为空，跳过补偿表写入: deviceId={}, holderNumber={}, compensationSnapshot字段={}", 
+                    deviceInfoId, holderNumber, compensationSnapshot.keySet());
+            return;
+        }
+        
+        // 写入补偿表
+        // 注意：如果写入失败，抛出异常让事务回滚，确保刀具记录和补偿数据的一致性
+        // 注意：upsertCompensation 内部可能会因为缓存命中或数据库值相同而跳过写入
+        // 这种情况下不会抛出异常，但也不会实际写入数据库
+        deviceToolCompensationService.upsertCompensation(deviceInfoId, orgFactoryId, holderNumber, compValue, eventTimestamp,
+                "[DeviceToolChangeEventHandler]");
     }
 
     // ==================== 记录创建方法 ====================
