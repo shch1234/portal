@@ -191,10 +191,24 @@ public class TimeRangeRecordHandler {
                         currentStartTs, recordEndTs, record.getDurationS());
 
                 // 4. 准备下一班次
-                currentStartTs = prepareNextShiftStart(recordEndTs, endTs, currentShift, factoryId, deviceId);
-                if (currentStartTs == null) {
+                Long nextStartTs = prepareNextShiftStart(recordEndTs, endTs, currentShift, factoryId, deviceId);
+                if (nextStartTs == null) {
                     break; // 已完成截断
                 }
+                
+                // 安全检查：防止下一班次开始时间等于当前开始时间（可能导致无限循环）
+                if (nextStartTs.equals(currentStartTs)) {
+                    log.error("[TimeRangeRecordHandler] 检测到班次计算异常：下一班次开始时间等于当前开始时间，停止截断: " +
+                                    "deviceId={}, currentStartTs={}, recordEndTs={}, shiftEndTs={}, nextStartTs={}",
+                            deviceId, currentStartTs, recordEndTs, currentShift.getEndTs(), nextStartTs);
+                    // 这种情况说明班次计算有问题，直接结束截断，使用溢出记录机制
+                    if (currentStartTs < endTs) {
+                        createOverflowRecord(deviceId, factoryId, currentStartTs, endTs, recordFactory, records);
+                    }
+                    break;
+                }
+                
+                currentStartTs = nextStartTs;
             } catch (Exception e) {
                 log.error("[TimeRangeRecordHandler] 截断班次时发生异常，停止截断: deviceId={}, currentStartTs={}, error={}",
                         deviceId, currentStartTs, e.getMessage(), e);
@@ -299,6 +313,14 @@ public class TimeRangeRecordHandler {
                     orgFactoryId, deviceInfoId, nextShiftStartTs);
 
             if (nextShift != null && nextShift.getStartTs() != null) {
+                // 安全检查：确保下一班次开始时间大于当前班次结束时间
+                if (nextShift.getStartTs() <= recordEndTs) {
+                    log.error("[TimeRangeRecordHandler] 班次计算异常：下一班次开始时间({}) <= 当前班次结束时间({}), " +
+                                    "可能导致无限循环: deviceId={}, recordEndTs={}",
+                            nextShift.getStartTs(), recordEndTs, deviceInfoId, recordEndTs);
+                    return null; // 返回null，让上层处理（会触发溢出记录机制）
+                }
+                
                 log.debug("[TimeRangeRecordHandler] 切换到下一个班次: deviceId={}, 当前班次结束={}, 下一班次开始={}",
                         deviceInfoId, recordEndTs, nextShift.getStartTs());
                 return nextShift.getStartTs();
