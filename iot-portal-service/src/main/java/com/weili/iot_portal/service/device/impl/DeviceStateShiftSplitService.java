@@ -113,6 +113,14 @@ public class DeviceStateShiftSplitService implements IDeviceStateShiftSplitServi
             return false;
         }
 
+        // 检查记录是否已被标记为拆分失败，如果是则跳过
+        Map<String, Object> properties = record.getProperties();
+        if (properties != null && Boolean.TRUE.equals(properties.get("split_failed"))) {
+            log.debug("[DeviceStateShiftSplitService] 记录已标记为拆分失败，跳过: deviceId={}, startTs={}, reason={}", 
+                    record.getDeviceInfoId(), startTs, properties.get("split_failed_reason"));
+            return false;
+        }
+
         try {
             // 获取开始时间所在的班次
             ShiftTimeRange startShift = shiftCalculationService.calculateShiftRange(
@@ -250,13 +258,52 @@ public class DeviceStateShiftSplitService implements IDeviceStateShiftSplitServi
         );
 
         if (splitRecords.isEmpty()) {
-            log.warn("[DeviceStateShiftSplitService] 拆分结果为空，跳过: deviceId={}, recordId={}", 
+            log.error("[DeviceStateShiftSplitService] 拆分结果为空（可能是无限循环导致），标记记录为已处理: deviceId={}, recordId={}, startTs={}, currentTime={}", 
+                    deviceId, record.getId(), startTs, currentTime);
+            
+            // 标记记录为已处理，避免重复处理
+            // 通过更新记录的属性来标记，使其在下次查询时被跳过
+            Map<String, Object> errorProperties = new HashMap<>(properties);
+            errorProperties.put("split_failed", true);
+            errorProperties.put("split_failed_reason", "拆分返回空结果（可能因无限循环）");
+            errorProperties.put("split_failed_time", currentTime);
+            errorProperties.put("split_failed_start_ts", startTs);
+            record.setProperties(errorProperties);
+            
+            // 更新记录，使其在下次查询时被跳过（通过更新 startTs 使其不在查询范围内，或标记为已处理）
+            // 这里我们更新记录的属性，让后续的 shouldSplit 检查能够识别并跳过
+            stateRecordRepository.update(record);
+            
+            log.warn("[DeviceStateShiftSplitService] 已标记记录为拆分失败，将跳过后续处理: deviceId={}, recordId={}", 
                     deviceId, record.getId());
             return;
         }
 
-        // 处理最后一条记录为进行中状态（endTs=null）
+        // 检查最后一条记录是否标记为拆分不完整
         DeviceStateRecordDO lastRecord = splitRecords.get(splitRecords.size() - 1);
+        Map<String, Object> lastRecordProperties = lastRecord.getProperties();
+        boolean isIncomplete = lastRecordProperties != null && 
+                Boolean.TRUE.equals(lastRecordProperties.get("split_incomplete"));
+        
+        if (isIncomplete) {
+            log.error("[DeviceStateShiftSplitService] 检测到拆分不完整（无限循环），标记记录并跳过: deviceId={}, recordId={}, startTs={}", 
+                    deviceId, record.getId(), startTs);
+            
+            // 标记原记录为拆分失败，避免重复处理
+            Map<String, Object> errorProperties = new HashMap<>(properties);
+            errorProperties.put("split_failed", true);
+            errorProperties.put("split_failed_reason", "拆分过程中检测到无限循环");
+            errorProperties.put("split_failed_time", currentTime);
+            errorProperties.put("split_failed_start_ts", startTs);
+            record.setProperties(errorProperties);
+            stateRecordRepository.update(record);
+            
+            log.warn("[DeviceStateShiftSplitService] 已标记记录为拆分失败（无限循环），将跳过后续处理: deviceId={}, recordId={}", 
+                    deviceId, record.getId());
+            return;
+        }
+        
+        // 处理最后一条记录为进行中状态（endTs=null）
         lastRecord.setEndTs(null);
         lastRecord.setDurationS(null);
         lastRecord.setIsComplete(false);
