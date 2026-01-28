@@ -136,13 +136,23 @@ public class TimeRangeRecordHandler {
         List<T> records = new ArrayList<>();
         Long currentStartTs = startTs;
         Long previousStartTs = null;
+        boolean infiniteLoopDetected = false;
 
         log.debug("[TimeRangeRecordHandler] 开始按班次截断: deviceId={}, startTs={}, endTs={}",
                 deviceId, startTs, endTs);
 
         while (true) {
             // 检查是否应该继续拆分
-            if (!shouldContinueSplitting(currentStartTs, endTs, records.size(), previousStartTs, deviceId)) {
+            boolean shouldContinue = shouldContinueSplitting(currentStartTs, endTs, records.size(), previousStartTs, deviceId);
+            
+            // 如果检测到无限循环，标记并停止
+            if (!shouldContinue && previousStartTs != null && currentStartTs != null && currentStartTs.equals(previousStartTs)) {
+                infiniteLoopDetected = true;
+                log.error("[TimeRangeRecordHandler] 检测到无限循环，停止截断: deviceId={}, currentStartTs={}, startTs={}, endTs={}, 已生成记录数={}",
+                        deviceId, currentStartTs, startTs, endTs, records.size());
+            }
+            
+            if (!shouldContinue) {
                 // 如果因为记录数限制而停止，创建溢出记录
                 if (records.size() >= maxSplitRecords && currentStartTs != null && currentStartTs < endTs) {
                     createOverflowRecord(deviceId, factoryId, currentStartTs, endTs, recordFactory, records);
@@ -181,10 +191,24 @@ public class TimeRangeRecordHandler {
                         currentStartTs, recordEndTs, record.getDurationS());
 
                 // 4. 准备下一班次
-                currentStartTs = prepareNextShiftStart(recordEndTs, endTs, currentShift, factoryId, deviceId);
-                if (currentStartTs == null) {
+                Long nextStartTs = prepareNextShiftStart(recordEndTs, endTs, currentShift, factoryId, deviceId);
+                if (nextStartTs == null) {
                     break; // 已完成截断
                 }
+                
+                // 安全检查：防止下一班次开始时间等于当前开始时间（可能导致无限循环）
+                if (nextStartTs.equals(currentStartTs)) {
+                    log.error("[TimeRangeRecordHandler] 检测到班次计算异常：下一班次开始时间等于当前开始时间，停止截断: " +
+                                    "deviceId={}, currentStartTs={}, recordEndTs={}, shiftEndTs={}, nextStartTs={}",
+                            deviceId, currentStartTs, recordEndTs, currentShift.getEndTs(), nextStartTs);
+                    // 这种情况说明班次计算有问题，直接结束截断，使用溢出记录机制
+                    if (currentStartTs < endTs) {
+                        createOverflowRecord(deviceId, factoryId, currentStartTs, endTs, recordFactory, records);
+                    }
+                    break;
+                }
+                
+                currentStartTs = nextStartTs;
             } catch (Exception e) {
                 log.error("[TimeRangeRecordHandler] 截断班次时发生异常，停止截断: deviceId={}, currentStartTs={}, error={}",
                         deviceId, currentStartTs, e.getMessage(), e);
@@ -192,8 +216,31 @@ public class TimeRangeRecordHandler {
             }
         }
 
-        log.info("[TimeRangeRecordHandler] 按班次截断完成: deviceId={}, 原始记录1条, 截断后{}条",
-                deviceId, records.size());
+        // 如果检测到无限循环且没有生成有效记录，返回空列表以避免重复处理
+        if (infiniteLoopDetected && records.isEmpty()) {
+            log.error("[TimeRangeRecordHandler] 无限循环导致无法拆分，返回空列表: deviceId={}, startTs={}, endTs={}",
+                    deviceId, startTs, endTs);
+            return records; // 返回空列表
+        }
+
+        // 如果检测到无限循环但已生成部分记录，标记最后一条记录
+        if (infiniteLoopDetected && !records.isEmpty()) {
+            T lastRecord = records.get(records.size() - 1);
+            Map<String, Object> properties = lastRecord.getProperties();
+            if (properties == null) {
+                properties = new HashMap<>();
+            }
+            properties.put("split_incomplete", true);
+            properties.put("split_incomplete_reason", "检测到无限循环，拆分未完成");
+            properties.put("split_incomplete_start_ts", startTs);
+            properties.put("split_incomplete_end_ts", endTs);
+            lastRecord.setProperties(properties);
+            log.warn("[TimeRangeRecordHandler] 无限循环导致拆分不完整，已标记最后一条记录: deviceId={}, recordCount={}",
+                    deviceId, records.size());
+        }
+
+        log.info("[TimeRangeRecordHandler] 按班次截断完成: deviceId={}, 原始记录1条, 截断后{}条, 无限循环检测={}",
+                deviceId, records.size(), infiniteLoopDetected);
 
         return records;
     }
@@ -266,6 +313,14 @@ public class TimeRangeRecordHandler {
                     orgFactoryId, deviceInfoId, nextShiftStartTs);
 
             if (nextShift != null && nextShift.getStartTs() != null) {
+                // 安全检查：确保下一班次开始时间大于当前班次结束时间
+                if (nextShift.getStartTs() <= recordEndTs) {
+                    log.error("[TimeRangeRecordHandler] 班次计算异常：下一班次开始时间({}) <= 当前班次结束时间({}), " +
+                                    "可能导致无限循环: deviceId={}, recordEndTs={}",
+                            nextShift.getStartTs(), recordEndTs, deviceInfoId, recordEndTs);
+                    return null; // 返回null，让上层处理（会触发溢出记录机制）
+                }
+                
                 log.debug("[TimeRangeRecordHandler] 切换到下一个班次: deviceId={}, 当前班次结束={}, 下一班次开始={}",
                         deviceInfoId, recordEndTs, nextShift.getStartTs());
                 return nextShift.getStartTs();

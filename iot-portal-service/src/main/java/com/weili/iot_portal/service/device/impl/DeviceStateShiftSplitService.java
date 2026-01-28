@@ -70,7 +70,16 @@ public class DeviceStateShiftSplitService implements IDeviceStateShiftSplitServi
             for (DeviceStateRecordDO record : ongoingRecords) {
                 try {
                     // 使用分布式锁保护拆分操作，避免与事件处理或其他定时任务实例冲突
-                    if (shouldSplit(record, currentTime)) {
+                    ShouldSplitResult splitResult = shouldSplitWithErrorHandling(record, currentTime);
+                    
+                    if (splitResult.isError()) {
+                        // 发生异常（通常是 Redis 连接异常），标记记录避免重复处理
+                        markRecordAsSplitFailed(record, splitResult.getErrorReason(), currentTime);
+                        errorCount++;
+                        skipCount++;
+                        log.debug("[DeviceStateShiftSplitService] 因异常标记记录为拆分失败，避免重复处理: deviceId={}, startTs={}, id={}, reason={}", 
+                                record.getDeviceInfoId(), record.getStartTs(), record.getId(), splitResult.getErrorReason());
+                    } else if (splitResult.shouldSplit()) {
                         boolean splitSuccess = splitRecordWithLock(record, currentTime);
                         if (splitSuccess) {
                             splitCount++;
@@ -105,12 +114,22 @@ public class DeviceStateShiftSplitService implements IDeviceStateShiftSplitServi
     }
 
     /**
-     * 判断记录是否需要拆分
+     * 判断记录是否需要拆分（带异常处理结果）
+     * 
+     * @return ShouldSplitResult 包含是否需要拆分和异常信息
      */
-    private boolean shouldSplit(DeviceStateRecordDO record, long currentTime) {
+    private ShouldSplitResult shouldSplitWithErrorHandling(DeviceStateRecordDO record, long currentTime) {
         Long startTs = record.getStartTs();
         if (startTs == null) {
-            return false;
+            return ShouldSplitResult.noSplit();
+        }
+
+        // 检查记录是否已被标记为拆分失败，如果是则跳过
+        Map<String, Object> properties = record.getProperties();
+        if (properties != null && Boolean.TRUE.equals(properties.get("split_failed"))) {
+            log.debug("[DeviceStateShiftSplitService] 记录已标记为拆分失败，跳过: deviceId={}, startTs={}, reason={}", 
+                    record.getDeviceInfoId(), startTs, properties.get("split_failed_reason"));
+            return ShouldSplitResult.noSplit();
         }
 
         try {
@@ -121,7 +140,7 @@ public class DeviceStateShiftSplitService implements IDeviceStateShiftSplitServi
             if (startShift == null || startShift.getEndTs() == null) {
                 log.debug("[DeviceStateShiftSplitService] 无法计算班次范围，跳过: deviceId={}, startTs={}", 
                         record.getDeviceInfoId(), startTs);
-                return false;
+                return ShouldSplitResult.noSplit();
             }
 
             // 检查当前时间是否超过了开始班次的结束时间
@@ -133,11 +152,57 @@ public class DeviceStateShiftSplitService implements IDeviceStateShiftSplitServi
                         record.getDeviceInfoId(), startTs, startShift.getEndTs(), currentTime);
             }
             
-            return crossesShift;
+            return ShouldSplitResult.of(crossesShift);
         } catch (Exception e) {
-            log.warn("[DeviceStateShiftSplitService] 判断是否需要拆分时发生异常: deviceId={}, startTs={}, error={}", 
-                    record.getDeviceInfoId(), startTs, e.getMessage());
-            return false;
+            // 检查是否是 Redis 连接相关的异常（应用关闭或 Redis 不可用）
+            String errorMsg = e.getMessage();
+            boolean isRedisConnectionError = errorMsg != null && (
+                    errorMsg.contains("LettuceConnectionFactory has been STOPPED") 
+                    || errorMsg.contains("event executor terminated")
+                    || errorMsg.contains("Redis connection")
+                    || errorMsg.contains("Connection refused")
+                    || e.getClass().getSimpleName().contains("Redis")
+            );
+            
+            if (isRedisConnectionError) {
+                // Redis 连接异常（通常是应用关闭或 Redis 不可用），降低日志级别，避免循环打印
+                log.debug("[DeviceStateShiftSplitService] 判断是否需要拆分时发生 Redis 连接异常（应用可能正在关闭）: deviceId={}, startTs={}, error={}", 
+                        record.getDeviceInfoId(), startTs, e.getMessage());
+                // 返回错误结果，让上层标记记录，避免重复处理
+                return ShouldSplitResult.error("Redis连接异常: " + e.getMessage());
+            } else {
+                // 其他异常，保持 WARN 级别
+                log.warn("[DeviceStateShiftSplitService] 判断是否需要拆分时发生异常: deviceId={}, startTs={}, error={}", 
+                        record.getDeviceInfoId(), startTs, e.getMessage());
+                // 其他异常也返回错误结果，避免重复处理
+                return ShouldSplitResult.error("计算班次范围异常: " + e.getMessage());
+            }
+        }
+    }
+
+    /**
+     * 标记记录为拆分失败，避免重复处理
+     */
+    private void markRecordAsSplitFailed(DeviceStateRecordDO record, String reason, long currentTime) {
+        try {
+            Map<String, Object> properties = record.getProperties();
+            if (properties == null) {
+                properties = new HashMap<>();
+            } else {
+                properties = new HashMap<>(properties); // 创建副本，避免修改原始Map
+            }
+            
+            properties.put("split_failed", true);
+            properties.put("split_failed_reason", reason);
+            properties.put("split_failed_time", currentTime);
+            properties.put("split_failed_start_ts", record.getStartTs());
+            
+            record.setProperties(properties);
+            stateRecordRepository.update(record);
+        } catch (Exception e) {
+            // 标记失败不影响主流程，只记录日志
+            log.warn("[DeviceStateShiftSplitService] 标记记录为拆分失败时发生异常: deviceId={}, recordId={}, error={}", 
+                    record.getDeviceInfoId(), record.getId(), e.getMessage());
         }
     }
 
@@ -183,7 +248,15 @@ public class DeviceStateShiftSplitService implements IDeviceStateShiftSplitServi
             }
             
             // 重新判断是否需要拆分（可能已被其他实例拆分）
-            if (!shouldSplit(latestRecord, currentTime)) {
+            ShouldSplitResult splitResult = shouldSplitWithErrorHandling(latestRecord, currentTime);
+            if (splitResult.isError()) {
+                // 发生异常，标记记录并返回失败
+                markRecordAsSplitFailed(latestRecord, splitResult.getErrorReason(), currentTime);
+                log.debug("[DeviceStateShiftSplitService] 重新判断时发生异常，标记记录: deviceId={}, recordId={}, reason={}", 
+                        deviceId, latestRecord.getId(), splitResult.getErrorReason());
+                return false;
+            }
+            if (!splitResult.shouldSplit()) {
                 log.debug("[DeviceStateShiftSplitService] 记录已不需要拆分，跳过: deviceId={}, recordId={}", 
                         deviceId, latestRecord.getId());
                 return false;
@@ -250,13 +323,52 @@ public class DeviceStateShiftSplitService implements IDeviceStateShiftSplitServi
         );
 
         if (splitRecords.isEmpty()) {
-            log.warn("[DeviceStateShiftSplitService] 拆分结果为空，跳过: deviceId={}, recordId={}", 
+            log.error("[DeviceStateShiftSplitService] 拆分结果为空（可能是无限循环导致），标记记录为已处理: deviceId={}, recordId={}, startTs={}, currentTime={}", 
+                    deviceId, record.getId(), startTs, currentTime);
+            
+            // 标记记录为已处理，避免重复处理
+            // 通过更新记录的属性来标记，使其在下次查询时被跳过
+            Map<String, Object> errorProperties = new HashMap<>(properties);
+            errorProperties.put("split_failed", true);
+            errorProperties.put("split_failed_reason", "拆分返回空结果（可能因无限循环）");
+            errorProperties.put("split_failed_time", currentTime);
+            errorProperties.put("split_failed_start_ts", startTs);
+            record.setProperties(errorProperties);
+            
+            // 更新记录，使其在下次查询时被跳过（通过更新 startTs 使其不在查询范围内，或标记为已处理）
+            // 这里我们更新记录的属性，让后续的 shouldSplit 检查能够识别并跳过
+            stateRecordRepository.update(record);
+            
+            log.warn("[DeviceStateShiftSplitService] 已标记记录为拆分失败，将跳过后续处理: deviceId={}, recordId={}", 
                     deviceId, record.getId());
             return;
         }
 
-        // 处理最后一条记录为进行中状态（endTs=null）
+        // 检查最后一条记录是否标记为拆分不完整
         DeviceStateRecordDO lastRecord = splitRecords.get(splitRecords.size() - 1);
+        Map<String, Object> lastRecordProperties = lastRecord.getProperties();
+        boolean isIncomplete = lastRecordProperties != null && 
+                Boolean.TRUE.equals(lastRecordProperties.get("split_incomplete"));
+        
+        if (isIncomplete) {
+            log.error("[DeviceStateShiftSplitService] 检测到拆分不完整（无限循环），标记记录并跳过: deviceId={}, recordId={}, startTs={}", 
+                    deviceId, record.getId(), startTs);
+            
+            // 标记原记录为拆分失败，避免重复处理
+            Map<String, Object> errorProperties = new HashMap<>(properties);
+            errorProperties.put("split_failed", true);
+            errorProperties.put("split_failed_reason", "拆分过程中检测到无限循环");
+            errorProperties.put("split_failed_time", currentTime);
+            errorProperties.put("split_failed_start_ts", startTs);
+            record.setProperties(errorProperties);
+            stateRecordRepository.update(record);
+            
+            log.warn("[DeviceStateShiftSplitService] 已标记记录为拆分失败（无限循环），将跳过后续处理: deviceId={}, recordId={}", 
+                    deviceId, record.getId());
+            return;
+        }
+        
+        // 处理最后一条记录为进行中状态（endTs=null）
         lastRecord.setEndTs(null);
         lastRecord.setDurationS(null);
         lastRecord.setIsComplete(false);
@@ -304,5 +416,44 @@ public class DeviceStateShiftSplitService implements IDeviceStateShiftSplitServi
 
         log.info("[DeviceStateShiftSplitService] 拆分完成: deviceId={}, 原始记录1条（已更新）, 新增记录{}条", 
                 deviceId, splitRecords.size() - 1);
+    }
+
+    /**
+     * 判断是否需要拆分的结果封装类
+     */
+    private static class ShouldSplitResult {
+        private final boolean shouldSplit;
+        private final boolean isError;
+        private final String errorReason;
+
+        private ShouldSplitResult(boolean shouldSplit, boolean isError, String errorReason) {
+            this.shouldSplit = shouldSplit;
+            this.isError = isError;
+            this.errorReason = errorReason;
+        }
+
+        public static ShouldSplitResult of(boolean shouldSplit) {
+            return new ShouldSplitResult(shouldSplit, false, null);
+        }
+
+        public static ShouldSplitResult noSplit() {
+            return new ShouldSplitResult(false, false, null);
+        }
+
+        public static ShouldSplitResult error(String reason) {
+            return new ShouldSplitResult(false, true, reason);
+        }
+
+        public boolean shouldSplit() {
+            return shouldSplit;
+        }
+
+        public boolean isError() {
+            return isError;
+        }
+
+        public String getErrorReason() {
+            return errorReason;
+        }
     }
 }

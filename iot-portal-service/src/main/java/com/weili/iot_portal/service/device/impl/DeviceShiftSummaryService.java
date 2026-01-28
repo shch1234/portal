@@ -11,6 +11,7 @@ import com.weili.iot_portal.dal.repository.device.DeviceStateSummaryRepository;
 import com.weili.iot_portal.domain.ingestion.*;
 import com.weili.iot_portal.service.device.ICheckpointService;
 import com.weili.iot_portal.service.device.IDeviceShiftSummaryService;
+import com.weili.iot_portal.service.device.IDeviceStateRecordRepairService;
 import com.weili.iot_portal.service.device.IDeviceStateStatisticsService;
 import com.weili.iot_portal.service.shift.IShiftCalculationService;
 import com.weili.iot_portal.service.shift.IShiftConfigService;
@@ -48,6 +49,7 @@ public class DeviceShiftSummaryService implements IDeviceShiftSummaryService {
     private final DeviceStateRecordRepository stateRecordRepository;
     private final IShiftCalculationService shiftCalculationService;
     private final IShiftConfigService shiftConfigService;
+    private final IDeviceStateRecordRepairService deviceStateRecordRepairService;
     private final IDeviceStateStatisticsService stateStatisticsService;
     private final ICheckpointService<CheckpointData> checkpointService;
 
@@ -57,6 +59,7 @@ public class DeviceShiftSummaryService implements IDeviceShiftSummaryService {
                                      DeviceStateRecordRepository stateRecordRepository,
                                      IShiftCalculationService shiftCalculationService,
                                      IShiftConfigService shiftConfigService,
+                                     IDeviceStateRecordRepairService deviceStateRecordRepairService,
                                      IDeviceStateStatisticsService stateStatisticsService,
                                      @Qualifier("deviceStateSummaryCheckpointService")
                                      ICheckpointService<CheckpointData> checkpointService) {
@@ -65,6 +68,7 @@ public class DeviceShiftSummaryService implements IDeviceShiftSummaryService {
         this.stateRecordRepository = stateRecordRepository;
         this.shiftCalculationService = shiftCalculationService;
         this.shiftConfigService = shiftConfigService;
+        this.deviceStateRecordRepairService = deviceStateRecordRepairService;
         this.stateStatisticsService = stateStatisticsService;
         this.checkpointService = checkpointService;
     }
@@ -393,63 +397,301 @@ public class DeviceShiftSummaryService implements IDeviceShiftSummaryService {
                 deviceId, shiftDate, shiftCode);
 
         // 兼容性处理：如果班次维度查询结果为空，回退到时间范围查询
-        // 这可能发生在历史数据没有班次信息的情况下
         if (stateRecords.isEmpty() && shiftRange != null) {
-            log.warn("班次维度查询结果为空，回退到时间范围查询: deviceId={}, shiftDate={}, shiftCode={}, shiftStartTs={}, shiftEndTs={}",
-                    deviceId, shiftDate, shiftCode, shiftRange.getStartTs(), shiftRange.getEndTs());
-            stateRecords = stateRecordRepository.selectByRange(
-                    deviceId,
-                    shiftRange.getStartTs(),
-                    shiftRange.getEndTs());
-            
-            // 如果时间范围查询也为空，记录警告
-            if (stateRecords.isEmpty()) {
-                log.warn("时间范围查询结果也为空: deviceId={}, startTs={}, endTs={}",
-                        deviceId, shiftRange.getStartTs(), shiftRange.getEndTs());
-            } else {
-                // 检查并处理查询到的异常记录（跨班次或时间范围过大）
-                long shiftDurationMillis = shiftRange.getEndTs() - shiftRange.getStartTs();
-                long shiftStartTs = shiftRange.getStartTs();
-                long shiftEndTs = shiftRange.getEndTs();
-                List<DeviceStateRecordDO> filteredRecords = new ArrayList<>();
-                
-                for (DeviceStateRecordDO record : stateRecords) {
-                    long recordStartTs = record.getStartTs() != null ? record.getStartTs() : shiftStartTs;
-                    long recordEndTs = record.getEndTs() != null ? record.getEndTs() : shiftEndTs;
-                    long recordDurationMillis = recordEndTs - recordStartTs;
-                    
-                    // 如果单条记录的时间范围远超过班次时长（超过2倍），进行处理
-                    if (recordDurationMillis > shiftDurationMillis * 2) {
-                        log.warn("查询到异常的状态记录（时间范围过大），将截断到班次时间范围: deviceId={}, recordId={}, recordStartTs={}, recordEndTs={}, recordDuration={}, shiftDuration={}, shiftDate={}, shiftCode={}",
-                                deviceId, record.getId(), recordStartTs, recordEndTs, recordDurationMillis, shiftDurationMillis, shiftDate, shiftCode);
-                        
-                        // 创建记录副本，将时间范围截断到班次范围内
-                        DeviceStateRecordDO adjustedRecord = new DeviceStateRecordDO();
-                        adjustedRecord.setId(record.getId());
-                        adjustedRecord.setDeviceInfoId(record.getDeviceInfoId());
-                        adjustedRecord.setOrgFactoryId(record.getOrgFactoryId());
-                        adjustedRecord.setShiftDate(record.getShiftDate());
-                        adjustedRecord.setShiftCode(record.getShiftCode());
-                        adjustedRecord.setStateCode(record.getStateCode());
-                        adjustedRecord.setStartTs(Math.max(recordStartTs, shiftStartTs)); // 截断开始时间
-                        adjustedRecord.setEndTs(Math.min(recordEndTs, shiftEndTs)); // 截断结束时间
-                        adjustedRecord.setDurationS(record.getDurationS());
-                        adjustedRecord.setProperties(record.getProperties());
-                        adjustedRecord.setIsComplete(record.getIsComplete());
-                        
-                        filteredRecords.add(adjustedRecord);
-                    } else {
-                        // 正常记录直接添加
-                        filteredRecords.add(record);
-                    }
-                }
-                
-                // 使用过滤后的记录列表
-                stateRecords = filteredRecords;
-            }
+            stateRecords = queryByTimeRangeWithFallback(deviceId, shiftDate, shiftCode, shiftRange);
         }
         
         return stateRecords;
+    }
+
+    /**
+     * 使用时间范围查询（回退方案）
+     * 处理历史数据没有班次信息的情况
+     */
+    private List<DeviceStateRecordDO> queryByTimeRangeWithFallback(
+            Long deviceId,
+            LocalDate shiftDate,
+            Integer shiftCode,
+            ShiftTimeRange shiftRange) {
+        
+        log.warn("班次维度查询结果为空，回退到时间范围查询: deviceId={}, shiftDate={}, shiftCode={}, shiftStartTs={}, shiftEndTs={}",
+                deviceId, shiftDate, shiftCode, shiftRange.getStartTs(), shiftRange.getEndTs());
+        
+        List<DeviceStateRecordDO> stateRecords = stateRecordRepository.selectByRange(
+                deviceId, shiftRange.getStartTs(), shiftRange.getEndTs());
+        
+        if (stateRecords.isEmpty()) {
+            log.warn("时间范围查询结果也为空: deviceId={}, startTs={}, endTs={}",
+                    deviceId, shiftRange.getStartTs(), shiftRange.getEndTs());
+            return new ArrayList<>();
+        }
+        
+        // 处理查询到的记录：修复历史遗留记录、过滤异常记录、截断时间范围
+        return processTimeRangeRecords(stateRecords, deviceId, shiftDate, shiftCode, shiftRange);
+    }
+
+    /**
+     * 处理时间范围查询到的记录
+     * 包括：修复历史遗留记录、过滤异常记录、截断时间范围
+     */
+    private List<DeviceStateRecordDO> processTimeRangeRecords(
+            List<DeviceStateRecordDO> stateRecords,
+            Long deviceId,
+            LocalDate shiftDate,
+            Integer shiftCode,
+            ShiftTimeRange shiftRange) {
+        
+        long shiftStartTs = shiftRange.getStartTs();
+        long shiftEndTs = shiftRange.getEndTs();
+        long shiftDurationMillis = shiftEndTs - shiftStartTs;
+        
+        // 第一步：修复历史遗留的未结束记录
+        List<DeviceStateRecordDO> validRecords = repairHistoricalOngoingRecords(
+                stateRecords, deviceId, shiftDate, shiftCode, shiftStartTs);
+        
+        if (validRecords.isEmpty()) {
+            return new ArrayList<>();
+        }
+        
+        // 第二步：处理有效记录（截断时间范围、标记异常等）
+        return processValidRecords(validRecords, shiftDate, shiftCode, 
+                shiftStartTs, shiftEndTs, shiftDurationMillis);
+    }
+
+    /**
+     * 修复历史遗留的未结束记录
+     * 返回修复后仍然有效的记录列表
+     */
+    private List<DeviceStateRecordDO> repairHistoricalOngoingRecords(
+            List<DeviceStateRecordDO> records,
+            Long deviceId,
+            LocalDate shiftDate,
+            Integer shiftCode,
+            long shiftStartTs) {
+        
+        List<DeviceStateRecordDO> validRecords = new ArrayList<>();
+        int repairedCount = 0;
+        
+        for (DeviceStateRecordDO record : records) {
+            // 检查是否为历史遗留的未结束记录
+            if (isHistoricalOngoingRecord(record, shiftStartTs)) {
+                // 修复历史遗留记录
+                if (repairHistoricalRecord(record, deviceId, shiftStartTs)) {
+                    repairedCount++;
+                }
+                // 修复后的记录不应该统计到当前班次，直接跳过
+                continue;
+            }
+            validRecords.add(record);
+        }
+        
+        if (repairedCount > 0) {
+            log.info("修复了{}条历史遗留的未结束记录: deviceId={}, shiftDate={}, shiftCode={}",
+                    repairedCount, deviceId, shiftDate, shiftCode);
+        }
+        
+        return validRecords;
+    }
+
+    /**
+     * 判断是否为历史遗留的未结束记录
+     */
+    private boolean isHistoricalOngoingRecord(DeviceStateRecordDO record, long shiftStartTs) {
+        return record.getEndTs() == null 
+                && record.getStartTs() != null 
+                && record.getStartTs() < shiftStartTs;
+    }
+
+    /**
+     * 修复单条历史遗留记录
+     */
+    private boolean repairHistoricalRecord(DeviceStateRecordDO record, Long deviceId, long shiftStartTs) {
+        try {
+            if (deviceStateRecordRepairService.repairHistoricalOngoingRecord(record, shiftStartTs)) {
+                log.debug("修复历史遗留的未结束记录: recordId={}, deviceId={}, startTs={}",
+                        record.getId(), deviceId, record.getStartTs());
+                return true;
+            }
+        } catch (Exception e) {
+            log.warn("修复历史遗留记录失败，跳过: recordId={}, deviceId={}, error={}",
+                    record.getId(), deviceId, e.getMessage());
+        }
+        return false;
+    }
+
+    /**
+     * 处理有效记录：截断时间范围、标记异常、补充班次信息
+     */
+    private List<DeviceStateRecordDO> processValidRecords(
+            List<DeviceStateRecordDO> validRecords,
+            LocalDate shiftDate,
+            Integer shiftCode,
+            long shiftStartTs,
+            long shiftEndTs,
+            long shiftDurationMillis) {
+        
+        if (validRecords.isEmpty()) {
+            return new ArrayList<>();
+        }
+        
+        // 从第一条记录获取设备ID（用于日志）
+        Long deviceId = validRecords.get(0).getDeviceInfoId();
+        
+        List<DeviceStateRecordDO> filteredRecords = new ArrayList<>();
+        List<Long> abnormalRecordIds = new ArrayList<>();
+        int abnormalRecordCount = 0;
+        long currentTime = System.currentTimeMillis();
+        
+        for (DeviceStateRecordDO record : validRecords) {
+            // 计算记录的有效时间范围
+            RecordTimeRange recordTimeRange = calculateRecordTimeRange(
+                    record, shiftStartTs, shiftEndTs, currentTime);
+            
+            // 计算与班次时间范围的交集
+            long effectiveStartTs = Math.max(recordTimeRange.startTs, shiftStartTs);
+            long effectiveEndTs = Math.min(recordTimeRange.endTs, shiftEndTs);
+            
+            // 如果记录与班次时间范围没有交集，跳过
+            if (effectiveStartTs >= effectiveEndTs) {
+                continue;
+            }
+            
+            // 处理异常记录（时间范围过大）
+            if (isAbnormalRecord(recordTimeRange.durationMillis, shiftDurationMillis)) {
+                DeviceStateRecordDO adjustedRecord = createTruncatedRecord(
+                        record, shiftDate, shiftCode, effectiveStartTs, effectiveEndTs,
+                        recordTimeRange.startTs, recordTimeRange.endTs);
+                filteredRecords.add(adjustedRecord);
+                
+                abnormalRecordCount++;
+                if (abnormalRecordIds.size() < 5) {
+                    abnormalRecordIds.add(record.getId());
+                }
+            } else {
+                // 正常记录，补充班次信息
+                fillShiftInfoIfMissing(record, shiftDate, shiftCode);
+                filteredRecords.add(record);
+            }
+        }
+        
+        // 批量输出异常记录警告
+        logAbnormalRecords(abnormalRecordCount, abnormalRecordIds, 
+                shiftDurationMillis, deviceId, shiftDate, shiftCode);
+        
+        return filteredRecords;
+    }
+
+    /**
+     * 计算记录的有效时间范围
+     */
+    private RecordTimeRange calculateRecordTimeRange(
+            DeviceStateRecordDO record,
+            long shiftStartTs,
+            long shiftEndTs,
+            long currentTime) {
+        
+        long recordStartTs = record.getStartTs() != null ? record.getStartTs() : shiftStartTs;
+        long recordEndTs;
+        
+        if (record.getEndTs() == null) {
+            // 未结束记录：使用当前时间（但不超过班次结束时间）
+            recordEndTs = Math.min(currentTime, shiftEndTs);
+        } else {
+            recordEndTs = record.getEndTs();
+        }
+        
+        long durationMillis = recordEndTs - recordStartTs;
+        
+        return new RecordTimeRange(recordStartTs, recordEndTs, durationMillis);
+    }
+
+    /**
+     * 判断是否为异常记录（时间范围过大）
+     */
+    private boolean isAbnormalRecord(long recordDurationMillis, long shiftDurationMillis) {
+        return recordDurationMillis > shiftDurationMillis * 2;
+    }
+
+    /**
+     * 创建截断后的记录（时间范围过大时）
+     */
+    private DeviceStateRecordDO createTruncatedRecord(
+            DeviceStateRecordDO originalRecord,
+            LocalDate shiftDate,
+            Integer shiftCode,
+            long effectiveStartTs,
+            long effectiveEndTs,
+            long originalStartTs,
+            long originalEndTs) {
+        
+        DeviceStateRecordDO adjustedRecord = new DeviceStateRecordDO();
+        adjustedRecord.setId(originalRecord.getId());
+        adjustedRecord.setDeviceInfoId(originalRecord.getDeviceInfoId());
+        adjustedRecord.setOrgFactoryId(originalRecord.getOrgFactoryId());
+        adjustedRecord.setShiftDate(shiftDate);
+        adjustedRecord.setShiftCode(shiftCode);
+        adjustedRecord.setStateCode(originalRecord.getStateCode());
+        adjustedRecord.setStartTs(effectiveStartTs);
+        adjustedRecord.setEndTs(effectiveEndTs);
+        adjustedRecord.setDurationS(effectiveEndTs - effectiveStartTs);
+        adjustedRecord.setIsComplete(originalRecord.getIsComplete());
+        
+        // 添加截断标记
+        Map<String, Object> properties = originalRecord.getProperties();
+        if (properties == null) {
+            properties = new HashMap<>();
+        } else {
+            properties = new HashMap<>(properties);
+        }
+        properties.put("truncated_to_shift", true);
+        properties.put("original_start_ts", originalStartTs);
+        properties.put("original_end_ts", originalEndTs);
+        properties.put("truncated_reason", "记录时间范围过大，已截断到班次范围");
+        adjustedRecord.setProperties(properties);
+        
+        return adjustedRecord;
+    }
+
+    /**
+     * 补充班次信息（如果缺失）
+     */
+    private void fillShiftInfoIfMissing(DeviceStateRecordDO record, LocalDate shiftDate, Integer shiftCode) {
+        if (record.getShiftDate() == null || record.getShiftCode() == null) {
+            record.setShiftDate(shiftDate);
+            record.setShiftCode(shiftCode);
+        }
+    }
+
+    /**
+     * 批量输出异常记录警告
+     */
+    private void logAbnormalRecords(int abnormalRecordCount, List<Long> abnormalRecordIds,
+                                   long shiftDurationMillis, Long deviceId,
+                                   LocalDate shiftDate, Integer shiftCode) {
+        if (abnormalRecordCount > 0) {
+            String recordIdsStr = abnormalRecordIds.size() >= 5 
+                    ? abnormalRecordIds.toString() + "..." 
+                    : abnormalRecordIds.toString();
+            log.warn("查询到{}条异常状态记录（时间范围过大，已截断到班次范围）: deviceId={}, shiftDate={}, shiftCode={}, " +
+                            "shiftDuration={}ms, 异常记录数={}, 示例记录ID={}",
+                    abnormalRecordCount, deviceId, shiftDate, shiftCode, 
+                    shiftDurationMillis, abnormalRecordCount, recordIdsStr);
+        }
+    }
+
+    /**
+     * 记录时间范围（内部辅助类）
+     */
+    private static class RecordTimeRange {
+        final long startTs;
+        final long endTs;
+        final long durationMillis;
+        
+        RecordTimeRange(long startTs, long endTs, long durationMillis) {
+            this.startTs = startTs;
+            this.endTs = endTs;
+            this.durationMillis = durationMillis;
+        }
     }
 
     /**
