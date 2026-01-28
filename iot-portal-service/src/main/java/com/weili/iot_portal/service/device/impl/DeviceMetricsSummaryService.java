@@ -182,8 +182,8 @@ public class DeviceMetricsSummaryService implements IDeviceMetricsSummaryService
             double completenessRate = (double) totalCompleteShifts / totalShiftsProcessed;
             // 如果完整率过低，记录警告
             if (completenessRate < 0.8 && totalShiftsProcessed > 10) {
-                log.warn("指标汇总全局数据完整率过低: 完整率={:.2f}% ({}/{})，建议检查产量汇总任务", 
-                        completenessRate * 100, totalCompleteShifts, totalShiftsProcessed);
+                log.warn("指标汇总全局数据完整率过低: 完整率={}% ({}/{})，建议检查产量汇总任务", 
+                        String.format("%.2f", completenessRate * 100), totalCompleteShifts, totalShiftsProcessed);
             }
         }
 
@@ -322,12 +322,13 @@ public class DeviceMetricsSummaryService implements IDeviceMetricsSummaryService
             double completenessRate = (double) completeShifts / totalShiftsProcessed;
             // 如果完整率过低，记录警告
             if (completenessRate < 0.8 && totalShiftsProcessed > 10) {
-                log.warn("指标汇总数据完整率过低: 工厂={}, 完整率={:.2f}% ({}/{})，建议检查产量汇总任务", 
-                        factoryId, completenessRate * 100, completeShifts, totalShiftsProcessed);
+                log.warn("指标汇总数据完整率过低: 工厂={}, 完整率={}% ({}/{})，建议检查产量汇总任务", 
+                        factoryId, String.format("%.2f", completenessRate * 100), completeShifts, totalShiftsProcessed);
             } else {
                 // 正常情况只输出debug日志
-                log.debug("指标汇总数据完整性: 工厂={}, 总班次={}, 完整={}, 不完整={}, 完整率={:.2f}%", 
-                        factoryId, totalShiftsProcessed, completeShifts, incompleteShifts, completenessRate * 100);
+                log.debug("指标汇总数据完整性: 工厂={}, 总班次={}, 完整={}, 不完整={}, 完整率={}%", 
+                        factoryId, totalShiftsProcessed, completeShifts, incompleteShifts, 
+                        String.format("%.2f", completenessRate * 100));
             }
         }
         

@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
 
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -129,8 +130,22 @@ public class DeviceLockService {
                 log.debug("[DeviceLock] 成功获取锁: lockKey={}, timeout={}秒", lockKey, timeoutSeconds);
             }
             return result;
+        } catch (RejectedExecutionException e) {
+            // 应用关闭时，Netty 事件循环已终止，这是正常现象，降低日志级别
+            log.debug("[DeviceLock] 获取锁失败（应用可能正在关闭）: lockKey={}, error={}", 
+                    lockKey, e.getMessage());
+            return false;
         } catch (Exception e) {
-            log.error("[DeviceLock] 获取锁异常: lockKey={}, error={}", lockKey, e.getMessage(), e);
+            // 检查是否是关闭相关的异常
+            String errorMsg = e.getMessage();
+            if (errorMsg != null && (errorMsg.contains("event executor terminated") 
+                    || errorMsg.contains("shutdown") 
+                    || errorMsg.contains("terminated"))) {
+                log.debug("[DeviceLock] 获取锁失败（应用可能正在关闭）: lockKey={}, error={}", 
+                        lockKey, e.getMessage());
+            } else {
+                log.error("[DeviceLock] 获取锁异常: lockKey={}, error={}", lockKey, e.getMessage(), e);
+            }
             return false;
         }
     }
@@ -148,8 +163,21 @@ public class DeviceLockService {
         try {
             redisClient.releaseLock(lockKey);
             log.debug("[DeviceLock] 释放锁: lockKey={}", lockKey);
+        } catch (RejectedExecutionException e) {
+            // 应用关闭时，Netty 事件循环已终止，这是正常现象，降低日志级别
+            log.debug("[DeviceLock] 释放锁失败（应用可能正在关闭）: lockKey={}, error={}", 
+                    lockKey, e.getMessage());
         } catch (Exception e) {
-            log.error("[DeviceLock] 释放锁异常: lockKey={}, error={}", lockKey, e.getMessage(), e);
+            // 检查是否是关闭相关的异常
+            String errorMsg = e.getMessage();
+            if (errorMsg != null && (errorMsg.contains("event executor terminated") 
+                    || errorMsg.contains("shutdown") 
+                    || errorMsg.contains("terminated"))) {
+                log.debug("[DeviceLock] 释放锁失败（应用可能正在关闭）: lockKey={}, error={}", 
+                        lockKey, e.getMessage());
+            } else {
+                log.error("[DeviceLock] 释放锁异常: lockKey={}, error={}", lockKey, e.getMessage(), e);
+            }
         }
     }
 
