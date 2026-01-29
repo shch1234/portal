@@ -119,7 +119,7 @@ public class WebhookProcessService {
             long cost = System.currentTimeMillis() - start;
             // 优化：合并记录，同时记录 handlerName
             monitorService.recordSuccess(processingInbox.getEventType(), handlerName, cost);
-            log.info("[Webhook-Process] ====== 消息处理成功 ====== messageId={}, 耗时: {}ms", 
+            log.debug("[Webhook-Process] ====== 消息处理成功 ====== messageId={}, 耗时: {}ms", 
                 processingInbox.getMessageId(), cost);
                 
         } catch (Exception ex) {

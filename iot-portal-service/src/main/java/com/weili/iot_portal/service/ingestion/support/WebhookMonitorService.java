@@ -136,7 +136,7 @@ public class WebhookMonitorService {
      * @param elapsedMs 处理耗时（毫秒）
      */
     public void recordSuccess(String eventType, String handlerName, long elapsedMs) {
-        log.info("Webhook handled success: eventType={}, handler={}, cost={}ms", eventType, handlerName, elapsedMs);
+        log.debug("Webhook handled success: eventType={}, handler={}, cost={}ms", eventType, handlerName, elapsedMs);
         persist(eventType, handlerName, "SUCCESS", elapsedMs, null, null);
     }
 

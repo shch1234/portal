@@ -66,9 +66,6 @@ public class DeviceWorkingStateEventHandler implements WebhookEventHandler {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void handle(WebhookInboxDO inbox, WebhookRequest request) throws Exception {
-        log.info("[Webhook-Handler-DeviceWorkingState] 处理设备加工状态事件: messageId={}, eventType={}, deviceCode={}",
-                request.getMessageId(), request.getEventType(), request.getDeviceCode());
-
         // 1. 解析事件数据
         EventData eventData = parseEventData(request);
         
@@ -298,7 +295,7 @@ public class DeviceWorkingStateEventHandler implements WebhookEventHandler {
      * 从0到1：开始加工新产品
      */
     private void handleStartNewProduction(Long deviceInfoId, Long orgFactoryId, EventData eventData) {
-        log.info("[DeviceWorkingStateEventHandler] 开始加工新产品: deviceInfoId={}, timestamp={}",
+        log.debug("[DeviceWorkingStateEventHandler] 开始加工新产品: deviceInfoId={}, timestamp={}",
                 deviceInfoId, eventData.eventTimestamp());
         
         // 检查是否有未结束的记录（异常情况）
@@ -341,7 +338,7 @@ public class DeviceWorkingStateEventHandler implements WebhookEventHandler {
             return;
         }
         
-        log.info("[DeviceWorkingStateEventHandler] 完成产品加工: deviceInfoId={}, startTs={}, endTs={}",
+        log.debug("[DeviceWorkingStateEventHandler] 完成产品加工: deviceInfoId={}, startTs={}, endTs={}",
                 deviceInfoId, ongoing.getStartTs(), eventData.eventTimestamp());
         
         // 更新记录
@@ -367,7 +364,7 @@ public class DeviceWorkingStateEventHandler implements WebhookEventHandler {
         
         if (currentStatus == DeviceWorkingStateEventFields.STATUS_START) {
             // 首次连接且状态是开始，插入新记录
-            log.info("[DeviceWorkingStateEventHandler] 首次连接，开始加工: deviceInfoId={}, timestamp={}",
+            log.debug("[DeviceWorkingStateEventHandler] 首次连接，开始加工: deviceInfoId={}, timestamp={}",
                     deviceInfoId, eventData.eventTimestamp());
             
             // 检查是否有未结束的记录
