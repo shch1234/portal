@@ -7,6 +7,7 @@ import com.weili.iot_portal.dal.mapper.device.DeviceToolCompensationMapper;
 import com.weili.iot_portal.dal.repository.device.DeviceToolCompensationRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -27,6 +28,17 @@ public class DeviceToolCompensationRepositoryImpl implements DeviceToolCompensat
                 .eq(DeviceToolCompensationDO::getActive, 1)
                 .orderByDesc(DeviceToolCompensationDO::getStartTs)
                 .last("LIMIT 1");
+        return mapper.selectOne(wrapper);
+    }
+
+    @Override
+    public DeviceToolCompensationDO findActiveWithLock(Long deviceId, String toolHolderNo) {
+        LambdaQueryWrapper<DeviceToolCompensationDO> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(DeviceToolCompensationDO::getDeviceInfoId, deviceId)
+                .eq(DeviceToolCompensationDO::getToolHolderNo, toolHolderNo)
+                .eq(DeviceToolCompensationDO::getActive, 1)
+                .orderByDesc(DeviceToolCompensationDO::getStartTs)
+                .last("LIMIT 1 FOR UPDATE");
         return mapper.selectOne(wrapper);
     }
 
@@ -83,9 +95,36 @@ public class DeviceToolCompensationRepositoryImpl implements DeviceToolCompensat
             }
         }
         
-        mapper.insert(record);
-        log.debug("[DeviceToolCompensationRepository] 成功插入记录: deviceInfoId={}, toolHolderNo={}, active={}, id={}",
-                record.getDeviceInfoId(), record.getToolHolderNo(), record.getActive(), record.getId());
+        try {
+            mapper.insert(record);
+            log.debug("[DeviceToolCompensationRepository] 成功插入记录: deviceInfoId={}, toolHolderNo={}, active={}, id={}",
+                    record.getDeviceInfoId(), record.getToolHolderNo(), record.getActive(), record.getId());
+        } catch (DuplicateKeyException e) {
+            // 处理并发插入导致的唯一约束冲突
+            // 如果插入失败，再次尝试删除并插入（可能其他线程已插入）
+            log.warn("[DeviceToolCompensationRepository] 插入时发生唯一约束冲突，尝试删除后重新插入: " +
+                    "deviceInfoId={}, toolHolderNo={}, active={}, error={}",
+                    record.getDeviceInfoId(), record.getToolHolderNo(), record.getActive(), e.getMessage());
+            
+            // 再次删除可能存在的记录
+            if (record.getDeviceInfoId() != null && record.getToolHolderNo() != null && record.getActive() != null) {
+                LambdaQueryWrapper<DeviceToolCompensationDO> deleteWrapper = new LambdaQueryWrapper<>();
+                deleteWrapper.eq(DeviceToolCompensationDO::getDeviceInfoId, record.getDeviceInfoId())
+                        .eq(DeviceToolCompensationDO::getToolHolderNo, record.getToolHolderNo())
+                        .eq(DeviceToolCompensationDO::getActive, record.getActive());
+                
+                int deletedCount = mapper.delete(deleteWrapper);
+                if (deletedCount > 0) {
+                    log.info("[DeviceToolCompensationRepository] 重试删除冲突记录: deviceInfoId={}, toolHolderNo={}, active={}, deletedCount={}",
+                            record.getDeviceInfoId(), record.getToolHolderNo(), record.getActive(), deletedCount);
+                }
+            }
+            
+            // 重新插入
+            mapper.insert(record);
+            log.info("[DeviceToolCompensationRepository] 重试插入成功: deviceInfoId={}, toolHolderNo={}, active={}, id={}",
+                    record.getDeviceInfoId(), record.getToolHolderNo(), record.getActive(), record.getId());
+        }
     }
 
     @Override

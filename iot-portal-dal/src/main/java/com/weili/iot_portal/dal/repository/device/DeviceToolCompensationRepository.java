@@ -12,6 +12,18 @@ public interface DeviceToolCompensationRepository {
     DeviceToolCompensationDO findActive(Long deviceId, String toolHolderNo);
 
     /**
+     * 查询当前有效的刀补记录（带行锁）
+     * <p>
+     * 使用 SELECT FOR UPDATE 锁定行，防止并发修改导致的唯一约束冲突
+     * </p>
+     *
+     * @param deviceId 设备ID
+     * @param toolHolderNo 刀补号
+     * @return 有效的刀补记录，如果不存在返回null
+     */
+    DeviceToolCompensationDO findActiveWithLock(Long deviceId, String toolHolderNo);
+
+    /**
      * 查询设备的所有有效刀补记录（可按工厂过滤）
      */
     List<DeviceToolCompensationDO> findActiveByDevice(Long factoryId, String deviceId);

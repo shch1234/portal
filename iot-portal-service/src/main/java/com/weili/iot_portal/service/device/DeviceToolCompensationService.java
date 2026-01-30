@@ -80,8 +80,9 @@ public class DeviceToolCompensationService {
             }
         }
 
-        // 2. 缓存未命中或值不同，查询数据库
-        DeviceToolCompensationDO active = deviceToolCompensationRepository.findActive(deviceId, holderNumber);
+        // 2. 缓存未命中或值不同，查询数据库（使用行锁防止并发修改）
+        // 使用 SELECT FOR UPDATE 锁定行，防止并发修改导致的唯一约束冲突
+        DeviceToolCompensationDO active = deviceToolCompensationRepository.findActiveWithLock(deviceId, holderNumber);
 
         // 3. 如果找到活跃记录且补偿值相同，更新缓存并跳过写入
         if (active != null && Objects.equals(active.getCompValueJson(), compValue)) {
