@@ -58,6 +58,12 @@ public class TimeRangeRecordHandler {
     private int maxSplitRecords;
 
     /**
+     * 班次计算异常的特殊标记值
+     * 用于标识班次计算异常，需要创建溢出记录
+     */
+    private static final Long SHIFT_CALCULATION_ERROR = Long.MIN_VALUE;
+
+    /**
      * 获取过期阈值（毫秒）
      */
     private long getExpiryThresholdMs() {
@@ -157,6 +163,17 @@ public class TimeRangeRecordHandler {
                 if (records.size() >= maxSplitRecords && currentStartTs != null && currentStartTs < endTs) {
                     createOverflowRecord(deviceId, factoryId, currentStartTs, endTs, recordFactory, records);
                 }
+                // 如果只有1条记录但未覆盖全部时间范围，也创建溢出记录（防止班次计算异常导致的问题）
+                else if (records.size() == 1 && currentStartTs != null && currentStartTs < endTs) {
+                    T firstRecord = records.get(0);
+                    Long firstRecordEndTs = firstRecord.getEndTs();
+                    if (firstRecordEndTs != null && firstRecordEndTs < endTs) {
+                        log.warn("[TimeRangeRecordHandler] 只有1条记录但未覆盖全部时间范围，创建溢出记录: " +
+                                        "deviceId={}, firstRecordEndTs={}, endTs={}",
+                                deviceId, firstRecordEndTs, endTs);
+                        createOverflowRecord(deviceId, factoryId, firstRecordEndTs, endTs, recordFactory, records);
+                    }
+                }
                 break;
             }
 
@@ -196,14 +213,39 @@ public class TimeRangeRecordHandler {
                     break; // 已完成截断
                 }
                 
+                // 处理班次计算异常的情况
+                if (nextStartTs.equals(SHIFT_CALCULATION_ERROR)) {
+                    log.error("[TimeRangeRecordHandler] 检测到班次计算异常，创建溢出记录覆盖剩余时间范围: " +
+                                    "deviceId={}, currentStartTs={}, recordEndTs={}, endTs={}",
+                            deviceId, currentStartTs, recordEndTs, endTs);
+                    // 创建溢出记录覆盖剩余时间范围，避免无限循环
+                    if (recordEndTs < endTs) {
+                        createOverflowRecord(deviceId, factoryId, recordEndTs, endTs, recordFactory, records);
+                    }
+                    // 标记最后一条记录为拆分不完整
+                    if (!records.isEmpty()) {
+                        T lastRecord = records.get(records.size() - 1);
+                        Map<String, Object> properties = lastRecord.getProperties();
+                        if (properties == null) {
+                            properties = new HashMap<>();
+                        }
+                        properties.put("split_incomplete", true);
+                        properties.put("split_incomplete_reason", "班次计算异常，使用溢出记录覆盖剩余时间范围");
+                        properties.put("split_incomplete_record_end_ts", recordEndTs);
+                        properties.put("split_incomplete_end_ts", endTs);
+                        lastRecord.setProperties(properties);
+                    }
+                    break;
+                }
+                
                 // 安全检查：防止下一班次开始时间等于当前开始时间（可能导致无限循环）
                 if (nextStartTs.equals(currentStartTs)) {
                     log.error("[TimeRangeRecordHandler] 检测到班次计算异常：下一班次开始时间等于当前开始时间，停止截断: " +
                                     "deviceId={}, currentStartTs={}, recordEndTs={}, shiftEndTs={}, nextStartTs={}",
                             deviceId, currentStartTs, recordEndTs, currentShift.getEndTs(), nextStartTs);
                     // 这种情况说明班次计算有问题，直接结束截断，使用溢出记录机制
-                    if (currentStartTs < endTs) {
-                        createOverflowRecord(deviceId, factoryId, currentStartTs, endTs, recordFactory, records);
+                    if (recordEndTs < endTs) {
+                        createOverflowRecord(deviceId, factoryId, recordEndTs, endTs, recordFactory, records);
                     }
                     break;
                 }
@@ -292,6 +334,8 @@ public class TimeRangeRecordHandler {
 
     /**
      * 准备下一班次的开始时间
+     * 
+     * @return 下一班次开始时间，如果已完成截断返回null，如果检测到班次计算异常返回SHIFT_CALCULATION_ERROR
      */
     private Long prepareNextShiftStart(Long recordEndTs, Long stateEndTs,
                                       ShiftTimeRange currentShift, Long orgFactoryId, Long deviceInfoId) {
@@ -306,19 +350,30 @@ public class TimeRangeRecordHandler {
         }
 
         // 如果记录结束时间等于班次结束时间，且状态还未结束，继续下一班次
+        // 重要：使用半开区间 [start, end)，所以 recordEndTs（班次结束时间）属于下一班次
         if (currentShift != null && recordEndTs.equals(currentShift.getEndTs())) {
-            // 从班次结束时间+1毫秒开始，确保属于下一个班次
-            Long nextShiftStartTs = recordEndTs + 1;
+            // 直接使用 recordEndTs 查询下一班次（不使用 +1）
+            // 因为班次使用半开区间，endTs 属于下一班次
             ShiftTimeRange nextShift = shiftCalculationService.calculateShiftRange(
-                    orgFactoryId, deviceInfoId, nextShiftStartTs);
+                    orgFactoryId, deviceInfoId, recordEndTs);
 
             if (nextShift != null && nextShift.getStartTs() != null) {
-                // 安全检查：确保下一班次开始时间大于当前班次结束时间
-                if (nextShift.getStartTs() <= recordEndTs) {
-                    log.error("[TimeRangeRecordHandler] 班次计算异常：下一班次开始时间({}) <= 当前班次结束时间({}), " +
-                                    "可能导致无限循环: deviceId={}, recordEndTs={}",
+                // 验证：下一班次开始时间应该等于当前班次结束时间（半开区间）
+                if (!nextShift.getStartTs().equals(recordEndTs)) {
+                    log.error("[TimeRangeRecordHandler] 班次计算异常：下一班次开始时间({}) != 当前班次结束时间({}), " +
+                                    "可能是班次配置错误（相邻班次边界时间不同）: deviceId={}, recordEndTs={}, timeDiff={}ms",
+                            nextShift.getStartTs(), recordEndTs, deviceInfoId, recordEndTs, 
+                            nextShift.getStartTs() - recordEndTs);
+                    // 返回特殊值，让上层知道需要创建溢出记录
+                    return SHIFT_CALCULATION_ERROR;
+                }
+                
+                // 额外检查：如果下一班次开始时间小于当前班次结束时间，说明配置错误
+                if (nextShift.getStartTs() < recordEndTs) {
+                    log.error("[TimeRangeRecordHandler] 班次计算异常：下一班次开始时间({}) < 当前班次结束时间({}), " +
+                                    "班次配置错误，可能导致无限循环: deviceId={}, recordEndTs={}",
                             nextShift.getStartTs(), recordEndTs, deviceInfoId, recordEndTs);
-                    return null; // 返回null，让上层处理（会触发溢出记录机制）
+                    return SHIFT_CALCULATION_ERROR;
                 }
                 
                 log.debug("[TimeRangeRecordHandler] 切换到下一个班次: deviceId={}, 当前班次结束={}, 下一班次开始={}",

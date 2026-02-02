@@ -327,21 +327,25 @@ public class DeviceStateShiftSplitService implements IDeviceStateShiftSplitServi
                     deviceId, record.getId(), startTs, currentTime);
             
             // 标记记录为已处理，避免重复处理
-            // 通过更新记录的属性来标记，使其在下次查询时被跳过
-            Map<String, Object> errorProperties = new HashMap<>(properties);
-            errorProperties.put("split_failed", true);
-            errorProperties.put("split_failed_reason", "拆分返回空结果（可能因无限循环）");
-            errorProperties.put("split_failed_time", currentTime);
-            errorProperties.put("split_failed_start_ts", startTs);
-            record.setProperties(errorProperties);
-            
-            // 更新记录，使其在下次查询时被跳过（通过更新 startTs 使其不在查询范围内，或标记为已处理）
-            // 这里我们更新记录的属性，让后续的 shouldSplit 检查能够识别并跳过
-            stateRecordRepository.update(record);
-            
-            log.warn("[DeviceStateShiftSplitService] 已标记记录为拆分失败，将跳过后续处理: deviceId={}, recordId={}", 
-                    deviceId, record.getId());
+            markRecordAsSplitFailed(record, "拆分返回空结果（可能因无限循环）", currentTime);
             return;
+        }
+
+        // 检查拆分结果是否异常：只有1条记录但未覆盖全部时间范围
+        if (splitRecords.size() == 1) {
+            DeviceStateRecordDO singleRecord = splitRecords.get(0);
+            Long singleRecordEndTs = singleRecord.getEndTs();
+            // 如果记录有结束时间，且结束时间小于当前时间，说明未覆盖全部时间范围
+            if (singleRecordEndTs != null && singleRecordEndTs < currentTime) {
+                log.error("[DeviceStateShiftSplitService] 拆分结果异常：只有1条记录但未覆盖全部时间范围, " +
+                                "标记记录为拆分失败: deviceId={}, recordId={}, startTs={}, recordEndTs={}, currentTime={}",
+                        deviceId, record.getId(), startTs, singleRecordEndTs, currentTime);
+                markRecordAsSplitFailed(record, 
+                        String.format("拆分结果异常：只有1条记录但未覆盖全部时间范围（recordEndTs=%d, currentTime=%d）", 
+                                singleRecordEndTs, currentTime), 
+                        currentTime);
+                return;
+            }
         }
 
         // 检查最后一条记录是否标记为拆分不完整

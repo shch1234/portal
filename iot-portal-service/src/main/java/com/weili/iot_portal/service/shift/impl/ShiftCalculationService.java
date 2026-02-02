@@ -274,16 +274,33 @@ public class ShiftCalculationService implements IShiftCalculationService {
         }
 
         // 遍历所有班次，找到包含当前时间的班次
+        // 重要：使用半开区间 [start, end)，边界时间点（endTime）属于下一班次
         for (DeviceShiftDefinition shiftDef : shifts) {
             LocalTime startTime = LocalTime.parse(shiftDef.getStartTime(), TIME_FORMATTER);
             LocalTime endTime = LocalTime.parse(shiftDef.getEndTime(), TIME_FORMATTER);
 
             boolean isInShift;
             if (Boolean.TRUE.equals(shiftDef.getCrossDay())) {
-                // 跨天班次：例如 20:00-08:00
-                isInShift = currentTime.isAfter(startTime) || currentTime.isBefore(endTime);
+                // 跨天班次：例如 20:00-08:00（次日）
+                // 半开区间：[20:00, 次日08:00)
+                // 包含：20:00:00 到 次日 07:59:59.999
+                // 不包含：次日 08:00:00（属于下一班次）
+                // 判断逻辑：currentTime >= startTime（当天部分）或 currentTime < endTime（次日部分，但不包含endTime）
+                if (currentTime.isAfter(startTime) || currentTime.equals(startTime)) {
+                    // 在当天部分（20:00:00-23:59:59.999）
+                    isInShift = true;
+                } else if (currentTime.isBefore(endTime)) {
+                    // 在次日部分（00:00:00-07:59:59.999），但不包含endTime（半开区间）
+                    isInShift = true;
+                } else {
+                    // currentTime >= endTime，属于下一班次（半开区间）
+                    isInShift = false;
+                }
             } else {
                 // 不跨天班次：例如 08:00-20:00
+                // 半开区间：[08:00, 20:00)
+                // 包含：08:00:00 到 19:59:59.999
+                // 不包含：20:00:00（属于下一班次）
                 isInShift = !currentTime.isBefore(startTime) && currentTime.isBefore(endTime);
             }
 

@@ -11,6 +11,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -61,13 +62,18 @@ public class ShiftConfigService implements IShiftConfigService {
             if (config.getShifts() == null || config.getShifts().isEmpty()) {
                 config.setShifts(buildShiftsFromFields(config));
             }
+            // 验证配置合法性（运行时检测，记录警告但不阻止使用）
+            validateShiftConfigSilently(config, deviceId);
             return config;
         }
         
         // 设备未配置班次，使用默认班次配置
         log.debug("[ShiftConfigService] 设备未配置班次信息，使用默认班次配置: deviceId={}, mode={}", 
                 deviceId, defaultShiftMode);
-        return createDefaultShiftConfig(defaultShiftMode);
+        DeviceShiftConfigDO defaultConfig = createDefaultShiftConfig(defaultShiftMode);
+        // 默认配置应该总是合法的，但也可以验证一下
+        validateShiftConfigSilently(defaultConfig, deviceId);
+        return defaultConfig;
     }
 
 
@@ -258,6 +264,177 @@ public class ShiftConfigService implements IShiftConfigService {
         }
         
         return shifts;
+    }
+
+    /**
+     * 验证班次配置的合法性
+     * <p>
+     * 检查项：
+     * 1. 相邻班次边界时间不能相同（会导致边界重叠）
+     * 2. 相邻班次时间间隔建议至少1分钟
+     * 3. 班次数量必须大于0
+     * </p>
+     * 
+     * @param config 班次配置
+     * @throws IllegalArgumentException 如果配置不合法
+     */
+    public void validateShiftConfig(DeviceShiftConfigDO config) {
+        if (config == null) {
+            throw new IllegalArgumentException("班次配置不能为空");
+        }
+
+        List<DeviceShiftDefinition> shifts = config.getShifts();
+        if (shifts == null || shifts.isEmpty()) {
+            // 如果shifts为空，尝试从字段构建
+            shifts = buildShiftsFromFields(config);
+        }
+
+        if (shifts == null || shifts.isEmpty()) {
+            throw new IllegalArgumentException("班次配置中至少需要定义一个班次");
+        }
+
+        // 最小时间间隔（毫秒），建议至少1分钟
+        long minIntervalMs = 60 * 1000L; // 1分钟
+
+        // 检查相邻班次的边界时间
+        for (int i = 0; i < shifts.size(); i++) {
+            DeviceShiftDefinition current = shifts.get(i);
+            DeviceShiftDefinition next = shifts.get((i + 1) % shifts.size()); // 循环检查最后一个和第一个
+
+            // 验证当前班次的时间格式
+            if (current.getStartTime() == null || current.getEndTime() == null) {
+                throw new IllegalArgumentException(
+                    String.format("班次 %s 的开始时间或结束时间为空", current.getCode()));
+            }
+
+            LocalTime currentStart;
+            LocalTime currentEnd;
+            try {
+                currentStart = LocalTime.parse(current.getStartTime(), TIME_FORMATTER);
+                currentEnd = LocalTime.parse(current.getEndTime(), TIME_FORMATTER);
+            } catch (Exception e) {
+                throw new IllegalArgumentException(
+                    String.format("班次 %s 的时间格式错误: %s", current.getCode(), e.getMessage()));
+            }
+
+            // 验证下一班次的时间格式
+            if (next.getStartTime() == null || next.getEndTime() == null) {
+                throw new IllegalArgumentException(
+                    String.format("班次 %s 的开始时间或结束时间为空", next.getCode()));
+            }
+
+            LocalTime nextStart;
+            try {
+                nextStart = LocalTime.parse(next.getStartTime(), TIME_FORMATTER);
+            } catch (Exception e) {
+                throw new IllegalArgumentException(
+                    String.format("班次 %s 的时间格式错误: %s", next.getCode(), e.getMessage()));
+            }
+
+            // 关键检查1：相邻班次边界时间验证
+            // 注意：如果使用半开区间 [start, end)，边界时间相同是允许的
+            // 因为边界时间点（endTime）属于下一班次，不重叠
+            // 例如：早班 [08:00, 20:00)，晚班 [20:00, 次日08:00)
+            // 20:00:00 不属于早班（半开区间），属于晚班，不重叠
+            
+            // 检查真正的错误：下一班次开始时间 < 当前班次结束时间（导致时间重叠）
+            // 这种情况会导致时间重叠，是真正的错误
+            boolean isOverlap = false;
+            
+            if (!Boolean.TRUE.equals(current.getCrossDay()) && !Boolean.TRUE.equals(next.getCrossDay())) {
+                // 情况1：两个班次都不跨天
+                // 例如：早班 08:00-14:00，晚班 13:00-20:00（错误：13:00 < 14:00）
+                // 例如：早班 08:00-20:00，晚班 20:00-22:00（正常：边界时间相同，使用半开区间）
+                if (nextStart.isBefore(currentEnd)) {
+                    isOverlap = true;
+                }
+            } else if (!Boolean.TRUE.equals(current.getCrossDay()) && Boolean.TRUE.equals(next.getCrossDay())) {
+                // 情况2：当前班次不跨天，下一班次跨天
+                // 例如：早班 08:00-20:00，晚班 20:00-次日08:00（正常：边界时间相同）
+                // 例如：早班 08:00-20:00，晚班 19:00-次日08:00（错误：19:00 < 20:00）
+                if (nextStart.isBefore(currentEnd)) {
+                    isOverlap = true;
+                }
+            } else if (Boolean.TRUE.equals(current.getCrossDay()) && !Boolean.TRUE.equals(next.getCrossDay())) {
+                // 情况3：当前班次跨天，下一班次不跨天
+                // 例如：晚班 20:00-次日08:00，早班 08:00-20:00（正常：边界时间相同）
+                // 这种情况，currentEnd 是次日的 08:00，nextStart 是当天的 08:00
+                // 在时间轴上，nextStart（当天08:00）< currentEnd（次日08:00），但这是正常的
+                // 因为跨天，时间轴不同，所以不需要检查重叠
+                // 但如果 nextStart > currentEnd（在LocalTime层面），说明有问题
+                // 实际上，这种情况 nextStart 应该等于 currentEnd（都是08:00），所以不需要检查
+            } else {
+                // 情况4：两个班次都跨天（理论上不应该出现，但也要处理）
+                // 这种情况比较复杂，暂时不检查重叠
+            }
+            
+            if (isOverlap) {
+                throw new IllegalArgumentException(
+                    String.format("班次配置错误：班次 %s 的结束时间(%s) 晚于班次 %s 的开始时间(%s)，" +
+                                    "会导致时间重叠，可能引发无限循环问题。",
+                            current.getCode(), currentEnd, next.getCode(), nextStart));
+            }
+            
+            // 如果边界时间相同，记录调试日志（使用半开区间时这是允许的）
+            if (currentEnd.equals(nextStart)) {
+                log.debug("[ShiftConfigService] 班次 {} 和 {} 边界时间相同（{}），使用半开区间时这是允许的，" +
+                                "边界时间点属于下一班次，不重叠",
+                        current.getCode(), next.getCode(), currentEnd);
+            }
+
+            // 关键检查2：相邻班次时间间隔建议至少1分钟（仅当时间间隔大于0时检查）
+            long intervalMs;
+            if (Boolean.TRUE.equals(current.getCrossDay())) {
+                // 跨天班次：计算从当前结束时间到下一班次开始时间的间隔（考虑跨天）
+                if (nextStart.isBefore(currentEnd)) {
+                    // 下一班次开始时间在当天，说明当前班次跨天到次日
+                    // 间隔 = (24:00 - currentEnd) + nextStart
+                    Duration duration1 = Duration.between(currentEnd, LocalTime.MAX).plusSeconds(1);
+                    Duration duration2 = Duration.between(LocalTime.MIN, nextStart);
+                    intervalMs = duration1.plus(duration2).toMillis();
+                } else {
+                    // 下一班次开始时间在次日
+                    intervalMs = Duration.between(currentEnd, nextStart).toMillis();
+                }
+            } else {
+                // 不跨天班次
+                if (nextStart.isBefore(currentEnd)) {
+                    // 下一班次开始时间在当天，但当前班次不跨天，说明下一班次跨天
+                    // 间隔 = (24:00 - currentEnd) + nextStart
+                    Duration duration1 = Duration.between(currentEnd, LocalTime.MAX).plusSeconds(1);
+                    Duration duration2 = Duration.between(LocalTime.MIN, nextStart);
+                    intervalMs = duration1.plus(duration2).toMillis();
+                } else {
+                    // 正常情况：都在当天
+                    intervalMs = Duration.between(currentEnd, nextStart).toMillis();
+                }
+            }
+
+            if (intervalMs < minIntervalMs) {
+                log.warn("[ShiftConfigService] 班次配置警告：班次 {} 和 {} 的时间间隔过小（{}ms），" +
+                                "建议至少1分钟，以避免边界处理问题",
+                        current.getCode(), next.getCode(), intervalMs);
+            }
+        }
+
+        log.debug("[ShiftConfigService] 班次配置验证通过: 班次数={}", shifts.size());
+    }
+
+    /**
+     * 静默验证配置（不抛出异常，只记录日志）
+     * 用于运行时检测配置问题，但不阻止系统运行
+     * 
+     * @param config 班次配置
+     * @param deviceId 设备ID（用于日志）
+     */
+    private void validateShiftConfigSilently(DeviceShiftConfigDO config, Long deviceId) {
+        try {
+            validateShiftConfig(config);
+        } catch (IllegalArgumentException e) {
+            log.error("[ShiftConfigService] 班次配置验证失败: deviceId={}, error={}。请检查并修复班次配置，否则可能导致班次计算异常和无限循环问题。", 
+                    deviceId, e.getMessage());
+            // 不抛出异常，允许系统继续运行，但记录严重错误日志
+        }
     }
 
 }
