@@ -179,11 +179,30 @@ public class DeviceStateShiftSplitService implements IDeviceStateShiftSplitServi
                     || errorMsg.contains("event executor terminated")
                     || errorMsg.contains("Redis connection")
                     || errorMsg.contains("Connection refused")
+                    || errorMsg.contains("Redis command timed out")
+                    || errorMsg.contains("Command timed out")
                     || e.getClass().getSimpleName().contains("Redis")
+                    || e.getClass().getSimpleName().contains("QueryTimeout")
             );
             
             if (isRedisConnectionError) {
-                // Redis 连接异常（通常是应用关闭或 Redis 不可用），降低日志级别，避免循环打印
+                // Redis 连接异常或超时：如果记录持续时间超过24小时，直接结束记录
+                // 避免在Redis不可用时还尝试拆分，导致重复超时
+                // 注意：timeSpan 和 maxTimeSpan 已在方法开始处定义，这里直接使用
+                if (timeSpan > maxTimeSpan) {
+                    long hours = timeSpan / (60 * 60 * 1000L);
+                    log.warn("[DeviceStateShiftSplitService] Redis超时且记录持续时间过长（{}小时），直接结束记录并标记异常: " +
+                                    "deviceId={}, recordId={}, startTs={}, currentTime={}, error={}",
+                            hours, record.getDeviceInfoId(), record.getId(), startTs, currentTime, e.getMessage());
+                    
+                    // 直接结束记录并标记异常
+                    endRecordWithAbnormalMark(record, currentTime, 
+                            String.format("Redis超时且记录持续时间过长（%d小时），可能存在异常，直接结束记录", hours));
+                    
+                    return ShouldSplitResult.noSplit(); // 不再拆分
+                }
+                
+                // Redis 连接异常但时间跨度正常，降低日志级别，避免循环打印
                 log.debug("[DeviceStateShiftSplitService] 判断是否需要拆分时发生 Redis 连接异常（应用可能正在关闭）: deviceId={}, startTs={}, error={}", 
                         record.getDeviceInfoId(), startTs, e.getMessage());
                 // 返回错误结果，让上层标记记录，避免重复处理
