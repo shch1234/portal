@@ -383,6 +383,7 @@ public class ShiftConfigService implements IShiftConfigService {
             }
 
             // 关键检查2：相邻班次时间间隔建议至少1分钟（仅当时间间隔大于0时检查）
+            // 注意：如果边界时间相同（intervalMs = 0），使用半开区间时这是正常的，不需要警告
             long intervalMs;
             if (Boolean.TRUE.equals(current.getCrossDay())) {
                 // 跨天班次：计算从当前结束时间到下一班次开始时间的间隔（考虑跨天）
@@ -410,7 +411,9 @@ public class ShiftConfigService implements IShiftConfigService {
                 }
             }
 
-            if (intervalMs < minIntervalMs) {
+            // 只有当时间间隔大于0且小于最小间隔时，才打印警告
+            // 如果间隔为0（边界时间相同），使用半开区间时是正常的，不需要警告
+            if (intervalMs > 0 && intervalMs < minIntervalMs) {
                 log.warn("[ShiftConfigService] 班次配置警告：班次 {} 和 {} 的时间间隔过小（{}ms），" +
                                 "建议至少1分钟，以避免边界处理问题",
                         current.getCode(), next.getCode(), intervalMs);
