@@ -132,6 +132,24 @@ public class DeviceStateShiftSplitService implements IDeviceStateShiftSplitServi
             return ShouldSplitResult.noSplit();
         }
 
+        // 关键优化：如果记录持续时间超过24小时，直接结束记录并标记异常，不再拆分
+        // 因为拆分没有意义，且会产生大量记录导致内存问题
+        long timeSpan = currentTime - startTs;
+        long maxTimeSpan = 24L * 60 * 60 * 1000L; // 24小时
+        
+        if (timeSpan > maxTimeSpan) {
+            long hours = timeSpan / (60 * 60 * 1000L);
+            log.warn("[DeviceStateShiftSplitService] 记录持续时间过长（{}小时），直接结束记录并标记异常，不再拆分: " +
+                            "deviceId={}, recordId={}, startTs={}, currentTime={}, timeSpan={}ms",
+                    hours, record.getDeviceInfoId(), record.getId(), startTs, currentTime, timeSpan);
+            
+            // 直接结束记录并标记异常
+            endRecordWithAbnormalMark(record, currentTime, 
+                    String.format("记录持续时间过长（%d小时），可能存在异常，直接结束记录", hours));
+            
+            return ShouldSplitResult.noSplit(); // 不再拆分
+        }
+
         try {
             // 获取开始时间所在的班次
             ShiftTimeRange startShift = shiftCalculationService.calculateShiftRange(
@@ -177,6 +195,55 @@ public class DeviceStateShiftSplitService implements IDeviceStateShiftSplitServi
                 // 其他异常也返回错误结果，避免重复处理
                 return ShouldSplitResult.error("计算班次范围异常: " + e.getMessage());
             }
+        }
+    }
+
+    /**
+     * 直接结束记录并标记异常（用于长时间运行的记录）
+     * 
+     * @param record 记录
+     * @param endTime 结束时间
+     * @param reason 异常原因
+     */
+    private void endRecordWithAbnormalMark(DeviceStateRecordDO record, long endTime, String reason) {
+        try {
+            Long startTs = record.getStartTs();
+            if (startTs == null) {
+                log.warn("[DeviceStateShiftSplitService] 记录开始时间为空，无法结束记录: deviceId={}, recordId={}",
+                        record.getDeviceInfoId(), record.getId());
+                return;
+            }
+            
+            Map<String, Object> properties = record.getProperties();
+            if (properties == null) {
+                properties = new HashMap<>();
+            } else {
+                properties = new HashMap<>(properties); // 创建副本，避免修改原始Map
+            }
+            
+            // 标记为异常结束
+            properties.put("abnormal_end", true);
+            properties.put("abnormal_end_reason", reason);
+            properties.put("abnormal_end_time", endTime);
+            properties.put("abnormal_duration_hours", (endTime - startTs) / (60 * 60 * 1000L));
+            
+            // 设置结束时间和时长
+            record.setEndTs(endTime);
+            record.setDurationS(endTime - startTs); // durationS 以毫秒为单位存储
+            record.setIsComplete(true); // 标记为完整
+            record.setProperties(properties);
+            
+            // 更新记录
+            stateRecordRepository.update(record);
+            
+            log.info("[DeviceStateShiftSplitService] 已结束长时间运行的记录并标记异常: deviceId={}, recordId={}, " +
+                            "startTs={}, endTs={}, durationHours={}, reason={}",
+                    record.getDeviceInfoId(), record.getId(), startTs, endTime,
+                    (endTime - startTs) / (60 * 60 * 1000L), reason);
+        } catch (Exception e) {
+            // 标记失败不影响主流程，只记录日志
+            log.warn("[DeviceStateShiftSplitService] 结束记录并标记异常时发生异常: deviceId={}, recordId={}, error={}", 
+                    record.getDeviceInfoId(), record.getId(), e.getMessage());
         }
     }
 
@@ -411,6 +478,13 @@ public class DeviceStateShiftSplitService implements IDeviceStateShiftSplitServi
                 record.getDurationS(), record.getShiftDate(), record.getShiftCode());
 
         // 插入后续记录（从第二条开始）
+        // 内存保护：如果拆分记录数过多，记录警告，避免一次性加载到内存
+        int insertCount = splitRecords.size() - 1;
+        if (insertCount > 50) {
+            log.warn("[DeviceStateShiftSplitService] 拆分记录数较多（{}条），可能影响内存: deviceId={}, recordId={}",
+                    insertCount, deviceId, record.getId());
+        }
+        
         for (int i = 1; i < splitRecords.size(); i++) {
             DeviceStateRecordDO r = splitRecords.get(i);
             stateRecordRepository.insert(r);

@@ -53,8 +53,9 @@ public class TimeRangeRecordHandler {
     /**
      * 按班次截断记录的最大生成数量限制
      * 防止设备长时间离线导致生成过多记录
+     * 注意：如果超过此限制，会创建溢出记录，但仍可能影响内存
      */
-    @Value("${time.record.split.max.records:100}")
+    @Value("${time.record.split.max.records:50}")
     private int maxSplitRecords;
 
     /**
