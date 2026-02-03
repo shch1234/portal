@@ -236,8 +236,8 @@ public class DeviceAlarmEventHandler implements WebhookEventHandler {
     private void processAlarmTransitionWithLock(EventData eventData, DeviceIdentity identity, WebhookRequest request) {
         Long deviceInfoId = identity.deviceInfoId();
         
-        // 获取分布式锁
-        if (deviceLockService.tryLockAlarm(deviceInfoId, DeviceAlarmEventFields.LOCK_TIMEOUT_SECONDS)) {
+        // 获取分布式锁，如果获取失败则抛出异常
+        if (!deviceLockService.tryLockAlarm(deviceInfoId, DeviceAlarmEventFields.LOCK_TIMEOUT_SECONDS)) {
             log.warn("[Webhook-Handler-DeviceAlarm] 获取设备报警锁失败: deviceInfoId={}, messageId={}",
                     deviceInfoId, request.getMessageId());
             throw new IotPortalException(IotPortalErrorCode.EVENT_DEVICE_STATE_PROCESSING);

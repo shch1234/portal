@@ -198,7 +198,8 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
     private void processStateTransitionWithLock(EventData eventData, DeviceIdentity identity, WebhookRequest request) {
         Long deviceInfoId = identity.deviceInfoId();
         
-        if (deviceLockService.tryLockState(deviceInfoId, DeviceStateEventFields.LOCK_TIMEOUT_SECONDS)) {
+        // 尝试获取分布式锁，如果获取失败则抛出异常
+        if (!deviceLockService.tryLockState(deviceInfoId, DeviceStateEventFields.LOCK_TIMEOUT_SECONDS)) {
             log.debug("[Webhook-Handler-DeviceState] 获取设备状态锁失败: deviceInfoId={}, messageId={}",
                     deviceInfoId, request.getMessageId());
             throw new IotPortalException(IotPortalErrorCode.EVENT_DEVICE_STATE_PROCESSING);
