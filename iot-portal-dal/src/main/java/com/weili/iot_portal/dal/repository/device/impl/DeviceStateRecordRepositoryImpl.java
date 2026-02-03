@@ -90,9 +90,34 @@ public class DeviceStateRecordRepositoryImpl implements DeviceStateRecordReposit
         if (records == null || records.isEmpty()) {
             return;
         }
-        // 使用 MyBatis-Plus 的批量插入
-        // MyBatis-Plus 的 saveBatch 方法会自动使用批量执行器（如果配置了）
-        // 或者使用循环插入，但 MyBatis-Plus 会在批量模式下自动优化
+        
+        // 重要：确保记录按 startTs 排序（防御性编程）
+        // 虽然 createStateRecords 返回的记录通常已按时间顺序排列，
+        // 但为了确保数据一致性，在批量插入前进行排序
+        // 这对于跨班次拆分的记录尤其重要，因为时间顺序直接影响业务逻辑
+        records.sort((r1, r2) -> {
+            Long startTs1 = r1.getStartTs();
+            Long startTs2 = r2.getStartTs();
+            if (startTs1 == null && startTs2 == null) {
+                return 0;
+            }
+            if (startTs1 == null) {
+                return 1; // null 排在后面
+            }
+            if (startTs2 == null) {
+                return -1; // null 排在后面
+            }
+            return Long.compare(startTs1, startTs2);
+        });
+        
+        // 使用循环插入（保证顺序）
+        // 注意：虽然循环插入性能略低于真正的批量插入，但可以保证：
+        // 1. 插入顺序与列表顺序一致
+        // 2. 每条记录插入后立即获得ID（如果使用自增ID）
+        // 3. 如果某条记录插入失败，可以立即知道是哪条记录
+        // 
+        // 如果将来要使用真正的批量插入（如 MyBatis-Plus 的批量执行器），
+        // 需要确保数据库和ORM框架保证插入顺序，或者使用事务+排序来保证顺序
         for (DeviceStateRecordDO record : records) {
             deviceStateRecordMapper.insert(record);
         }

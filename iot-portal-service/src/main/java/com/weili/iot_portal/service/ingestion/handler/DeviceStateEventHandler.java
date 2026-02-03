@@ -836,6 +836,10 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
      * <p>
      * 优化：使用批量插入减少数据库往返次数，降低锁持有时间
      * </p>
+     * <p>
+     * 注意：记录顺序很重要，previousState 记录必须在 currentState 记录之前插入
+     * Repository 的 insertBatch 方法会确保按 startTs 排序，保证时间顺序
+     * </p>
      */
     private void insertRecoveryAndNewStateRecords(Long deviceInfoId, Long orgFactoryId, 
                                                   EventData eventData, WebhookRequest request,
@@ -843,6 +847,11 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
         List<DeviceStateRecordDO> allRecords = new ArrayList<>();
         
         // 如果 previousState 不为 NULL，插入 previousState 状态记录（用于修复时间线）
+        // 注意：previousState 记录的时间戳等于 eventTimestamp（瞬时记录），
+        // 而 currentState 记录的时间戳也是 eventTimestamp（但可能跨班次）
+        // 由于 previousState 记录是瞬时记录（startTs == endTs），
+        // 而 currentState 记录可能跨班次（startTs < endTs 或 endTs == null），
+        // 所以 previousState 记录应该在 currentState 记录之前
         if (eventData.previousStateCode() != null && eventData.previousStateResult() != null) {
             Map<String, Object> recoveryProperties = new HashMap<>();
             recoveryProperties.put(DeviceStateEventFields.RECOVERY, true);
@@ -864,6 +873,7 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
         allRecords.addAll(newRecords);
 
         // 批量插入所有记录（优化：一次数据库往返，而不是N次）
+        // Repository 的 insertBatch 方法会按 startTs 排序，确保时间顺序
         if (!allRecords.isEmpty()) {
             stateTimelineRepository.insertBatch(allRecords);
         }

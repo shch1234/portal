@@ -1,5 +1,7 @@
 package com.weili.iot_portal.service.ingestion.impl;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import com.weili.iot_portal.common.exception.IotPortalException;
 import com.weili.iot_portal.dal.dataobject.ingestion.WebhookInboxDO;
 import com.weili.iot_portal.domain.ingestion.ProcessResult;
@@ -8,10 +10,13 @@ import com.weili.iot_portal.service.ingestion.support.WebhookInboxService;
 import com.weili.iot_portal.service.ingestion.support.WebhookProcessService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.*;
@@ -86,9 +91,36 @@ public class WebhookInboxProcessorImpl implements WebhookInboxProcessor {
     private int maxBatchSize;
     
     /**
+     * 设备线程池过期时间（小时）
+     * Apollo配置：webhook.inbox.device-executor-expire-hours
+     * 默认值：1（1小时后自动清理不活跃的设备线程池）
+     */
+    @Value("${webhook.inbox.device-executor-expire-hours:1}")
+    private int deviceExecutorExpireHours;
+
+    /**
+     * 设备线程池最大数量
+     * Apollo配置：webhook.inbox.device-executor-max-size
+     * 默认值：1000（最多为1000个设备创建专用线程池）
+     */
+    @Value("${webhook.inbox.device-executor-max-size:1000}")
+    private int deviceExecutorMaxSize;
+
+    /**
+     * 设备专用的单线程线程池缓存
+     * Key: 设备代码（deviceCode）
+     * Value: 该设备专用的单线程线程池
+     * <p>
+     * 使用Caffeine缓存，自动清理不活跃的设备线程池，避免内存泄漏
+     * 与 WebhookReceiveService 使用相同的设备分片机制，确保同一设备的消息串行处理
+     * </p>
+     */
+    private Cache<String, ExecutorService> deviceExecutorsCache;
+    
+    /**
      * 初始化配置验证（确保配置值合理，防止 Apollo 配置错误导致报错）
      */
-    @javax.annotation.PostConstruct
+    @PostConstruct
     private void validateConfig() {
         // 验证并修正超时时间
         if (messageTimeoutSecondsRaw <= 0) {
@@ -137,6 +169,86 @@ public class WebhookInboxProcessorImpl implements WebhookInboxProcessor {
                 "batchTimeoutMinutes={}, dynamicBatchSizeEnabled={}, maxBatchSize={}",
                 parallelEnabled, validatedParallelThreads, messageTimeoutSeconds, batchTimeoutMinutes, 
                 dynamicBatchSizeEnabled, maxBatchSize);
+        
+        // 初始化设备线程池缓存（用于设备分片，确保同一设备的消息串行处理）
+        initDeviceExecutorsCache();
+    }
+
+    /**
+     * 初始化设备线程池缓存
+     * <p>
+     * 与 WebhookReceiveService 使用相同的设备分片机制，确保同一设备的消息串行处理
+     * </p>
+     */
+    private void initDeviceExecutorsCache() {
+        deviceExecutorsCache = Caffeine.newBuilder()
+                .expireAfterAccess(deviceExecutorExpireHours, TimeUnit.HOURS)
+                .maximumSize(deviceExecutorMaxSize)
+                .removalListener((key, value, cause) -> {
+                    if (value instanceof ExecutorService) {
+                        ExecutorService executor = (ExecutorService) value;
+                        log.debug("[Webhook-Processor] 清理设备线程池: deviceCode={}, cause={}", key, cause);
+                        executor.shutdown();
+                        try {
+                            if (!executor.awaitTermination(5, TimeUnit.SECONDS)) {
+                                log.warn("[Webhook-Processor] 设备线程池未能完全关闭，强制关闭: deviceCode={}", key);
+                                executor.shutdownNow();
+                            }
+                        } catch (InterruptedException e) {
+                            log.warn("[Webhook-Processor] 设备线程池关闭被中断: deviceCode={}", key, e);
+                            executor.shutdownNow();
+                            Thread.currentThread().interrupt();
+                        }
+                    }
+                })
+                .build();
+        log.info("[Webhook-Processor] 设备线程池缓存初始化完成: expireHours={}, maxSize={}", 
+                deviceExecutorExpireHours, deviceExecutorMaxSize);
+    }
+
+    /**
+     * 应用关闭时清理资源
+     */
+    @PreDestroy
+    private void destroyDeviceExecutorsCache() {
+        if (deviceExecutorsCache != null) {
+            log.info("[Webhook-Processor] 关闭所有设备线程池");
+            deviceExecutorsCache.asMap().forEach((deviceCode, executor) -> {
+                if (executor != null) {
+                    executor.shutdown();
+                    try {
+                        if (!executor.awaitTermination(5, TimeUnit.SECONDS)) {
+                            executor.shutdownNow();
+                        }
+                    } catch (InterruptedException e) {
+                        executor.shutdownNow();
+                        Thread.currentThread().interrupt();
+                    }
+                }
+            });
+            deviceExecutorsCache.invalidateAll();
+        }
+    }
+
+    /**
+     * 获取或创建设备专用的单线程线程池
+     * <p>
+     * 与 WebhookReceiveService 使用相同的设备分片机制，确保同一设备的消息串行处理
+     * </p>
+     *
+     * @param deviceCode 设备代码
+     * @return 设备专用的单线程线程池
+     */
+    private ExecutorService getOrCreateDeviceExecutor(String deviceCode) {
+        final String finalDeviceCode = StringUtils.isBlank(deviceCode) ? "unknown" : deviceCode;
+        return deviceExecutorsCache.get(finalDeviceCode, k -> {
+            log.debug("[Webhook-Processor] 创建设备专用线程池: deviceCode={}", finalDeviceCode);
+            return Executors.newSingleThreadExecutor(r -> {
+                Thread t = new Thread(r, "webhook-device-" + finalDeviceCode);
+                t.setDaemon(true);
+                return t;
+            });
+        });
     }
 
     /**
@@ -250,7 +362,8 @@ public class WebhookInboxProcessorImpl implements WebhookInboxProcessor {
         AtomicInteger error = new AtomicInteger(0);
 
         for (WebhookInboxDO inbox : inboxList) {
-            processSingleMessage(inbox, success, skip, error);
+            // 串行处理模式：使用设备分片机制
+            processSingleMessage(inbox, success, skip, error, true);
         }
 
         long batchCost = System.currentTimeMillis() - batchStartTime;
@@ -300,8 +413,9 @@ public class WebhookInboxProcessorImpl implements WebhookInboxProcessor {
                         }
                         try {
                             // 同一设备的消息串行处理，避免锁竞争
+                            // 注意：并行处理模式中已按设备分组，不需要设备分片（传递 false）
                             for (WebhookInboxDO inbox : deviceMessages) {
-                                processSingleMessage(inbox, success, skip, error);
+                                processSingleMessage(inbox, success, skip, error, false);
                             }
                         } finally {
                             // 清除 MDC，避免线程复用导致设备编号污染
@@ -327,12 +441,22 @@ public class WebhookInboxProcessorImpl implements WebhookInboxProcessor {
     }
 
     /**
-     * 处理单条消息（优化后：减少重复查询、超时控制、错误分类）
+     * 处理单条消息（优化后：减少重复查询、超时控制、错误分类、设备分片）
+     * <p>
+     * 优化：使用设备分片机制，确保同一设备的消息串行处理，避免锁竞争
+     * </p>
+     *
+     * @param inbox 消息对象
+     * @param success 成功计数器
+     * @param skip 跳过计数器
+     * @param error 错误计数器
+     * @param useDeviceSharding 是否使用设备分片（并行处理模式中已按设备分组，不需要设备分片）
      */
     private void processSingleMessage(WebhookInboxDO inbox, 
                                      AtomicInteger success, 
                                      AtomicInteger skip, 
-                                     AtomicInteger error) {
+                                     AtomicInteger error,
+                                     boolean useDeviceSharding) {
         try {
             log.debug("[Webhook-Processor] ====== 开始处理单条消息 ======");
             log.debug("[Webhook-Processor] messageId={}, eventType={}, deviceCode={}, status={}, processCount={}",
@@ -365,33 +489,47 @@ public class WebhookInboxProcessorImpl implements WebhookInboxProcessor {
             // 创建 final 变量，以便在 lambda 表达式中使用
             final WebhookInboxDO finalProcessingInbox = processingInbox;
 
-            // 超时控制：使用 CompletableFuture 实现超时
-            // 注意：串行处理时也使用单独的线程执行，以便实现超时控制
-            ExecutorService timeoutExecutor = parallelEnabled 
-                ? getExecutorService() 
-                : getTimeoutExecutorService();
-            
-            // 获取当前线程的 MDC 上下文，以便在异步执行时传递
-            // 注意：这里获取的 MDC 可能不包含设备编号（因为设备编号是在 processSingle 内部设置的）
-            Map<String, String> mdcContext = MDC.getCopyOfContextMap();
-            
-            CompletableFuture<Void> future = CompletableFuture.runAsync(() -> {
-                // 在异步线程中恢复 MDC 上下文
-                if (mdcContext != null && !mdcContext.isEmpty()) {
-                    MDC.setContextMap(mdcContext);
-                }
-                try {
-                    // processSingle 内部会设置设备编号到 MDC，覆盖之前的值
-                    // 优化：传递 false，表示不强制重新查询，使用已查询的对象
-                    webhookProcessService.processSingle(finalProcessingInbox, false);
-                } finally {
-                    // 清除 MDC，避免线程复用导致设备编号污染
-                    MDC.clear();
-                }
-            }, timeoutExecutor);
+            // 根据是否使用设备分片选择不同的执行方式
+            if (useDeviceSharding) {
+                // 串行处理模式：使用设备分片机制，确保同一设备的消息串行处理
+                // 获取设备代码，用于设备分片
+                String deviceCode = finalProcessingInbox.getDeviceCode();
+                final String finalDeviceCode = StringUtils.isBlank(deviceCode) ? "unknown" : deviceCode;
+                
+                // 获取或创建设备专用的单线程线程池（保证同一设备的消息串行处理）
+                ExecutorService deviceExecutor = getOrCreateDeviceExecutor(finalDeviceCode);
+                
+                // 获取当前线程的 MDC 上下文，以便在异步执行时传递
+                Map<String, String> mdcContext = MDC.getCopyOfContextMap();
+                
+                // 在设备专用线程池中执行处理逻辑（使用 CompletableFuture 实现超时控制）
+                CompletableFuture<Void> future = CompletableFuture.runAsync(() -> {
+                    // 在异步线程中恢复 MDC 上下文
+                    if (mdcContext != null && !mdcContext.isEmpty()) {
+                        MDC.setContextMap(mdcContext);
+                    }
+                    try {
+                        if (log.isDebugEnabled()) {
+                            log.debug("[Webhook-Processor] 在设备专用线程池中处理: messageId={}, deviceCode={}", 
+                                    finalProcessingInbox.getMessageId(), finalDeviceCode);
+                        }
+                        // processSingle 内部会设置设备编号到 MDC，覆盖之前的值
+                        // 优化：传递 false，表示不强制重新查询，使用已查询的对象
+                        webhookProcessService.processSingle(finalProcessingInbox, false);
+                    } finally {
+                        // 清除 MDC，避免线程复用导致设备编号污染
+                        MDC.clear();
+                    }
+                }, deviceExecutor);
 
-            // 等待处理完成，设置超时时间
-            future.get(messageTimeoutSeconds, TimeUnit.SECONDS);
+                // 等待处理完成，设置超时时间
+                future.get(messageTimeoutSeconds, TimeUnit.SECONDS);
+            } else {
+                // 并行处理模式：已经按设备分组，同一设备的消息在同一线程中串行处理，不需要设备分片
+                // 直接调用处理逻辑（不使用设备分片线程池，避免双重串行化）
+                webhookProcessService.processSingle(finalProcessingInbox, false);
+            }
+            
             success.incrementAndGet();
 
         } catch (TimeoutException e) {
