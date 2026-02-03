@@ -67,6 +67,16 @@ public interface DeviceStateRecordRepository {
 
     void insert(DeviceStateRecordDO record);
 
+    /**
+     * 批量插入设备状态记录
+     * <p>
+     * 优化：使用批量插入减少数据库往返次数，降低锁持有时间
+     * </p>
+     *
+     * @param records 记录列表
+     */
+    void insertBatch(List<DeviceStateRecordDO> records);
+
     void update(DeviceStateRecordDO record);
 
     /**

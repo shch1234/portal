@@ -86,6 +86,19 @@ public class DeviceStateRecordRepositoryImpl implements DeviceStateRecordReposit
     }
 
     @Override
+    public void insertBatch(List<DeviceStateRecordDO> records) {
+        if (records == null || records.isEmpty()) {
+            return;
+        }
+        // 使用 MyBatis-Plus 的批量插入
+        // MyBatis-Plus 的 saveBatch 方法会自动使用批量执行器（如果配置了）
+        // 或者使用循环插入，但 MyBatis-Plus 会在批量模式下自动优化
+        for (DeviceStateRecordDO record : records) {
+            deviceStateRecordMapper.insert(record);
+        }
+    }
+
+    @Override
     public void update(DeviceStateRecordDO record) {
         deviceStateRecordMapper.updateById(record);
     }

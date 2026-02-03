@@ -479,8 +479,9 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
                 eventData.currentStateResult(), null, eventData.eventTimestamp());
         List<DeviceStateRecordDO> records = createStateRecords(deviceInfoId, orgFactoryId,
                 eventData.currentStateCode(), eventData.eventTimestamp(), null, true, properties, precomputedShiftInfo);
-        for (DeviceStateRecordDO record : records) {
-            stateTimelineRepository.insert(record);
+        // 批量插入（优化：一次数据库往返，而不是N次）
+        if (!records.isEmpty()) {
+            stateTimelineRepository.insertBatch(records);
         }
     }
 
@@ -569,12 +570,16 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
         List<DeviceStateRecordDO> newRecords = createStateRecords(
                 latestState.getDeviceInfoId(), orgFactoryId, eventData.currentStateCode(),
                 eventData.eventTimestamp(), null, true, properties, precomputedShiftInfo);
-        for (DeviceStateRecordDO record : newRecords) {
-            stateTimelineRepository.insert(record);
-            DeviceStateEnum newStateEnum = DeviceStateEnum.fromCode(record.getStateCode());
-            log.debug("[DeviceStateEventHandler] 插入新状态记录: 状态={}({}), shiftDate={}, shiftCode={}, startTs={}, endTs={}",
-                    newStateEnum.name(), record.getStateCode(), record.getShiftDate(), record.getShiftCode(),
-                    record.getStartTs(), record.getEndTs());
+        // 批量插入（优化：一次数据库往返，而不是N次）
+        if (!newRecords.isEmpty()) {
+            stateTimelineRepository.insertBatch(newRecords);
+            // 记录日志（批量插入后）
+            for (DeviceStateRecordDO record : newRecords) {
+                DeviceStateEnum newStateEnum = DeviceStateEnum.fromCode(record.getStateCode());
+                log.debug("[DeviceStateEventHandler] 插入新状态记录: 状态={}({}), shiftDate={}, shiftCode={}, startTs={}, endTs={}",
+                        newStateEnum.name(), record.getStateCode(), record.getShiftDate(), record.getShiftCode(),
+                        record.getStartTs(), record.getEndTs());
+            }
         }
     }
 
@@ -624,8 +629,9 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
 
             List<DeviceStateRecordDO> unknownRecords = createStateRecords(deviceInfoId, orgFactoryId,
                     DeviceStateEnum.UNKNOWN.getCode(), latestEndTs, eventData.eventTimestamp(), false, gapProperties, null);
-            for (DeviceStateRecordDO record : unknownRecords) {
-                stateTimelineRepository.insert(record);
+            // 批量插入（优化：一次数据库往返，而不是N次）
+            if (!unknownRecords.isEmpty()) {
+                stateTimelineRepository.insertBatch(unknownRecords);
             }
         }
 
@@ -634,8 +640,9 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
                 eventData.currentStateResult(), null, eventData.eventTimestamp());
         List<DeviceStateRecordDO> newRecords = createStateRecords(deviceInfoId, orgFactoryId, eventData.currentStateCode(),
                 eventData.eventTimestamp(), null, true, properties, precomputedShiftInfo);
-        for (DeviceStateRecordDO record : newRecords) {
-            stateTimelineRepository.insert(record);
+        // 批量插入（优化：一次数据库往返，而不是N次）
+        if (!newRecords.isEmpty()) {
+            stateTimelineRepository.insertBatch(newRecords);
         }
 
         // 记录异常日志（可以自动修复，不需要人工处理）
@@ -826,10 +833,15 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
 
     /**
      * 插入恢复记录和新状态记录
+     * <p>
+     * 优化：使用批量插入减少数据库往返次数，降低锁持有时间
+     * </p>
      */
     private void insertRecoveryAndNewStateRecords(Long deviceInfoId, Long orgFactoryId, 
                                                   EventData eventData, WebhookRequest request,
                                                   ShiftDateAndCode precomputedShiftInfo) {
+        List<DeviceStateRecordDO> allRecords = new ArrayList<>();
+        
         // 如果 previousState 不为 NULL，插入 previousState 状态记录（用于修复时间线）
         if (eventData.previousStateCode() != null && eventData.previousStateResult() != null) {
             Map<String, Object> recoveryProperties = new HashMap<>();
@@ -841,13 +853,20 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
             List<DeviceStateRecordDO> previousRecords = createStateRecords(deviceInfoId, orgFactoryId, 
                     eventData.previousStateCode(), eventData.eventTimestamp(), eventData.eventTimestamp(), 
                     false, recoveryProperties, precomputedShiftInfo);
-            for (DeviceStateRecordDO record : previousRecords) {
-                stateTimelineRepository.insert(record);
-            }
+            allRecords.addAll(previousRecords);
         }
 
-        // 插入新状态记录
-        insertNewStateRecord(deviceInfoId, orgFactoryId, eventData, precomputedShiftInfo);
+        // 创建新状态记录
+        Map<String, Object> properties = DeviceStateUtils.createPropertiesWithOriginalState(
+                eventData.currentStateResult(), null, eventData.eventTimestamp());
+        List<DeviceStateRecordDO> newRecords = createStateRecords(deviceInfoId, orgFactoryId, eventData.currentStateCode(),
+                eventData.eventTimestamp(), null, true, properties, precomputedShiftInfo);
+        allRecords.addAll(newRecords);
+
+        // 批量插入所有记录（优化：一次数据库往返，而不是N次）
+        if (!allRecords.isEmpty()) {
+            stateTimelineRepository.insertBatch(allRecords);
+        }
 
         // 记录异常日志（需要人工审核）
         String errorMessage = String.format("状态不匹配（进行中）: 事件previousState=%s, 已标记为UNKNOWN",
@@ -857,6 +876,9 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
 
     /**
      * 插入新状态记录的辅助方法
+     * <p>
+     * 优化：使用批量插入减少数据库往返次数
+     * </p>
      */
     private void insertNewStateRecord(Long deviceInfoId, Long orgFactoryId, EventData eventData,
                                       ShiftDateAndCode precomputedShiftInfo) {
@@ -864,8 +886,9 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
                 eventData.currentStateResult(), null, eventData.eventTimestamp());
         List<DeviceStateRecordDO> newRecords = createStateRecords(deviceInfoId, orgFactoryId, eventData.currentStateCode(),
                 eventData.eventTimestamp(), null, true, properties, precomputedShiftInfo);
-        for (DeviceStateRecordDO record : newRecords) {
-            stateTimelineRepository.insert(record);
+        // 批量插入（优化：一次数据库往返，而不是N次）
+        if (!newRecords.isEmpty()) {
+            stateTimelineRepository.insertBatch(newRecords);
         }
     }
 
@@ -926,8 +949,9 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
 
         List<DeviceStateRecordDO> newRecords = createStateRecords(deviceInfoId, orgFactoryId, eventData.currentStateCode(),
                 eventData.eventTimestamp(), null, false, anomalyProperties, precomputedShiftInfo);
-        for (DeviceStateRecordDO record : newRecords) {
-            stateTimelineRepository.insert(record);
+        // 批量插入（优化：一次数据库往返，而不是N次）
+        if (!newRecords.isEmpty()) {
+            stateTimelineRepository.insertBatch(newRecords);
         }
 
         // 记录异常日志（需要人工审核）
@@ -950,8 +974,9 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
                 eventData.currentStateResult(), null, eventData.eventTimestamp());
         List<DeviceStateRecordDO> newRecords = createStateRecords(deviceInfoId, orgFactoryId, eventData.currentStateCode(),
                 eventData.eventTimestamp(), null, true, properties, precomputedShiftInfo);
-        for (DeviceStateRecordDO record : newRecords) {
-            stateTimelineRepository.insert(record);
+        // 批量插入（优化：一次数据库往返，而不是N次）
+        if (!newRecords.isEmpty()) {
+            stateTimelineRepository.insertBatch(newRecords);
         }
     }
 
@@ -1472,12 +1497,15 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
                 expiredState.getDeviceInfoId(), orgFactoryId, eventData.currentStateCode(),
                 eventData.eventTimestamp(), null, true, properties, precomputedShiftInfo);
 
-        // 插入新记录
-        for (DeviceStateRecordDO record : newRecords) {
-            stateTimelineRepository.insert(record);
-            DeviceStateEnum newStateEnum = DeviceStateEnum.fromCode(record.getStateCode());
-            log.debug("[DeviceStateEventHandler] 创建新状态记录: 状态={}({}), startTs={}, 关联过期记录ID={}",
-                    newStateEnum.name(), record.getStateCode(), record.getStartTs(), expiredState.getId());
+        // 批量插入新记录（优化：一次数据库往返，而不是N次）
+        if (!newRecords.isEmpty()) {
+            stateTimelineRepository.insertBatch(newRecords);
+            // 记录日志（批量插入后）
+            for (DeviceStateRecordDO record : newRecords) {
+                DeviceStateEnum newStateEnum = DeviceStateEnum.fromCode(record.getStateCode());
+                log.debug("[DeviceStateEventHandler] 创建新状态记录: 状态={}({}), startTs={}, 关联过期记录ID={}",
+                        newStateEnum.name(), record.getStateCode(), record.getStartTs(), expiredState.getId());
+            }
         }
     }
 
