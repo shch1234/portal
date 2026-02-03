@@ -43,6 +43,12 @@
             <artifactId>weili-basic-common</artifactId>
         </dependency>
         
+        <!-- Caffeine缓存（用于内存管理，防止内存泄漏） -->
+        <dependency>
+            <groupId>com.github.ben-manes.caffeine</groupId>
+            <artifactId>caffeine</artifactId>
+        </dependency>
+        
         <!-- 测试依赖 -->
         <dependency>
             <groupId>org.junit.jupiter</groupId>

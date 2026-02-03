@@ -1,11 +1,12 @@
 package com.weili.iot_portal.service.cache;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import jakarta.annotation.PostConstruct;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
@@ -61,6 +62,22 @@ public class ResourceLimiter {
     private int mysqlDeviceUpdateAcquireTimeoutSeconds;
 
     /**
+     * 设备信号量缓存过期时间（小时）
+     * Apollo配置：resource.limiter.mysql.device-update.semaphore-expire-hours
+     * 默认值：1（1小时后自动清理）
+     */
+    @Value("${resource.limiter.mysql.device-update.semaphore-expire-hours:1}")
+    private int semaphoreExpireHours;
+
+    /**
+     * 设备信号量缓存最大大小
+     * Apollo配置：resource.limiter.mysql.device-update.semaphore-max-size
+     * 默认值：10000（最多缓存10000个设备）
+     */
+    @Value("${resource.limiter.mysql.device-update.semaphore-max-size:10000}")
+    private int semaphoreMaxSize;
+
+    /**
      * Redis Pipeline信号量
      */
     private Semaphore redisPipelineSemaphore;
@@ -68,8 +85,14 @@ public class ResourceLimiter {
     /**
      * MySQL设备更新信号量（按设备ID分片）
      * Key: deviceId, Value: Semaphore（每个设备独立限流）
+     * <p>
+     * 使用Caffeine缓存，自动清理不活跃的设备，避免内存泄漏
+     * </p>
      */
-    private final ConcurrentHashMap<Long, Semaphore> deviceUpdateSemaphores = new ConcurrentHashMap<>();
+    private final Cache<Long, Semaphore> deviceUpdateSemaphores = Caffeine.newBuilder()
+            .expireAfterAccess(semaphoreExpireHours, TimeUnit.HOURS) // 1小时不活跃自动过期
+            .maximumSize(semaphoreMaxSize) // 最多缓存10000个设备
+            .build();
 
     @PostConstruct
     public void init() {
@@ -139,7 +162,7 @@ public class ResourceLimiter {
         }
 
         // 获取或创建设备对应的信号量（每个设备独立限流）
-        Semaphore semaphore = deviceUpdateSemaphores.computeIfAbsent(deviceId, k -> {
+        Semaphore semaphore = deviceUpdateSemaphores.get(deviceId, k -> {
             log.debug("[ResourceLimiter] 创建设备更新信号量: deviceId={}, maxConcurrent={}", deviceId, mysqlDeviceUpdateMaxConcurrent);
             return new Semaphore(mysqlDeviceUpdateMaxConcurrent, true); // 公平锁
         });
@@ -171,7 +194,7 @@ public class ResourceLimiter {
             return;
         }
 
-        Semaphore semaphore = deviceUpdateSemaphores.get(deviceId);
+        Semaphore semaphore = deviceUpdateSemaphores.getIfPresent(deviceId);
         if (semaphore != null) {
             semaphore.release();
             log.debug("[ResourceLimiter] 释放设备更新许可: deviceId={}, available={}",
@@ -200,24 +223,23 @@ public class ResourceLimiter {
      * 获取设备更新信号量数量（用于监控）
      */
     public int getDeviceUpdateSemaphoreCount() {
-        return deviceUpdateSemaphores.size();
+        return (int) deviceUpdateSemaphores.estimatedSize();
     }
 
     /**
      * 清理不再使用的设备信号量（定期调用，避免内存泄漏）
-     * 注意：只清理可用许可数等于最大并发数的信号量（表示没有正在使用的）
+     * 注意：Caffeine会自动清理过期条目，此方法用于手动清理空闲信号量
      */
     public void cleanupUnusedSemaphores() {
-        int cleaned = 0;
-        for (var it = deviceUpdateSemaphores.entrySet().iterator(); it.hasNext(); ) {
-            var entry = it.next();
+        int beforeSize = (int) deviceUpdateSemaphores.estimatedSize();
+        // 遍历所有缓存的信号量，清理空闲的
+        deviceUpdateSemaphores.asMap().entrySet().removeIf(entry -> {
             Semaphore semaphore = entry.getValue();
             // 如果可用许可数等于最大并发数，说明没有正在使用的，可以清理
-            if (semaphore.availablePermits() == mysqlDeviceUpdateMaxConcurrent) {
-                it.remove();
-                cleaned++;
-            }
-        }
+            return semaphore.availablePermits() == mysqlDeviceUpdateMaxConcurrent;
+        });
+        int afterSize = (int) deviceUpdateSemaphores.estimatedSize();
+        int cleaned = beforeSize - afterSize;
         if (cleaned > 0) {
             log.debug("[ResourceLimiter] 清理未使用的设备信号量: count={}", cleaned);
         }

@@ -20,6 +20,9 @@ import java.util.Map;
  * <p>
  * 当前设备刀具相关的缓存操作
  * </p>
+ * <p>
+ * 优化：使用Caffeine缓存自动清理过期条目，避免内存泄漏
+ * </p>
  *
  * @author system
  */
@@ -29,12 +32,33 @@ import java.util.Map;
 public class DeviceToolCacheService {
 
     private final RedisTemplate<String, String> redisTemplate;
+    private final RealtimeCacheSampler sampler;
+    private final RealtimeCacheWriter writer;
 
     @Value("${rt.tool.ttl-millis:300000}")
     private long toolTtlMillis;
 
-    @Value("${compensation.cache.ttl-seconds:86400}")
+    /**
+     * 刀补补偿缓存TTL（秒）
+     * Apollo配置：compensation.cache.ttl-seconds
+     * 默认值：3600（1小时）
+     * <p>
+     * 优化说明：
+     * - 从24小时缩短到1小时，减少Redis内存占用（减少95%）
+     * - 补偿值变化不频繁，1小时足够覆盖大部分查询场景
+     * - 如果缓存过期，会从数据库重新加载，不影响业务
+     * </p>
+     */
+    @Value("${compensation.cache.ttl-seconds:3600}")
     private long compensationCacheTtlSeconds;
+
+    /**
+     * 采样写入间隔（毫秒）
+     * Apollo配置：rt.tool.sample-interval-millis
+     * 默认值：10000（10秒）
+     */
+    @Value("${rt.tool.sample-interval-millis:10000}")
+    private long sampleIntervalMillis;
 
     // ==================== 刀具数据缓存 ====================
 
@@ -42,6 +66,11 @@ public class DeviceToolCacheService {
      * 保存或更新设备刀具缓存
      * <p>
      * 存储格式：包含 toolNo、holderNumber 和 compensation 的完整JSON结构
+     * </p>
+     * <p>
+     * 优化：采样写入（每10秒写入一次，其余数据丢弃）
+     * - 减少Redis写入压力
+     * - 适用于高频实时数据
      * </p>
      *
      * @param factoryId    工厂ID
@@ -57,6 +86,15 @@ public class DeviceToolCacheService {
                          Map<String, Object> compensation, long updatedAt, String source, String traceId) {
         if (StringUtils.isBlank(toolNo) && StringUtils.isBlank(holderNumber) && 
             (compensation == null || compensation.isEmpty())) {
+            return;
+        }
+        
+        String key = buildToolKey(factoryId, deviceId);
+        long now = System.currentTimeMillis();
+        
+        // 采样写入：检查是否需要写入（每10秒写入一次，考虑设备时间偏移）
+        if (!sampler.shouldWriteWithOffset(factoryId, deviceId, key, now, sampleIntervalMillis)) {
+            // 被采样过滤，未写入（正常情况，不记录日志）
             return;
         }
         
@@ -82,11 +120,14 @@ public class DeviceToolCacheService {
         // 将整个结构序列化为JSON字符串，存储到Redis Hash的"data"字段
         try {
             String json = JsonUtils.toJsonString(toolData);
-            String key = buildToolKey(factoryId, deviceId);
             Map<String, String> payload = new HashMap<>();
             payload.put("data", json);
-            redisTemplate.opsForHash().putAll(key, payload);
-            redisTemplate.expire(key, Duration.ofMillis(toolTtlMillis));
+            
+            // 使用工具类写入（不带采样，因为已经在上面检查过了）
+            writer.writeHash(key, payload, toolTtlMillis);
+            
+            // 更新最后写入时间（使用sampler内部的Caffeine缓存）
+            sampler.updateLastWriteTime(key, now);
         } catch (Exception e) {
             log.warn("[DeviceToolCacheService] 保存刀具缓存失败: factoryId={}, deviceId={}, error={}",
                     factoryId, deviceId, e.getMessage());

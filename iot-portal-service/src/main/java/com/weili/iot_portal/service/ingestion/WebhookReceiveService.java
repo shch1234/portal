@@ -224,19 +224,22 @@ public class WebhookReceiveService {
     /**
      * 处理 REALTIME 类别的事件
      * <p>
-     * REALTIME 类别的事件统一直接处理，不经过收件箱（优化：解决收件箱数据膨胀问题）
-     * <p>
-     * 处理策略：
-     * - REALTIME_DIRECT: 直接调用Handler，只写Redis，不持久化
-     * - REALTIME_WITH_PERSISTENCE: 直接调用Handler，Handler内部有事务保证，直接写数据库
-     * - BUSINESS_PERSISTENT: 降级为直接处理，Handler内部有事务保证，直接写数据库（不再经过收件箱）
-     * - 无Handler: 仅缓存原始数据
+     * 核心原则：根据Handler的处理策略决定是否走收件箱，而不是根据REALTIME/BUSINESS类别
      * </p>
      * <p>
-     * 优化说明：
-     * - REALTIME 数据高频、低价值、可丢失，不需要持久化到收件箱
-     * - Handler 内部直接写业务表，保证数据持久化
-     * - 失败只记录日志，不重试（符合实时数据特性）
+     * 处理策略说明：
+     * - BUSINESS_PERSISTENT: 走收件箱（保证可靠性，必须持久化）
+     *   - 即使REALTIME类别，如果策略是BUSINESS_PERSISTENT，也要走收件箱
+     *   - 原因：需要保证数据不丢失，支持重试（如DEVICE_STATE, DEVICE_ALARM等）
+     * - REALTIME_DIRECT/REALTIME_WITH_PERSISTENCE: 直接处理（按能力处理，处理不了丢弃）
+     *   - 不经过收件箱，减少数据库压力
+     *   - 失败只记录日志，不重试（符合实时数据的低可靠性特性）
+     *   - 原因：高频、低价值、可丢失的数据（如DEVICE_PROGRAM, DEVICE_AXIS等）
+     * </p>
+     * <p>
+     * 行业最佳实践：
+     * - 实时数据：按能力处理，处理不了直接丢弃，不持久化
+     * - 业务数据：保证可靠性，必须持久化，支持重试
      * </p>
      *
      * @param request Webhook请求
@@ -247,20 +250,26 @@ public class WebhookReceiveService {
         Optional<WebhookEventHandler> handlerOpt = handlerRegistry.resolve(finalEventType);
 
         if (handlerOpt.isPresent()) {
-            // 有 Handler，统一直接处理，不经过收件箱
             WebhookEventHandler handler = handlerOpt.get();
             WebhookProcessingStrategy strategy = handler.getProcessingStrategy();
 
             log.debug("[Webhook-处理] [步骤3] 实时数据（有Handler），策略={}: messageId={}, eventType={}",
             strategy, request.getMessageId(), finalEventType);
+            
             switch (strategy) {
-                case REALTIME_DIRECT, REALTIME_WITH_PERSISTENCE, BUSINESS_PERSISTENT -> {
-                    // 统一处理：所有 REALTIME 类别的事件都直接处理，不经过收件箱
-                    // BUSINESS_PERSISTENT 策略降级为直接处理，Handler 内部有事务保证
-                    if (strategy == WebhookProcessingStrategy.BUSINESS_PERSISTENT) {
-                        log.debug("[Webhook-处理] [步骤3] 实时数据（策略=BUSINESS_PERSISTENT），降级为直接处理，不经过收件箱: messageId={}, eventType={}",
-                                request.getMessageId(), finalEventType);
+                case BUSINESS_PERSISTENT -> {
+                    // 优化：BUSINESS_PERSISTENT策略走收件箱，利用削峰能力
+                    log.debug("[Webhook-处理] [步骤3] 实时数据（策略=BUSINESS_PERSISTENT），走收件箱削峰: messageId={}, eventType={}",
+                            request.getMessageId(), finalEventType);
+                    // 保存到收件箱（削峰）
+                    webhookInboxService.saveToInbox(request);
+                    // 立即异步处理（保证实时性）
+                    if (asyncProcessEnabled) {
+                        processMessageAsync(request.getMessageId());
                     }
+                }
+                case REALTIME_DIRECT, REALTIME_WITH_PERSISTENCE -> {
+                    // 轻量级策略：直接处理，不经过收件箱
                     handleRealtimeHandler(handler, request, finalEventType, strategy);
                 }
                 default -> {

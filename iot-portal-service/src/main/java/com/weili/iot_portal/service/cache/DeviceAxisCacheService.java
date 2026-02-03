@@ -38,6 +38,9 @@ import java.util.Map;
  *   "1731470401000:52",
  *   "1731470400000:50"   // 最旧
  * ]
+ * <p>
+ * 优化：使用Caffeine缓存自动清理过期条目，避免内存泄漏
+ * </p>
  * @author system
  */
 @Slf4j
@@ -46,6 +49,8 @@ import java.util.Map;
 public class DeviceAxisCacheService {
 
     private final RedisTemplate<String, String> redisTemplate;
+    private final RealtimeCacheSampler sampler;
+    private final RealtimeCacheWriter writer;
 
     @Value("${rt.axis.ttl-millis:300000}")
     private long axisTtlMillis;
@@ -53,10 +58,23 @@ public class DeviceAxisCacheService {
     @Value("${rt.axis.curve.ttl-millis:300000}")
     private long axisCurveTtlMillis;
 
+    /**
+     * 采样写入间隔（毫秒）
+     * Apollo配置：rt.axis.sample-interval-millis
+     * 默认值：10000（10秒）
+     */
+    @Value("${rt.axis.sample-interval-millis:10000}")
+    private long sampleIntervalMillis;
+
     // ==================== 轴数据缓存 ====================
 
     /**
      * 保存或更新设备轴数据缓存
+     * <p>
+     * 优化：采样写入（每10秒写入一次，其余数据丢弃）
+     * - 减少Redis写入压力
+     * - 适用于高频实时数据
+     * </p>
      *
      * @param factoryId 工厂ID
      * @param deviceId  设备ID
@@ -71,6 +89,11 @@ public class DeviceAxisCacheService {
         if (axisData == null || axisData.isEmpty()) {
             return;
         }
+        
+        String key = buildAxisKey(factoryId, deviceId);
+        long now = System.currentTimeMillis();
+        
+        // 构建payload
         Map<String, String> payload = new HashMap<>();
         axisData.forEach((k, v) -> payload.put(k, String.valueOf(v)));
         payload.put(DeviceAxisEventFields.UPDATED_AT, String.valueOf(updatedAt));
@@ -81,9 +104,16 @@ public class DeviceAxisCacheService {
         if (ratio != null) {
             payload.put(DeviceAxisEventFields.RATIO, String.valueOf(ratio));
         }
-        String key = buildAxisKey(factoryId, deviceId);
-        redisTemplate.opsForHash().putAll(key, payload);
-        redisTemplate.expire(key, Duration.ofMillis(axisTtlMillis));
+        
+        // 使用工具类进行采样写入（使用sampler内部的Caffeine缓存）
+        boolean written = writer.writeHashWithSampling(
+                factoryId, deviceId, key, payload, axisTtlMillis,
+                now, sampleIntervalMillis, sampler);
+        
+        if (!written) {
+            // 被采样过滤，未写入（正常情况，不记录日志）
+            return;
+        }
     }
 
     /**
@@ -103,9 +133,16 @@ public class DeviceAxisCacheService {
 
     /**
      * 追加轴曲线数据点（优化版：使用紧凑格式）
+     * <p>
      * 优化前：{"ts":1731470400000,"value":50} (32字节)
      * 优化后：1731470400000:50 (16字节)
      * 节省约50%内存 + JSON序列化开销
+     * </p>
+     * <p>
+     * 采样写入：每10秒写入一次，其余数据丢弃
+     * - 减少Redis写入压力
+     * - 适用于高频实时数据
+     * </p>
      *
      * @param factoryId 工厂ID
      * @param deviceId  设备ID
@@ -119,13 +156,23 @@ public class DeviceAxisCacheService {
         if (value == null) {
             return;
         }
-        String pointData = timestamp + ":" + value;
+        
         String key = buildCurveKey(factoryId, deviceId, metric);
-        redisTemplate.opsForList().leftPush(key, pointData);
-        if (maxLen > 0) {
-            redisTemplate.opsForList().trim(key, 0, maxLen - 1);
+        long now = System.currentTimeMillis();
+        
+        // 采样写入：检查是否需要写入（每10秒写入一次，考虑设备时间偏移）
+        if (!sampler.shouldWriteWithOffset(factoryId, deviceId, key, now, sampleIntervalMillis)) {
+            // 被采样过滤，未写入（正常情况，不记录日志）
+            return;
         }
-        redisTemplate.expire(key, Duration.ofMillis(axisCurveTtlMillis));
+        
+        String pointData = timestamp + ":" + value;
+        
+        // 使用工具类写入List数据
+        writer.writeList(key, pointData, maxLen, axisCurveTtlMillis);
+        
+        // 更新最后写入时间（使用sampler内部的Caffeine缓存）
+        sampler.updateLastWriteTime(key, now);
     }
 
     /**

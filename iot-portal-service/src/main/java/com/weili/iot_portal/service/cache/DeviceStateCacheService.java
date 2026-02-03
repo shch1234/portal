@@ -26,6 +26,9 @@ import java.util.Map;
  *   "source": "TB",
  *   "traceId": "msg-abc123"
  * }
+ * <p>
+ * 优化：使用Caffeine缓存自动清理过期条目，避免内存泄漏
+ * </p>
  * @author luying
  */
 @Slf4j
@@ -35,6 +38,8 @@ public class DeviceStateCacheService {
 
     private final RedisTemplate<String, String> redisTemplate;
     private final ResourceLimiter resourceLimiter;
+    private final RealtimeCacheSampler sampler;
+    private final RealtimeCacheWriter writer;
 
     @Value("${rt.state.ttl-millis:600000}")
     private long stateTtlMillis;
@@ -50,10 +55,23 @@ public class DeviceStateCacheService {
     @Value("${redis.pipeline.batch-size:50}")
     private int pipelineBatchSize;
 
+    /**
+     * 采样写入间隔（毫秒）
+     * Apollo配置：rt.state.sample-interval-millis
+     * 默认值：10000（10秒）
+     */
+    @Value("${rt.state.sample-interval-millis:10000}")
+    private long sampleIntervalMillis;
+
     // ==================== 状态数据缓存 ====================
 
     /**
      * 保存或更新设备状态缓存
+     * <p>
+     * 优化：采样写入（每10秒写入一次，其余数据丢弃）
+     * - 减少Redis写入压力
+     * - 适用于高频实时数据（如心跳等）
+     * </p>
      *
      * @param factoryId 工厂ID
      * @param deviceId  设备ID
@@ -64,6 +82,10 @@ public class DeviceStateCacheService {
      */
     public void saveState(Long factoryId, Long deviceId, String state,
                           long updatedAt, String source, String traceId) {
+        String key = buildStateKey(factoryId, deviceId);
+        long now = System.currentTimeMillis();
+        
+        // 构建payload
         Map<String, String> payload = new HashMap<>();
         payload.put(DeviceStateEventFields.STATE, state);
         payload.put(DeviceStateEventFields.UPDATED_AT, String.valueOf(updatedAt));
@@ -71,9 +93,16 @@ public class DeviceStateCacheService {
         if (StringUtils.isNotBlank(traceId)) {
             payload.put(DeviceStateEventFields.TRACE_ID, traceId);
         }
-        String key = buildStateKey(factoryId, deviceId);
-        redisTemplate.opsForHash().putAll(key, payload);
-        redisTemplate.expire(key, Duration.ofMillis(stateTtlMillis));
+        
+        // 使用工具类进行采样写入（使用sampler内部的Caffeine缓存）
+        boolean written = writer.writeHashWithSampling(
+                factoryId, deviceId, key, payload, stateTtlMillis,
+                now, sampleIntervalMillis, sampler);
+        
+        if (!written) {
+            // 被采样过滤，未写入（正常情况，不记录日志）
+            return;
+        }
     }
 
     /**

@@ -23,6 +23,7 @@ import com.weili.iot_portal.service.shift.IShiftCalculationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
@@ -96,13 +97,27 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
             return;
         }
 
-        // 1. 解析事件数据
+        // 1. 解析事件数据（主事务：轻量级操作）
         EventData eventData = parseEventData(request);
         
-        // 2. 解析设备信息
+        // 2. 解析设备信息（主事务：轻量级操作）
         DeviceIdentity identity = webhookHandlerUtils.resolveDeviceIdentity(request);
         
-        // 3. 使用分布式锁处理状态更新
+        // 3. 使用分布式锁处理状态更新（子事务：独立短事务）
+        processStateTransitionInNewTransaction(eventData, identity, request);
+    }
+    
+    /**
+     * 在独立事务中处理状态转换
+     * <p>
+     * 优化说明：
+     * 1. 使用REQUIRES_NEW创建独立事务，缩短主事务时间
+     * 2. 设置超时时间5秒（比锁超时时间短），避免长时间占用连接
+     * 3. 如果子事务失败，不影响主事务（主事务只做验证和准备）
+     * </p>
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW, timeout = 5, rollbackFor = Exception.class)
+    private void processStateTransitionInNewTransaction(EventData eventData, DeviceIdentity identity, WebhookRequest request) {
         processStateTransitionWithLock(eventData, identity, request);
     }
 
@@ -194,25 +209,52 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
 
     /**
      * 使用分布式锁处理状态转换
+     * <p>
+     * 优化说明：
+     * 1. 先查询（不加锁），判断是否需要处理，减少不必要的锁竞争
+     * 2. 只在需要更新时加锁，锁内只做关键操作
+     * 3. 非关键操作（缓存更新）在锁外执行
+     * </p>
      */
     private void processStateTransitionWithLock(EventData eventData, DeviceIdentity identity, WebhookRequest request) {
         Long deviceInfoId = identity.deviceInfoId();
         
-        // 尝试获取分布式锁，如果获取失败则抛出异常
-        if (!deviceLockService.tryLockState(deviceInfoId, DeviceStateEventFields.LOCK_TIMEOUT_SECONDS)) {
-            log.debug("[Webhook-Handler-DeviceState] 获取设备状态锁失败: deviceInfoId={}, messageId={}",
+        // 优化1：先查询（不加锁），判断是否需要处理
+        Optional<DeviceStateRecordDO> latestStateOpt = stateTimelineRepository.findLatestState(deviceInfoId);
+        TransitionType transitionType = determineTransitionType(latestStateOpt, eventData);
+        
+        // 如果状态未变化，直接返回，不需要加锁
+        if (transitionType == TransitionType.STATE_UNCHANGED) {
+            log.debug("[Webhook-Handler-DeviceState] 状态未变化，跳过处理: deviceInfoId={}, messageId={}",
                     deviceInfoId, request.getMessageId());
+            // 即使状态未变化，也更新缓存（刷新TTL）
+            updateCacheAfterStateTransition(identity, eventData, false, request);
+            return;
+        }
+        
+        // 优化2：只在需要更新时加锁
+        long lockStartTime = System.currentTimeMillis();
+        if (!deviceLockService.tryLockState(deviceInfoId, DeviceStateEventFields.LOCK_TIMEOUT_SECONDS)) {
+            long lockWaitTime = System.currentTimeMillis() - lockStartTime;
+            log.warn("[Webhook-Handler-DeviceState] 获取设备状态锁失败（等待{}ms后超时）: deviceInfoId={}, messageId={}, timeout={}s",
+                    lockWaitTime, deviceInfoId, request.getMessageId(), DeviceStateEventFields.LOCK_TIMEOUT_SECONDS);
             throw new IotPortalException(IotPortalErrorCode.EVENT_DEVICE_STATE_PROCESSING);
+        }
+        long lockWaitTime = System.currentTimeMillis() - lockStartTime;
+        if (lockWaitTime > 1000) {
+            log.warn("[Webhook-Handler-DeviceState] 获取设备状态锁耗时较长: deviceInfoId={}, waitTime={}ms, messageId={}",
+                    deviceInfoId, lockWaitTime, request.getMessageId());
         }
 
         boolean needUpdateCache;
         boolean dbOperationSuccess;
+        long lockHoldStartTime = System.currentTimeMillis();
 
         try {
-            // 查询数据库最新状态
-            Optional<DeviceStateRecordDO> latestStateOpt = stateTimelineRepository.findLatestState(deviceInfoId);
+            // 优化3：锁内重新查询（防止并发修改），然后处理
+            latestStateOpt = stateTimelineRepository.findLatestState(deviceInfoId);
             
-            // 处理状态转换
+            // 处理状态转换（关键操作，在锁内执行）
             StateTransitionResult result = processStateTransition(
                     latestStateOpt, eventData, identity, request);
             
@@ -220,9 +262,14 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
             dbOperationSuccess = result.dbOperationSuccess();
         } finally {
             deviceLockService.unlockState(deviceInfoId);
+            long lockHoldTime = System.currentTimeMillis() - lockHoldStartTime;
+            if (lockHoldTime > 2000) {
+                log.warn("[Webhook-Handler-DeviceState] 锁持有时间较长: deviceInfoId={}, holdTime={}ms, messageId={}",
+                        deviceInfoId, lockHoldTime, request.getMessageId());
+            }
         }
 
-        // 更新缓存（事务外执行）
+        // 优化4：非关键操作（缓存更新）在锁外执行
         if (dbOperationSuccess) {
             updateCacheAfterStateTransition(identity, eventData, needUpdateCache, request);
         }

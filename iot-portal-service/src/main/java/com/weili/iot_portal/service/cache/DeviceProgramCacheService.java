@@ -17,6 +17,12 @@ import java.util.Map;
  * <p>
  * 设备运行程序相关的缓存操作
  * </p>
+ * <p>
+ * 优化：采样写入（每10秒写入一次，其余数据丢弃）
+ * - 减少Redis写入压力
+ * - 适用于高频实时数据
+ * - 使用Caffeine缓存自动清理过期条目，避免内存泄漏
+ * </p>
  *
  * @author system
  */
@@ -26,14 +32,29 @@ import java.util.Map;
 public class DeviceProgramCacheService {
 
     private final RedisTemplate<String, String> redisTemplate;
+    private final RealtimeCacheSampler sampler;
+    private final RealtimeCacheWriter writer;
 
     @Value("${rt.program.ttl-millis:300000}")
     private long programTtlMillis;
+
+    /**
+     * 采样写入间隔（毫秒）
+     * Apollo配置：rt.program.sample-interval-millis
+     * 默认值：10000（10秒）
+     */
+    @Value("${rt.program.sample-interval-millis:10000}")
+    private long sampleIntervalMillis;
 
     // ==================== 程序数据缓存 ====================
 
     /**
      * 保存或更新设备程序缓存
+     * <p>
+     * 优化：采样写入（每10秒写入一次，其余数据丢弃）
+     * - 减少Redis写入压力
+     * - 适用于高频实时数据
+     * </p>
      *
      * @param factoryId   工厂ID
      * @param deviceId    设备ID
@@ -48,21 +69,26 @@ public class DeviceProgramCacheService {
             log.warn("[DeviceProgramCacheService] 程序数据为空，跳过写入: factoryId={}, deviceId={}", factoryId, deviceId);
             return;
         }
-        try {
-            Map<String, String> payload = new HashMap<>(programData);
-            payload.put("updatedAt", String.valueOf(updatedAt));
-            payload.put("source", source);
-            if (StringUtils.isNotBlank(traceId)) {
-                payload.put("traceId", traceId);
-            }
-            String key = buildProgramKey(factoryId, deviceId);
-            
-            redisTemplate.opsForHash().putAll(key, payload);
-            redisTemplate.expire(key, Duration.ofMillis(programTtlMillis));
-        } catch (Exception e) {
-            log.error("[DeviceProgramCacheService] 写入Redis缓存失败: factoryId={}, deviceId={}, error={}", 
-                    factoryId, deviceId, e.getMessage(), e);
-            throw e;
+        
+        String key = buildProgramKey(factoryId, deviceId);
+        long now = System.currentTimeMillis();
+        
+        // 构建payload
+        Map<String, String> payload = new HashMap<>(programData);
+        payload.put("updatedAt", String.valueOf(updatedAt));
+        payload.put("source", source);
+        if (StringUtils.isNotBlank(traceId)) {
+            payload.put("traceId", traceId);
+        }
+        
+        // 使用工具类进行采样写入（使用sampler内部的Caffeine缓存）
+        boolean written = writer.writeHashWithSampling(
+                factoryId, deviceId, key, payload, programTtlMillis,
+                now, sampleIntervalMillis, sampler);
+        
+        if (!written) {
+            // 被采样过滤，未写入（正常情况，不记录日志）
+            return;
         }
     }
 
