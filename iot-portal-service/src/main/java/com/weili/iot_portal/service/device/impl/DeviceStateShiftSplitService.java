@@ -308,7 +308,8 @@ public class DeviceStateShiftSplitService implements IDeviceStateShiftSplitServi
         Long deviceId = record.getDeviceInfoId();
         
         // 尝试获取分布式锁
-        if (deviceLockService.tryLockState(deviceId, DeviceStateEventFields.LOCK_TIMEOUT_SECONDS)) {
+        // 注意：tryLockState 返回 true 表示成功获取锁，false 表示获取失败
+        if (!deviceLockService.tryLockState(deviceId, DeviceStateEventFields.LOCK_TIMEOUT_SECONDS)) {
             log.debug("[DeviceStateShiftSplitService] 获取设备状态锁失败，跳过: deviceId={}, recordId={}", 
                     deviceId, record.getId());
             return false; // 其他实例正在处理，跳过

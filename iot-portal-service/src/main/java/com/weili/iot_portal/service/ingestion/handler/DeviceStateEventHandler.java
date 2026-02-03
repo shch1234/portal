@@ -300,8 +300,20 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
         } finally {
             deviceLockService.unlockState(deviceInfoId);
             long lockHoldTime = System.currentTimeMillis() - lockHoldStartTime;
-            if (lockHoldTime > 2000) {
-                log.warn("[Webhook-Handler-DeviceState] 锁持有时间较长: deviceInfoId={}, holdTime={}ms, messageId={}",
+            // 优化：分级监控锁持有时间
+            if (lockHoldTime > 5000) {
+                // 超过5秒：严重告警，可能影响其他请求
+                log.error("[Webhook-Handler-DeviceState] 锁持有时间过长（严重）: deviceInfoId={}, holdTime={}ms, messageId={}, " +
+                        "可能影响其他请求的锁获取，建议优化锁内操作",
+                        deviceInfoId, lockHoldTime, request.getMessageId());
+            } else if (lockHoldTime > 3000) {
+                // 超过3秒：警告，需要关注
+                log.warn("[Webhook-Handler-DeviceState] 锁持有时间较长: deviceInfoId={}, holdTime={}ms, messageId={}, " +
+                        "建议优化锁内操作以减少锁持有时间",
+                        deviceInfoId, lockHoldTime, request.getMessageId());
+            } else if (lockHoldTime > 2000) {
+                // 超过2秒：提示，正常但可以优化
+                log.info("[Webhook-Handler-DeviceState] 锁持有时间: deviceInfoId={}, holdTime={}ms, messageId={}",
                         deviceInfoId, lockHoldTime, request.getMessageId());
             }
         }
