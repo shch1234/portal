@@ -104,4 +104,8 @@ public class RedisConstant {
      * 设备加工状态锁键前缀
      */
     public static final String LOCK_KEY_PREFIX_PRODUCTION = COMMON + "production_lock:";
+    /**
+     * TB设备ID同步锁键前缀
+     */
+    public static final String LOCK_KEY_PREFIX_SYNC_TB_DEVICE_ID = COMMON + "sync_tb_device_id_lock:";
 }

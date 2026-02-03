@@ -49,6 +49,12 @@ public class DeviceMatchingService {
      */
     private static final long UNMATCHED_WARN_INTERVAL_MILLIS = Duration.ofSeconds(60).toMillis();
 
+    /**
+     * TB设备ID同步锁超时时间（秒）
+     * 防止并发更新同一设备的tb_device_id
+     */
+    private static final long SYNC_TB_DEVICE_ID_LOCK_TIMEOUT_SECONDS = 3L;
+
     private final DeviceInfoRepository deviceInfoRepository;
     private final RedisClient redisClient;
 
@@ -239,24 +245,82 @@ public class DeviceMatchingService {
 
     /**
      * 更新 TB 设备ID
+     * <p>
+     * 优化：添加分布式锁，防止并发更新同一设备的tb_device_id
+     * 1. 使用分布式锁确保同一设备只有一个线程能更新
+     * 2. 锁内重新查询设备信息，检查是否已被其他线程更新
+     * 3. 如果已被更新，跳过本次更新，避免重复操作
+     * </p>
      *
      * @param device     设备信息
      * @param tbDeviceId TB传过来的设备ID
      */
     private void updateTbDeviceId(DeviceInfoDO device, String tbDeviceId) {
-        String currentTbDeviceId = device.getTbDeviceId();
-        log.info("[DeviceMatching] 同步tb_device_id: deviceCode={}, oldTbDeviceId={}, newTbDeviceId={}",
-                device.getDeviceCode(), currentTbDeviceId, tbDeviceId);
+        String deviceCode = device.getDeviceCode();
+        String lockKey = buildSyncTbDeviceIdLockKey(deviceCode);
 
-        device.setTbDeviceId(tbDeviceId);
-        // 匹配完成并更新tb_device_id时，同时将is_monitored设置为1（监控中）
-        device.setIsMonitored(true);
-        deviceInfoRepository.update(device);
+        // 使用分布式锁，防止并发更新
+        try {
+            boolean lockAcquired = redisClient.tryLock(lockKey, SYNC_TB_DEVICE_ID_LOCK_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            if (!lockAcquired) {
+                log.debug("[DeviceMatching] 获取同步锁失败，跳过更新: deviceCode={}", deviceCode);
+                return;
+            }
 
-        // 清除缓存，确保下次查询获取最新数据
-        evictCache(device.getDeviceCode());
+            try {
+                // 重新查询设备信息（防止并发修改）
+                Optional<DeviceInfoDO> currentDeviceOpt = deviceInfoRepository.findByDeviceCode(deviceCode);
+                if (currentDeviceOpt.isEmpty()) {
+                    log.warn("[DeviceMatching] 设备不存在，跳过更新: deviceCode={}", deviceCode);
+                    return;
+                }
 
-        log.info("[DeviceMatching] tb_device_id同步成功，is_monitored已更新为1，缓存已清除");
+                DeviceInfoDO currentDevice = currentDeviceOpt.get();
+
+                // 再次检查是否需要更新（可能已被其他线程更新）
+                if (!shouldSyncTbDeviceId(currentDevice, tbDeviceId)) {
+                    log.debug("[DeviceMatching] tb_device_id已同步，跳过更新: deviceCode={}, currentTbDeviceId={}",
+                            deviceCode, currentDevice.getTbDeviceId());
+                    return;
+                }
+
+                String currentTbDeviceId = currentDevice.getTbDeviceId();
+                log.info("[DeviceMatching] 同步tb_device_id: deviceCode={}, oldTbDeviceId={}, newTbDeviceId={}",
+                        deviceCode, currentTbDeviceId, tbDeviceId);
+
+                currentDevice.setTbDeviceId(tbDeviceId);
+                // 匹配完成并更新tb_device_id时，同时将is_monitored设置为1（监控中）
+                currentDevice.setIsMonitored(true);
+                deviceInfoRepository.update(currentDevice);
+
+                // 优化：更新缓存而不是清除缓存，提高下次连接的缓存命中率
+                // 这样可以避免下次连接时缓存未命中，减少数据库查询
+                cacheDeviceInfo(deviceCode, currentDevice);
+
+                log.info("[DeviceMatching] tb_device_id同步成功，is_monitored已更新为1，缓存已更新");
+            } finally {
+                redisClient.releaseLock(lockKey);
+            }
+        } catch (Exception e) {
+            log.error("[DeviceMatching] 同步tb_device_id时发生异常: deviceCode={}, error={}",
+                    deviceCode, e.getMessage(), e);
+            // 异常时也要尝试释放锁
+            try {
+                redisClient.releaseLock(lockKey);
+            } catch (Exception ex) {
+                log.warn("[DeviceMatching] 释放锁失败: deviceCode={}, error={}", deviceCode, ex.getMessage());
+            }
+        }
+    }
+
+    /**
+     * 构建TB设备ID同步锁键
+     *
+     * @param deviceCode 设备编号
+     * @return 锁键
+     */
+    private String buildSyncTbDeviceIdLockKey(String deviceCode) {
+        return RedisConstant.LOCK_KEY_PREFIX_SYNC_TB_DEVICE_ID + deviceCode;
     }
 
     /**
