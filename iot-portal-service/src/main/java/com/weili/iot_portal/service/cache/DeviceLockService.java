@@ -34,7 +34,7 @@ public class DeviceLockService {
      * @return true 如果成功获取锁
      */
     public boolean tryLockState(Long deviceId, long timeoutSeconds) {
-        return !tryLock(buildStateLockKey(deviceId), timeoutSeconds);
+        return tryLock(buildStateLockKey(deviceId), timeoutSeconds);
     }
 
     /**
@@ -55,7 +55,7 @@ public class DeviceLockService {
      * @return true 如果成功获取锁
      */
     public boolean tryLockAlarm(Long deviceId, long timeoutSeconds) {
-        return !tryLock(buildAlarmLockKey(deviceId), timeoutSeconds);
+        return tryLock(buildAlarmLockKey(deviceId), timeoutSeconds);
     }
 
     /**

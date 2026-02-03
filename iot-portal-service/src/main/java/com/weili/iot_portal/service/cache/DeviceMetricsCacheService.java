@@ -5,6 +5,7 @@ import com.weili.iot_portal.domain.ingestion.RealtimeMetricSnapshot;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -39,9 +40,18 @@ import java.util.stream.Collectors;
 public class DeviceMetricsCacheService {
 
     private final RedisTemplate<String, String> redisTemplate;
+    private final ResourceLimiter resourceLimiter;
 
     @Value("${rt.metrics.ttl-seconds:600}")
     private long ttlSeconds;
+
+    /**
+     * Pipeline批量大小限制
+     * Apollo配置：redis.pipeline.batch-size
+     * 默认值：50（每批最多50个设备，超过则分批执行）
+     */
+    @Value("${redis.pipeline.batch-size:50}")
+    private int pipelineBatchSize;
 
     // ==================== 指标数据缓存 ====================
 
@@ -95,6 +105,13 @@ public class DeviceMetricsCacheService {
 
     /**
      * 批量获取设备实时指标快照
+     * <p>
+     * 优化：
+     * 1. Pipeline批量大小限制，超过限制则分批执行
+     * 2. 使用限流器控制Pipeline并发，避免连接池耗尽
+     * 3. 添加重试机制，处理连接池异常
+     * 4. 降级策略：Pipeline失败时降级为逐个读取
+     * </p>
      *
      * @param factoryId 工厂ID
      * @param deviceIds 设备ID列表
@@ -106,53 +123,141 @@ public class DeviceMetricsCacheService {
             return result;
         }
 
+        // 如果设备数量小于等于批量大小，直接执行
+        if (deviceIds.size() <= pipelineBatchSize) {
+            return batchGetDeviceRealtimeMetricsInternal(factoryId, deviceIds);
+        }
+
+        // 分批处理
+        for (int i = 0; i < deviceIds.size(); i += pipelineBatchSize) {
+            int end = Math.min(i + pipelineBatchSize, deviceIds.size());
+            List<Long> batch = deviceIds.subList(i, end);
+            Map<Long, RealtimeMetricSnapshot> batchResult = batchGetDeviceRealtimeMetricsInternal(factoryId, batch);
+            result.putAll(batchResult);
+        }
+
+        return result;
+    }
+
+    /**
+     * 内部方法：批量获取设备实时指标快照（单批）
+     *
+     * @param factoryId 工厂ID
+     * @param deviceIds 设备ID列表（不超过pipelineBatchSize）
+     * @return 设备ID -> 指标快照 Map
+     */
+    private Map<Long, RealtimeMetricSnapshot> batchGetDeviceRealtimeMetricsInternal(Long factoryId, List<Long> deviceIds) {
+        Map<Long, RealtimeMetricSnapshot> result = new HashMap<>();
+        if (deviceIds == null || deviceIds.isEmpty()) {
+            return result;
+        }
+
         List<String> keys = deviceIds.stream()
                 .map(deviceId -> buildMetricKey(factoryId, deviceId))
                 .collect(Collectors.toList());
 
-        try {
-            // 使用 Pipeline 批量读取，提高性能
-            List<Object> pipelineResults = redisTemplate.executePipelined(
-                    (org.springframework.data.redis.core.RedisCallback<Object>) connection -> {
-                        for (String key : keys) {
-                            connection.hGetAll(key.getBytes());
-                        }
-                        return null;
-                    }
-            );
-
-            for (int i = 0; i < deviceIds.size() && i < pipelineResults.size(); i++) {
-                Long deviceId = deviceIds.get(i);
-                Object resultObj = pipelineResults.get(i);
-                if (resultObj == null) {
-                    continue;
-                }
-                @SuppressWarnings("unchecked")
-                Map<Object, Object> map = (Map<Object, Object>) resultObj;
-                if (map != null && !map.isEmpty()) {
-                    try {
-                        BigDecimal uptime = parseBigDecimal(map.get("metric.uptimeRate"));
-                        BigDecimal performance = parseBigDecimal(map.get("metric.performanceRate"));
-                        BigDecimal availability = parseBigDecimal(map.get("metric.availabilityRate"));
-                        BigDecimal fault = parseBigDecimal(map.get("metric.faultRate"));
-                        BigDecimal oee = parseBigDecimal(map.get("metric.oee"));
-                        long updatedAt = parseLong(map.get("updatedAt"), 0L);
-                        result.put(deviceId, new RealtimeMetricSnapshot(uptime, performance, availability, fault, oee, updatedAt));
-                    } catch (Exception e) {
-                        log.warn("[DeviceMetricsCache] 解析批量实时指标失败: deviceId={}, key={}", deviceId, keys.get(i), e);
-                    }
-                }
-            }
-        } catch (Exception e) {
-            log.error("[DeviceMetricsCache] 批量读取实时指标失败: factoryId={}, deviceCount={}", factoryId, deviceIds.size(), e);
-            // 降级为逐个读取
-            for (Long deviceId : deviceIds) {
-                Optional<RealtimeMetricSnapshot> snapOpt = getDeviceRealtimeMetrics(factoryId, deviceId);
-                snapOpt.ifPresent(snap -> result.put(deviceId, snap));
-            }
+        // 尝试获取Redis Pipeline许可（限流保护）
+        if (!resourceLimiter.tryAcquireRedisPipeline()) {
+            log.warn("[DeviceMetricsCache] 获取Redis Pipeline许可失败，降级为逐个读取: factoryId={}, deviceCount={}",
+                    factoryId, deviceIds.size());
+            return fallbackToIndividualRead(factoryId, deviceIds);
         }
 
+        try {
+            int maxRetries = 3;
+            long retryDelayMs = 100; // 初始延迟100ms
+
+            for (int retry = 0; retry <= maxRetries; retry++) {
+                try {
+                    // 使用 Pipeline 批量读取，提高性能
+                    List<Object> pipelineResults = redisTemplate.executePipelined(
+                            (org.springframework.data.redis.core.RedisCallback<Object>) connection -> {
+                                for (String key : keys) {
+                                    connection.hGetAll(key.getBytes());
+                                }
+                                return null;
+                            }
+                    );
+
+                    // 处理Pipeline结果
+                    for (int i = 0; i < deviceIds.size() && i < pipelineResults.size(); i++) {
+                        Long deviceId = deviceIds.get(i);
+                        Object resultObj = pipelineResults.get(i);
+                        if (resultObj == null) {
+                            continue;
+                        }
+                        @SuppressWarnings("unchecked")
+                        Map<Object, Object> map = (Map<Object, Object>) resultObj;
+                        if (map != null && !map.isEmpty()) {
+                            try {
+                                BigDecimal uptime = parseBigDecimal(map.get("metric.uptimeRate"));
+                                BigDecimal performance = parseBigDecimal(map.get("metric.performanceRate"));
+                                BigDecimal availability = parseBigDecimal(map.get("metric.availabilityRate"));
+                                BigDecimal fault = parseBigDecimal(map.get("metric.faultRate"));
+                                BigDecimal oee = parseBigDecimal(map.get("metric.oee"));
+                                long updatedAt = parseLong(map.get("updatedAt"), 0L);
+                                result.put(deviceId, new RealtimeMetricSnapshot(uptime, performance, availability, fault, oee, updatedAt));
+                            } catch (Exception e) {
+                                log.warn("[DeviceMetricsCache] 解析批量实时指标失败: deviceId={}, key={}", deviceId, keys.get(i), e);
+                            }
+                        }
+                    }
+                    return result; // 成功，返回结果
+                } catch (RedisConnectionFailureException e) {
+                    // 连接池异常，判断是否需要重试
+                    if (retry < maxRetries && isRetryableException(e)) {
+                        log.warn("[DeviceMetricsCache] Pipeline失败，重试 {}/{}: factoryId={}, deviceCount={}",
+                                retry + 1, maxRetries, factoryId, deviceIds.size());
+                        try {
+                            Thread.sleep(retryDelayMs * (1L << retry)); // 指数退避
+                        } catch (InterruptedException ie) {
+                            Thread.currentThread().interrupt();
+                            break;
+                        }
+                        continue;
+                    }
+                    // 重试次数用完或不可重试异常，降级为逐个读取
+                    log.error("[DeviceMetricsCache] Pipeline失败，降级为逐个读取: factoryId={}, deviceCount={}",
+                            factoryId, deviceIds.size(), e);
+                    break;
+                } catch (Exception e) {
+                    // 其他异常，降级为逐个读取
+                    log.error("[DeviceMetricsCache] 批量读取实时指标失败: factoryId={}, deviceCount={}",
+                            factoryId, deviceIds.size(), e);
+                    break;
+                }
+            }
+        } finally {
+            // 释放Redis Pipeline许可
+            resourceLimiter.releaseRedisPipeline();
+        }
+
+        // 降级为逐个读取
+        return fallbackToIndividualRead(factoryId, deviceIds);
+    }
+
+    /**
+     * 降级为逐个读取
+     */
+    private Map<Long, RealtimeMetricSnapshot> fallbackToIndividualRead(Long factoryId, List<Long> deviceIds) {
+        Map<Long, RealtimeMetricSnapshot> result = new HashMap<>();
+        for (Long deviceId : deviceIds) {
+            Optional<RealtimeMetricSnapshot> snapOpt = getDeviceRealtimeMetrics(factoryId, deviceId);
+            snapOpt.ifPresent(snap -> result.put(deviceId, snap));
+        }
         return result;
+    }
+
+    /**
+     * 判断是否为可重试的异常
+     */
+    private boolean isRetryableException(Exception e) {
+        String errorMsg = e.getMessage();
+        return errorMsg != null && (
+                errorMsg.contains("Could not get a resource from the pool") ||
+                errorMsg.contains("Timeout waiting for idle object") ||
+                errorMsg.contains("Connection refused")
+        );
     }
 
     /**

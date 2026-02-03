@@ -13,14 +13,19 @@ import com.weili.iot_portal.dal.repository.device.DeviceStateRecordRepository;
 import com.weili.iot_portal.dal.repository.device.DeviceToolRecordRepository;
 import com.weili.iot_portal.domain.ingestion.BatchProcessResult;
 import com.weili.iot_portal.domain.ingestion.ShiftDateAndCode;
+import com.weili.iot_portal.service.cache.DeviceLockService;
 import com.weili.iot_portal.service.cache.DeviceStateCacheService;
+import com.weili.iot_portal.service.cache.ResourceLimiter;
 import com.weili.iot_portal.service.device.IDeviceOfflineReconciliationService;
 import com.weili.iot_portal.service.ingestion.handler.RecordHandlerUtils;
 import com.weili.iot_portal.service.ingestion.handler.fields.DeviceAlarmEventFields;
 import com.weili.iot_portal.service.shift.IShiftCalculationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.CannotAcquireLockException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashMap;
 import java.util.List;
@@ -62,6 +67,8 @@ public class DeviceOfflineReconciliationService implements IDeviceOfflineReconci
     private final DeviceStateCacheService deviceStateCacheService;
     private final RecordHandlerUtils recordHandlerUtils;
     private final IShiftCalculationService shiftCalculationService;
+    private final DeviceLockService deviceLockService;
+    private final ResourceLimiter resourceLimiter;
 
     // ==================== 主处理方法 ====================
 
@@ -145,6 +152,12 @@ public class DeviceOfflineReconciliationService implements IDeviceOfflineReconci
 
     /**
      * 处理单个设备的离线纠正逻辑
+     * <p>
+     * 优化：
+     * 1. 使用分布式锁避免并发处理同一设备
+     * 2. 使用限流器避免MySQL行锁竞争
+     * 3. 每个更新操作使用独立事务，快速提交
+     * </p>
      *
      * @param device            设备信息
      * @param heartbeat         心跳状态（"1"=在线，"0"=离线）
@@ -167,27 +180,49 @@ public class DeviceOfflineReconciliationService implements IDeviceOfflineReconci
             return false;
         }
 
-        // 2. 检查并处理状态记录
-        if (!shouldProcessStateRecord(deviceId)) {
+        // 2. 获取分布式锁（避免多个任务同时处理同一设备）
+        if (!deviceLockService.tryLockState(deviceId, 30)) {
+            log.debug("[DeviceOfflineReconcile] 获取设备锁失败，跳过: deviceId={}", deviceId);
             return false;
         }
 
-        // 3. 处理所有类型的记录
-        Optional<DeviceStateRecordDO> latestOpt = stateRecordRepository.findLatestState(deviceId);
-        if (latestOpt.isPresent()) {
-            DeviceStateRecordDO latest = latestOpt.get();
-            // 结束当前进行中的正常状态
-            endOngoingStateAsOffline(latest, factoryId, currentTimeMillis);
-            // 插入离线状态记录
-            insertOfflineStateRecord(latest, factoryId, currentTimeMillis);
+        try {
+            // 3. 获取MySQL更新许可（限流，避免行锁竞争）
+            if (!resourceLimiter.tryAcquireDeviceUpdate(deviceId)) {
+                log.warn("[DeviceOfflineReconcile] 获取设备更新许可失败，跳过: deviceId={}", deviceId);
+                return false;
+            }
+
+            try {
+                // 4. 检查并处理状态记录
+                if (!shouldProcessStateRecord(deviceId)) {
+                    return false;
+                }
+
+                // 5. 处理所有类型的记录（每个操作使用独立事务）
+                Optional<DeviceStateRecordDO> latestOpt = stateRecordRepository.findLatestState(deviceId);
+                if (latestOpt.isPresent()) {
+                    DeviceStateRecordDO latest = latestOpt.get();
+                    // 结束当前进行中的正常状态
+                    endOngoingStateAsOffline(latest, factoryId, currentTimeMillis);
+                    // 插入离线状态记录
+                    insertOfflineStateRecord(latest, factoryId, currentTimeMillis);
+                }
+
+                // 6. 处理其他类型的记录（并行处理，互不依赖）
+                endOngoingToolAsOffline(deviceId, factoryId, currentTimeMillis);
+                endOngoingProductionAsOffline(deviceId, factoryId, currentTimeMillis);
+                endOngoingAlarmsAsOffline(deviceId, factoryId, currentTimeMillis);
+
+                return true;
+            } finally {
+                // 释放MySQL更新许可
+                resourceLimiter.releaseDeviceUpdate(deviceId);
+            }
+        } finally {
+            // 释放分布式锁
+            deviceLockService.unlockState(deviceId);
         }
-
-        // 4. 处理其他类型的记录（并行处理，互不依赖）
-        endOngoingToolAsOffline(deviceId, factoryId, currentTimeMillis);
-        endOngoingProductionAsOffline(deviceId, factoryId, currentTimeMillis);
-        endOngoingAlarmsAsOffline(deviceId, factoryId, currentTimeMillis);
-
-        return true;
     }
 
     /**
@@ -222,29 +257,64 @@ public class DeviceOfflineReconciliationService implements IDeviceOfflineReconci
 
     /**
      * 将当前进行中的状态标记为"因离线而异常结束"
+     * <p>
+     * 优化：
+     * 1. 使用独立事务（REQUIRES_NEW），快速提交，减少锁持有时间
+     * 2. 添加重试机制，处理锁超时异常
+     * </p>
      */
+    @Transactional(propagation = Propagation.REQUIRES_NEW, timeout = 10, rollbackFor = Exception.class)
     private void endOngoingStateAsOffline(DeviceStateRecordDO record, Long factoryId, long offlineDetectTime) {
-        // 计算并设置结束时间和持续时间
-        TimeRangeResult timeRange = calculateEndTimeAndDuration(record.getStartTs(), offlineDetectTime);
-        record.setEndTs(timeRange.endTs);
-        record.setDurationS(timeRange.duration);
-        record.setIsComplete(false);
+        int maxRetries = 3;
+        long retryDelayMs = 200; // 初始延迟200ms
 
-        // 添加离线异常信息到 properties
-        addOfflineProperties(record.getProperties(), offlineDetectTime, record::setProperties);
+        for (int retry = 0; retry <= maxRetries; retry++) {
+            try {
+                // 计算并设置结束时间和持续时间
+                TimeRangeResult timeRange = calculateEndTimeAndDuration(record.getStartTs(), offlineDetectTime);
+                record.setEndTs(timeRange.endTs);
+                record.setDurationS(timeRange.duration);
+                record.setIsComplete(false);
 
-        // 补全班次信息并更新
-        recordHandlerUtils.fillShiftInfoIfMissing(record, factoryId);
-        stateRecordRepository.update(record);
+                // 添加离线异常信息到 properties
+                addOfflineProperties(record.getProperties(), offlineDetectTime, record::setProperties);
 
-        DeviceStateEnum stateEnum = DeviceStateEnum.fromCode(record.getStateCode());
-        log.info("[DeviceOfflineReconcile] 标记进行中状态为离线结束: deviceId={}, recordId={}, state={}, startTs={}, endTs={}",
-                record.getDeviceInfoId(), record.getId(), stateEnum.name(), record.getStartTs(), timeRange.endTs);
+                // 补全班次信息并更新
+                recordHandlerUtils.fillShiftInfoIfMissing(record, factoryId);
+                stateRecordRepository.update(record);
+
+                DeviceStateEnum stateEnum = DeviceStateEnum.fromCode(record.getStateCode());
+                log.info("[DeviceOfflineReconcile] 标记进行中状态为离线结束: deviceId={}, recordId={}, state={}, startTs={}, endTs={}",
+                        record.getDeviceInfoId(), record.getId(), stateEnum.name(), record.getStartTs(), timeRange.endTs);
+                return; // 成功，退出
+            } catch (CannotAcquireLockException e) {
+                // 锁超时异常，判断是否需要重试
+                if (retry < maxRetries) {
+                    log.warn("[DeviceOfflineReconcile] 更新状态记录锁超时，重试 {}/{}: deviceId={}, recordId={}",
+                            retry + 1, maxRetries, record.getDeviceInfoId(), record.getId());
+                    try {
+                        Thread.sleep(retryDelayMs * (1L << retry)); // 指数退避
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        throw e; // 中断异常，重新抛出
+                    }
+                    continue;
+                }
+                // 重试次数用完，抛出异常
+                log.error("[DeviceOfflineReconcile] 更新状态记录锁超时，重试失败: deviceId={}, recordId={}",
+                        record.getDeviceInfoId(), record.getId(), e);
+                throw e;
+            }
+        }
     }
 
     /**
      * 插入一条新的 UNKNOWN(255) 进行中状态记录，表示离线期间
+     * <p>
+     * 优化：使用独立事务，快速提交
+     * </p>
      */
+    @Transactional(propagation = Propagation.REQUIRES_NEW, timeout = 10, rollbackFor = Exception.class)
     private void insertOfflineStateRecord(DeviceStateRecordDO previousState, Long factoryId, long offlineStartTime) {
         DeviceStateRecordDO offlineRecord = new DeviceStateRecordDO();
         offlineRecord.setDeviceInfoId(previousState.getDeviceInfoId());
@@ -277,7 +347,11 @@ public class DeviceOfflineReconciliationService implements IDeviceOfflineReconci
 
     /**
      * 结束正在使用的刀具记录（因离线而异常结束）
+     * <p>
+     * 优化：使用独立事务，快速提交
+     * </p>
      */
+    @Transactional(propagation = Propagation.REQUIRES_NEW, timeout = 10, rollbackFor = Exception.class)
     private void endOngoingToolAsOffline(Long deviceId, Long factoryId, long offlineDetectTime) {
         DeviceToolRecordDO ongoingTool = toolRecordRepository.findLatestOngoing(deviceId);
         if (ongoingTool == null) {
@@ -306,7 +380,11 @@ public class DeviceOfflineReconciliationService implements IDeviceOfflineReconci
 
     /**
      * 结束正在进行的产量记录（因离线而异常结束）
+     * <p>
+     * 优化：使用独立事务，快速提交
+     * </p>
      */
+    @Transactional(propagation = Propagation.REQUIRES_NEW, timeout = 10, rollbackFor = Exception.class)
     private void endOngoingProductionAsOffline(Long deviceId, Long factoryId, long offlineDetectTime) {
         Optional<DeviceProductionRecordDO> ongoingOpt = productionRecordRepository.findLatestOngoing(deviceId);
         if (ongoingOpt.isEmpty()) {
@@ -335,7 +413,11 @@ public class DeviceOfflineReconciliationService implements IDeviceOfflineReconci
 
     /**
      * 结束正在进行的报警记录（因离线而异常结束）
+     * <p>
+     * 优化：使用独立事务，快速提交
+     * </p>
      */
+    @Transactional(propagation = Propagation.REQUIRES_NEW, timeout = 10, rollbackFor = Exception.class)
     private void endOngoingAlarmsAsOffline(Long deviceId, Long factoryId, long offlineDetectTime) {
         List<DeviceAlarmHistoryDO> activeAlarms = alarmHistoryRepository.findActiveByDevice(factoryId, deviceId);
         if (activeAlarms == null || activeAlarms.isEmpty()) {
