@@ -50,10 +50,19 @@ public class DeviceStateCacheService {
     /**
      * Pipeline批量大小限制
      * Apollo配置：redis.pipeline.batch-size
-     * 默认值：50（每批最多50个设备，超过则分批执行）
+     * 默认值：20（每批最多20个设备，超过则分批执行）
+     * 优化：从50降低到20，减少Pipeline结果的内存占用，避免OOM
      */
-    @Value("${redis.pipeline.batch-size:50}")
+    @Value("${redis.pipeline.batch-size:20}")
     private int pipelineBatchSize;
+    
+    /**
+     * 单个Hash的最大字段数限制（防止单个Hash过大导致内存溢出）
+     * Apollo配置：redis.hash.max-fields
+     * 默认值：100（如果Hash字段数超过100，只取前100个）
+     */
+    @Value("${redis.hash.max-fields:100}")
+    private int maxHashFields;
 
     /**
      * 采样写入间隔（毫秒）
@@ -239,13 +248,156 @@ public class DeviceStateCacheService {
     }
 
     /**
-     * 批量获取设备状态
+     * 批量获取设备状态值（只获取state字段，优化内存使用）
+     * <p>
+     * 优化：
+     * 1. 只获取state字段，而不是整个Hash（减少90%+内存占用）
+     * 2. Pipeline批量大小限制，超过限制则分批执行
+     * 3. 使用限流器控制Pipeline并发，避免连接池耗尽
+     * 4. 添加重试机制，处理连接池异常
+     * 5. 降级策略：Pipeline失败时降级为逐个读取
+     * </p>
+     * <p>
+     * 适用场景：只需要state字段的场景（如Dashboard统计）
+     * </p>
+     *
+     * @param factoryId 工厂ID
+     * @param deviceIds 设备ID列表
+     * @return 设备ID到状态值的映射，设备ID -> state值
+     */
+    public Map<Long, String> batchGetStateValue(Long factoryId, List<Long> deviceIds) {
+        Map<Long, String> result = new HashMap<>();
+        if (deviceIds == null || deviceIds.isEmpty()) {
+            return result;
+        }
+
+        // 如果设备数量小于等于批量大小，直接执行
+        if (deviceIds.size() <= pipelineBatchSize) {
+            return batchGetStateValueInternal(factoryId, deviceIds);
+        }
+
+        // 分批处理
+        for (int i = 0; i < deviceIds.size(); i += pipelineBatchSize) {
+            int end = Math.min(i + pipelineBatchSize, deviceIds.size());
+            List<Long> batch = deviceIds.subList(i, end);
+            Map<Long, String> batchResult = batchGetStateValueInternal(factoryId, batch);
+            result.putAll(batchResult);
+        }
+
+        return result;
+    }
+
+    /**
+     * 内部方法：批量获取设备状态值（单批，只获取state字段）
+     *
+     * @param factoryId 工厂ID
+     * @param deviceIds 设备ID列表（不超过pipelineBatchSize）
+     * @return 设备ID到状态值的映射
+     */
+    private Map<Long, String> batchGetStateValueInternal(Long factoryId, List<Long> deviceIds) {
+        Map<Long, String> result = new HashMap<>(deviceIds.size());
+
+        // 尝试获取Redis Pipeline许可（限流保护）
+        if (!resourceLimiter.tryAcquireRedisPipeline()) {
+            log.warn("[DeviceStateCache] 获取Redis Pipeline许可失败，降级为逐个读取: factoryId={}, deviceIds size={}",
+                    factoryId, deviceIds.size());
+            return fallbackToIndividualStateValueRead(factoryId, deviceIds);
+        }
+
+        try {
+            int maxRetries = 3;
+            long retryDelayMs = 100; // 初始延迟100ms
+
+            for (int retry = 0; retry <= maxRetries; retry++) {
+                try {
+                    // 优化：只获取state字段，而不是整个Hash（hGet而不是hGetAll）
+                    List<Object> pipelineResults = redisTemplate.executePipelined((org.springframework.data.redis.core.RedisCallback<Object>) connection -> {
+                        for (Long deviceId : deviceIds) {
+                            String key = buildStateKey(factoryId, deviceId);
+                            byte[] keyBytes = key.getBytes();
+                            byte[] fieldBytes = DeviceStateEventFields.STATE.getBytes();
+                            // 只获取state字段，减少内存占用
+                            connection.hashCommands().hGet(keyBytes, fieldBytes);
+                        }
+                        return null;
+                    });
+
+                    // 组装结果（只包含state值，内存占用大幅降低）
+                    for (int i = 0; i < deviceIds.size() && i < pipelineResults.size(); i++) {
+                        Long deviceId = deviceIds.get(i);
+                        Object pipelineResult = pipelineResults.get(i);
+
+                        if (pipelineResult != null) {
+                            String stateValue = pipelineResult.toString();
+                            if (StringUtils.isNotBlank(stateValue)) {
+                                result.put(deviceId, stateValue);
+                            }
+                        }
+                    }
+                    return result; // 成功，返回结果
+                } catch (RedisConnectionFailureException e) {
+                    // 连接池异常，判断是否需要重试
+                    if (retry < maxRetries && isRetryableException(e)) {
+                        log.warn("[DeviceStateCache] Pipeline失败，重试 {}/{}: factoryId={}, deviceIds size={}",
+                                retry + 1, maxRetries, factoryId, deviceIds.size());
+                        try {
+                            Thread.sleep(retryDelayMs * (1L << retry)); // 指数退避
+                        } catch (InterruptedException ie) {
+                            Thread.currentThread().interrupt();
+                            break;
+                        }
+                        continue;
+                    }
+                    // 重试次数用完或不可重试异常，降级为逐个读取
+                    log.error("[DeviceStateCache] Pipeline失败，降级为逐个读取: factoryId={}, deviceIds size={}",
+                            factoryId, deviceIds.size(), e);
+                    break;
+                } catch (Exception e) {
+                    // 其他异常，降级为逐个读取
+                    log.error("[DeviceStateCache] 批量获取设备状态值失败: factoryId={}, deviceIds size={}",
+                            factoryId, deviceIds.size(), e);
+                    break;
+                }
+            }
+
+            // 所有重试都失败，降级为逐个读取
+            return fallbackToIndividualStateValueRead(factoryId, deviceIds);
+        } finally {
+            // 释放Redis Pipeline许可
+            resourceLimiter.releaseRedisPipeline();
+        }
+    }
+
+    /**
+     * 降级方案：逐个读取设备状态值
+     */
+    private Map<Long, String> fallbackToIndividualStateValueRead(Long factoryId, List<Long> deviceIds) {
+        Map<Long, String> result = new HashMap<>(deviceIds.size());
+        for (Long deviceId : deviceIds) {
+            try {
+                String stateValue = getStateValue(factoryId, deviceId);
+                if (stateValue != null) {
+                    result.put(deviceId, stateValue);
+                }
+            } catch (Exception e) {
+                log.warn("[DeviceStateCache] 单个读取设备状态值失败: deviceId={}", deviceId, e);
+            }
+        }
+        return result;
+    }
+
+    /**
+     * 批量获取设备状态（完整Hash，包含所有字段）
      * <p>
      * 优化：
      * 1. Pipeline批量大小限制，超过限制则分批执行
      * 2. 使用限流器控制Pipeline并发，避免连接池耗尽
      * 3. 添加重试机制，处理连接池异常
      * 4. 降级策略：Pipeline失败时降级为逐个读取
+     * 5. Hash字段数限制，防止单个Hash过大导致内存溢出
+     * </p>
+     * <p>
+     * 注意：此方法会获取整个Hash，内存占用较大。如果只需要state字段，请使用 {@link #batchGetStateValue}
      * </p>
      *
      * @param factoryId 工厂ID
@@ -307,7 +459,7 @@ public class DeviceStateCacheService {
                         return null;
                     });
 
-                    // 组装结果
+                    // 组装结果（限制单个Hash的大小，防止内存溢出）
                     for (int i = 0; i < deviceIds.size() && i < pipelineResults.size(); i++) {
                         Long deviceId = deviceIds.get(i);
                         Object pipelineResult = pipelineResults.get(i);
@@ -316,7 +468,22 @@ public class DeviceStateCacheService {
                             @SuppressWarnings("unchecked")
                             Map<Object, Object> stateData = (Map<Object, Object>) pipelineResult;
                             if (!stateData.isEmpty()) {
-                                result.put(deviceId, stateData);
+                                // 优化：如果Hash字段数超过限制，只保留前N个字段，防止内存溢出
+                                if (stateData.size() > maxHashFields) {
+                                    log.warn("[DeviceStateCache] Hash字段数超过限制，截断: deviceId={}, fields={}, maxFields={}",
+                                            deviceId, stateData.size(), maxHashFields);
+                                    Map<Object, Object> truncatedData = new HashMap<>(maxHashFields);
+                                    int count = 0;
+                                    for (Map.Entry<Object, Object> entry : stateData.entrySet()) {
+                                        if (count++ >= maxHashFields) {
+                                            break;
+                                        }
+                                        truncatedData.put(entry.getKey(), entry.getValue());
+                                    }
+                                    result.put(deviceId, truncatedData);
+                                } else {
+                                    result.put(deviceId, stateData);
+                                }
                             }
                         }
                     }

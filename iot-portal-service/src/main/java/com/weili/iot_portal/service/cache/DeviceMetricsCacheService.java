@@ -50,7 +50,11 @@ public class DeviceMetricsCacheService {
      * Apollo配置：redis.pipeline.batch-size
      * 默认值：50（每批最多50个设备，超过则分批执行）
      */
-    @Value("${redis.pipeline.batch-size:50}")
+    /**
+     * Pipeline批量大小限制
+     * 优化：从50降低到20，减少Pipeline结果的内存占用，避免OOM
+     */
+    @Value("${redis.pipeline.batch-size:20}")
     private int pipelineBatchSize;
 
     // ==================== 指标数据缓存 ====================

@@ -1,5 +1,7 @@
 package com.weili.iot_portal.service.ingestion;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import com.weili.iot_portal.common.enums.InboxStatusEnum;
 import com.weili.iot_portal.common.enums.WebHookCategoryType;
 import com.weili.iot_portal.common.exception.IotPortalErrorCode;
@@ -16,8 +18,13 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import static com.weili.iot_portal.service.device.util.DeviceLogContext.*;
 
@@ -45,6 +52,104 @@ public class WebhookReceiveService {
 
     @Value("${webhook.inbox.async-process-enabled:true}")
     private boolean asyncProcessEnabled;
+
+    /**
+     * 设备线程池过期时间（小时）
+     * Apollo配置：webhook.inbox.device-executor-expire-hours
+     * 默认值：1（1小时后自动清理不活跃的设备线程池）
+     */
+    @Value("${webhook.inbox.device-executor-expire-hours:1}")
+    private int deviceExecutorExpireHours;
+
+    /**
+     * 设备线程池最大数量
+     * Apollo配置：webhook.inbox.device-executor-max-size
+     * 默认值：1000（最多为1000个设备创建专用线程池）
+     */
+    @Value("${webhook.inbox.device-executor-max-size:1000}")
+    private int deviceExecutorMaxSize;
+
+    /**
+     * 设备专用的单线程线程池缓存
+     * Key: 设备代码（deviceCode）
+     * Value: 该设备专用的单线程线程池
+     * <p>
+     * 使用Caffeine缓存，自动清理不活跃的设备线程池，避免内存泄漏
+     * </p>
+     */
+    private Cache<String, ExecutorService> deviceExecutorsCache;
+
+    /**
+     * 初始化设备线程池缓存
+     */
+    @PostConstruct
+    public void initDeviceExecutorsCache() {
+        deviceExecutorsCache = Caffeine.newBuilder()
+                .expireAfterAccess(deviceExecutorExpireHours, TimeUnit.HOURS)
+                .maximumSize(deviceExecutorMaxSize)
+                .removalListener((key, value, cause) -> {
+                    if (value instanceof ExecutorService) {
+                        ExecutorService executor = (ExecutorService) value;
+                        log.debug("[Webhook-处理] 清理设备线程池: deviceCode={}, cause={}", key, cause);
+                        executor.shutdown();
+                        try {
+                            if (!executor.awaitTermination(5, TimeUnit.SECONDS)) {
+                                log.warn("[Webhook-处理] 设备线程池未能完全关闭，强制关闭: deviceCode={}", key);
+                                executor.shutdownNow();
+                            }
+                        } catch (InterruptedException e) {
+                            log.warn("[Webhook-处理] 设备线程池关闭被中断: deviceCode={}", key, e);
+                            executor.shutdownNow();
+                            Thread.currentThread().interrupt();
+                        }
+                    }
+                })
+                .build();
+        log.info("[Webhook-处理] 初始化设备线程池缓存: expireAfterAccess={}小时, maximumSize={}",
+                deviceExecutorExpireHours, deviceExecutorMaxSize);
+    }
+
+    /**
+     * 关闭所有设备线程池
+     */
+    @PreDestroy
+    public void destroyDeviceExecutorsCache() {
+        if (deviceExecutorsCache != null) {
+            log.info("[Webhook-处理] 关闭所有设备线程池");
+            deviceExecutorsCache.asMap().forEach((deviceCode, executor) -> {
+                if (executor != null) {
+                    executor.shutdown();
+                    try {
+                        if (!executor.awaitTermination(5, TimeUnit.SECONDS)) {
+                            executor.shutdownNow();
+                        }
+                    } catch (InterruptedException e) {
+                        executor.shutdownNow();
+                        Thread.currentThread().interrupt();
+                    }
+                }
+            });
+            deviceExecutorsCache.invalidateAll();
+        }
+    }
+
+    /**
+     * 获取或创建设备专用的单线程线程池
+     *
+     * @param deviceCode 设备代码
+     * @return 设备专用的单线程线程池
+     */
+    private ExecutorService getOrCreateDeviceExecutor(String deviceCode) {
+        final String finalDeviceCode = StringUtils.isBlank(deviceCode) ? "unknown" : deviceCode;
+        return deviceExecutorsCache.get(finalDeviceCode, k -> {
+            log.debug("[Webhook-处理] 创建设备专用线程池: deviceCode={}", finalDeviceCode);
+            return Executors.newSingleThreadExecutor(r -> {
+                Thread t = new Thread(r, "webhook-device-" + finalDeviceCode);
+                t.setDaemon(true);
+                return t;
+            });
+        });
+    }
 
     /**
      * 处理 webhook 消息
@@ -344,6 +449,9 @@ public class WebhookReceiveService {
     /**
      * 异步处理单条消息（实时处理）
      * <p>
+     * 优化：使用设备分片机制，同一设备的消息串行处理，避免锁竞争
+     * </p>
+     * <p>
      * 通过状态字段（PENDING -> PROCESSING）保证幂等性，避免重复处理
      * </p>
      *
@@ -369,33 +477,55 @@ public class WebhookReceiveService {
                 return;
             }
 
-            // 标记为处理中（乐观锁：只有 PENDING 状态才能更新为 PROCESSING）
-            int updated = webhookInboxService.markProcessingWithLock(messageId);
+            // 获取设备代码，用于设备分片
+            String deviceCode = inbox.getDeviceCode();
+            final String finalDeviceCode = StringUtils.isBlank(deviceCode) ? "unknown" : deviceCode;
 
-            if (updated == 0) {
-                // 状态已被其他线程/进程更新，说明正在处理或已处理，跳过
-                if (log.isDebugEnabled()) {
-                    log.debug("[Webhook-处理] 消息已被其他线程处理，跳过: messageId={}", messageId);
+            // 获取或创建设备专用的单线程线程池（保证同一设备的消息串行处理）
+            ExecutorService deviceExecutor = getOrCreateDeviceExecutor(finalDeviceCode);
+
+            // 在设备专用线程池中执行处理逻辑
+            deviceExecutor.submit(() -> {
+                try {
+                    if (log.isDebugEnabled()) {
+                        log.debug("[Webhook-处理] 在设备专用线程池中处理: messageId={}, deviceCode={}", 
+                                messageId, finalDeviceCode);
+                    }
+
+                    // 标记为处理中（乐观锁：只有 PENDING 状态才能更新为 PROCESSING）
+                    int updated = webhookInboxService.markProcessingWithLock(messageId);
+
+                    if (updated == 0) {
+                        // 状态已被其他线程/进程更新，说明正在处理或已处理，跳过
+                        if (log.isDebugEnabled()) {
+                            log.debug("[Webhook-处理] 消息已被其他线程处理，跳过: messageId={}", messageId);
+                        }
+                        return;
+                    }
+
+                    if (log.isDebugEnabled()) {
+                        log.debug("[Webhook-处理] 已标记为处理中，开始处理: messageId={}", messageId);
+                    }
+
+                    // 重新查询最新状态的消息对象
+                    WebhookInboxDO processingInbox = webhookInboxService.findByMessageId(messageId);
+                    if (processingInbox == null || !InboxStatusEnum.PROCESSING.name().equals(processingInbox.getStatus())) {
+                        if (log.isDebugEnabled()) {
+                            log.debug("[Webhook-处理] 消息状态异常，跳过处理: messageId={}, status={}",
+                                    messageId, processingInbox != null ? processingInbox.getStatus() : "null");
+                        }
+                        return;
+                    }
+
+                    // 调用处理服务处理单条消息
+                    webhookProcessService.processSingle(processingInbox);
+
+                } catch (Exception e) {
+                    log.error("[Webhook-处理] 设备专用线程池处理消息失败: messageId={}, deviceCode={}", 
+                            messageId, deviceCode, e);
+                    // 异步处理失败不影响主流程，定时任务会作为兜底机制重试
                 }
-                return;
-            }
-
-            if (log.isDebugEnabled()) {
-                log.debug("[Webhook-处理] 已标记为处理中，开始处理: messageId={}", messageId);
-            }
-
-            // 重新查询最新状态的消息对象
-            WebhookInboxDO processingInbox = webhookInboxService.findByMessageId(messageId);
-            if (processingInbox == null || !InboxStatusEnum.PROCESSING.name().equals(processingInbox.getStatus())) {
-                if (log.isDebugEnabled()) {
-                    log.debug("[Webhook-处理] 消息状态异常，跳过处理: messageId={}, status={}",
-                            messageId, processingInbox != null ? processingInbox.getStatus() : "null");
-                }
-                return;
-            }
-
-            // 调用处理服务处理单条消息
-            webhookProcessService.processSingle(processingInbox);
+            });
 
         } catch (Exception e) {
             log.error("[Webhook-处理] 异步处理消息失败: messageId={}", messageId, e);

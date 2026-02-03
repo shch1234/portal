@@ -125,8 +125,8 @@ public class DashboardService implements IDashboardService {
         // 4. 批量从Redis获取设备心跳状态
         Map<Long, String> heartbeatMap = deviceStateCacheService.batchGetHeartbeatStatus(factoryId, deviceIds);
         
-        // 5. 批量从Redis获取设备的实时状态
-        Map<Long, Map<Object, Object>> deviceStateMap = deviceStateCacheService.batchGetState(factoryId, deviceIds);
+        // 5. 批量从Redis获取设备的实时状态值（优化：只获取state字段，减少90%+内存占用）
+        Map<Long, String> deviceStateMap = deviceStateCacheService.batchGetStateValue(factoryId, deviceIds);
 
         // 6. 遍历所有被监控的设备，根据心跳和状态进行分类统计
         for (DeviceInfoDO device : monitoredDevices) {
@@ -140,16 +140,8 @@ public class DashboardService implements IDashboardService {
                 continue;
             }
             
-            // 有心跳时，从deviceState获取设备状态（0,1,2,3,255）
-            Map<Object, Object> stateData = deviceStateMap.get(deviceId);
-            String state = null;
-            
-            if (stateData != null && !stateData.isEmpty()) {
-                Object stateValue = stateData.get(DeviceStateEventFields.STATE);
-                if (stateValue != null) {
-                    state = stateValue.toString();
-                }
-            }
+            // 有心跳时，从deviceStateMap直接获取设备状态值（0,1,2,3,255）
+            String state = deviceStateMap.get(deviceId);
             
             // 根据设备状态进行分类统计
             // 设备状态：0-SHUTDOWN（关机） 1-WORKING（加工中） 2-STANDBY（待机） 3-FAULT（故障） 255-UNKNOWN（未知/离线）
@@ -330,8 +322,8 @@ public class DashboardService implements IDashboardService {
         // 3. 批量从Redis获取设备心跳状态
         Map<Long, String> heartbeatMap = deviceStateCacheService.batchGetHeartbeatStatus(factoryId, deviceIds);
         
-        // 4. 批量从Redis获取设备的实时状态
-        Map<Long, Map<Object, Object>> deviceStateMap = deviceStateCacheService.batchGetState(factoryId, deviceIds);
+        // 4. 批量从Redis获取设备的实时状态值（优化：只获取state字段，减少90%+内存占用）
+        Map<Long, String> deviceStateMap = deviceStateCacheService.batchGetStateValue(factoryId, deviceIds);
 
         List<String> deviceTypeCodes = monitoredDevices.stream().map(DeviceInfoDO::getDeviceTypeCode).distinct().toList();
         List<DeviceTypeRelationDO> typeRelationList = deviceTypeRelationRepository.selectByCodes(deviceTypeCodes);
@@ -346,26 +338,19 @@ public class DashboardService implements IDashboardService {
             // 首先判断心跳：没有心跳或没有对应的设备key认为离线
             String heartbeat = heartbeatMap.get(deviceId);
             if (heartbeat != null && HEARTBEAT_ACTIVE.equals(heartbeat)) {
-                // 有心跳时，从deviceState获取设备状态（0,1,2,3）
-                Map<Object, Object> stateData = deviceStateMap.get(deviceId);
-                if (stateData != null && !stateData.isEmpty()) {
-                    Object stateValue = stateData.get(DeviceStateEventFields.STATE);
-                    if (stateValue != null) {
-                        String stateStr = stateValue.toString();
-                        // 只接受有效的设备状态（0,1,2,3），其他情况视为离线（255）
-                        if (STATE_SHUTDOWN.equals(stateStr) || STATE_WORKING.equals(stateStr) 
-                                || STATE_STANDBY.equals(stateStr) || STATE_FAULT.equals(stateStr)) {
-                            state = stateStr;
-                        } else {
-                            // 状态不在 0,1,2,3 范围内，视为离线（255）
-                            state = STATE_OFFLINE;
-                        }
+                // 有心跳时，从deviceStateMap直接获取设备状态值（0,1,2,3）
+                String stateStr = deviceStateMap.get(deviceId);
+                if (stateStr != null) {
+                    // 只接受有效的设备状态（0,1,2,3），其他情况视为离线（255）
+                    if (STATE_SHUTDOWN.equals(stateStr) || STATE_WORKING.equals(stateStr) 
+                            || STATE_STANDBY.equals(stateStr) || STATE_FAULT.equals(stateStr)) {
+                        state = stateStr;
                     } else {
-                        // deviceState 中没有状态值，视为离线（255）
+                        // 状态不在 0,1,2,3 范围内，视为离线（255）
                         state = STATE_OFFLINE;
                     }
                 } else {
-                    // deviceState 的 key 不存在，视为离线（255）
+                    // deviceState 中没有状态值，视为离线（255）
                     state = STATE_OFFLINE;
                 }
             }
