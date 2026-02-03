@@ -70,13 +70,13 @@ public final class DeviceStateEventFields {
     /**
      * 分布式锁超时时间（秒）
      * 设备状态操作的锁超时时间，防止死锁
-     * 注意：已优化为10秒，以应对复杂场景（跨班次拆分、批量插入等耗时操作）
+     * 注意：已优化为5秒，平衡锁竞争和超时风险
      * 优化说明：
-     * - 原值6秒，在复杂场景下可能不够（跨班次拆分、批量插入等）
-     * - 调整为10秒，平衡锁竞争和超时风险
-     * - 建议监控锁持有时间，P99应 < 5秒
+     * - 调整为5秒，减少锁等待时间，提高系统响应速度
+     * - 建议监控锁持有时间，P99应 < 3秒
+     * - 如果锁持有时间经常超过5秒，需要优化锁内操作
      */
-    public static final long LOCK_TIMEOUT_SECONDS = 10L;
+    public static final long LOCK_TIMEOUT_SECONDS = 5L;
 
     /**
      * 分布式锁值

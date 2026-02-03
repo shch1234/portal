@@ -8,6 +8,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
+import java.util.function.Supplier;
+
 /**
  * 记录处理工具类
  * <p>
@@ -113,5 +116,162 @@ public class RecordHandlerUtils {
         }
 
         return true;
+    }
+
+    /**
+     * 检查时间戳异常（事件时间 < 记录开始时间）
+     * <p>
+     * 从多个 Handler 中提取的公共逻辑
+     * </p>
+     *
+     * @param record        记录对象
+     * @param eventTimestamp 事件时间戳
+     * @return true 如果时间戳异常（事件时间早于记录开始时间）
+     */
+    public boolean isTimestampAnomaly(TimeRangeRecord record, Long eventTimestamp) {
+        if (record == null || record.getStartTs() == null || eventTimestamp == null) {
+            return false;
+        }
+        return eventTimestamp < record.getStartTs();
+    }
+
+    /**
+     * 结束记录（统一处理 endTs, durationS, 班次信息）
+     * <p>
+     * 从多个 Handler 中提取的公共逻辑，统一处理记录结束时的字段设置
+     * </p>
+     *
+     * @param record                记录对象
+     * @param endTimestamp          结束时间戳
+     * @param orgFactoryId          工厂ID
+     * @param precomputedShiftInfo  预计算的班次信息（可选，如果为null则查询数据库）
+     * @param isComplete            是否完整（可选，某些记录类型需要，如 DeviceStateRecordDO）
+     */
+    public void endRecord(TimeRangeRecord record, Long endTimestamp, Long orgFactoryId,
+                         ShiftDateAndCode precomputedShiftInfo, Boolean isComplete) {
+        if (record == null || endTimestamp == null) {
+            return;
+        }
+
+        // 设置结束时间
+        record.setEndTs(endTimestamp);
+
+        // 计算持续时间
+        if (record.getStartTs() != null) {
+            long duration = endTimestamp - record.getStartTs();
+            record.setDurationS(duration < 0 ? 0 : duration);
+        }
+
+        // 设置是否完整（如果记录类型支持）
+        if (isComplete != null && record instanceof com.weili.iot_portal.dal.dataobject.device.DeviceStateRecordDO) {
+            ((com.weili.iot_portal.dal.dataobject.device.DeviceStateRecordDO) record).setIsComplete(isComplete);
+        }
+
+        // 设置班次信息（优先使用预计算的，失败则查询数据库）
+        if (precomputedShiftInfo != null) {
+            if (record.getShiftDate() == null) {
+                record.setShiftDate(precomputedShiftInfo.shiftDate());
+            }
+            if (record.getShiftCode() == null) {
+                record.setShiftCode(precomputedShiftInfo.shiftCode());
+            }
+        }
+
+        // 如果预计算失败或未提供，回退到数据库查询
+        if (record.getShiftDate() == null || record.getShiftCode() == null) {
+            fillShiftInfoIfMissing(record, orgFactoryId);
+        }
+    }
+
+    /**
+     * 预计算班次信息（锁外计算，减少锁内数据库查询）
+     * <p>
+     * 优化：在获取锁之前提前计算班次信息，减少锁持有时间
+     * </p>
+     *
+     * @param record                已有记录（可选，如果为null则只计算新记录的班次信息）
+     * @param newRecordTimestamp    新记录的时间戳
+     * @param orgFactoryId          工厂ID
+     * @param deviceInfoId          设备ID
+     * @return 预计算的班次信息（record的班次信息，新记录的班次信息）
+     */
+    public PrecomputedShiftInfo precomputeShiftInfo(TimeRangeRecord record, Long newRecordTimestamp,
+                                                    Long orgFactoryId, Long deviceInfoId) {
+        ShiftDateAndCode recordShiftInfo = null;
+        ShiftDateAndCode newRecordShiftInfo = null;
+        ShiftTimeRange recordShiftRange = null;
+        ShiftTimeRange newRecordShiftRange = null;
+
+        // 计算已有记录的班次信息
+        if (record != null && record.getStartTs() != null
+                && (record.getShiftDate() == null || record.getShiftCode() == null)) {
+            try {
+                recordShiftInfo = shiftCalculationService.getShiftDateAndCode(
+                        orgFactoryId, deviceInfoId, record.getStartTs());
+                // 同时计算班次时间范围（用于跨班次检查，避免锁内查询）
+                recordShiftRange = shiftCalculationService.calculateShiftRange(
+                        orgFactoryId, deviceInfoId, record.getStartTs());
+            } catch (Exception e) {
+                log.warn("[RecordHandlerUtils] 提前计算已有记录班次信息失败: deviceInfoId={}, startTs={}, error={}",
+                        deviceInfoId, record.getStartTs(), e.getMessage());
+            }
+        }
+
+        // 计算新记录的班次信息（基于事件时间戳）
+        if (newRecordTimestamp != null) {
+            try {
+                newRecordShiftInfo = shiftCalculationService.getShiftDateAndCode(
+                        orgFactoryId, deviceInfoId, newRecordTimestamp);
+                // 同时计算班次时间范围（用于跨班次检查，避免锁内查询）
+                newRecordShiftRange = shiftCalculationService.calculateShiftRange(
+                        orgFactoryId, deviceInfoId, newRecordTimestamp);
+            } catch (Exception e) {
+                log.warn("[RecordHandlerUtils] 提前计算新记录班次信息失败: deviceInfoId={}, eventTimestamp={}, error={}",
+                        deviceInfoId, newRecordTimestamp, e.getMessage());
+            }
+        }
+
+        return new PrecomputedShiftInfo(recordShiftInfo, newRecordShiftInfo, recordShiftRange, newRecordShiftRange);
+    }
+
+    /**
+     * 统一批量插入（统一日志、错误处理、空列表检查）
+     * <p>
+     * 从多个 Handler 中提取的公共逻辑，统一处理批量插入的日志和错误处理
+     * </p>
+     *
+     * @param insertMethod 插入方法（返回插入的记录数）
+     * @param records      记录列表
+     * @param operation    操作描述（用于日志）
+     * @param handlerName  Handler名称（用于日志）
+     */
+    public <T> void insertBatch(Supplier<Integer> insertMethod, List<T> records,
+                                String operation, String handlerName) {
+        if (records == null || records.isEmpty()) {
+            log.debug("[{}] {}: 记录列表为空，跳过插入", handlerName, operation);
+            return;
+        }
+
+        try {
+            int count = insertMethod.get();
+            log.debug("[{}] {}: 批量插入成功，记录数={}", handlerName, operation, count);
+        } catch (Exception e) {
+            log.error("[{}] {}: 批量插入失败，记录数={}", handlerName, operation, records.size(), e);
+            throw e;
+        }
+    }
+
+    /**
+     * 预计算的班次信息
+     */
+    public record PrecomputedShiftInfo(
+            ShiftDateAndCode recordShiftInfo,      // 已有记录的班次信息
+            ShiftDateAndCode newRecordShiftInfo,   // 新记录的班次信息
+            ShiftTimeRange recordShiftRange,       // 已有记录的班次时间范围（用于跨班次检查）
+            ShiftTimeRange newRecordShiftRange     // 新记录的班次时间范围（用于跨班次检查）
+    ) {
+        public PrecomputedShiftInfo(ShiftDateAndCode recordShiftInfo, ShiftDateAndCode newRecordShiftInfo) {
+            this(recordShiftInfo, newRecordShiftInfo, null, null);
+        }
     }
 }
