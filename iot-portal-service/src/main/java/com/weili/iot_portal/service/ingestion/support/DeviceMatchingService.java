@@ -55,6 +55,12 @@ public class DeviceMatchingService {
      */
     private static final long SYNC_TB_DEVICE_ID_LOCK_TIMEOUT_SECONDS = 3L;
 
+    /**
+     * TB设备ID频繁切换检测窗口（毫秒）
+     * 如果设备在短时间内多次切换tb_device_id，记录警告而不是更新
+     */
+    private static final long TB_DEVICE_ID_SWITCH_DETECTION_WINDOW_MILLIS = Duration.ofMinutes(5).toMillis();
+
     private final DeviceInfoRepository deviceInfoRepository;
     private final RedisClient redisClient;
 
@@ -64,6 +70,13 @@ public class DeviceMatchingService {
      * value: lastWarnTimeMillis
      */
     private final ConcurrentMap<String, Long> unmatchedDeviceLastWarnTime = new ConcurrentHashMap<>();
+
+    /**
+     * 记录每个设备最近一次tb_device_id更新的信息
+     * key: deviceCode
+     * value: TbDeviceIdUpdateInfo (包含更新时间和更新后的tb_device_id)
+     */
+    private final ConcurrentMap<String, TbDeviceIdUpdateInfo> tbDeviceIdUpdateHistory = new ConcurrentHashMap<>();
 
     /**
      * 匹配设备（带缓存）
@@ -209,23 +222,48 @@ public class DeviceMatchingService {
     /**
      * 同步 TB 设备ID（如果需要）
      * <p>
+     * 优化：优先使用缓存中的tb_device_id，避免频繁更新
      * 更新规则：
      * 1. 如果 TB 传了 deviceId（tbDeviceId 不为空）
-     * 2. 且数据库中的 tb_device_id 为空或不匹配
-     * 3. 则更新数据库中的 tb_device_id
-     * 4. 清除缓存（确保下次查询获取最新数据）
+     * 2. 先检查缓存中的tb_device_id是否匹配，如果匹配则直接返回（不更新）
+     * 3. 如果缓存中不匹配，再检查数据库中的tb_device_id是否匹配
+     * 4. 如果数据库中的tb_device_id为空或不匹配，则更新数据库和缓存
      * 5. 否则跳过
      * </p>
      *
-     * @param device     设备信息
+     * @param device     设备信息（可能来自缓存）
      * @param tbDeviceId TB传过来的设备ID
      */
     public void syncTbDeviceIdIfNeeded(DeviceInfoDO device, String tbDeviceId) {
-        if (!shouldSyncTbDeviceId(device, tbDeviceId)) {
+        if (StringUtils.isBlank(tbDeviceId)) {
             return;
         }
 
-        updateTbDeviceId(device, tbDeviceId);
+        String deviceCode = device.getDeviceCode();
+        
+        // 优化1：先检查缓存中的tb_device_id是否匹配
+        // 如果缓存中的tb_device_id与请求的tbDeviceId匹配，直接返回，不更新
+        Optional<DeviceInfoDO> cachedDevice = getFromCache(deviceCode);
+        if (cachedDevice.isPresent()) {
+            String cachedTbDeviceId = cachedDevice.get().getTbDeviceId();
+            if (StringUtils.isNotBlank(cachedTbDeviceId) && tbDeviceId.equals(cachedTbDeviceId)) {
+                // 缓存中的tb_device_id已匹配，直接返回，不更新
+                log.debug("[DeviceMatching] 缓存中的tb_device_id已匹配，跳过更新: deviceCode={}, tbDeviceId={}",
+                        deviceCode, tbDeviceId);
+                return;
+            }
+        }
+
+        // 优化2：如果缓存中不匹配，再检查传入的device对象（可能来自缓存）
+        // 如果传入的device对象的tb_device_id与请求的tbDeviceId匹配，也直接返回
+        if (shouldSyncTbDeviceId(device, tbDeviceId)) {
+            // 需要更新：调用updateTbDeviceId进行更新
+            updateTbDeviceId(device, tbDeviceId);
+        } else {
+            // 不需要更新：传入的device对象的tb_device_id已匹配
+            log.debug("[DeviceMatching] 设备信息中的tb_device_id已匹配，跳过更新: deviceCode={}, tbDeviceId={}",
+                    deviceCode, tbDeviceId);
+        }
     }
 
     /**
@@ -285,7 +323,26 @@ public class DeviceMatchingService {
                 }
 
                 String currentTbDeviceId = currentDevice.getTbDeviceId();
-                log.info("[DeviceMatching] 同步tb_device_id: deviceCode={}, oldTbDeviceId={}, newTbDeviceId={}",
+                
+                // 检测频繁切换：如果设备在短时间内多次切换tb_device_id，记录警告而不是更新
+                TbDeviceIdUpdateInfo lastUpdate = tbDeviceIdUpdateHistory.get(deviceCode);
+                long now = System.currentTimeMillis();
+                if (lastUpdate != null 
+                        && (now - lastUpdate.updateTime) < TB_DEVICE_ID_SWITCH_DETECTION_WINDOW_MILLIS
+                        && !tbDeviceId.equals(lastUpdate.tbDeviceId)
+                        && StringUtils.isNotBlank(currentTbDeviceId)
+                        && !tbDeviceId.equals(currentTbDeviceId)) {
+                    // 检测到频繁切换：在检测窗口内，且新的tb_device_id和上次更新的不同，且和数据库中的也不同
+                    log.warn("[DeviceMatching] 检测到tb_device_id频繁切换，跳过更新以避免数据不一致: " +
+                            "deviceCode={}, 数据库tbDeviceId={}, 请求tbDeviceId={}, 上次更新tbDeviceId={}, " +
+                            "距离上次更新={}ms",
+                            deviceCode, currentTbDeviceId, tbDeviceId, lastUpdate.tbDeviceId,
+                            now - lastUpdate.updateTime);
+                    return;
+                }
+
+                // 正常更新：使用DEBUG级别，减少日志输出
+                log.debug("[DeviceMatching] 同步tb_device_id: deviceCode={}, oldTbDeviceId={}, newTbDeviceId={}",
                         deviceCode, currentTbDeviceId, tbDeviceId);
 
                 currentDevice.setTbDeviceId(tbDeviceId);
@@ -297,7 +354,10 @@ public class DeviceMatchingService {
                 // 这样可以避免下次连接时缓存未命中，减少数据库查询
                 cacheDeviceInfo(deviceCode, currentDevice);
 
-                log.info("[DeviceMatching] tb_device_id同步成功，is_monitored已更新为1，缓存已更新");
+                // 记录更新历史
+                tbDeviceIdUpdateHistory.put(deviceCode, new TbDeviceIdUpdateInfo(now, tbDeviceId));
+
+                log.debug("[DeviceMatching] tb_device_id同步成功，is_monitored已更新为1，缓存已更新");
             } finally {
                 redisClient.releaseLock(lockKey);
             }
@@ -381,6 +441,13 @@ public class DeviceMatchingService {
      */
     private String buildCacheKey(String deviceCode) {
         return String.format(RedisConstant.DEVICE_INFO_MATCH, deviceCode);
+    }
+
+    /**
+     * TB设备ID更新信息
+     * 用于记录设备最近一次tb_device_id更新的时间和值，用于检测频繁切换
+     */
+    private record TbDeviceIdUpdateInfo(long updateTime, String tbDeviceId) {
     }
 
 }

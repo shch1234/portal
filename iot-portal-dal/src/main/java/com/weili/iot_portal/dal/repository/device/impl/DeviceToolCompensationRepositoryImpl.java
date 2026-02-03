@@ -78,20 +78,22 @@ public class DeviceToolCompensationRepositoryImpl implements DeviceToolCompensat
             return;
         }
         
-        // 在插入前，先删除已存在的相同唯一约束的记录（避免唯一约束冲突）
-        // 唯一约束 uq_tool_comp_active 基于 (device_info_id, tool_holder_no, active)
-        // 需要根据 active 值删除对应的记录
-        if (record.getDeviceInfoId() != null && record.getToolHolderNo() != null && record.getActive() != null) {
+        // 优化：只删除 active=1 的记录，保留 active=0 的历史版本
+        // 如果插入的是 active=1 的记录，需要先删除已存在的 active=1 记录（确保唯一性）
+        // 如果插入的是 active=0 的记录，不需要删除（允许多条历史版本）
+        if (record.getDeviceInfoId() != null && record.getToolHolderNo() != null 
+                && record.getActive() != null && record.getActive() == 1) {
+            // 只删除 active=1 的记录，保留 active=0 的历史版本
             LambdaQueryWrapper<DeviceToolCompensationDO> deleteWrapper = new LambdaQueryWrapper<>();
             deleteWrapper.eq(DeviceToolCompensationDO::getDeviceInfoId, record.getDeviceInfoId())
                     .eq(DeviceToolCompensationDO::getToolHolderNo, record.getToolHolderNo())
-                    .eq(DeviceToolCompensationDO::getActive, record.getActive());
+                    .eq(DeviceToolCompensationDO::getActive, 1);
             
             int deletedCount = mapper.delete(deleteWrapper);
             if (deletedCount > 0) {
-                log.info("[DeviceToolCompensationRepository] 插入前删除已存在的记录，避免唯一约束冲突: " +
-                        "deviceInfoId={}, toolHolderNo={}, active={}, deletedCount={}",
-                        record.getDeviceInfoId(), record.getToolHolderNo(), record.getActive(), deletedCount);
+                log.info("[DeviceToolCompensationRepository] 插入前删除已存在的 active=1 记录，确保唯一性: " +
+                        "deviceInfoId={}, toolHolderNo={}, deletedCount={}",
+                        record.getDeviceInfoId(), record.getToolHolderNo(), deletedCount);
             }
         }
         
@@ -100,18 +102,19 @@ public class DeviceToolCompensationRepositoryImpl implements DeviceToolCompensat
             log.debug("[DeviceToolCompensationRepository] 成功插入记录: deviceInfoId={}, toolHolderNo={}, active={}, id={}",
                     record.getDeviceInfoId(), record.getToolHolderNo(), record.getActive(), record.getId());
         } catch (DuplicateKeyException e) {
-            // 处理并发插入导致的唯一约束冲突
+            // 处理并发插入导致的唯一约束冲突（如果唯一约束还存在）
             // 如果插入失败，再次尝试删除并插入（可能其他线程已插入）
             log.warn("[DeviceToolCompensationRepository] 插入时发生唯一约束冲突，尝试删除后重新插入: " +
                     "deviceInfoId={}, toolHolderNo={}, active={}, error={}",
                     record.getDeviceInfoId(), record.getToolHolderNo(), record.getActive(), e.getMessage());
             
-            // 再次删除可能存在的记录
-            if (record.getDeviceInfoId() != null && record.getToolHolderNo() != null && record.getActive() != null) {
+            // 再次删除可能存在的 active=1 记录（只针对 active=1 的记录）
+            if (record.getDeviceInfoId() != null && record.getToolHolderNo() != null 
+                    && record.getActive() != null && record.getActive() == 1) {
                 LambdaQueryWrapper<DeviceToolCompensationDO> deleteWrapper = new LambdaQueryWrapper<>();
                 deleteWrapper.eq(DeviceToolCompensationDO::getDeviceInfoId, record.getDeviceInfoId())
                         .eq(DeviceToolCompensationDO::getToolHolderNo, record.getToolHolderNo())
-                        .eq(DeviceToolCompensationDO::getActive, record.getActive());
+                        .eq(DeviceToolCompensationDO::getActive, 1);
                 
                 int deletedCount = mapper.delete(deleteWrapper);
                 if (deletedCount > 0) {
@@ -141,33 +144,9 @@ public class DeviceToolCompensationRepositoryImpl implements DeviceToolCompensat
             return;
         }
         
-        // 先查询记录，获取 device_info_id, org_factory_id, tool_holder_no
-        DeviceToolCompensationDO record = mapper.selectById(id);
-        if (record == null) {
-            log.warn("[DeviceToolCompensationRepository] 记录不存在，无法关闭: id={}", id);
-            return;
-        }
-        
-        log.debug("[DeviceToolCompensationRepository] 准备关闭记录: id={}, deviceInfoId={}, orgFactoryId={}, toolHolderNo={}, active={}",
-                id, record.getDeviceInfoId(), record.getOrgFactoryId(), record.getToolHolderNo(), active);
-        
-        // 在更新前，先删除已存在的 active=0 的记录（避免唯一约束冲突）
-        // 唯一约束 uq_tool_comp_active 基于 (device_info_id, tool_holder_no, active)，不包含 org_factory_id
-        // 如果已存在 active=0 的记录，更新当前记录为 active=0 会违反唯一约束
-        LambdaQueryWrapper<DeviceToolCompensationDO> deleteWrapper = new LambdaQueryWrapper<>();
-        deleteWrapper.eq(DeviceToolCompensationDO::getDeviceInfoId, record.getDeviceInfoId())
-                .eq(DeviceToolCompensationDO::getToolHolderNo, record.getToolHolderNo())
-                .eq(DeviceToolCompensationDO::getActive, 0)
-                .ne(DeviceToolCompensationDO::getId, id); // 排除当前记录
-        
-        int deletedCount = mapper.delete(deleteWrapper);
-        if (deletedCount > 0) {
-            log.info("[DeviceToolCompensationRepository] 删除已存在的 active=0 记录，避免唯一约束冲突: " +
-                    "deviceInfoId={}, toolHolderNo={}, deletedCount={} (唯一约束基于 device_info_id, tool_holder_no, active)",
-                    record.getDeviceInfoId(), record.getToolHolderNo(), deletedCount);
-        }
-        
-        // 然后更新当前记录
+        // 优化：直接更新当前记录为 active=0，保留所有历史版本
+        // 不再删除已存在的 active=0 记录，以支持版本管理
+        // 通过应用层的分布式锁和行锁确保 active=1 的记录唯一性
         LambdaUpdateWrapper<DeviceToolCompensationDO> updateWrapper = new LambdaUpdateWrapper<>();
         updateWrapper.eq(DeviceToolCompensationDO::getId, id)
                 .set(DeviceToolCompensationDO::getEndTs, endTs)

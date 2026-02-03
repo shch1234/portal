@@ -13,6 +13,8 @@ import com.weili.iot_portal.domain.metrics.MetricCalculationContext;
 import com.weili.iot_portal.domain.metrics.MetricCalculationResult;
 import com.weili.iot_portal.domain.metrics.MetricCalculator;
 import com.weili.iot_portal.service.cache.DeviceMetricsCacheService;
+import com.weili.iot_portal.service.cache.DeviceTheoreticalCycleCacheService;
+import com.weili.iot_portal.service.cache.DeviceLockService;
 import com.weili.iot_portal.service.device.ICheckpointService;
 import com.weili.iot_portal.service.device.IDeviceMetricsService;
 import com.weili.iot_portal.service.device.util.StateDurationUtils;
@@ -52,6 +54,8 @@ public class DeviceMetricsService implements IDeviceMetricsService {
     private final IShiftCalculationService shiftCalculationService;
     private final IShiftConfigService shiftConfigService;
     private final DeviceMetricsCacheService deviceMetricsCacheService;
+    private final DeviceTheoreticalCycleCacheService deviceTheoreticalCycleCacheService;
+    private final DeviceLockService deviceLockService;
     private final ICheckpointService<CheckpointData> checkpointService;
 
     @Autowired
@@ -62,6 +66,8 @@ public class DeviceMetricsService implements IDeviceMetricsService {
                                 IShiftCalculationService shiftCalculationService,
                                 IShiftConfigService shiftConfigService,
                                 DeviceMetricsCacheService deviceMetricsCacheService,
+                                DeviceTheoreticalCycleCacheService deviceTheoreticalCycleCacheService,
+                                DeviceLockService deviceLockService,
                                 @Qualifier("deviceMetricsCheckpointService")
                                 ICheckpointService<CheckpointData> checkpointService) {
         this.deviceInfoRepository = deviceInfoRepository;
@@ -71,6 +77,8 @@ public class DeviceMetricsService implements IDeviceMetricsService {
         this.shiftCalculationService = shiftCalculationService;
         this.shiftConfigService = shiftConfigService;
         this.deviceMetricsCacheService = deviceMetricsCacheService;
+        this.deviceTheoreticalCycleCacheService = deviceTheoreticalCycleCacheService;
+        this.deviceLockService = deviceLockService;
         this.checkpointService = checkpointService;
     }
 
@@ -462,17 +470,104 @@ public class DeviceMetricsService implements IDeviceMetricsService {
     }
     
     /**
-     * 获取理论节拍默认值（从 device_production_record 获取最新已完成记录的 duration_s）
+     * 获取理论节拍默认值（从 device_production_record 获取最新已完成记录的 duration_s 平均值）
+     * <p>
+     * 计算逻辑：
+     * 1. 先尝试从缓存获取（优化：减少数据库查询）
+     * 2. 如果缓存未命中，查询该设备已完成的最新5条记录
+     * 3. 计算 duration_s 的平均值作为默认值
+     * 4. 如果数据库的值少于5条则有几条算几条的平均值
+     * 5. 如果一条都没有则使用默认值10秒
+     * 6. 将计算结果缓存（优化：下次查询直接使用缓存）
      * <p>
      * 注意：duration_s 字段实际存储的是毫秒，需要转换为秒
      * 
      * @param deviceId 设备ID
-     * @return 理论节拍默认值（秒），如果不存在则返回0
+     * @return 理论节拍默认值（秒），如果不存在则返回10（默认值）
      */
     private long getTheoreticalCycleDefaultValue(Long deviceId) {
-        return deviceProductionRecordRepository.findLatestCompletedDurationS(deviceId)
-                .map(durationMs -> durationMs / 1000L)  // 将毫秒转换为秒
-                .orElse(0L);
+        if (deviceId == null) {
+            return 10L; // 默认值10秒
+        }
+        
+        // 优化1：先尝试从缓存获取
+        // 如果缓存存在且未过期，直接返回（避免数据库查询）
+        // 如果缓存已过期（1小时+随机偏移后自动失效），会返回null，继续执行数据库查询和重新计算
+        Long cachedValue = deviceTheoreticalCycleCacheService.getCachedTheoreticalCycle(deviceId);
+        if (cachedValue != null && cachedValue > 0) {
+            log.debug("实时指标计算: 理论节拍使用缓存值: deviceId={}, theoreticalCycleSeconds={}", 
+                    deviceId, cachedValue);
+            return cachedValue;
+        }
+        
+        // 优化2：缓存未命中（缓存不存在或已过期），使用分布式锁防止并发计算
+        // 锁超时时间：10秒（足够完成数据库查询和计算）
+        if (!deviceLockService.tryLockTheoreticalCycleCalculation(deviceId, 10L)) {
+            // 获取锁失败，说明其他线程正在计算，等待一小段时间后再次尝试从缓存获取
+            log.debug("实时指标计算: 获取理论节拍计算锁失败，等待其他线程计算完成: deviceId={}", deviceId);
+            try {
+                Thread.sleep(100); // 等待100ms
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            // 再次尝试从缓存获取（其他线程可能已经计算完成并写入缓存）
+            cachedValue = deviceTheoreticalCycleCacheService.getCachedTheoreticalCycle(deviceId);
+            if (cachedValue != null && cachedValue > 0) {
+                log.debug("实时指标计算: 理论节拍使用缓存值（其他线程已计算）: deviceId={}, theoreticalCycleSeconds={}", 
+                        deviceId, cachedValue);
+                return cachedValue;
+            }
+            // 如果仍然没有缓存，使用默认值（避免无限等待）
+            log.warn("实时指标计算: 获取锁失败且缓存仍未命中，使用默认值: deviceId={}, defaultTheoreticalCycleSeconds=10", deviceId);
+            return 10L;
+        }
+        
+        try {
+            // 获取锁成功，再次检查缓存（双重检查，防止在等待锁期间其他线程已计算完成）
+            cachedValue = deviceTheoreticalCycleCacheService.getCachedTheoreticalCycle(deviceId);
+            if (cachedValue != null && cachedValue > 0) {
+                log.debug("实时指标计算: 理论节拍使用缓存值（获取锁后再次检查）: deviceId={}, theoreticalCycleSeconds={}", 
+                        deviceId, cachedValue);
+                return cachedValue;
+            }
+            
+            // 优化3：缓存未命中，查询数据库重新计算（只查询需要的字段）
+            List<Long> durations = deviceProductionRecordRepository.findLatestCompletedDurationsS(deviceId, 5);
+            
+            long theoreticalCycleSeconds;
+            if (durations.isEmpty()) {
+                // 如果一条都没有则使用默认值10秒
+                theoreticalCycleSeconds = 10L;
+                log.debug("实时指标计算: 理论节拍使用默认值（无历史记录）: deviceId={}, defaultTheoreticalCycleSeconds=10", deviceId);
+            } else {
+                // 计算平均值（毫秒）
+                long averageDurationMs = durations.stream()
+                        .mapToLong(Long::longValue)
+                        .sum() / durations.size();
+                
+                // 将毫秒转换为秒
+                theoreticalCycleSeconds = averageDurationMs / 1000L;
+                
+                // 如果计算结果为0或负数，使用默认值10秒
+                if (theoreticalCycleSeconds <= 0) {
+                    log.warn("实时指标计算: 理论节拍计算结果无效（<=0），使用默认值: deviceId={}, calculatedSeconds={}, recordCount={}, defaultTheoreticalCycleSeconds=10",
+                            deviceId, theoreticalCycleSeconds, durations.size());
+                    theoreticalCycleSeconds = 10L;
+                } else {
+                    log.debug("实时指标计算: 理论节拍使用历史记录平均值: deviceId={}, recordCount={}, averageDurationMs={}, theoreticalCycleSeconds={}",
+                            deviceId, durations.size(), averageDurationMs, theoreticalCycleSeconds);
+                }
+            }
+            
+            // 优化4：缓存计算结果（设置1小时+随机偏移TTL，防止缓存雪崩）
+            // 这样既能减少数据库查询，又能保证数据的相对新鲜度，同时避免多台设备同时失效
+            deviceTheoreticalCycleCacheService.cacheTheoreticalCycle(deviceId, theoreticalCycleSeconds);
+            
+            return theoreticalCycleSeconds;
+        } finally {
+            // 释放分布式锁
+            deviceLockService.unlockTheoreticalCycleCalculation(deviceId);
+        }
     }
     
     /**

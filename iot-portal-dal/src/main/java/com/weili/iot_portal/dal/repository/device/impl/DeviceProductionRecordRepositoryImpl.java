@@ -107,6 +107,30 @@ public class DeviceProductionRecordRepositoryImpl implements DeviceProductionRec
                 ? Optional.of(record.getDurationS())
                 : Optional.empty();
     }
+
+    @Override
+    public List<Long> findLatestCompletedDurationsS(Long deviceId, int limit) {
+        if (deviceId == null || limit <= 0) {
+            return List.of();
+        }
+        
+        // 优化1：只查询需要的字段（duration_s），减少数据传输和内存占用
+        LambdaQueryWrapper<DeviceProductionRecordDO> wrapper = new LambdaQueryWrapper<>();
+        wrapper.select(DeviceProductionRecordDO::getDurationS)  // 只查询 duration_s 字段
+                .eq(DeviceProductionRecordDO::getDeviceInfoId, deviceId)
+                .isNotNull(DeviceProductionRecordDO::getEndTs)  // 必须是已完成的记录
+                .isNotNull(DeviceProductionRecordDO::getDurationS)  // duration_s 不能为空
+                .gt(DeviceProductionRecordDO::getDurationS, 0)  // duration_s 必须大于0
+                .orderByDesc(DeviceProductionRecordDO::getEndTs)  // 按结束时间降序
+                .last("LIMIT " + limit);
+        
+        List<DeviceProductionRecordDO> records = mapper.selectList(wrapper);
+        // 优化2：简化过滤逻辑（数据库已过滤，这里只需要提取值）
+        return records.stream()
+                .map(DeviceProductionRecordDO::getDurationS)
+                .filter(duration -> duration != null && duration > 0)
+                .collect(java.util.stream.Collectors.toList());
+    }
 }
 
 

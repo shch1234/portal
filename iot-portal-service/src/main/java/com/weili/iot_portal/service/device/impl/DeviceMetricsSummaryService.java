@@ -709,13 +709,11 @@ public class DeviceMetricsSummaryService implements IDeviceMetricsSummaryService
 
         // 如果参数未配置或值为0，尝试从 device_production_record 获取默认值
         if (theoreticalCycleSeconds <= 0 && deviceId != null) {
-            Optional<Long> defaultDurationMs = deviceProductionRecordRepository.findLatestCompletedDurationS(deviceId);
-            if (defaultDurationMs.isPresent() && defaultDurationMs.get() > 0) {
-                // duration_s 字段实际存储的是毫秒，需要转换为秒
-                theoreticalCycleSeconds = defaultDurationMs.get() / 1000L;
+            theoreticalCycleSeconds = calculateTheoreticalCycleFromHistory(deviceId);
+            if (theoreticalCycleSeconds > 0) {
                 useDefaultValue = true;
                 // 降级为debug，减少日志输出
-                log.debug("指标汇总: 理论节拍使用默认值: deviceId={}, shiftDate={}, shiftCode={}, defaultTheoreticalCycleSeconds={}",
+                log.debug("指标汇总: 理论节拍使用历史记录平均值: deviceId={}, shiftDate={}, shiftCode={}, defaultTheoreticalCycleSeconds={}",
                         deviceId, shiftDate, shiftCode, theoreticalCycleSeconds);
             } else {
                 if (fromConfig) {
@@ -731,6 +729,49 @@ public class DeviceMetricsSummaryService implements IDeviceMetricsSummaryService
         }
 
         return new TheoreticalCycleResult(theoreticalCycleSeconds, useDefaultValue);
+    }
+
+    /**
+     * 从历史产量记录计算理论节拍默认值
+     * <p>
+     * 计算逻辑：
+     * 1. 查询该设备已完成的最新5条记录
+     * 2. 计算 duration_s 的平均值作为默认值
+     * 3. 如果数据库的值少于5条则有几条算几条的平均值
+     * 4. 如果一条都没有则使用默认值10秒
+     * <p>
+     * 注意：duration_s 字段实际存储的是毫秒，需要转换为秒
+     * 
+     * @param deviceId 设备ID
+     * @return 理论节拍默认值（秒），如果不存在则返回10（默认值）
+     */
+    private long calculateTheoreticalCycleFromHistory(Long deviceId) {
+        if (deviceId == null) {
+            return 10L; // 默认值10秒
+        }
+        
+        // 查询最新5条已完成记录的 duration_s
+        List<Long> durations = deviceProductionRecordRepository.findLatestCompletedDurationsS(deviceId, 5);
+        
+        if (durations.isEmpty()) {
+            // 如果一条都没有则使用默认值10秒
+            return 10L;
+        }
+        
+        // 计算平均值（毫秒）
+        long averageDurationMs = durations.stream()
+                .mapToLong(Long::longValue)
+                .sum() / durations.size();
+        
+        // 将毫秒转换为秒
+        long theoreticalCycleSeconds = averageDurationMs / 1000L;
+        
+        // 如果计算结果为0或负数，使用默认值10秒
+        if (theoreticalCycleSeconds <= 0) {
+            return 10L;
+        }
+        
+        return theoreticalCycleSeconds;
     }
 
     /**

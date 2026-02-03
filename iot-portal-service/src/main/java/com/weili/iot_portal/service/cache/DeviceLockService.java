@@ -110,6 +110,29 @@ public class DeviceLockService {
     }
 
     /**
+     * 尝试获取理论节拍计算锁
+     * <p>
+     * 用于防止同一设备的理论节拍被多个线程同时计算，造成重复数据库查询
+     * </p>
+     *
+     * @param deviceId       设备ID
+     * @param timeoutSeconds 锁超时时间（秒）
+     * @return true 如果成功获取锁
+     */
+    public boolean tryLockTheoreticalCycleCalculation(Long deviceId, long timeoutSeconds) {
+        return tryLock(buildTheoreticalCycleCalculationLockKey(deviceId), timeoutSeconds);
+    }
+
+    /**
+     * 释放理论节拍计算锁
+     *
+     * @param deviceId 设备ID
+     */
+    public void unlockTheoreticalCycleCalculation(Long deviceId) {
+        unlock(buildTheoreticalCycleCalculationLockKey(deviceId));
+    }
+
+    /**
      * 尝试获取锁
      * 使用 RedisClient.tryLock() 方法，直接使用原生 Redis 连接，不受 Spring 事务管理影响
      *
@@ -236,6 +259,18 @@ public class DeviceLockService {
         return RedisConstant.LOCK_KEY_PREFIX_PRODUCTION + deviceId;
     }
 
+    /**
+     * 构建理论节拍计算锁键
+     *
+     * @param deviceId 设备ID
+     * @return 锁键
+     */
+    private String buildTheoreticalCycleCalculationLockKey(Long deviceId) {
+        if (deviceId == null) {
+            throw new IllegalArgumentException("DeviceId cannot be blank for lock key");
+        }
+        return RedisConstant.LOCK_KEY_PREFIX_THEORETICAL_CYCLE_CALCULATION + deviceId;
+    }
 }
 
 

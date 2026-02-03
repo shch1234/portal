@@ -108,4 +108,20 @@ public class RedisConstant {
      * TB设备ID同步锁键前缀
      */
     public static final String LOCK_KEY_PREFIX_SYNC_TB_DEVICE_ID = COMMON + "sync_tb_device_id_lock:";
+    /**
+     * 理论节拍计算锁键前缀
+     */
+    public static final String LOCK_KEY_PREFIX_THEORETICAL_CYCLE_CALCULATION = COMMON + "theoretical_cycle_calc_lock:";
+    
+    /**
+     * 设备相关缓存键前缀
+     */
+    public static final String DEVICE = COMMON + "device:";
+    /**
+     * 设备理论节拍缓存键格式（String，按设备ID）
+     * 格式：iot_portal:device:theoretical_cycle:{deviceId}
+     * Value：理论节拍值（秒，Long类型）
+     * TTL：1小时+随机偏移（0-5分钟），防止缓存雪崩
+     */
+    public static final String DEVICE_THEORETICAL_CYCLE = COMMON + "device:theoretical_cycle:%s";
 }
