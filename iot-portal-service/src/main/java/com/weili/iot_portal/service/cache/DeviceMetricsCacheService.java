@@ -40,6 +40,7 @@ import java.util.stream.Collectors;
 public class DeviceMetricsCacheService {
 
     private final RedisTemplate<String, String> redisTemplate;
+    private final SafeRedisOperations safeRedisOperations;
     private final ResourceLimiter resourceLimiter;
 
     @Value("${rt.metrics.ttl-seconds:600}")
@@ -77,8 +78,13 @@ public class DeviceMetricsCacheService {
         payload.put("metric.oee", snapshot.getOee().toPlainString());
         payload.put("updatedAt", String.valueOf(snapshot.getUpdatedAtSec()));
 
-        redisTemplate.opsForHash().putAll(key, payload);
-        redisTemplate.expire(key, Duration.ofSeconds(ttlSeconds));
+        // 使用工具类统一处理 Redis 操作（批量设置使用 putAll，单个字段使用 safeHSet）
+        // 对于批量操作，使用 safeExecute 包装，保持异常处理统一
+        safeRedisOperations.safeExecute(() -> {
+            redisTemplate.opsForHash().putAll(key, payload);
+            redisTemplate.expire(key, Duration.ofSeconds(ttlSeconds));
+            return true;
+        }, () -> false);
     }
 
     /**
@@ -90,7 +96,7 @@ public class DeviceMetricsCacheService {
      */
     public Optional<RealtimeMetricSnapshot> getDeviceRealtimeMetrics(Long factoryId, Long deviceId) {
         String key = buildMetricKey(factoryId, deviceId);
-        Map<Object, Object> map = redisTemplate.opsForHash().entries(key);
+        Map<Object, Object> map = safeRedisOperations.safeHGetAll(key);
         if (map == null || map.isEmpty()) {
             return Optional.empty();
         }
@@ -208,6 +214,12 @@ public class DeviceMetricsCacheService {
                         }
                     }
                     return result; // 成功，返回结果
+                } catch (org.springframework.dao.QueryTimeoutException e) {
+                    // ⚠️ Redis 超时异常：连接已自动释放，但需要处理业务逻辑
+                    // 超时异常通常不可重试，直接降级
+                    log.warn("[DeviceMetricsCache] Pipeline操作超时，降级为逐个读取: factoryId={}, deviceCount={}, error={}",
+                            factoryId, deviceIds.size(), e.getMessage());
+                    break;
                 } catch (RedisConnectionFailureException e) {
                     // 连接池异常，判断是否需要重试
                     if (retry < maxRetries && isRetryableException(e)) {

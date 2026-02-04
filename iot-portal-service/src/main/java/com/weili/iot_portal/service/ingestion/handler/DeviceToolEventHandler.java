@@ -153,7 +153,8 @@ public class DeviceToolEventHandler implements WebhookEventHandler {
                 deviceToolCompensationService.upsertCompensation(deviceInfoId, orgFactoryId, holderNumber, compValue, eventTimestamp,
                         "[DeviceToolEventHandler]");
             } else {
-                log.warn("[DeviceToolEventHandler] 刀补号存在但补偿数据为空，跳过刀补补偿表写入: deviceId={}, holderNumber={}", 
+                // 合并警告：包含未找到补偿数据和刀补号存在但补偿数据为空的信息
+                log.warn("[DeviceToolEventHandler] 刀补号存在但补偿数据为空（未找到compensation字段或offset/comp字段），跳过刀补补偿表写入: deviceId={}, holderNumber={}", 
                         deviceInfoId, holderNumber);
             }
         }
@@ -399,7 +400,8 @@ public class DeviceToolEventHandler implements WebhookEventHandler {
         if (!compensation.isEmpty()) {
             log.debug("[DeviceToolEventHandler] 使用扁平化补偿格式: {}", compensation.keySet());
         } else {
-            log.warn("[DeviceToolEventHandler] 未找到补偿数据（compensation字段或offset/comp字段），跳过刀补补偿表写入");
+            // 降级为debug，避免与后续"刀补号存在但补偿数据为空"的警告重复
+            log.debug("[DeviceToolEventHandler] 未找到补偿数据（compensation字段或offset/comp字段）");
         }
         
         // 调试日志：记录最终提取的补偿数据

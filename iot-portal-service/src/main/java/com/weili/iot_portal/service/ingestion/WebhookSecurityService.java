@@ -3,6 +3,7 @@ package com.weili.iot_portal.service.ingestion;
 import com.weili.iot_portal.common.exception.IotPortalErrorCode;
 import com.weili.iot_portal.common.exception.IotPortalException;
 import org.apache.commons.lang3.StringUtils;
+import com.weili.iot_portal.service.cache.SafeRedisOperations;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -34,6 +35,9 @@ public class WebhookSecurityService {
 
     @Autowired
     private RedisTemplate<String, String> redisTemplate;
+    
+    @Autowired
+    private SafeRedisOperations safeRedisOperations;
 
     private static final String NONCE_PREFIX = "webhook:nonce:";
 
@@ -89,7 +93,19 @@ public class WebhookSecurityService {
 
     private boolean verifyNonce(String nonce) {
         String key = NONCE_PREFIX + nonce;
-        Boolean success = redisTemplate.opsForValue().setIfAbsent(key, "1", Duration.ofSeconds(nonceTtlSeconds));
+        // 使用工具类统一处理 Redis 操作
+        // 注意：nonce 验证是安全相关的，失败时必须抛出异常
+        Boolean success = safeRedisOperations.safeExecute(
+            () -> redisTemplate.opsForValue().setIfAbsent(key, "1", Duration.ofSeconds(nonceTtlSeconds)),
+            null
+        );
+        
+        if (success == null) {
+            // Redis 操作失败：为了安全，拒绝请求（避免重放攻击）
+            throw new IotPortalException(IotPortalErrorCode.WEBHOOK_SIGNATURE_VALIDATION_FAILED, 
+                    "Nonce验证失败: Redis操作超时或连接失败");
+        }
+        
         return Boolean.TRUE.equals(success);
     }
 

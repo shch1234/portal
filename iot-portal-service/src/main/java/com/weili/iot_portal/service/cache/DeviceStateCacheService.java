@@ -37,6 +37,7 @@ import java.util.Map;
 public class DeviceStateCacheService {
 
     private final RedisTemplate<String, String> redisTemplate;
+    private final SafeRedisOperations safeRedisOperations;
     private final ResourceLimiter resourceLimiter;
     private final RealtimeCacheSampler sampler;
     private final RealtimeCacheWriter writer;
@@ -243,8 +244,8 @@ public class DeviceStateCacheService {
      */
     public String getStateValue(Long factoryId, Long deviceId) {
         String key = buildStateKey(factoryId, deviceId);
-        Object value = redisTemplate.opsForHash().get(key, DeviceStateEventFields.STATE);
-        return value != null ? value.toString() : null;
+        String value = safeRedisOperations.safeHGet(key, DeviceStateEventFields.STATE);
+        return value;
     }
 
     /**
@@ -335,6 +336,12 @@ public class DeviceStateCacheService {
                         }
                     }
                     return result; // 成功，返回结果
+                } catch (org.springframework.dao.QueryTimeoutException e) {
+                    // ⚠️ Redis 超时异常：连接已自动释放，但需要处理业务逻辑
+                    // 超时异常通常不可重试，直接降级
+                    log.warn("[DeviceStateCache] Pipeline操作超时，降级为逐个读取: factoryId={}, deviceIds size={}, error={}",
+                            factoryId, deviceIds.size(), e.getMessage());
+                    break;
                 } catch (RedisConnectionFailureException e) {
                     // 连接池异常，判断是否需要重试
                     if (retry < maxRetries && isRetryableException(e)) {
@@ -488,6 +495,12 @@ public class DeviceStateCacheService {
                         }
                     }
                     return result; // 成功，返回结果
+                } catch (org.springframework.dao.QueryTimeoutException e) {
+                    // ⚠️ Redis 超时异常：连接已自动释放，但需要处理业务逻辑
+                    // 超时异常通常不可重试，直接降级
+                    log.warn("[DeviceStateCache] Pipeline操作超时，降级为逐个读取: factoryId={}, deviceIds size={}, error={}",
+                            factoryId, deviceIds.size(), e.getMessage());
+                    break;
                 } catch (RedisConnectionFailureException e) {
                     // 连接池异常，判断是否需要重试
                     if (retry < maxRetries && isRetryableException(e)) {
@@ -529,7 +542,7 @@ public class DeviceStateCacheService {
         for (Long deviceId : deviceIds) {
             try {
                 String key = buildStateKey(factoryId, deviceId);
-                Map<Object, Object> stateData = redisTemplate.opsForHash().entries(key);
+                Map<Object, Object> stateData = safeRedisOperations.safeHGetAll(key);
                 if (stateData != null && !stateData.isEmpty()) {
                     result.put(deviceId, stateData);
                 }
@@ -573,7 +586,7 @@ public class DeviceStateCacheService {
     public void saveHeartbeat(Long factoryId, Long deviceId, String traceId) {
         String key = buildHeartbeatKey(factoryId, deviceId);
         // 统一存储 "1" 作为心跳状态标记，忽略 traceId
-        redisTemplate.opsForValue().set(key, "1", Duration.ofSeconds(stateHeartbeatTtlSeconds));
+        safeRedisOperations.safeSet(key, "1", Duration.ofSeconds(stateHeartbeatTtlSeconds));
     }
 
     /**
@@ -589,7 +602,7 @@ public class DeviceStateCacheService {
      */
     public String getHeartbeat(Long factoryId, Long deviceId) {
         String key = buildHeartbeatKey(factoryId, deviceId);
-        String value = redisTemplate.opsForValue().get(key);
+        String value = safeRedisOperations.safeGet(key);
         // 如果键不存在（已过期），返回 "0" 表示无心跳
         return value != null ? value : "0";
     }

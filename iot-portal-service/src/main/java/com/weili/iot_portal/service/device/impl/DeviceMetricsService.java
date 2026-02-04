@@ -627,10 +627,10 @@ public class DeviceMetricsService implements IDeviceMetricsService {
                     data.getShiftStartMillis(), data.getShiftEndMillis(), data.getTheoreticalCycle());
         }
         
-        // 验证产量数据
+        // 验证产量数据（降级为debug，避免与性能率为0的警告重复）
         long actualRuntimeSec = data.getActualRuntimeMillis() / MILLIS_PER_SECOND;
         if (data.getActualOutput() == 0 && actualRuntimeSec > 0) {
-            log.warn("实时指标计算: 产量数据缺失（产量为0但设备有运行时间），将导致性能率和OEE为0: deviceId={}, factoryId={}, " +
+            log.debug("实时指标计算: 产量数据缺失（产量为0但设备有运行时间）: deviceId={}, factoryId={}, " +
                     "shiftStartTs={}, shiftEndTs={}, actualRuntimeSec={}, actualOutput={}",
                     data.getDeviceId(), data.getFactoryId(), 
                     data.getShiftStartMillis(), data.getShiftEndMillis(), actualRuntimeSec, data.getActualOutput());
@@ -646,13 +646,15 @@ public class DeviceMetricsService implements IDeviceMetricsService {
     private void warnPerformanceRateZero(MetricCalculationResult result, RealtimeCalculationData data) {
         long actualRuntimeSec = data.getActualRuntimeMillis() / MILLIS_PER_SECOND;
         if (result.getPerformance().compareTo(BigDecimal.ZERO) == 0 && actualRuntimeSec > 0) {
+            // 合并警告：统一输出性能率为0的原因，避免重复日志
             if (data.getTheoreticalCycle() <= 0) {
                 log.warn("实时指标计算: 性能率为0（理论节拍缺失）: deviceId={}, factoryId={}, " +
                         "shiftStartTs={}, shiftEndTs={}, actualRuntimeSec={}, theoreticalCycle={}",
                         data.getDeviceId(), data.getFactoryId(), 
                         data.getShiftStartMillis(), data.getShiftEndMillis(), actualRuntimeSec, data.getTheoreticalCycle());
             } else if (data.getActualOutput() <= 0) {
-                log.warn("实时指标计算: 性能率为0（产量缺失）: deviceId={}, factoryId={}, " +
+                // 合并产量缺失警告：包含产量缺失和性能率为0的信息
+                log.warn("实时指标计算: 性能率为0（产量缺失，产量为0但设备有运行时间）: deviceId={}, factoryId={}, " +
                         "shiftStartTs={}, shiftEndTs={}, actualRuntimeSec={}, actualOutput={}, theoreticalCycle={}",
                         data.getDeviceId(), data.getFactoryId(), 
                         data.getShiftStartMillis(), data.getShiftEndMillis(), actualRuntimeSec, 

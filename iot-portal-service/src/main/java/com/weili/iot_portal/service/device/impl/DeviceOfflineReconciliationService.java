@@ -56,6 +56,12 @@ public class DeviceOfflineReconciliationService implements IDeviceOfflineReconci
     private static final String PROP_OFFLINE = "offline";
     private static final String PROP_OFFLINE_REASON = "offline_reason";
     private static final String PROP_OFFLINE_DETECT_TS = "offline_detect_ts";
+    
+    // 设备信息不完整警告的去重间隔（5分钟）
+    private static final long INCOMPLETE_DEVICE_WARN_INTERVAL_MILLIS = 5 * 60 * 1000;
+    
+    // 记录最近警告的设备ID和时间戳（用于去重）
+    private final Map<Long, Long> incompleteDeviceLastWarnTime = new java.util.concurrent.ConcurrentHashMap<>();
 
     // ==================== 依赖注入 ====================
     
@@ -169,8 +175,19 @@ public class DeviceOfflineReconciliationService implements IDeviceOfflineReconci
         Long deviceId = device.getId();
 
         if (factoryId == null || deviceId == null) {
-            log.warn("[DeviceOfflineReconcile] 设备信息不完整，跳过: deviceId={}, factoryId={}",
-                    deviceId, factoryId);
+            // 去重：同一设备在5分钟内只警告一次
+            long now = System.currentTimeMillis();
+            Long lastWarnTime = incompleteDeviceLastWarnTime.get(deviceId);
+            boolean shouldWarn = lastWarnTime == null || (now - lastWarnTime) >= INCOMPLETE_DEVICE_WARN_INTERVAL_MILLIS;
+            
+            if (shouldWarn) {
+                incompleteDeviceLastWarnTime.put(deviceId, now);
+                log.warn("[DeviceOfflineReconcile] 设备信息不完整，跳过: deviceId={}, factoryId={}",
+                        deviceId, factoryId);
+            } else {
+                log.debug("[DeviceOfflineReconcile] 设备信息不完整，跳过（已警告，5分钟内不再重复）: deviceId={}, factoryId={}",
+                        deviceId, factoryId);
+            }
             return false;
         }
 

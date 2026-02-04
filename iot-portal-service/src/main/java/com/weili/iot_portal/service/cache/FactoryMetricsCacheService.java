@@ -42,6 +42,7 @@ import java.util.Optional;
 public class FactoryMetricsCacheService {
 
     private final RedisTemplate<String, String> redisTemplate;
+    private final SafeRedisOperations safeRedisOperations;
 
     @Value("${factory.metrics.ttl-seconds:600}")
     private long ttlSeconds;
@@ -68,8 +69,12 @@ public class FactoryMetricsCacheService {
         payload.put("meta.dataCompleteness", snapshot.getDataCompleteness().toPlainString());
         payload.put("updatedAt", String.valueOf(snapshot.getUpdatedAtSec()));
 
-        redisTemplate.opsForHash().putAll(key, payload);
-        redisTemplate.expire(key, Duration.ofSeconds(ttlSeconds));
+        // 使用工具类统一处理 Redis 操作（批量设置使用 putAll，使用 safeExecute 包装）
+        safeRedisOperations.safeExecute(() -> {
+            redisTemplate.opsForHash().putAll(key, payload);
+            redisTemplate.expire(key, Duration.ofSeconds(ttlSeconds));
+            return true;
+        }, () -> false);
     }
 
     /**
@@ -80,7 +85,7 @@ public class FactoryMetricsCacheService {
      */
     public Optional<FactoryRealtimeMetricSnapshot> getFactoryRealtimeMetrics(Long factoryId) {
         String key = buildFactoryMetricKey(factoryId);
-        Map<Object, Object> map = redisTemplate.opsForHash().entries(key);
+        Map<Object, Object> map = safeRedisOperations.safeHGetAll(key);
         if (map == null || map.isEmpty()) {
             return Optional.empty();
         }
@@ -112,7 +117,7 @@ public class FactoryMetricsCacheService {
      */
     public void evictFactoryRealtimeMetrics(Long factoryId) {
         String key = buildFactoryMetricKey(factoryId);
-        redisTemplate.delete(key);
+        safeRedisOperations.safeDelete(key);
     }
 
     // ==================== 辅助方法 ====================

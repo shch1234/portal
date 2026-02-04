@@ -32,6 +32,7 @@ import java.util.Map;
 public class DeviceToolCacheService {
 
     private final RedisTemplate<String, String> redisTemplate;
+    private final SafeRedisOperations safeRedisOperations;
     private final RealtimeCacheSampler sampler;
     private final RealtimeCacheWriter writer;
 
@@ -146,11 +147,10 @@ public class DeviceToolCacheService {
      */
     public Map<String, Object> getTool(Long factoryId, Long deviceId) {
         String key = buildToolKey(factoryId, deviceId);
-        Object dataObj = redisTemplate.opsForHash().get(key, "data");
-        if (dataObj == null) {
+        String json = safeRedisOperations.safeHGet(key, "data");
+        if (json == null) {
             return null;
         }
-        String json = dataObj.toString();
         if (StringUtils.isBlank(json)) {
             return null;
         }
@@ -219,11 +219,10 @@ public class DeviceToolCacheService {
             return null;
         }
         String key = buildCompensationKey(deviceId);
-        Object jsonObj = redisTemplate.opsForHash().get(key, holderNumber);
-        if (jsonObj == null) {
+        String json = safeRedisOperations.safeHGet(key, holderNumber);
+        if (json == null) {
             return null;
         }
-        String json = jsonObj.toString();
         if (StringUtils.isBlank(json)) {
             return null;
         }
@@ -233,8 +232,11 @@ public class DeviceToolCacheService {
         } catch (Exception e) {
             log.warn("[DeviceToolCacheService] 解析刀补补偿缓存失败: deviceId={}, holderNumber={}, error={}",
                     deviceId, holderNumber, e.getMessage());
-            // 缓存数据损坏，删除该field
-            redisTemplate.opsForHash().delete(key, holderNumber);
+            // 缓存数据损坏，删除该field（使用 safeExecute 包装）
+            safeRedisOperations.safeExecute(() -> {
+                redisTemplate.opsForHash().delete(key, holderNumber);
+                return true;
+            }, () -> false);
             return null;
         }
     }
@@ -257,8 +259,12 @@ public class DeviceToolCacheService {
         try {
             String key = buildCompensationKey(deviceId);
             String json = JsonUtils.toJsonString(compValue);
-            redisTemplate.opsForHash().put(key, holderNumber, json);
-            redisTemplate.expire(key, Duration.ofSeconds(compensationCacheTtlSeconds));
+            // 使用工具类统一处理 Redis 操作
+            safeRedisOperations.safeExecute(() -> {
+                safeRedisOperations.safeHSet(key, holderNumber, json);
+                redisTemplate.expire(key, Duration.ofSeconds(compensationCacheTtlSeconds));
+                return true;
+            }, () -> false);
             log.debug("[DeviceToolCacheService] 缓存刀补补偿值: deviceId={}, holderNumber={}", deviceId, holderNumber);
         } catch (Exception e) {
             log.warn("[DeviceToolCacheService] 缓存刀补补偿值失败: deviceId={}, holderNumber={}, error={}",
@@ -280,7 +286,11 @@ public class DeviceToolCacheService {
             return;
         }
         String key = buildCompensationKey(deviceId);
-        redisTemplate.opsForHash().delete(key, holderNumber);
+        // 使用 safeExecute 包装删除操作（工具类没有封装 Hash 字段删除）
+        safeRedisOperations.safeExecute(() -> {
+            redisTemplate.opsForHash().delete(key, holderNumber);
+            return true;
+        }, () -> false);
         log.debug("[DeviceToolCacheService] 删除刀补补偿缓存: deviceId={}, holderNumber={}", deviceId, holderNumber);
     }
 

@@ -123,7 +123,22 @@ public class DeviceMatchingService {
      */
     private Optional<DeviceInfoDO> getFromCache(String deviceCode) {
         String cacheKey = buildCacheKey(deviceCode);
-        String cached = redisClient.get(cacheKey);
+        String cached;
+        try {
+            cached = redisClient.get(cacheKey);
+        } catch (org.springframework.dao.QueryTimeoutException | 
+                 org.springframework.data.redis.RedisConnectionFailureException e) {
+            // Redis 超时或连接失败：降级到数据库查询，不阻塞业务
+            log.warn("[DeviceMatching] Redis操作超时或连接失败，降级到数据库查询: deviceCode={}, error={}", 
+                    deviceCode, e.getMessage());
+            return Optional.empty();
+        } catch (Exception e) {
+            // 其他异常：记录日志并降级
+            log.warn("[DeviceMatching] Redis操作异常，降级到数据库查询: deviceCode={}, error={}", 
+                    deviceCode, e.getMessage());
+            return Optional.empty();
+        }
+        
         if (StringUtils.isBlank(cached)) {
             return Optional.empty();
         }
