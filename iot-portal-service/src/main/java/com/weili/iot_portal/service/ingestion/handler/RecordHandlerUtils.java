@@ -202,17 +202,26 @@ public class RecordHandlerUtils {
         ShiftTimeRange recordShiftRange = null;
         ShiftTimeRange newRecordShiftRange = null;
 
-        // 计算已有记录的班次信息
+        // 计算已有记录的班次信息（仅在缺失时计算）
         if (record != null && record.getStartTs() != null
                 && (record.getShiftDate() == null || record.getShiftCode() == null)) {
             try {
                 recordShiftInfo = shiftCalculationService.getShiftDateAndCode(
                         orgFactoryId, deviceInfoId, record.getStartTs());
-                // 同时计算班次时间范围（用于跨班次检查，避免锁内查询）
+            } catch (Exception e) {
+                log.warn("[RecordHandlerUtils] 提前计算已有记录班次信息失败: deviceInfoId={}, startTs={}, error={}",
+                        deviceInfoId, record.getStartTs(), e.getMessage());
+            }
+        }
+        
+        // 总是计算已有记录的班次时间范围（用于跨班次检查，避免锁内查询）
+        // 注意：即使记录已有班次信息，仍需要班次范围来判断是否跨班次
+        if (record != null && record.getStartTs() != null) {
+            try {
                 recordShiftRange = shiftCalculationService.calculateShiftRange(
                         orgFactoryId, deviceInfoId, record.getStartTs());
             } catch (Exception e) {
-                log.warn("[RecordHandlerUtils] 提前计算已有记录班次信息失败: deviceInfoId={}, startTs={}, error={}",
+                log.warn("[RecordHandlerUtils] 提前计算已有记录班次范围失败: deviceInfoId={}, startTs={}, error={}",
                         deviceInfoId, record.getStartTs(), e.getMessage());
             }
         }
