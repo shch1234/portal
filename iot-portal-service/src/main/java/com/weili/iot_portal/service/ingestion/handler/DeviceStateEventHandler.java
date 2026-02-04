@@ -185,12 +185,6 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
                 : null;
         String currentState = DeviceStateEnum.fromCode(currentStateCode).name();
 
-        // 状态解析结果（DEBUG级别，用于调试）
-        log.debug("[DeviceStateEventHandler] 状态解析结果: messageId={}, deviceCode={}, " +
-                "previousState={}({}), currentState={}({})",
-                request.getMessageId(), request.getDeviceCode(),
-                previousState, previousStateCode, currentState, currentStateCode);
-
         // convertStateCodeToName 已经处理了验证和转换，直接使用结果
         StateValidationResult currentStateResult = new StateValidationResult(
                 currentState, false, null);
@@ -204,6 +198,12 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
         if (eventTimestamp == null) {
             throw new IotPortalException(IotPortalErrorCode.EVENT_TIMESTAMP_EMPTY);
         }
+
+        // 状态解析结果（在提取时间戳后记录，包含完整信息）
+        log.debug("[DeviceStateEventHandler] 状态解析结果: messageId={}, deviceCode={}, " +
+                "previousState={}({}), currentState={}({}), eventTimestamp={}",
+                request.getMessageId(), request.getDeviceCode(),
+                previousState, previousStateCode, currentState, currentStateCode, eventTimestamp);
 
         // 记录时间戳提取结果（用于调试）
         logTimestampExtraction(eventDataMap, request, eventTimestamp);

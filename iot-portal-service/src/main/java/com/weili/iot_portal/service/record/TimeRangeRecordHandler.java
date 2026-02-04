@@ -563,18 +563,35 @@ public class TimeRangeRecordHandler {
             log.debug("[TimeRangeRecordHandler] 记录跨班次，进行截断: deviceId={}, startTs={}, endTs={}",
                     deviceId, oldStartTs, newEndTs);
 
-            // 删除旧记录
+            // 先创建截断后的记录（在删除前验证，避免数据丢失）
+            List<T> splitRecords = splitByShift(deviceId, factoryId, oldStartTs, newEndTs, recordFactory);
+            
+            // 安全检查：如果拆分结果为空，不删除原记录，避免数据丢失
+            if (splitRecords == null || splitRecords.isEmpty()) {
+                log.error("[TimeRangeRecordHandler] 拆分结果为空，跳过删除和插入操作，避免数据丢失: deviceId={}, startTs={}, endTs={}",
+                        deviceId, oldStartTs, newEndTs);
+                return false; // 不创建新记录，保持原记录不变
+            }
+
+            // 删除旧记录（在确认有拆分结果后再删除）
             if (recordUpdater != null) {
                 recordUpdater.delete(ongoingRecord);
             }
 
-            // 创建截断后的记录
-            List<T> splitRecords = splitByShift(deviceId, factoryId, oldStartTs, newEndTs, recordFactory);
-
             // 插入截断后的记录
             if (recordUpdater != null) {
-                for (T record : splitRecords) {
-                    recordUpdater.insert(record);
+                try {
+                    for (T record : splitRecords) {
+                        recordUpdater.insert(record);
+                    }
+                    log.debug("[TimeRangeRecordHandler] 成功插入{}条拆分后的记录: deviceId={}, startTs={}, endTs={}",
+                            splitRecords.size(), deviceId, oldStartTs, newEndTs);
+                } catch (Exception e) {
+                    // 插入失败：记录错误日志，异常会向上传播导致事务回滚，原记录会被恢复
+                    log.error("[TimeRangeRecordHandler] 插入拆分后的记录失败，事务将回滚，原记录将被恢复: " +
+                                    "deviceId={}, startTs={}, endTs={}, splitRecordsCount={}, error={}",
+                            deviceId, oldStartTs, newEndTs, splitRecords.size(), e.getMessage(), e);
+                    throw e; // 重新抛出异常，确保事务回滚
                 }
             }
         } else {
