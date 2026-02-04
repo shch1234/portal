@@ -65,7 +65,7 @@ public class DeviceToolEventHandler implements WebhookEventHandler {
     }
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
+    @Transactional(rollbackFor = Exception.class, timeout = 10)
     public void handle(WebhookInboxDO inbox, WebhookRequest request) throws Exception {
         // REALTIME_WITH_PERSISTENCE策略：inbox参数不使用，直接调用实时处理方法
         handleRealtime(request);
@@ -83,8 +83,7 @@ public class DeviceToolEventHandler implements WebhookEventHandler {
     @Override
     public void handleRealtime(WebhookRequest request) throws Exception {
         Map<String, Object> eventData = request.getEventData();
-        DeviceIdentity identity =
-                webhookHandlerUtils.resolveDeviceIdentity(request);
+        DeviceIdentity identity = webhookHandlerUtils.resolveDeviceIdentity(request);
         Long deviceInfoId = identity.deviceInfoId();
         Long orgFactoryId = identity.orgFactoryId();
 

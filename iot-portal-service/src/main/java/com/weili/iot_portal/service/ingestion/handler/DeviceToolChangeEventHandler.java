@@ -81,12 +81,11 @@ public class DeviceToolChangeEventHandler implements WebhookEventHandler {
     }
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
+    @Transactional(rollbackFor = Exception.class, timeout = 10)
     public void handle(WebhookInboxDO inbox, WebhookRequest request) throws Exception {
         // 1. 解析事件数据
         EventData eventData = parseEventData(request);
 
-        // 2. 解析设备信息
         DeviceIdentity identity = webhookHandlerUtils.resolveDeviceIdentity(request);
 
         // 3. 使用分布式锁处理换刀事件

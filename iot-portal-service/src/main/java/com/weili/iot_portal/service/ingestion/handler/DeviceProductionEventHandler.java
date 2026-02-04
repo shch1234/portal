@@ -72,7 +72,7 @@ public class DeviceProductionEventHandler implements WebhookEventHandler {
     }
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
+    @Transactional(rollbackFor = Exception.class, timeout = 10)
     public void handle(WebhookInboxDO inbox, WebhookRequest request) throws Exception {
         Map<String, Object> eventData = request.getEventData();
         if (eventData == null) {
@@ -90,8 +90,7 @@ public class DeviceProductionEventHandler implements WebhookEventHandler {
             throw new IotPortalException(IotPortalErrorCode.EVENT_PRODUCTION_TIMESTAMP_EMPTY);
         }
 
-        DeviceIdentity identity = 
-                webhookHandlerUtils.resolveDeviceIdentity(request);
+        DeviceIdentity identity = webhookHandlerUtils.resolveDeviceIdentity(request);
         Long deviceInfoId = identity.deviceInfoId();
         Long orgFactoryId = identity.orgFactoryId();
 

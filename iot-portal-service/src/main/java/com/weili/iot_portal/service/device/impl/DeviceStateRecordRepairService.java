@@ -42,7 +42,7 @@ public class DeviceStateRecordRepairService implements IDeviceStateRecordRepairS
      * </p>
      */
     @Override
-    @Transactional(rollbackFor = Exception.class)
+    @Transactional(rollbackFor = Exception.class, timeout = 10)
     public boolean repairHistoricalOngoingRecord(DeviceStateRecordDO record, long beforeTime) {
         if (record == null || record.getId() == null) {
             return false;

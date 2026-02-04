@@ -10,7 +10,6 @@ import com.weili.iot_portal.service.ingestion.handler.fields.DeviceProgramEventF
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -52,7 +51,8 @@ public class DeviceProgramEventHandler implements WebhookEventHandler {
     }
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
+    // 注意：REALTIME_DIRECT策略只写Redis缓存，不写数据库，因此不需要@Transactional
+    // 避免不必要的数据库连接占用，提升性能
     public void handle(WebhookInboxDO inbox, WebhookRequest request) throws Exception {
         // REALTIME_DIRECT策略：inbox参数不使用，直接调用实时处理方法
         handleRealtime(request);
@@ -72,9 +72,8 @@ public class DeviceProgramEventHandler implements WebhookEventHandler {
         try {
             Map<String, Object> eventData = request.getEventData();
             
-            // 解析设备标识（按 deviceCode / deviceId 解析为 portal 的 deviceInfoId / factoryId）
-            DeviceIdentity identity = 
-                    webhookHandlerUtils.resolveDeviceIdentity(request);
+            // ⚠️ 修复：在事务外执行 Redis 操作，避免连接泄漏
+            DeviceIdentity identity = webhookHandlerUtils.resolveDeviceIdentity(request);
             Long deviceInfoId = identity.deviceInfoId();
             Long orgFactoryId = identity.orgFactoryId();
 
@@ -126,6 +125,7 @@ public class DeviceProgramEventHandler implements WebhookEventHandler {
             throw e;
         }
     }
+    
 
     /**
      * 提取程序相关字段

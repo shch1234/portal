@@ -11,7 +11,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -59,7 +58,8 @@ public class DeviceAxisEventHandler implements WebhookEventHandler {
     }
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
+    // 注意：REALTIME_DIRECT策略只写Redis缓存，不写数据库，因此不需要@Transactional
+    // 避免不必要的数据库连接占用，提升性能
     public void handle(WebhookInboxDO inbox, WebhookRequest request) throws Exception {
         // REALTIME_DIRECT策略：inbox参数不使用，直接调用实时处理方法
         handleRealtime(request);
