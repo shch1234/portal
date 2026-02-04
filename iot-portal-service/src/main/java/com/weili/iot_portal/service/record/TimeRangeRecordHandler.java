@@ -575,7 +575,21 @@ public class TimeRangeRecordHandler {
 
             // 删除旧记录（在确认有拆分结果后再删除）
             if (recordUpdater != null) {
-                recordUpdater.delete(ongoingRecord);
+                long deleteStartTime = System.currentTimeMillis();
+                try {
+                    recordUpdater.delete(ongoingRecord);
+                    long deleteTime = System.currentTimeMillis() - deleteStartTime;
+                    if (deleteTime > 3000) {
+                        log.warn("[TimeRangeRecordHandler] DELETE操作耗时较长: deviceId={}, recordId={}, deleteTime={}ms, " +
+                                "可能被表锁阻塞或存在死锁，建议检查数据库性能",
+                                deviceId, ongoingRecord.getId(), deleteTime);
+                    }
+                } catch (Exception e) {
+                    long deleteTime = System.currentTimeMillis() - deleteStartTime;
+                    log.error("[TimeRangeRecordHandler] DELETE操作失败: deviceId={}, recordId={}, deleteTime={}ms, error={}",
+                            deviceId, ongoingRecord.getId(), deleteTime, e.getMessage(), e);
+                    throw e; // 重新抛出异常，确保事务回滚
+                }
             }
 
             // 插入截断后的记录

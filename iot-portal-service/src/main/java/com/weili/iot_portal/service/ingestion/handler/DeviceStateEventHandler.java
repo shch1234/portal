@@ -135,11 +135,14 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
      * <p>
      * 优化说明：
      * 1. 使用REQUIRES_NEW创建独立事务，缩短主事务时间
-     * 2. 设置超时时间5秒（比锁超时时间短），避免长时间占用连接
+     * 2. 设置超时时间15秒（考虑DELETE操作可能较慢，避免超时）
      * 3. 如果子事务失败，不影响主事务（主事务只做验证和准备）
      * </p>
+     * <p>
+     * 注意：DELETE操作可能因表锁、死锁等原因较慢，需要足够的超时时间
+     * </p>
      */
-    @Transactional(propagation = Propagation.REQUIRES_NEW, timeout = 5, rollbackFor = Exception.class)
+    @Transactional(propagation = Propagation.REQUIRES_NEW, timeout = 15, rollbackFor = Exception.class)
     private void processStateTransitionInNewTransaction(EventData eventData, DeviceIdentity identity, WebhookRequest request) {
         processStateTransitionWithLock(eventData, identity, request);
     }
