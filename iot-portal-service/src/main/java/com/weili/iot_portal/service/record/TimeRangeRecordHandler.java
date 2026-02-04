@@ -559,52 +559,63 @@ public class TimeRangeRecordHandler {
         boolean crossesShift = checkIfCrossesShift(factoryId, deviceId, oldStartTs, newEndTs);
 
         if (crossesShift) {
-            // 跨班次：删除旧记录，插入截断后的多条记录
+            // 跨班次：更新第一条记录，插入后续记录（优化：避免DELETE操作）
             log.debug("[TimeRangeRecordHandler] 记录跨班次，进行截断: deviceId={}, startTs={}, endTs={}",
                     deviceId, oldStartTs, newEndTs);
 
-            // 先创建截断后的记录（在删除前验证，避免数据丢失）
+            // 先创建截断后的记录（在更新前验证，避免数据丢失）
             List<T> splitRecords = splitByShift(deviceId, factoryId, oldStartTs, newEndTs, recordFactory);
             
-            // 安全检查：如果拆分结果为空，不删除原记录，避免数据丢失
+            // 安全检查：如果拆分结果为空，不更新原记录，避免数据丢失
             if (splitRecords == null || splitRecords.isEmpty()) {
-                log.error("[TimeRangeRecordHandler] 拆分结果为空，跳过删除和插入操作，避免数据丢失: deviceId={}, startTs={}, endTs={}",
+                log.error("[TimeRangeRecordHandler] 拆分结果为空，跳过更新和插入操作，避免数据丢失: deviceId={}, startTs={}, endTs={}",
                         deviceId, oldStartTs, newEndTs);
                 return false; // 不创建新记录，保持原记录不变
             }
 
-            // 删除旧记录（在确认有拆分结果后再删除）
+            // 优化：更新第一条记录，插入后续记录（避免DELETE操作，提升性能）
             if (recordUpdater != null) {
-                long deleteStartTime = System.currentTimeMillis();
+                long updateStartTime = System.currentTimeMillis();
                 try {
-                    recordUpdater.delete(ongoingRecord);
-                    long deleteTime = System.currentTimeMillis() - deleteStartTime;
-                    if (deleteTime > 3000) {
-                        log.warn("[TimeRangeRecordHandler] DELETE操作耗时较长: deviceId={}, recordId={}, deleteTime={}ms, " +
+                    // 第一条记录：更新原记录（保持ID不变，避免外键依赖问题）
+                    T firstRecord = splitRecords.get(0);
+                    // 将第一条记录的数据复制到原记录
+                    copyRecordData(firstRecord, ongoingRecord);
+                    recordUpdater.update(ongoingRecord);
+                    
+                    long updateTime = System.currentTimeMillis() - updateStartTime;
+                    if (updateTime > 3000) {
+                        log.warn("[TimeRangeRecordHandler] UPDATE操作耗时较长: deviceId={}, recordId={}, updateTime={}ms, " +
                                 "可能被表锁阻塞或存在死锁，建议检查数据库性能",
-                                deviceId, ongoingRecord.getId(), deleteTime);
+                                deviceId, ongoingRecord.getId(), updateTime);
+                    }
+                    
+                    // 后续记录：插入新记录
+                    if (splitRecords.size() > 1) {
+                        long insertStartTime = System.currentTimeMillis();
+                        try {
+                            for (int i = 1; i < splitRecords.size(); i++) {
+                                recordUpdater.insert(splitRecords.get(i));
+                            }
+                            long insertTime = System.currentTimeMillis() - insertStartTime;
+                            log.debug("[TimeRangeRecordHandler] 成功更新1条记录并插入{}条新记录: deviceId={}, startTs={}, endTs={}, " +
+                                    "updateTime={}ms, insertTime={}ms",
+                                    splitRecords.size() - 1, deviceId, oldStartTs, newEndTs, updateTime, insertTime);
+                        } catch (Exception e) {
+                            long insertTime = System.currentTimeMillis() - insertStartTime;
+                            log.error("[TimeRangeRecordHandler] 插入后续记录失败，事务将回滚，原记录将被恢复: " +
+                                            "deviceId={}, startTs={}, endTs={}, insertCount={}, insertTime={}ms, error={}",
+                                    deviceId, oldStartTs, newEndTs, splitRecords.size() - 1, insertTime, e.getMessage(), e);
+                            throw e; // 重新抛出异常，确保事务回滚
+                        }
+                    } else {
+                        log.debug("[TimeRangeRecordHandler] 成功更新1条记录（拆分后只有1条）: deviceId={}, startTs={}, endTs={}, updateTime={}ms",
+                                deviceId, oldStartTs, newEndTs, System.currentTimeMillis() - updateStartTime);
                     }
                 } catch (Exception e) {
-                    long deleteTime = System.currentTimeMillis() - deleteStartTime;
-                    log.error("[TimeRangeRecordHandler] DELETE操作失败: deviceId={}, recordId={}, deleteTime={}ms, error={}",
-                            deviceId, ongoingRecord.getId(), deleteTime, e.getMessage(), e);
-                    throw e; // 重新抛出异常，确保事务回滚
-                }
-            }
-
-            // 插入截断后的记录
-            if (recordUpdater != null) {
-                try {
-                    for (T record : splitRecords) {
-                        recordUpdater.insert(record);
-                    }
-                    log.debug("[TimeRangeRecordHandler] 成功插入{}条拆分后的记录: deviceId={}, startTs={}, endTs={}",
-                            splitRecords.size(), deviceId, oldStartTs, newEndTs);
-                } catch (Exception e) {
-                    // 插入失败：记录错误日志，异常会向上传播导致事务回滚，原记录会被恢复
-                    log.error("[TimeRangeRecordHandler] 插入拆分后的记录失败，事务将回滚，原记录将被恢复: " +
-                                    "deviceId={}, startTs={}, endTs={}, splitRecordsCount={}, error={}",
-                            deviceId, oldStartTs, newEndTs, splitRecords.size(), e.getMessage(), e);
+                    long updateTime = System.currentTimeMillis() - updateStartTime;
+                    log.error("[TimeRangeRecordHandler] UPDATE操作失败，事务将回滚: deviceId={}, recordId={}, updateTime={}ms, error={}",
+                            deviceId, ongoingRecord.getId(), updateTime, e.getMessage(), e);
                     throw e; // 重新抛出异常，确保事务回滚
                 }
             }
@@ -625,6 +636,37 @@ public class TimeRangeRecordHandler {
         }
 
         return false; // 未创建新记录
+    }
+
+    /**
+     * 复制记录数据（从源记录复制到目标记录）
+     * <p>
+     * 用于跨班次拆分时，将第一条拆分记录的数据复制到原记录，然后更新原记录
+     * 这样可以避免DELETE操作，提升性能
+     * </p>
+     *
+     * @param source 源记录（拆分后的第一条记录）
+     * @param target 目标记录（原记录，将被更新）
+     * @param <T>    记录类型
+     */
+    private <T extends TimeRangeRecord> void copyRecordData(T source, T target) {
+        // 复制时间范围字段
+        target.setStartTs(source.getStartTs());
+        target.setEndTs(source.getEndTs());
+        target.setDurationS(source.getDurationS());
+        
+        // 复制班次信息
+        target.setShiftDate(source.getShiftDate());
+        target.setShiftCode(source.getShiftCode());
+        
+        // 复制扩展属性（如果支持）
+        Map<String, Object> sourceProperties = source.getProperties();
+        if (sourceProperties != null) {
+            target.setProperties(new HashMap<>(sourceProperties));
+        }
+        
+        // 注意：不复制ID，保持原记录的ID不变
+        // 注意：不复制其他业务字段（如stateCode等），这些字段由调用方在RecordFactory中设置
     }
 
     /**
