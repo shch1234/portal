@@ -58,6 +58,13 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
      */
     private static final long EXPIRED_END_TIMESTAMP = -1L;
 
+    /**
+     * 跨班次拆分最大持续时间阈值（12小时）
+     * 如果状态记录持续时间超过此阈值，不再进行跨班次拆分，直接结束记录并标注数据可能有问题
+     * 单位：毫秒
+     */
+    private static final long MAX_DURATION_FOR_SHIFT_SPLIT_MS = 12L * 60 * 60 * 1000; // 12小时
+
     // ==================== 依赖注入 ====================
     private final DeviceStateRecordRepository stateTimelineRepository;
     private final WebhookFailLogService webhookFailLogService;
@@ -508,98 +515,175 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
         Long oldStartTs = latestState.getStartTs();
         Long newEndTs = context.eventData().eventTimestamp();
 
-        // 优化：使用预计算的班次范围判断是否跨班次，避免锁内数据库查询
-        boolean crossesShift = false;
-        if (context.precomputedShiftRange() != null && context.precomputedShiftRange().getEndTs() != null) {
-            // 使用预计算的班次结束时间判断跨班次
-            crossesShift = newEndTs > context.precomputedShiftRange().getEndTs();
-        } else {
-            // 回退：如果预计算失败，使用通用服务（会查询数据库，应尽量避免）
-            log.warn("[DeviceStateEventHandler] 预计算的班次范围不可用，锁内查询跨班次: deviceId={}, startTs={}, endTs={}",
-                    latestState.getDeviceInfoId(), oldStartTs, newEndTs);
-            crossesShift = timeRangeRecordHandler.checkIfCrossesShift(
-                    context.orgFactoryId(), latestState.getDeviceInfoId(), oldStartTs, newEndTs);
-        }
-
-        Map<String, Object> oldProperties = latestState.getProperties();
-        if (oldProperties == null) {
-            oldProperties = new HashMap<>();
-        }
-        final Map<String, Object> finalProperties = oldProperties;
-        final Integer stateCode = latestState.getStateCode();
+        // 计算持续时间
+        long durationMs = newEndTs - oldStartTs;
         boolean createdNewRecord = false;
 
-        if (crossesShift) {
-            // 跨班次：使用通用服务拆分记录（会查询数据库，但跨班次场景较少）
-            log.debug("[DeviceStateEventHandler] 记录跨班次，进行截断: deviceId={}, startTs={}, endTs={}",
-                    latestState.getDeviceInfoId(), oldStartTs, newEndTs);
-            
-            createdNewRecord = timeRangeRecordHandler.updateOngoingRecord(
-                    latestState,
-                    newEndTs,
-                    context.orgFactoryId(),
-                    // RecordFactory: 创建拆分后的记录
-                    (deviceId, factoryId, startTs, endTs) -> {
-                        DeviceStateRecordDO record = new DeviceStateRecordDO();
-                        record.setDeviceInfoId(deviceId);
-                        record.setOrgFactoryId(factoryId);
-                        record.setStateCode(stateCode);
-                        record.setStartTs(startTs);
-                        record.setEndTs(endTs);
-                        record.setDurationS(endTs - startTs);
-                        record.setProperties(finalProperties);
-                        record.setIsComplete(true);  // 拆分后的记录标记为完整
-                        return record;
-                    },
-                    // RecordUpdater: 更新/删除/插入数据库
-                    new com.weili.iot_portal.service.record.TimeRangeRecordHandler.RecordUpdater<DeviceStateRecordDO>() {
-                        @Override
-                        public void update(DeviceStateRecordDO record) {
-                            record.setIsComplete(true);
-                            stateTimelineRepository.update(record);
-                        }
+        // 优化：如果持续时间超过12小时，直接结束记录，不进行跨班次拆分，并标注数据可能有问题
+        // 这样可以避免跨多个班次时的大量数据库操作，减少锁持有时间
+        if (durationMs > MAX_DURATION_FOR_SHIFT_SPLIT_MS) {
+            long durationHours = durationMs / (60L * 60 * 1000);
+            log.warn("[DeviceStateEventHandler] 状态记录持续时间超过12小时，直接结束记录（不拆分）: deviceId={}, stateCode={}, " +
+                            "startTs={}, endTs={}, duration={}ms ({}小时), 标注数据可能有问题",
+                    latestState.getDeviceInfoId(), latestState.getStateCode(), oldStartTs, newEndTs, durationMs, durationHours);
 
-                        @Override
-                        public void delete(DeviceStateRecordDO record) {
-                            stateTimelineRepository.deleteById(record.getId());
-                        }
-
-                        @Override
-                        public void insert(DeviceStateRecordDO record) {
-                            stateTimelineRepository.insert(record);
-                            log.debug("[DeviceStateEventHandler] 插入截断后的旧状态记录: 状态={}({}), shiftDate={}, shiftCode={}, startTs={}, endTs={}",
-                                    latestStateEnum.name(), record.getStateCode(), record.getShiftDate(), record.getShiftCode(),
-                                    record.getStartTs(), record.getEndTs());
-                        }
-                    }
-            );
-        } else {
-            // 优化：不跨班次，直接更新记录，避免调用 updateOngoingRecord 中的数据库查询
+            // 直接结束记录，不拆分
             latestState.setEndTs(newEndTs);
-            if (oldStartTs != null) {
-                latestState.setDurationS(newEndTs - oldStartTs);
+            latestState.setDurationS(durationMs);
+            latestState.setIsComplete(false);  // 标记为不完整，因为数据可能有问题
+
+            // 在properties中标注数据可能有问题
+            Map<String, Object> properties = latestState.getProperties();
+            if (properties == null) {
+                properties = new HashMap<>();
             }
-            latestState.setIsComplete(true);
-            
-            // 优化：使用预计算的班次信息，避免数据库查询
+            properties.put("data_anomaly", true);
+            properties.put("anomaly_reason", String.format("状态记录持续时间过长: %d小时 (超过12小时阈值), 可能存在问题", durationHours));
+            properties.put("duration_ms", durationMs);
+            properties.put("duration_hours", durationHours);
+            properties.put("skip_shift_split", true);  // 标记为跳过班次拆分
+            latestState.setProperties(properties);
+
+            // 使用预计算的班次信息，避免数据库查询
             if (context.precomputedShiftInfo() != null) {
                 setShiftInfoIfMissing(latestState, context.precomputedShiftInfo());
             }
-            // 如果预计算失败，回退到数据库查询（应尽量避免）
+            // 如果预计算失败，使用默认值，不查询数据库（减少锁持有时间）
             if (latestState.getShiftDate() == null || latestState.getShiftCode() == null) {
-                log.warn("[DeviceStateEventHandler] 预计算的班次信息不可用，锁内查询: deviceId={}, startTs={}",
+                log.warn("[DeviceStateEventHandler] 预计算的班次信息不可用，使用默认值（避免锁内查询）: deviceId={}, startTs={}",
                         latestState.getDeviceInfoId(), oldStartTs);
-                recordHandlerUtils.fillShiftInfoIfMissing(latestState, context.orgFactoryId());
+                // 使用默认值：从时间戳计算日期，使用默认班次编码
+                if (latestState.getShiftDate() == null && oldStartTs != null) {
+                    // 从时间戳计算日期（格式：yyyy-MM-dd）
+                    java.time.LocalDate date = java.time.Instant.ofEpochMilli(oldStartTs)
+                            .atZone(java.time.ZoneId.systemDefault())
+                            .toLocalDate();
+                    latestState.setShiftDate(date);
+                }
+                if (latestState.getShiftCode() == null) {
+                    // 使用默认班次编码（后续可以通过异步任务补充正确的班次编码）
+                    latestState.setShiftCode(1); // 临时使用一班作为默认值
+                }
             }
-            
+
             // 直接更新数据库
             stateTimelineRepository.update(latestState);
-            
-            log.debug("[DeviceStateEventHandler] 更新旧状态记录（不跨班次）: 状态={}({}), endTs={}, durationS={}",
-                    latestStateEnum.name(), latestState.getStateCode(), latestState.getEndTs(), latestState.getDurationS());
+
+            // 优化：使用 isDebugEnabled 检查，避免字符串拼接开销
+            if (log.isDebugEnabled()) {
+                log.debug("[DeviceStateEventHandler] 更新超长状态记录（超过12小时，不拆分）: 状态={}({}), endTs={}, durationS={}, durationHours={}",
+                        latestStateEnum.name(), latestState.getStateCode(), latestState.getEndTs(), latestState.getDurationS(), durationHours);
+            }
+            // 超过12小时的记录不拆分，createdNewRecord 保持为 false
+        } else {
+            // 优化：使用预计算的班次范围判断是否跨班次，避免锁内数据库查询
+            boolean crossesShift = false;
+            if (context.precomputedShiftRange() != null && context.precomputedShiftRange().getEndTs() != null) {
+                // 使用预计算的班次结束时间判断跨班次
+                crossesShift = newEndTs > context.precomputedShiftRange().getEndTs();
+            } else {
+                // 回退：如果预计算失败，使用通用服务（会查询数据库，应尽量避免）
+                log.warn("[DeviceStateEventHandler] 预计算的班次范围不可用，锁内查询跨班次: deviceId={}, startTs={}, endTs={}",
+                        latestState.getDeviceInfoId(), oldStartTs, newEndTs);
+                crossesShift = timeRangeRecordHandler.checkIfCrossesShift(
+                        context.orgFactoryId(), latestState.getDeviceInfoId(), oldStartTs, newEndTs);
+            }
+
+            Map<String, Object> oldProperties = latestState.getProperties();
+            if (oldProperties == null) {
+                oldProperties = new HashMap<>();
+            }
+            final Map<String, Object> finalProperties = oldProperties;
+            final Integer stateCode = latestState.getStateCode();
+
+            if (crossesShift) {
+                // 跨班次：使用通用服务拆分记录（会查询数据库，但跨班次场景较少）
+                log.debug("[DeviceStateEventHandler] 记录跨班次，进行截断: deviceId={}, startTs={}, endTs={}",
+                        latestState.getDeviceInfoId(), oldStartTs, newEndTs);
+                
+                createdNewRecord = timeRangeRecordHandler.updateOngoingRecord(
+                        latestState,
+                        newEndTs,
+                        context.orgFactoryId(),
+                        // RecordFactory: 创建拆分后的记录
+                        (deviceId, factoryId, startTs, endTs) -> {
+                            DeviceStateRecordDO record = new DeviceStateRecordDO();
+                            record.setDeviceInfoId(deviceId);
+                            record.setOrgFactoryId(factoryId);
+                            record.setStateCode(stateCode);
+                            record.setStartTs(startTs);
+                            record.setEndTs(endTs);
+                            record.setDurationS(endTs - startTs);
+                            record.setProperties(finalProperties);
+                            record.setIsComplete(true);  // 拆分后的记录标记为完整
+                            return record;
+                        },
+                        // RecordUpdater: 更新/删除/插入数据库
+                        new com.weili.iot_portal.service.record.TimeRangeRecordHandler.RecordUpdater<DeviceStateRecordDO>() {
+                            @Override
+                            public void update(DeviceStateRecordDO record) {
+                                record.setIsComplete(true);
+                                stateTimelineRepository.update(record);
+                            }
+
+                            @Override
+                            public void delete(DeviceStateRecordDO record) {
+                                stateTimelineRepository.deleteById(record.getId());
+                            }
+
+                            @Override
+                            public void insert(DeviceStateRecordDO record) {
+                                stateTimelineRepository.insert(record);
+                                log.debug("[DeviceStateEventHandler] 插入截断后的旧状态记录: 状态={}({}), shiftDate={}, shiftCode={}, startTs={}, endTs={}",
+                                        latestStateEnum.name(), record.getStateCode(), record.getShiftDate(), record.getShiftCode(),
+                                        record.getStartTs(), record.getEndTs());
+                            }
+                        }
+                );
+            } else {
+                // 优化：不跨班次，直接更新记录，避免调用 updateOngoingRecord 中的数据库查询
+                latestState.setEndTs(newEndTs);
+                if (oldStartTs != null) {
+                    latestState.setDurationS(newEndTs - oldStartTs);
+                }
+                latestState.setIsComplete(true);
+                
+                // 优化：使用预计算的班次信息，避免数据库查询
+                if (context.precomputedShiftInfo() != null) {
+                    setShiftInfoIfMissing(latestState, context.precomputedShiftInfo());
+                }
+                // 优化：如果预计算失败，使用默认值，不查询数据库（减少锁持有时间）
+                if (latestState.getShiftDate() == null || latestState.getShiftCode() == null) {
+                    log.warn("[DeviceStateEventHandler] 预计算的班次信息不可用，使用默认值（避免锁内查询）: deviceId={}, startTs={}",
+                            latestState.getDeviceInfoId(), oldStartTs);
+                    // 使用默认值：从时间戳计算日期，使用默认班次编码
+                    if (latestState.getShiftDate() == null && oldStartTs != null) {
+                        // 从时间戳计算日期（格式：yyyy-MM-dd）
+                        java.time.LocalDate date = java.time.Instant.ofEpochMilli(oldStartTs)
+                                .atZone(java.time.ZoneId.systemDefault())
+                                .toLocalDate();
+                        latestState.setShiftDate(date);
+                    }
+                    if (latestState.getShiftCode() == null) {
+                        // 使用默认班次编码（后续可以通过异步任务补充正确的班次编码）
+                        latestState.setShiftCode(1);
+                    }
+                    // 注意：使用默认值后，后续可以通过异步任务补充正确的班次信息
+                    // 这避免了在锁内进行数据库查询，减少锁持有时间10-30ms
+                }
+                
+                // 直接更新数据库
+                stateTimelineRepository.update(latestState);
+                
+                // 优化：使用 isDebugEnabled 检查，避免字符串拼接开销
+                if (log.isDebugEnabled()) {
+                    log.debug("[DeviceStateEventHandler] 更新旧状态记录（不跨班次）: 状态={}({}), endTs={}, durationS={}",
+                            latestStateEnum.name(), latestState.getStateCode(), latestState.getEndTs(), latestState.getDurationS());
+                }
+            }
         }
 
-        if (!createdNewRecord) {
+        if (!createdNewRecord && log.isDebugEnabled()) {
             log.debug("[DeviceStateEventHandler] 更新旧状态记录: 状态={}({}), endTs={}, durationS={}",
                     latestStateEnum.name(), latestState.getStateCode(), latestState.getEndTs(), latestState.getDurationS());
         }
@@ -706,12 +790,13 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
             return strategy_handleExpiredState(latestState, context);
         }
 
-        // 使用CAS更新：原子性地结束进行中的记录
+        // 更新进行中的记录（状态不匹配场景）
+        // 优化：由于分布式锁已保证串行，直接更新，不需要复杂的CAS条件
         boolean updateSuccess = updateOngoingRecordWithCAS(latestState, recordId, context.eventData(), orgFactoryId, context.request(), context.precomputedShiftInfo());
 
         if (!updateSuccess) {
-            // CAS更新失败，说明记录已被其他线程处理，直接插入新状态
-            log.info("[DeviceStateEventHandler] CAS更新失败，记录已被处理，直接插入新状态: deviceInfoId={}, recordId={}, messageId={}",
+            // 更新失败（记录不存在或已被删除），直接插入新状态
+            log.info("[DeviceStateEventHandler] 更新进行中记录失败，直接插入新状态: deviceInfoId={}, recordId={}, messageId={}",
                     deviceInfoId, recordId, context.request().getMessageId());
             strategy_insertNewStateRecord(deviceInfoId, orgFactoryId, context.eventData(), 
                     context.precomputedNewRecordShiftInfo(), context.precomputedNewRecordShiftRange());
@@ -835,17 +920,21 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
     }
 
     /**
-     * 使用CAS（Compare-And-Swap）更新进行中的记录
+     * 更新进行中的记录（状态不匹配场景）
      * <p>
-     * 通过WHERE条件（end_ts IS NULL AND id = ?）确保原子性更新
-     * 如果更新失败（影响行数为0），说明记录已被其他线程处理
+     * 优化说明：
+     * 1. 由于分布式锁已经保证同一设备的操作串行执行，不需要重新查询验证
+     * 2. 直接更新记录，不需要复杂的CAS条件检查
+     * 3. 如果更新失败（记录不存在或已被删除），返回false
      * </p>
      *
+     * @param latestState 最新的状态记录
      * @param recordId 记录ID
      * @param eventData 事件数据
      * @param orgFactoryId 工厂ID
      * @param request Webhook请求
-     * @return true 如果更新成功，false 如果记录已被其他线程处理
+     * @param precomputedShiftInfo 预计算的班次信息
+     * @return true 如果更新成功，false 如果记录不存在或更新失败
      */
     private boolean updateOngoingRecordWithCAS(DeviceStateRecordDO latestState, Long recordId, 
                                                EventData eventData, Long orgFactoryId, 
@@ -853,24 +942,7 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
                                                ShiftDateAndCode precomputedShiftInfo) {
         Long deviceInfoId = latestState.getDeviceInfoId();
         
-        // 重新查询记录以验证状态（防止并发修改）
-        Optional<DeviceStateRecordDO> currentOpt = stateTimelineRepository.findLatestState(deviceInfoId);
-        if (currentOpt.isEmpty()) {
-            log.debug("[DeviceStateEventHandler] 记录不存在，CAS更新失败: deviceInfoId={}, recordId={}", 
-                    deviceInfoId, recordId);
-            return false;
-        }
-        
-        DeviceStateRecordDO current = currentOpt.get();
-        
-        // 验证记录是否仍然是进行中状态且ID匹配
-        if (!current.getId().equals(recordId) || current.getEndTs() != null) {
-            log.debug("[DeviceStateEventHandler] 记录已被处理，CAS更新失败: deviceInfoId={}, recordId={}, " +
-                            "当前recordId={}, 当前endTs={}", 
-                    deviceInfoId, recordId, current.getId(), current.getEndTs());
-            return false;
-        }
-        
+        // 优化：由于分布式锁已保证串行，直接使用传入的latestState，不需要重新查询
         // 构建更新对象
         DeviceStateRecordDO updateRecord = new DeviceStateRecordDO();
         updateRecord.setId(recordId);
@@ -878,15 +950,15 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
         updateRecord.setStateCode(DeviceStateEnum.UNKNOWN.getCode());
         updateRecord.setEndTs(eventData.eventTimestamp());
         
-        if (current.getStartTs() != null) {
-            updateRecord.setDurationS(eventData.eventTimestamp() - current.getStartTs());
+        if (latestState.getStartTs() != null) {
+            updateRecord.setDurationS(eventData.eventTimestamp() - latestState.getStartTs());
         }
         updateRecord.setIsComplete(false);
         
         // 设置不匹配属性
         Map<String, Object> mismatchProperties = new HashMap<>();
         mismatchProperties.put(DeviceStateEventFields.MISMATCH_REASON, "previousState不匹配");
-        DeviceStateEnum dbStateEnum = DeviceStateEnum.fromCode(current.getStateCode());
+        DeviceStateEnum dbStateEnum = DeviceStateEnum.fromCode(latestState.getStateCode());
         mismatchProperties.put(DeviceStateEventFields.EXPECTED, dbStateEnum.name());
         mismatchProperties.put(DeviceStateEventFields.ACTUAL_DB, dbStateEnum.name());
         mismatchProperties.put(DeviceStateEventFields.EVENT_PREVIOUS, eventData.previousState());
@@ -895,88 +967,23 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
         // 优化：使用预计算的班次信息，减少锁内数据库查询
         recordFactory_ensureShiftInfo(updateRecord, precomputedShiftInfo, orgFactoryId);
         
-        // 执行CAS更新：使用条件更新确保原子性
+        // 优化：直接更新，分布式锁已保证串行，不需要复杂的CAS条件
         try {
-            int affectedRows = updateRecordWithCondition(updateRecord, deviceInfoId);
-            if (affectedRows > 0) {
-                log.debug("[DeviceStateEventHandler] CAS更新成功: recordId={}, affectedRows={}", recordId, affectedRows);
-                return true;
-            } else {
-                log.debug("[DeviceStateEventHandler] CAS更新失败（记录已被处理）: recordId={}, affectedRows={}", 
-                        recordId, affectedRows);
-                return false;
-            }
+            stateTimelineRepository.update(updateRecord);
+            log.debug("[DeviceStateEventHandler] 更新进行中记录成功: recordId={}", recordId);
+            return true;
         } catch (org.springframework.dao.CannotAcquireLockException e) {
-            // 锁超时异常：记录可能正在被其他线程处理
-            log.warn("[DeviceStateEventHandler] CAS更新时发生锁超时: recordId={}, messageId={}, error={}",
+            // 锁超时异常：记录可能正在被其他事务处理（虽然分布式锁已保证串行，但数据库行锁可能被其他表的事务持有）
+            log.warn("[DeviceStateEventHandler] 更新进行中记录时发生锁超时: recordId={}, messageId={}, error={}",
                     recordId, request.getMessageId(), e.getMessage());
+            return false;
+        } catch (Exception e) {
+            log.error("[DeviceStateEventHandler] 更新进行中记录时发生异常: recordId={}, error={}", 
+                    recordId, e.getMessage(), e);
             return false;
         }
     }
 
-    /**
-     * 条件更新记录（CAS更新）
-     * <p>
-     * 只更新 end_ts IS NULL 的记录，确保原子性
-     * 优化：减少验证查询，通过更新前后的状态判断是否成功
-     * </p>
-     * 
-     * <p>
-     * 优化说明：
-     * 1. 在调用此方法前，已经验证了记录状态（在updateOngoingRecordWithCAS中）
-     * 2. 更新后，如果最新记录ID变化，说明已有新记录，原记录已被处理（视为成功）
-     * 3. 如果最新记录ID未变化，检查end_ts是否已设置（更新成功）
-     * 4. 如果更新失败，说明记录已被其他线程修改
-     * </p>
-     */
-    private int updateRecordWithCondition(DeviceStateRecordDO record, Long deviceInfoId) {
-        // 执行更新
-        try {
-            // 记录更新前的状态（用于验证）
-            Long recordIdBeforeUpdate = record.getId();
-            Long endTsBeforeUpdate = null; // 更新前应该是null（进行中状态）
-            
-            stateTimelineRepository.update(record);
-            
-            // 优化：只查询一次验证更新结果（而不是两次）
-            // 如果最新记录ID变化，说明已有新记录，原记录已被处理（视为成功）
-            // 如果最新记录ID未变化，检查end_ts是否已设置
-            Optional<DeviceStateRecordDO> updatedOpt = stateTimelineRepository.findLatestState(deviceInfoId);
-            if (updatedOpt.isPresent()) {
-                DeviceStateRecordDO updated = updatedOpt.get();
-                
-                // 情况1：记录ID变化，说明已有新记录，原记录已被结束（视为成功）
-                if (!updated.getId().equals(recordIdBeforeUpdate)) {
-                    log.debug("[DeviceStateEventHandler] CAS更新成功（记录ID变化）: 原recordId={}, 新recordId={}", 
-                            recordIdBeforeUpdate, updated.getId());
-                    return 1;
-                }
-                
-                // 情况2：记录ID未变化，检查end_ts是否已设置
-                if (updated.getEndTs() != null && updated.getEndTs().equals(record.getEndTs())
-                        && updated.getStateCode() != null 
-                        && updated.getStateCode().equals(DeviceStateEnum.UNKNOWN.getCode())) {
-                    log.debug("[DeviceStateEventHandler] CAS更新成功（end_ts已设置）: recordId={}, endTs={}", 
-                            recordIdBeforeUpdate, updated.getEndTs());
-                    return 1;
-                }
-                
-                // 情况3：记录ID未变化，但end_ts未设置或state_code不匹配（更新失败）
-                log.debug("[DeviceStateEventHandler] CAS更新失败（状态不匹配）: recordId={}, endTs={}, stateCode={}", 
-                        recordIdBeforeUpdate, updated.getEndTs(), updated.getStateCode());
-                return 0;
-            }
-            
-            // 情况4：记录不存在（异常情况）
-            log.warn("[DeviceStateEventHandler] CAS更新后记录不存在: recordId={}, deviceInfoId={}", 
-                    recordIdBeforeUpdate, deviceInfoId);
-            return 0;
-        } catch (Exception e) {
-            log.error("[DeviceStateEventHandler] 更新记录时发生异常: recordId={}, error={}", 
-                    record.getId(), e.getMessage(), e);
-            throw e;
-        }
-    }
 
 
     // ==================== 记录创建工厂方法 ====================
