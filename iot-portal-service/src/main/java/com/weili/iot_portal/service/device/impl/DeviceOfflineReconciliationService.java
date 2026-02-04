@@ -181,7 +181,9 @@ public class DeviceOfflineReconciliationService implements IDeviceOfflineReconci
         }
 
         // 2. 获取分布式锁（避免多个任务同时处理同一设备）
-        if (!deviceLockService.tryLockState(deviceId, 30)) {
+        // 优化：使用10秒超时，因为每个独立事务最多10秒，正常情况下总耗时应在1-2秒内
+        // 即使有10条报警，也应在5-10秒内完成。如果超过10秒，说明数据库有问题，应该快速失败
+        if (!deviceLockService.tryLockState(deviceId, 10)) {
             log.debug("[DeviceOfflineReconcile] 获取设备锁失败，跳过: deviceId={}", deviceId);
             return false;
         }
@@ -194,22 +196,30 @@ public class DeviceOfflineReconciliationService implements IDeviceOfflineReconci
             }
 
             try {
-                // 4. 检查并处理状态记录
-                if (!shouldProcessStateRecord(deviceId)) {
+                // 4. 查询最新状态记录（只查询一次，避免重复查询）
+                Optional<DeviceStateRecordDO> latestOpt = stateRecordRepository.findLatestState(deviceId);
+                
+                // 5. 检查是否需要处理状态记录（传入查询结果，避免重复查询）
+                if (!shouldProcessStateRecord(latestOpt)) {
                     return false;
                 }
 
-                // 5. 处理所有类型的记录（每个操作使用独立事务）
-                Optional<DeviceStateRecordDO> latestOpt = stateRecordRepository.findLatestState(deviceId);
+                // 6. 处理状态记录（每个操作使用独立事务）
                 if (latestOpt.isPresent()) {
                     DeviceStateRecordDO latest = latestOpt.get();
-                    // 结束当前进行中的正常状态
-                    endOngoingStateAsOffline(latest, factoryId, currentTimeMillis);
-                    // 插入离线状态记录
-                    insertOfflineStateRecord(latest, factoryId, currentTimeMillis);
+                    // 结束当前进行中的正常状态（传入查询结果，避免重复查询）
+                    // 注意：endOngoingStateAsOffline 内部会重新查询以确保记录是最新的
+                    boolean stateEnded = endOngoingStateAsOffline(latest, factoryId, currentTimeMillis);
+                    if (stateEnded) {
+                        // 只有成功结束状态后，才插入离线状态记录
+                        insertOfflineStateRecord(latest, factoryId, currentTimeMillis);
+                    } else {
+                        log.debug("[DeviceOfflineReconcile] 结束状态记录失败，跳过插入离线状态记录: deviceId={}",
+                                deviceId);
+                    }
                 }
 
-                // 6. 处理其他类型的记录（并行处理，互不依赖）
+                // 7. 处理其他类型的记录（并行处理，互不依赖）
                 endOngoingToolAsOffline(deviceId, factoryId, currentTimeMillis);
                 endOngoingProductionAsOffline(deviceId, factoryId, currentTimeMillis);
                 endOngoingAlarmsAsOffline(deviceId, factoryId, currentTimeMillis);
@@ -227,11 +237,16 @@ public class DeviceOfflineReconciliationService implements IDeviceOfflineReconci
 
     /**
      * 判断是否需要处理状态记录
+     * <p>
+     * 优化：接收已查询的记录，避免重复查询
+     * </p>
+     * 
+     * @param latestOpt 已查询的最新状态记录（可为空）
+     * @return true 如果需要处理，false 如果不需要处理
      */
-    private boolean shouldProcessStateRecord(Long deviceId) {
-        Optional<DeviceStateRecordDO> latestOpt = stateRecordRepository.findLatestState(deviceId);
+    private boolean shouldProcessStateRecord(Optional<DeviceStateRecordDO> latestOpt) {
         if (latestOpt.isEmpty()) {
-            log.debug("[DeviceOfflineReconcile] 设备无状态记录，跳过离线纠正: deviceId={}", deviceId);
+            log.debug("[DeviceOfflineReconcile] 设备无状态记录，跳过离线纠正");
             return false;
         }
 
@@ -246,7 +261,7 @@ public class DeviceOfflineReconciliationService implements IDeviceOfflineReconci
         DeviceStateEnum latestStateEnum = DeviceStateEnum.fromCode(latest.getStateCode());
         if (latestStateEnum == DeviceStateEnum.UNKNOWN) {
             log.debug("[DeviceOfflineReconcile] 设备已存在进行中的UNKNOWN状态，跳过: deviceId={}, recordId={}",
-                    deviceId, latest.getId());
+                    latest.getDeviceInfoId(), latest.getId());
             return false;
         }
 
@@ -260,51 +275,69 @@ public class DeviceOfflineReconciliationService implements IDeviceOfflineReconci
      * <p>
      * 优化：
      * 1. 使用独立事务（REQUIRES_NEW），快速提交，减少锁持有时间
-     * 2. 添加重试机制，处理锁超时异常
+     * 2. 锁超时后不抛出异常，避免拖垮程序，记录警告并返回false
+     * 3. 锁内重新查询记录，确保是最新的（可能已被实时事件处理）
      * </p>
+     * 
+     * @return true 如果成功更新，false 如果锁超时或记录已被处理
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW, timeout = 10, rollbackFor = Exception.class)
-    private void endOngoingStateAsOffline(DeviceStateRecordDO record, Long factoryId, long offlineDetectTime) {
-        int maxRetries = 3;
-        long retryDelayMs = 200; // 初始延迟200ms
-
-        for (int retry = 0; retry <= maxRetries; retry++) {
-            try {
-                // 计算并设置结束时间和持续时间
-                TimeRangeResult timeRange = calculateEndTimeAndDuration(record.getStartTs(), offlineDetectTime);
-                record.setEndTs(timeRange.endTs);
-                record.setDurationS(timeRange.duration);
-                record.setIsComplete(false);
-
-                // 添加离线异常信息到 properties
-                addOfflineProperties(record.getProperties(), offlineDetectTime, record::setProperties);
-
-                // 补全班次信息并更新
-                recordHandlerUtils.fillShiftInfoIfMissing(record, factoryId);
-                stateRecordRepository.update(record);
-
-                DeviceStateEnum stateEnum = DeviceStateEnum.fromCode(record.getStateCode());
-                log.info("[DeviceOfflineReconcile] 标记进行中状态为离线结束: deviceId={}, recordId={}, state={}, startTs={}, endTs={}",
-                        record.getDeviceInfoId(), record.getId(), stateEnum.name(), record.getStartTs(), timeRange.endTs);
-                return; // 成功，退出
-            } catch (CannotAcquireLockException e) {
-                // 锁超时异常，判断是否需要重试
-                if (retry < maxRetries) {
-                    log.warn("[DeviceOfflineReconcile] 更新状态记录锁超时，重试 {}/{}: deviceId={}, recordId={}",
-                            retry + 1, maxRetries, record.getDeviceInfoId(), record.getId());
-                    try {
-                        Thread.sleep(retryDelayMs * (1L << retry)); // 指数退避
-                    } catch (InterruptedException ie) {
-                        Thread.currentThread().interrupt();
-                        throw e; // 中断异常，重新抛出
-                    }
-                    continue;
-                }
-                // 重试次数用完，抛出异常
-                log.error("[DeviceOfflineReconcile] 更新状态记录锁超时，重试失败: deviceId={}, recordId={}",
-                        record.getDeviceInfoId(), record.getId(), e);
-                throw e;
+    private boolean endOngoingStateAsOffline(DeviceStateRecordDO record, Long factoryId, long offlineDetectTime) {
+        try {
+            // 锁内重新查询记录，确保是最新的（可能已被实时事件处理）
+            // 注意：虽然外层已经查询过，但锁内必须重新查询，因为可能已被实时事件处理
+            Optional<DeviceStateRecordDO> latestOpt = stateRecordRepository.findLatestState(record.getDeviceInfoId());
+            
+            if (latestOpt.isEmpty()) {
+                log.debug("[DeviceOfflineReconcile] 记录不存在，可能已被删除: deviceId={}, oldRecordId={}",
+                        record.getDeviceInfoId(), record.getId());
+                return false;
             }
+            
+            DeviceStateRecordDO latestRecord = latestOpt.get();
+            
+            // 检查记录ID是否匹配（如果不匹配，说明记录已被实时事件处理）
+            if (!latestRecord.getId().equals(record.getId())) {
+                log.debug("[DeviceOfflineReconcile] 记录已被实时事件处理，跳过: deviceId={}, oldId={}, newId={}",
+                        record.getDeviceInfoId(), record.getId(), latestRecord.getId());
+                return false;
+            }
+            
+            // 再次检查记录是否仍然需要处理（可能已被实时事件处理）
+            if (latestRecord.getEndTs() != null) {
+                log.debug("[DeviceOfflineReconcile] 记录已结束，不需要处理: deviceId={}, recordId={}",
+                        record.getDeviceInfoId(), latestRecord.getId());
+                return false;
+            }
+            
+            // 计算并设置结束时间和持续时间
+            TimeRangeResult timeRange = calculateEndTimeAndDuration(latestRecord.getStartTs(), offlineDetectTime);
+            latestRecord.setEndTs(timeRange.endTs);
+            latestRecord.setDurationS(timeRange.duration);
+            latestRecord.setIsComplete(false);
+
+            // 添加离线异常信息到 properties
+            addOfflineProperties(latestRecord.getProperties(), offlineDetectTime, latestRecord::setProperties);
+
+            // 补全班次信息并更新
+            recordHandlerUtils.fillShiftInfoIfMissing(latestRecord, factoryId);
+            stateRecordRepository.update(latestRecord);
+
+            DeviceStateEnum stateEnum = DeviceStateEnum.fromCode(latestRecord.getStateCode());
+            log.info("[DeviceOfflineReconcile] 标记进行中状态为离线结束: deviceId={}, recordId={}, state={}, startTs={}, endTs={}",
+                    latestRecord.getDeviceInfoId(), latestRecord.getId(), stateEnum.name(), 
+                    latestRecord.getStartTs(), timeRange.endTs);
+            return true;
+        } catch (CannotAcquireLockException e) {
+            // 数据库锁超时：可能与其他事务冲突，记录警告但不抛出异常
+            log.warn("[DeviceOfflineReconcile] 更新状态记录锁超时，跳过: deviceId={}, recordId={}, error={}",
+                    record.getDeviceInfoId(), record.getId(), e.getMessage());
+            return false;
+        } catch (Exception e) {
+            // 其他异常，记录错误但不抛出，避免拖垮程序
+            log.error("[DeviceOfflineReconcile] 更新状态记录失败，跳过: deviceId={}, recordId={}, error={}",
+                    record.getDeviceInfoId(), record.getId(), e.getMessage(), e);
+            return false;
         }
     }
 
