@@ -121,11 +121,25 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
         // 1. 解析事件数据（主事务：轻量级操作）
         EventData eventData = parseEventData(request);
         
-        // 2. 解析设备信息（主事务：轻量级操作）
-        DeviceIdentity identity = webhookHandlerUtils.resolveDeviceIdentity(request);
+        // 2. 解析设备信息（⚠️ 修复：在事务外执行 Redis 操作，避免连接泄漏）
+        DeviceIdentity identity = resolveDeviceIdentityWithoutTransaction(request);
         
         // 3. 使用分布式锁处理状态更新（子事务：独立短事务）
         processStateTransitionInNewTransaction(eventData, identity, request);
+    }
+    
+    /**
+     * 在事务外解析设备身份（避免 Redis 连接泄漏）
+     * <p>
+     * 优化说明：
+     * 1. 使用 NOT_SUPPORTED 挂起事务，避免 Redis 操作绑定到事务
+     * 2. 防止 Spring 为 Redis 操作创建专用连接并开启 Redis 事务（multi()）
+     * 3. 避免事务未正确提交/回滚时连接泄漏
+     * </p>
+     */
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    private DeviceIdentity resolveDeviceIdentityWithoutTransaction(WebhookRequest request) {
+        return webhookHandlerUtils.resolveDeviceIdentity(request);
     }
     
     /**

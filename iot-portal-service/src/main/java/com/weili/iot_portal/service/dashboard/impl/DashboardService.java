@@ -18,8 +18,11 @@ import com.weili.iot_portal.domain.dashboard.DeviceListRespVO;
 import com.weili.iot_portal.domain.dashboard.DeviceStateStatisticsRespVO;
 import com.weili.iot_portal.domain.dashboard.MetricTrendRespVO;
 import com.weili.iot_portal.service.cache.DeviceStateCacheService;
+import com.weili.iot_portal.service.cache.FactoryMetricsCacheService;
 import com.weili.iot_portal.service.dashboard.IDashboardService;
 import com.weili.iot_portal.service.ingestion.handler.fields.DeviceStateEventFields;
+import com.weili.iot_portal.service.shift.IShiftCalculationService;
+import com.weili.iot_portal.domain.ingestion.FactoryRealtimeMetricSnapshot;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -81,6 +84,12 @@ public class DashboardService implements IDashboardService {
 
     @Resource
     private FactoryMetricSummaryRepository factoryMetricSummaryRepository;
+
+    @Resource
+    private FactoryMetricsCacheService factoryMetricsCacheService;
+
+    @Resource
+    private IShiftCalculationService shiftCalculationService;
 
 
     private Long getFactoryId(Long factoryCode) {
@@ -263,7 +272,16 @@ public class DashboardService implements IDashboardService {
         Map<LocalDate, List<FactoryMetricSummaryDO>> dateGroupMap = summaries.stream()
                 .collect(Collectors.groupingBy(FactoryMetricSummaryDO::getShiftDate));
 
-        // 4. 生成完整的日期序列（包括没有数据的日期）
+        // 4. 获取今天的班次日期（用于判断是否需要使用实时数据）
+        LocalDate todayShiftDate = null;
+        List<DeviceInfoDO> factoryDevices = deviceInfoRepository.findMonitoredDevices(factoryId);
+        if (!factoryDevices.isEmpty()) {
+            DeviceInfoDO sampleDevice = factoryDevices.get(0);
+            todayShiftDate = shiftCalculationService.getShiftDate(
+                    factoryId, sampleDevice.getId(), System.currentTimeMillis());
+        }
+
+        // 5. 生成完整的日期序列（包括没有数据的日期）
         LocalDate currentDate = startDate;
         while (!currentDate.isAfter(endDate)) {
             String dateStr = currentDate.format(formatter);
@@ -273,7 +291,45 @@ public class DashboardService implements IDashboardService {
             List<FactoryMetricSummaryDO> dayData = dateGroupMap.get(currentDate);
             BigDecimal value = BigDecimal.ZERO;
 
-            if (dayData != null && !dayData.isEmpty()) {
+            // 如果是今天的日期，优先使用实时数据
+            if (todayShiftDate != null && currentDate.equals(todayShiftDate)) {
+                // 从缓存获取工厂实时指标快照
+                Optional<FactoryRealtimeMetricSnapshot> snapshotOptional = 
+                        factoryMetricsCacheService.getFactoryRealtimeMetrics(factoryId);
+                if (snapshotOptional.isPresent()) {
+                    FactoryRealtimeMetricSnapshot snapshot = snapshotOptional.get();
+                    // 根据指标类型选择对应的值（缓存中是小数格式 0-1，需要转换为百分比）
+                    BigDecimal realtimeValue = BigDecimal.ZERO;
+                    if (METRIC_TYPE_OEE.equals(metricType)) {
+                        realtimeValue = snapshot.getOee();
+                    } else if (METRIC_TYPE_UTILIZATION.equals(metricType)) {
+                        realtimeValue = snapshot.getUptimeRate();
+                    }
+                    // 转换为百分比形式（0-100），保留1位小数
+                    value = realtimeValue.multiply(BigDecimal.valueOf(100))
+                            .setScale(1, RoundingMode.HALF_UP);
+                } else if (dayData != null && !dayData.isEmpty()) {
+                    // 如果没有实时数据，则使用已固化的数据
+                    BigDecimal averageValue = BigDecimal.ZERO;
+                    if (METRIC_TYPE_OEE.equals(metricType)) {
+                        averageValue = dayData.stream()
+                                .map(FactoryMetricSummaryDO::getAverageOee)
+                                .filter(Objects::nonNull)
+                                .reduce(BigDecimal.ZERO, BigDecimal::add)
+                                .divide(BigDecimal.valueOf(dayData.size()), 4, RoundingMode.HALF_UP);
+                    } else if (METRIC_TYPE_UTILIZATION.equals(metricType)) {
+                        averageValue = dayData.stream()
+                                .map(FactoryMetricSummaryDO::getAverageUtilizationRate)
+                                .filter(Objects::nonNull)
+                                .reduce(BigDecimal.ZERO, BigDecimal::add)
+                                .divide(BigDecimal.valueOf(dayData.size()), 4, RoundingMode.HALF_UP);
+                    }
+                    // 转换为百分比形式（0-100），保留1位小数
+                    value = averageValue.multiply(BigDecimal.valueOf(100))
+                            .setScale(1, RoundingMode.HALF_UP);
+                }
+            } else if (dayData != null && !dayData.isEmpty()) {
+                // 非今天的日期，使用已固化的数据
                 // 计算当天所有班次的平均值（数据库存储的是小数格式 0-1）
                 BigDecimal averageValue = BigDecimal.ZERO;
                 if (METRIC_TYPE_OEE.equals(metricType)) {

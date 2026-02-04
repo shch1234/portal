@@ -49,19 +49,19 @@ public class DeviceStateCacheService {
 
     /**
      * Pipeline批量大小限制
-     * Apollo配置：redis.pipeline.batch-size
+     * Apollo配置：spring.data.redis.lettuce.pipeline.batch-size
      * 默认值：20（每批最多20个设备，超过则分批执行）
      * 优化：从50降低到20，减少Pipeline结果的内存占用，避免OOM
      */
-    @Value("${redis.pipeline.batch-size:20}")
+    @Value("${spring.data.redis.lettuce.pipeline.batch-size:20}")
     private int pipelineBatchSize;
     
     /**
      * 单个Hash的最大字段数限制（防止单个Hash过大导致内存溢出）
-     * Apollo配置：redis.hash.max-fields
+     * Apollo配置：spring.data.redis.lettuce.hash.max-fields
      * 默认值：100（如果Hash字段数超过100，只取前100个）
      */
-    @Value("${redis.hash.max-fields:100}")
+    @Value("${spring.data.redis.lettuce.hash.max-fields:100}")
     private int maxHashFields;
 
     /**

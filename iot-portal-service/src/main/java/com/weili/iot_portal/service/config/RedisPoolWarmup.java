@@ -36,18 +36,18 @@ public class RedisPoolWarmup {
 
     /**
      * 预热连接数
-     * Apollo配置：redis.pool.warmup-count
+     * Apollo配置：spring.data.redis.lettuce.pool.warmup-count
      * 默认值：10（与min-idle保持一致）
      */
-    @Value("${redis.pool.warmup-count:10}")
+    @Value("${spring.data.redis.lettuce.pool.warmup-count:10}")
     private int warmupCount;
 
     /**
      * 预热超时时间（秒）
-     * Apollo配置：redis.pool.warmup-timeout-seconds
+     * Apollo配置：spring.data.redis.lettuce.pool.warmup-timeout-seconds
      * 默认值：10秒
      */
-    @Value("${redis.pool.warmup-timeout-seconds:10}")
+    @Value("${spring.data.redis.lettuce.pool.warmup-timeout-seconds:10}")
     private long warmupTimeoutSeconds;
 
     @PostConstruct

@@ -52,9 +52,10 @@ public class DeviceMetricsCacheService {
      */
     /**
      * Pipeline批量大小限制
+     * Apollo配置：spring.data.redis.lettuce.pipeline.batch-size
      * 优化：从50降低到20，减少Pipeline结果的内存占用，避免OOM
      */
-    @Value("${redis.pipeline.batch-size:20}")
+    @Value("${spring.data.redis.lettuce.pipeline.batch-size:20}")
     private int pipelineBatchSize;
 
     // ==================== 指标数据缓存 ====================
