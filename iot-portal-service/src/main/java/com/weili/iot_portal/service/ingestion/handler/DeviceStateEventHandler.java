@@ -73,6 +73,7 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
     private final IShiftCalculationService shiftCalculationService;
     private final WebhookHandlerUtils webhookHandlerUtils;
     private final com.weili.iot_portal.service.record.TimeRangeRecordHandler timeRangeRecordHandler;
+    private final DeviceStateAsyncService deviceStateAsyncService;
     private final RecordHandlerUtils recordHandlerUtils;
 
     // ==================== 策略映射 ====================
@@ -142,7 +143,7 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
      * 注意：DELETE操作可能因表锁、死锁等原因较慢，需要足够的超时时间
      * </p>
      */
-    @Transactional(propagation = Propagation.REQUIRES_NEW, timeout = 15, rollbackFor = Exception.class)
+    @Transactional(propagation = Propagation.REQUIRES_NEW, timeout = 20, rollbackFor = Exception.class)
     private void processStateTransitionInNewTransaction(EventData eventData, DeviceIdentity identity, WebhookRequest request) {
         processStateTransitionWithLock(eventData, identity, request);
     }
@@ -256,8 +257,11 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
         if (transitionType == TransitionType.STATE_UNCHANGED) {
             log.debug("[Webhook-Handler-DeviceState] 状态未变化，跳过处理: deviceInfoId={}, messageId={}",
                     deviceInfoId, request.getMessageId());
-            // 即使状态未变化，也更新缓存（刷新TTL）
-            updateCacheAfterStateTransition(identity, eventData, false, request);
+            // 即使状态未变化，也异步更新缓存（刷新TTL），减少事务范围
+            // 资源泄漏防护：不持有 CompletableFuture 引用，避免内存泄漏
+            deviceStateAsyncService.updateCacheAsync(identity, eventData.currentStateCode(),
+                    eventData.eventTimestamp(), false, request.getMessageId());
+            // 注意：不持有返回的 CompletableFuture 引用，让 GC 自动回收
             return;
         }
         
@@ -316,26 +320,23 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
             }
         }
 
-        // 优化4：非关键操作（缓存更新）在锁外执行
+        // 优化4：非关键操作（缓存更新）异步执行，减少事务范围和锁持有时间
+        // 资源泄漏防护：不持有 CompletableFuture 引用，避免内存泄漏
         if (dbOperationSuccess) {
-            updateCacheAfterStateTransition(identity, eventData, needUpdateCache, request);
+            deviceStateAsyncService.updateCacheAsync(identity, eventData.currentStateCode(),
+                    eventData.eventTimestamp(), needUpdateCache, request.getMessageId());
+            // 注意：不持有返回的 CompletableFuture 引用，让 GC 自动回收
         }
         
-        // 优化5：异常日志在锁外记录（减少锁持有时间，节省50-200ms）
+        // 优化5：异常日志异步记录，减少事务范围和锁持有时间
+        // 资源泄漏防护：不持有 CompletableFuture 引用，避免内存泄漏
         if (result.errorLogInfo() != null) {
             ErrorLogInfo errorInfo = result.errorLogInfo();
-            try {
-                webhookFailLogService.saveFailLog(request, 
-                        errorInfo.errorType(), 
-                        errorInfo.errorMessage(), 
-                        errorInfo.needReview());
-                log.debug("[DeviceStateEventHandler] 锁外记录异常日志成功: errorType={}, messageId={}", 
-                        errorInfo.errorType(), request.getMessageId());
-            } catch (Exception e) {
-                // 异常日志记录失败不影响主流程，但需要记录警告
-                log.warn("[DeviceStateEventHandler] 锁外记录异常日志失败: errorType={}, messageId={}, error={}", 
-                        errorInfo.errorType(), request.getMessageId(), e.getMessage());
-            }
+            deviceStateAsyncService.saveFailLogAsync(request, 
+                    errorInfo.errorType(), 
+                    errorInfo.errorMessage(), 
+                    errorInfo.needReview());
+            // 注意：不持有返回的 CompletableFuture 引用，让 GC 自动回收
         }
         
         // 优化：在锁外记录详细日志（减少锁内操作时间）
@@ -980,6 +981,12 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
         } catch (org.springframework.dao.CannotAcquireLockException e) {
             // 锁超时异常：记录可能正在被其他事务处理（虽然分布式锁已保证串行，但数据库行锁可能被其他表的事务持有）
             log.warn("[DeviceStateEventHandler] 更新进行中记录时发生锁超时: recordId={}, messageId={}, error={}",
+                    recordId, request.getMessageId(), e.getMessage());
+            return false;
+        } catch (org.springframework.dao.QueryTimeoutException e) {
+            // UPDATE 操作超时：可能是表锁竞争、索引更新耗时或数据库负载过高
+            log.error("[DeviceStateEventHandler] 更新进行中记录时发生超时: recordId={}, messageId={}, error={}, " +
+                    "可能原因：表锁竞争、索引更新耗时、数据库负载过高，建议检查数据库性能和索引",
                     recordId, request.getMessageId(), e.getMessage());
             return false;
         } catch (Exception e) {

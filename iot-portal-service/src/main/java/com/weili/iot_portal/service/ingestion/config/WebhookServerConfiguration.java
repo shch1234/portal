@@ -90,7 +90,20 @@ public class WebhookServerConfiguration {
         executor.setMaxPoolSize(async.getMaxSize());
         executor.setQueueCapacity(async.getQueueCapacity());
         executor.setThreadNamePrefix(async.getThreadNamePrefix());
-        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+        
+        // 优化：对于非关键操作（缓存更新、日志记录），使用 DiscardPolicy
+        // 当队列满时，直接丢弃任务，避免阻塞主线程
+        // 注意：如果希望更严格的控制，可以使用 AbortPolicy（抛出异常）
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.DiscardPolicy() {
+            @Override
+            public void rejectedExecution(Runnable r, ThreadPoolExecutor e) {
+                // 记录警告日志，便于监控
+                log.warn("[Webhook-Server] 异步任务被拒绝（队列已满）: activeThreads={}, queueSize={}, poolSize={}",
+                        e.getActiveCount(), e.getQueue().size(), e.getPoolSize());
+                super.rejectedExecution(r, e);
+            }
+        });
+        
         executor.setWaitForTasksToCompleteOnShutdown(true);
         executor.setAwaitTerminationSeconds(60);
         
@@ -99,7 +112,8 @@ public class WebhookServerConfiguration {
         
         executor.initialize();
 
-        log.info("[Webhook-Server] 异步线程池配置完成: coreSize={}, maxSize={}, queueCapacity={}, threadNamePrefix={}",
+        log.info("[Webhook-Server] 异步线程池配置完成: coreSize={}, maxSize={}, queueCapacity={}, threadNamePrefix={}, " +
+                "rejectedPolicy=DiscardPolicy（队列满时丢弃任务，避免阻塞主线程）",
                 async.getCoreSize(), async.getMaxSize(), async.getQueueCapacity(), async.getThreadNamePrefix());
 
         return executor;
