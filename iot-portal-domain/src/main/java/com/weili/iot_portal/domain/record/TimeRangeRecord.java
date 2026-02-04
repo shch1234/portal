@@ -81,6 +81,18 @@ public interface TimeRangeRecord {
     Long getOrgFactoryId();
 
     /**
+     * 获取记录ID（主键）
+     * <p>
+     * 注意：某些实现类可能没有ID（如临时记录），此时返回null
+     * </p>
+     *
+     * @return 记录ID，如果不存在则返回null
+     */
+    default Long getId() {
+        return null;
+    }
+
+    /**
      * 获取扩展属性（可选，用于存储异常标记等信息）
      * <p>
      * 如果记录类型不支持properties，可以返回null
