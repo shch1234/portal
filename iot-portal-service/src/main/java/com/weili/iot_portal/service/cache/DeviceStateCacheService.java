@@ -590,6 +590,125 @@ public class DeviceStateCacheService {
     }
 
     /**
+     * 批量更新设备状态和心跳（使用 Pipeline，事务外执行）
+     * <p>
+     * 优化说明：
+     * 1. 使用 Pipeline 批量执行，减少网络往返（从 2 次减少到 1 次）
+     * 2. 考虑采样机制：如果状态更新被采样过滤，仍然更新心跳
+     * 3. 统一缓存更新逻辑，提升性能
+     * </p>
+     * <p>
+     * 注意：
+     * - 此方法需要在事务外调用（调用方应使用 NOT_SUPPORTED）
+     * - 采样机制：状态更新可能被采样过滤，但心跳总是更新
+     * </p>
+     *
+     * @param factoryId 工厂ID
+     * @param deviceId 设备ID
+     * @param state 状态值（数字编码字符串）
+     * @param updatedAt 更新时间戳（毫秒）
+     * @param source 数据来源
+     * @param traceId 追踪ID
+     */
+    public void saveStateAndHeartbeat(Long factoryId, Long deviceId, String state,
+                                      long updatedAt, String source, String traceId) {
+        String stateKey = buildStateKey(factoryId, deviceId);
+        String heartbeatKey = buildHeartbeatKey(factoryId, deviceId);
+        long now = System.currentTimeMillis();
+        
+        // 检查采样：如果状态更新被采样过滤，只更新心跳
+        boolean shouldWriteState = sampler.shouldWriteWithOffset(factoryId, deviceId, stateKey, now, sampleIntervalMillis);
+        
+        if (shouldWriteState) {
+            // 构建状态 payload
+            Map<String, String> payload = new HashMap<>();
+            payload.put(DeviceStateEventFields.STATE, state);
+            payload.put(DeviceStateEventFields.UPDATED_AT, String.valueOf(updatedAt));
+            payload.put(DeviceStateEventFields.SOURCE, source);
+            if (StringUtils.isNotBlank(traceId)) {
+                payload.put(DeviceStateEventFields.TRACE_ID, traceId);
+            }
+            
+            // 使用 Pipeline 批量执行：状态更新 + 心跳更新
+            try {
+                redisTemplate.executePipelined((org.springframework.data.redis.core.RedisCallback<Object>) connection -> {
+                    byte[] stateKeyBytes = stateKey.getBytes();
+                    byte[] heartbeatKeyBytes = heartbeatKey.getBytes();
+                    
+                    // 1. 更新状态 Hash
+                    Map<byte[], byte[]> hashData = new HashMap<>();
+                    for (Map.Entry<String, String> entry : payload.entrySet()) {
+                        hashData.put(entry.getKey().getBytes(), entry.getValue().getBytes());
+                    }
+                    connection.hashCommands().hMSet(stateKeyBytes, hashData);
+                    connection.expire(stateKeyBytes, stateTtlMillis / 1000);
+                    
+                    // 2. 更新心跳
+                    connection.stringCommands().set(heartbeatKeyBytes, "1".getBytes());
+                    connection.expire(heartbeatKeyBytes, stateHeartbeatTtlSeconds);
+                    
+                    return null;
+                });
+                
+                // 更新采样器的最后写入时间
+                sampler.updateLastWriteTime(stateKey, now);
+            } catch (Exception e) {
+                log.error("[DeviceStateCache] Pipeline批量更新状态和心跳失败: factoryId={}, deviceId={}, error={}", 
+                        factoryId, deviceId, e.getMessage(), e);
+                // 降级为单独更新心跳（确保心跳不丢失）
+                safeRedisOperations.safeSet(heartbeatKey, "1", Duration.ofSeconds(stateHeartbeatTtlSeconds));
+            }
+        } else {
+            // 状态更新被采样过滤，只更新心跳
+            safeRedisOperations.safeSet(heartbeatKey, "1", Duration.ofSeconds(stateHeartbeatTtlSeconds));
+        }
+    }
+
+    /**
+     * 批量刷新状态 TTL 和心跳（使用 Pipeline，事务外执行）
+     * <p>
+     * 优化说明：
+     * 1. 使用 Pipeline 批量执行，减少网络往返（从 2 次减少到 1 次）
+     * 2. 只刷新 TTL，不更新状态值
+     * 3. 统一缓存刷新逻辑，提升性能
+     * </p>
+     * <p>
+     * 注意：
+     * - 此方法需要在事务外调用（调用方应使用 NOT_SUPPORTED）
+     * </p>
+     *
+     * @param factoryId 工厂ID
+     * @param deviceId 设备ID
+     * @param traceId 追踪ID
+     */
+    public void refreshStateTtlAndHeartbeat(Long factoryId, Long deviceId, String traceId) {
+        String stateKey = buildStateKey(factoryId, deviceId);
+        String heartbeatKey = buildHeartbeatKey(factoryId, deviceId);
+        
+        // 使用 Pipeline 批量执行：刷新状态 TTL + 更新心跳
+        try {
+            redisTemplate.executePipelined((org.springframework.data.redis.core.RedisCallback<Object>) connection -> {
+                byte[] stateKeyBytes = stateKey.getBytes();
+                byte[] heartbeatKeyBytes = heartbeatKey.getBytes();
+                
+                // 1. 刷新状态 TTL
+                connection.expire(stateKeyBytes, stateTtlMillis / 1000);
+                
+                // 2. 更新心跳
+                connection.stringCommands().set(heartbeatKeyBytes, "1".getBytes());
+                connection.expire(heartbeatKeyBytes, stateHeartbeatTtlSeconds);
+                
+                return null;
+            });
+        } catch (Exception e) {
+            log.error("[DeviceStateCache] Pipeline批量刷新状态TTL和心跳失败: factoryId={}, deviceId={}, error={}", 
+                    factoryId, deviceId, e.getMessage(), e);
+            // 降级为单独更新心跳（确保心跳不丢失）
+            safeRedisOperations.safeSet(heartbeatKey, "1", Duration.ofSeconds(stateHeartbeatTtlSeconds));
+        }
+    }
+
+    /**
      * 获取状态心跳值
      * <p>
      * 优化：如果键不存在（已过期），返回 "0" 而不是 null

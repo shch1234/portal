@@ -16,6 +16,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashMap;
@@ -76,11 +77,16 @@ public class DeviceToolEventHandler implements WebhookEventHandler {
      * <p>
      * REALTIME_WITH_PERSISTENCE策略：直接处理，Handler内部有@Transactional保证数据一致性
      * </p>
+     * <p>
+     * 优化：使用 NOT_SUPPORTED 挂起事务，确保 Redis 操作在事务外执行
+     * 避免 Redis MULTI 嵌套错误
+     * </p>
      *
      * @param request Webhook请求对象
      * @throws Exception 处理异常
      */
     @Override
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public void handleRealtime(WebhookRequest request) throws Exception {
         Map<String, Object> eventData = request.getEventData();
         DeviceIdentity identity = webhookHandlerUtils.resolveDeviceIdentity(request);

@@ -111,10 +111,12 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
     @Transactional(rollbackFor = Exception.class, timeout = 10)
     public void handle(WebhookInboxDO inbox, WebhookRequest request) throws Exception {
         // 心跳事件单独处理（使用DEBUG级别，减少日志量）
+        // ⚠️ 重要：心跳事件在事务外处理，避免 Redis MULTI 嵌套错误
         if (DeviceStateEventFields.EVENT_TYPE_HEARTBEAT.equals(request.getEventType())) {
             log.debug("[DeviceStateEventHandler] 处理心跳事件: messageId={}, deviceCode={}", 
                     request.getMessageId(), request.getDeviceCode());
-            handleHeartbeat(request);
+            // 在事务外处理心跳（避免 Redis MULTI 嵌套）
+            handleHeartbeatOutsideTransaction(request);
             return;
         }
 
@@ -1278,7 +1280,12 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
 
     /**
      * 状态转换后更新缓存
+     * <p>
+     * 优化：使用 NOT_SUPPORTED 挂起事务，确保 Redis 操作在事务外执行
+     * 避免 Redis MULTI 嵌套错误
+     * </p>
      */
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     private void updateCacheAfterStateTransition(DeviceIdentity identity, EventData eventData,
                                                  boolean needUpdateCache, WebhookRequest request) {
         Long orgFactoryId = identity.orgFactoryId();
@@ -1300,23 +1307,29 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
 
     /**
      * 更新实时状态缓存（事务外执行）
+     * <p>
+     * 优化：使用统一的缓存更新方法，确保在事务外执行
+     * </p>
      */
     private void updateStateCache(Long factoryId, Long deviceId, Integer currentStateCode,
                                   Long eventTimestamp, String traceId) {
         // 将数字编码转换为字符串存储到缓存
         String stateStr = String.valueOf(currentStateCode);
-        deviceStateCacheService.saveState(factoryId, deviceId, stateStr,
-                eventTimestamp, DeviceStateEventFields.SOURCE_TB, traceId);
-        deviceStateCacheService.saveHeartbeat(factoryId, deviceId, traceId);
+        // 使用统一的缓存更新方法（已在事务外执行）
+        webhookHandlerUtils.updateStateCacheAndHeartbeat(factoryId, deviceId, stateStr,
+                eventTimestamp, traceId);
     }
 
     /**
-     * 状态未变化时，刷新状态缓存 TTL（不改值）并刷新心跳（事务外执行）
+     * 状态未变化时，刷新状态缓存 TTL（不改值）并刷新心跳
+     * <p>
+     * 优化：使用统一的缓存刷新方法，确保在事务外执行
+     * </p>
      */
     private void refreshStateCacheAndHeartbeat(Long factoryId, Long deviceId,
                                                Long eventTimestamp, String traceId) {
-        deviceStateCacheService.refreshStateTtl(factoryId, deviceId);
-        deviceStateCacheService.saveHeartbeat(factoryId, deviceId, traceId);
+        // 使用统一的缓存刷新方法（已在事务外执行）
+        webhookHandlerUtils.refreshStateCacheAndHeartbeat(factoryId, deviceId, traceId);
     }
 
     // ==================== 心跳处理 ====================
@@ -1330,9 +1343,13 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
      * 优化：使用 NOT_SUPPORTED 挂起事务，避免 Redis MULTI 嵌套问题
      * 心跳事件只更新缓存，不需要数据库事务
      * </p>
+     * <p>
+     * 注意：即使 handle 方法有 @Transactional，NOT_SUPPORTED 会挂起事务，
+     * 确保 Redis 操作不会被绑定到数据库事务，避免 MULTI 嵌套错误
+     * </p>
      */
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
-    private void handleHeartbeat(WebhookRequest request) {
+    private void handleHeartbeatOutsideTransaction(WebhookRequest request) {
         Map<String, Object> eventData = request.getEventData();
         if (eventData == null) {
             throw new IotPortalException(IotPortalErrorCode.EVENT_DATA_EMPTY);
@@ -1360,9 +1377,9 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
 
         // 将数字编码转换为字符串存储到缓存
         String stateStr = String.valueOf(currentStateCode);
-        deviceStateCacheService.saveState(orgFactoryId, deviceInfoId, stateStr,
-                ts, DeviceStateEventFields.SOURCE_TB, request.getMessageId());
-        deviceStateCacheService.saveHeartbeat(orgFactoryId, deviceInfoId, request.getMessageId());
+        // 使用统一的缓存更新方法（已在事务外执行）
+        webhookHandlerUtils.updateStateCacheAndHeartbeat(orgFactoryId, deviceInfoId, stateStr,
+                ts, request.getMessageId());
     }
 
 
