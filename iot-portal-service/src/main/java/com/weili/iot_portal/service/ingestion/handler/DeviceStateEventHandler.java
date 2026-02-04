@@ -136,16 +136,33 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
      * <p>
      * 优化说明：
      * 1. 使用REQUIRES_NEW创建独立事务，缩短主事务时间
-     * 2. 设置超时时间15秒（考虑DELETE操作可能较慢，避免超时）
+     * 2. 设置超时时间20秒（考虑UPDATE操作可能因表锁、索引更新等原因较慢）
      * 3. 如果子事务失败，不影响主事务（主事务只做验证和准备）
      * </p>
      * <p>
-     * 注意：DELETE操作可能因表锁、死锁等原因较慢，需要足够的超时时间
+     * 注意：
+     * - UPDATE操作可能因表锁竞争、索引更新耗时等原因较慢，需要足够的超时时间
+     * - 当UPDATE超时时，连接可能被标记为broken，事务回滚可能失败（这是正常的）
+     * - 超时异常会被捕获并重新抛出，避免继续尝试INSERT操作
      * </p>
      */
-    @Transactional(propagation = Propagation.REQUIRES_NEW, timeout = 20, rollbackFor = Exception.class)
+    @Transactional(propagation = Propagation.REQUIRES_NEW, timeout = 30, rollbackFor = Exception.class)
     private void processStateTransitionInNewTransaction(EventData eventData, DeviceIdentity identity, WebhookRequest request) {
-        processStateTransitionWithLock(eventData, identity, request);
+        try {
+            processStateTransitionWithLock(eventData, identity, request);
+        } catch (org.springframework.dao.QueryTimeoutException e) {
+            // UPDATE操作超时：事务可能已超时，连接可能已关闭
+            // ⚠️ 重要：此时不应该继续尝试其他操作，直接抛出异常让事务回滚
+            // 注意：回滚可能也会失败（连接已关闭），但这是正常的，不会影响其他事务
+            log.error("[DeviceStateEventHandler] 状态转换处理超时，事务将回滚: deviceInfoId={}, messageId={}, error={}",
+                    identity.deviceInfoId(), request.getMessageId(), e.getMessage());
+            throw e; // 重新抛出异常，让事务回滚
+        } catch (org.springframework.transaction.TransactionTimedOutException e) {
+            // 事务超时：连接可能已关闭，回滚可能失败
+            log.error("[DeviceStateEventHandler] 事务超时，连接可能已关闭: deviceInfoId={}, messageId={}, error={}",
+                    identity.deviceInfoId(), request.getMessageId(), e.getMessage());
+            throw e; // 重新抛出异常
+        }
     }
 
     // ==================== 数据解析 ====================
@@ -798,7 +815,17 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
 
         // 更新进行中的记录（状态不匹配场景）
         // 优化：由于分布式锁已保证串行，直接更新，不需要复杂的CAS条件
-        boolean updateSuccess = updateOngoingRecordWithCAS(latestState, recordId, context.eventData(), orgFactoryId, context.request(), context.precomputedShiftInfo());
+        boolean updateSuccess;
+        try {
+            updateSuccess = updateOngoingRecordWithCAS(latestState, recordId, context.eventData(), orgFactoryId, context.request(), context.precomputedShiftInfo());
+        } catch (org.springframework.dao.QueryTimeoutException e) {
+            // UPDATE操作超时：事务可能已超时，连接可能已关闭
+            // ⚠️ 重要：此时不应该继续尝试INSERT，因为事务已经超时，INSERT也会失败
+            // 直接抛出异常，让事务回滚（虽然回滚可能也会失败，但至少不会继续浪费资源）
+            log.error("[DeviceStateEventHandler] 更新进行中记录超时，事务可能已超时，跳过后续操作: deviceInfoId={}, recordId={}, messageId={}, error={}",
+                    deviceInfoId, recordId, context.request().getMessageId(), e.getMessage());
+            throw e; // 重新抛出异常，让事务回滚
+        }
 
         if (!updateSuccess) {
             // 更新失败（记录不存在或已被删除），直接插入新状态
@@ -985,11 +1012,37 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
             return false;
         } catch (org.springframework.dao.QueryTimeoutException e) {
             // UPDATE 操作超时：可能是表锁竞争、索引更新耗时或数据库负载过高
+            // ⚠️ 重要：超时后连接可能被标记为broken，后续操作可能失败
             log.error("[DeviceStateEventHandler] 更新进行中记录时发生超时: recordId={}, messageId={}, error={}, " +
                     "可能原因：表锁竞争、索引更新耗时、数据库负载过高，建议检查数据库性能和索引",
                     recordId, request.getMessageId(), e.getMessage());
-            return false;
+            // 抛出异常，让调用方知道是超时，避免继续尝试INSERT（因为事务可能已经超时）
+            // QueryTimeoutException 是运行时异常，可以直接抛出
+            throw new org.springframework.dao.QueryTimeoutException("UPDATE操作超时，事务可能已超时，避免继续尝试INSERT", e);
         } catch (Exception e) {
+            // 检查是否是超时相关的异常（可能被包装在其他异常中）
+            Throwable cause = e.getCause();
+            boolean isTimeout = false;
+            
+            // 检查是否是 MySQLTimeoutException（检查异常，需要包装）
+            if (e instanceof com.mysql.cj.jdbc.exceptions.MySQLTimeoutException) {
+                isTimeout = true;
+            } else if (cause instanceof com.mysql.cj.jdbc.exceptions.MySQLTimeoutException) {
+                isTimeout = true;
+            } else if (cause instanceof org.springframework.dao.QueryTimeoutException) {
+                isTimeout = true;
+            } else if (e.getMessage() != null && e.getMessage().contains("timeout")) {
+                isTimeout = true;
+            }
+            
+            if (isTimeout) {
+                log.error("[DeviceStateEventHandler] 更新进行中记录时发生超时: recordId={}, messageId={}, error={}, " +
+                        "可能原因：表锁竞争、索引更新耗时、数据库负载过高，建议检查数据库性能和索引",
+                        recordId, request.getMessageId(), e.getMessage());
+                // 将超时异常包装为 QueryTimeoutException（运行时异常），避免编译错误
+                throw new org.springframework.dao.QueryTimeoutException("UPDATE操作超时，事务可能已超时，避免继续尝试INSERT", e);
+            }
+            
             log.error("[DeviceStateEventHandler] 更新进行中记录时发生异常: recordId={}, error={}", 
                     recordId, e.getMessage(), e);
             return false;
