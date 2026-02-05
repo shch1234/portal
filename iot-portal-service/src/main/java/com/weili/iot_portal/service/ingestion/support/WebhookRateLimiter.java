@@ -103,6 +103,21 @@ public class WebhookRateLimiter {
     private volatile long lastWarnWindow = 0;
 
     /**
+     * 冷启动阶段1最后输出日志的时间（秒），用于避免重复日志
+     */
+    private volatile long lastPhase1LogTime = -1;
+
+    /**
+     * 冷启动阶段2最后输出日志的时间（秒），用于避免重复日志
+     */
+    private volatile long lastPhase2LogTime = -1;
+
+    /**
+     * 冷启动完成日志是否已输出
+     */
+    private volatile boolean coldStartCompleteLogged = false;
+
+    /**
      * Redis 限流 Key 前缀
      */
     private static final String RATE_LIMIT_KEY_PREFIX = "webhook:rate-limit:";
@@ -145,6 +160,9 @@ public class WebhookRateLimiter {
      * - 启动后30-60秒：限流75%（逐渐放开，给系统时间完成缓存预热等）
      * - 启动后60秒以上：限流100%（正常运行）
      * </p>
+     * <p>
+     * 日志优化：每个阶段每个10秒窗口只输出一次日志，避免并发请求导致日志刷屏
+     * </p>
      *
      * @return 当前有效的限流阈值
      */
@@ -158,7 +176,10 @@ public class WebhookRateLimiter {
         if (uptimeSeconds < coldStartPhase1DurationSeconds) {
             // 阶段1：启动后0-30秒，限流50%
             int limit = (int) (permitsPerSecond * coldStartPhase1Ratio);
-            if (uptimeSeconds % 10 == 0) { // 每10秒输出一次日志，避免刷屏
+            // 每个10秒窗口只输出一次日志，避免并发请求导致日志刷屏
+            long logWindow = uptimeSeconds / 10;
+            if (lastPhase1LogTime != logWindow) {
+                lastPhase1LogTime = logWindow;
                 log.info("[Webhook-RateLimit] 冷启动阶段1: uptime={}s, limit={} ({}%), normalLimit={}",
                         uptimeSeconds, limit, (int)(coldStartPhase1Ratio * 100), permitsPerSecond);
             }
@@ -166,14 +187,18 @@ public class WebhookRateLimiter {
         } else if (uptimeSeconds < coldStartPhase1DurationSeconds + coldStartPhase2DurationSeconds) {
             // 阶段2：启动后30-60秒，限流75%
             int limit = (int) (permitsPerSecond * coldStartPhase2Ratio);
-            if (uptimeSeconds % 10 == 0) { // 每10秒输出一次日志
+            // 每个10秒窗口只输出一次日志，避免并发请求导致日志刷屏
+            long logWindow = uptimeSeconds / 10;
+            if (lastPhase2LogTime != logWindow) {
+                lastPhase2LogTime = logWindow;
                 log.info("[Webhook-RateLimit] 冷启动阶段2: uptime={}s, limit={} ({}%), normalLimit={}",
                         uptimeSeconds, limit, (int)(coldStartPhase2Ratio * 100), permitsPerSecond);
             }
             return limit;
         } else {
             // 正常运行：启动后60秒以上，限流100%
-            if (uptimeSeconds == coldStartPhase1DurationSeconds + coldStartPhase2DurationSeconds) {
+            if (!coldStartCompleteLogged) {
+                coldStartCompleteLogged = true;
                 log.info("[Webhook-RateLimit] 冷启动完成，恢复正常限流: uptime={}s, limit={}",
                         uptimeSeconds, permitsPerSecond);
             }
