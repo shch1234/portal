@@ -6,6 +6,7 @@ import com.weili.basic.common.util.JsonUtils;
 import com.weili.iot_portal.domain.ingestion.WebhookRequest;
 import com.weili.iot_portal.service.ingestion.WebhookReceiveService;
 import com.weili.iot_portal.service.ingestion.WebhookSecurityService;
+import com.weili.iot_portal.service.ingestion.support.AdaptiveRateLimiter;
 import com.weili.iot_portal.service.ingestion.support.WebhookRateLimiter;
 import com.weili.iot_portal.service.ingestion.support.WebhookRequestValidator;
 import jakarta.annotation.security.PermitAll;
@@ -40,6 +41,9 @@ public class UnifiedWebhookController {
 
     @Autowired(required = false)
     private WebhookRateLimiter webhookRateLimiter;
+
+    @Autowired(required = false)
+    private AdaptiveRateLimiter adaptiveRateLimiter;
 
     @Autowired(required = false)
     @Qualifier("webhookAsyncExecutor")
@@ -79,6 +83,10 @@ public class UnifiedWebhookController {
                                           @RequestHeader(value = "X-Webhook-Secret", required = false) String headerSecret,
                                           HttpServletRequest request) {
         long startTime = System.currentTimeMillis();
+        // 标记是否已开始异步处理（用于判断异常发生时机，避免重复记录）
+        boolean asyncProcessingStarted = false;
+        WebhookRequest webhookRequest = null;
+        
         try {
             log.debug("[Webhook-接收] ====== 开始接收Webhook请求 ======");
             log.debug("[Webhook-接收] URL路径: category={}, eventType={}", category, eventType);
@@ -97,7 +105,7 @@ public class UnifiedWebhookController {
             webhookRequestValidator.validate(rawBody, signature, timestamp, nonce, headerSecret);
             
             // 解析请求体
-            WebhookRequest webhookRequest = JsonUtils.parseObject(rawBody, WebhookRequest.class);
+            webhookRequest = JsonUtils.parseObject(rawBody, WebhookRequest.class);
             log.debug("[Webhook-接收] 解析后的请求数据: messageId={}, deviceCode={}, deviceId={}, eventType={}, category={}, timestamp={}, dataTimestamp={}", 
                 webhookRequest.getMessageId(), webhookRequest.getDeviceCode(), webhookRequest.getDeviceId(),
                 webhookRequest.getEventType(), category, webhookRequest.getTimestamp(), webhookRequest.getDataTimestamp());
@@ -113,6 +121,13 @@ public class UnifiedWebhookController {
             // 优化：使用 "fire and forget" 模式，符合行业最佳实践（GitHub、Stripe、AWS 等）
             // 即使客户端断开连接，异步处理也会继续执行，不影响业务逻辑
             if (webhookAsyncExecutor != null) {
+                asyncProcessingStarted = true; // 标记异步处理已开始
+                
+                // 创建 final 变量供 lambda 表达式使用（避免编译错误）
+                final WebhookRequest finalWebhookRequest = webhookRequest;
+                final String finalCategory = category;
+                final String finalEventType = eventType;
+                
                 // 获取当前线程的 MDC 上下文，以便在异步执行时传递
                 Map<String, String> mdcContext = MDC.getCopyOfContextMap();
                 
@@ -124,12 +139,20 @@ public class UnifiedWebhookController {
                         MDC.setContextMap(mdcContext);
                     }
                     try {
-                        webhookReceiveService.handle(category, eventType, webhookRequest);
+                        webhookReceiveService.handle(finalCategory, finalEventType, finalWebhookRequest);
+                        // 记录成功（用于自适应限流）
+                        if (adaptiveRateLimiter != null) {
+                            adaptiveRateLimiter.recordSuccess();
+                        }
                     } catch (Exception e) {
                         // 异常已被捕获，记录日志但不传播
                         // ⚠️ 不重新抛出异常，避免触发异常处理器
                         log.error("[Webhook-接收] 异步处理失败: category={}, eventType={}, messageId={}",
-                                category, eventType, webhookRequest.getMessageId(), e);
+                                finalCategory, finalEventType, finalWebhookRequest.getMessageId(), e);
+                        // 记录失败（用于自适应限流）
+                        if (adaptiveRateLimiter != null) {
+                            adaptiveRateLimiter.recordError();
+                        }
                     } finally {
                         // 清除 MDC，避免线程复用导致设备编号污染
                         MDC.clear();
@@ -142,13 +165,32 @@ public class UnifiedWebhookController {
                         // 这里不应该有异常，因为 runAsync 中的异常已被捕获
                         // 但如果 Spring 框架或其他地方抛出异常，这里可以捕获
                         log.warn("[Webhook-接收] CompletableFuture 异常（不应该发生）: category={}, eventType={}, messageId={}, error={}",
-                                category, eventType, webhookRequest.getMessageId(), throwable.getMessage());
+                                finalCategory, finalEventType, finalWebhookRequest.getMessageId(), throwable.getMessage());
+                        // 记录失败（用于自适应限流）- 这是框架层面的异常
+                        if (adaptiveRateLimiter != null) {
+                            adaptiveRateLimiter.recordError();
+                        }
                     }
                     // Future 完成，可以被 GC 回收
                 });
             } else {
                 // 如果没有配置异步线程池，同步处理
-                webhookReceiveService.handle(category, eventType, webhookRequest);
+                try {
+                    webhookReceiveService.handle(category, eventType, webhookRequest);
+                    // 记录成功（用于自适应限流）
+                    if (adaptiveRateLimiter != null) {
+                        adaptiveRateLimiter.recordSuccess();
+                    }
+                } catch (Exception e) {
+                    log.error("[Webhook-接收] 同步处理失败: category={}, eventType={}, messageId={}",
+                            category, eventType, webhookRequest != null ? webhookRequest.getMessageId() : "unknown", e);
+                    // 记录失败（用于自适应限流）
+                    if (adaptiveRateLimiter != null) {
+                        adaptiveRateLimiter.recordError();
+                    }
+                    // 重新抛出异常，让外层 catch 处理
+                    throw e;
+                }
             }
             
             long cost = System.currentTimeMillis() - startTime;
@@ -167,6 +209,13 @@ public class UnifiedWebhookController {
             log.warn("[Webhook-接收] 业务异常: category={}, eventType={}, error={}, 耗时: {}ms", 
                 category, eventType, ex.getMessage(), cost);
             
+            // 记录失败（用于自适应限流）
+            // 只在异常发生在异步处理之前时记录（避免重复记录）
+            // 如果异步处理已开始，异常会在异步处理的 catch 中记录
+            if (adaptiveRateLimiter != null && !asyncProcessingStarted) {
+                adaptiveRateLimiter.recordError();
+            }
+            
             // 返回响应前检查客户端是否断开连接
             if (isClientDisconnected(request)) {
                 if (log.isDebugEnabled()) {
@@ -179,6 +228,13 @@ public class UnifiedWebhookController {
             long cost = System.currentTimeMillis() - startTime;
             log.error("[Webhook-接收] 处理异常: category={}, eventType={}, 耗时: {}ms", 
                 category, eventType, cost, ex);
+            
+            // 记录失败（用于自适应限流）
+            // 只在异常发生在异步处理之前时记录（避免重复记录）
+            // 如果异步处理已开始，异常会在异步处理的 catch 中记录
+            if (adaptiveRateLimiter != null && !asyncProcessingStarted) {
+                adaptiveRateLimiter.recordError();
+            }
             
             // 返回响应前检查客户端是否断开连接
             if (isClientDisconnected(request)) {

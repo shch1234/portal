@@ -207,10 +207,24 @@ public class WebhookRateLimiter {
     }
 
     /**
+     * 自适应限流服务（可选，如果未注入则使用固定限流）
+     */
+    private AdaptiveRateLimiter adaptiveRateLimiter;
+
+    /**
+     * 注入自适应限流服务（可选）
+     * 通过配置类注入，避免循环依赖
+     */
+    public void setAdaptiveRateLimiter(AdaptiveRateLimiter adaptiveRateLimiter) {
+        this.adaptiveRateLimiter = adaptiveRateLimiter;
+    }
+
+    /**
      * 尝试获取限流许可
      * <p>
      * 使用滑动窗口算法实现限流
      * 支持冷启动限流：启动时使用更严格的限流，运行一段时间后逐渐放开
+     * 支持自适应限流：根据错误率动态调整限流阈值
      * </p>
      *
      * @return true 如果获取成功，false 如果被限流
@@ -222,7 +236,16 @@ public class WebhookRateLimiter {
 
         try {
             // 获取当前有效的限流阈值（考虑冷启动）
-            int currentLimit = getCurrentLimit();
+            int baseLimit = getCurrentLimit();
+
+            // 应用自适应限流比例（如果启用）
+            int currentLimit = baseLimit;
+            if (adaptiveRateLimiter != null) {
+                double adaptiveRatio = adaptiveRateLimiter.getAdaptiveRatio();
+                currentLimit = (int) (baseLimit * adaptiveRatio);
+                // 确保不低于最小限流值（至少允许10%的流量）
+                currentLimit = Math.max(currentLimit, (int) (baseLimit * 0.1));
+            }
 
             // 使用 Redis 滑动窗口限流
             // Key: webhook:rate-limit:{timestamp}
@@ -242,8 +265,10 @@ public class WebhookRateLimiter {
                 // 频率限制：每10秒最多记录一次警告，避免日志刷屏
                 if (currentWindow != lastWarnWindow && currentWindow % 10 == 0) {
                     lastWarnWindow = currentWindow;
-                    log.warn("[Webhook-RateLimit] 请求被限流: currentCount={}, limit={}, window={}, uptime={}s",
-                            count, currentLimit, currentWindow, 
+                    String adaptiveInfo = adaptiveRateLimiter != null ? 
+                            ", " + adaptiveRateLimiter.getStatusInfo() : "";
+                    log.warn("[Webhook-RateLimit] 请求被限流: currentCount={}, limit={} (baseLimit={}{}), window={}, uptime={}s",
+                            count, currentLimit, baseLimit, adaptiveInfo, currentWindow, 
                             applicationStartTime > 0 ? (System.currentTimeMillis() - applicationStartTime) / 1000 : 0);
                 }
                 return false;
