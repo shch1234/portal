@@ -119,15 +119,34 @@ public class DatabaseConfigPrinter {
             // 配置对比
             if (environment != null) {
                 log.info("[DatabaseConfig] 【配置对比】");
-                compareConfig("maximum-pool-size", 
-                        environment.getProperty("spring.datasource.hikari.maximum-pool-size"), 
-                        String.valueOf(maximumPoolSize));
-                compareConfig("minimum-idle", 
-                        environment.getProperty("spring.datasource.hikari.minimum-idle"), 
-                        String.valueOf(minimumIdle));
+                
+                // 对比 maximum-pool-size（优先使用 master 专用配置）
+                String masterMaxPoolSize = environment.getProperty("spring.datasource.master.hikari.maximum-pool-size");
+                String commonMaxPoolSize = environment.getProperty("spring.datasource.hikari.maximum-pool-size");
+                String apolloMaxPoolSize = masterMaxPoolSize != null ? masterMaxPoolSize : commonMaxPoolSize;
+                String maxPoolSizeSource = masterMaxPoolSize != null ? "master专用" : "通用";
+                compareConfig("maximum-pool-size", apolloMaxPoolSize, String.valueOf(maximumPoolSize), maxPoolSizeSource);
+                
+                // 对比 minimum-idle（优先使用 master 专用配置）
+                String masterMinIdle = environment.getProperty("spring.datasource.master.hikari.minimum-idle");
+                String commonMinIdle = environment.getProperty("spring.datasource.hikari.minimum-idle");
+                String apolloMinIdle = masterMinIdle != null ? masterMinIdle : commonMinIdle;
+                String minIdleSource = masterMinIdle != null ? "master专用" : "通用";
+                compareConfig("minimum-idle", apolloMinIdle, String.valueOf(minimumIdle), minIdleSource);
+                
+                // 对比 connection-timeout
                 compareConfig("connection-timeout", 
                         environment.getProperty("spring.datasource.hikari.connection-timeout"), 
-                        String.valueOf(connectionTimeout) + "ms");
+                        String.valueOf(connectionTimeout) + "ms", "通用");
+                
+                // 如果配置不一致，给出提示
+                if (maximumPoolSize != 250 || minimumIdle != 50) {
+                    log.warn("[DatabaseConfig] ⚠️ 配置未生效！请检查：");
+                    log.warn("[DatabaseConfig]   1. Apollo配置路径是否正确：spring.datasource.master.hikari.*");
+                    log.warn("[DatabaseConfig]   2. 动态数据源是否正确加载了Apollo配置");
+                    log.warn("[DatabaseConfig]   3. 是否有其他配置覆盖了Apollo配置");
+                    log.warn("[DatabaseConfig]   4. 建议检查动态数据源的自动配置类");
+                }
             }
             
         } catch (Exception e) {
@@ -139,11 +158,24 @@ public class DatabaseConfigPrinter {
      * 对比配置值
      */
     private void compareConfig(String key, String apolloValue, String actualValue) {
+        compareConfig(key, apolloValue, actualValue, "");
+    }
+    
+    /**
+     * 对比配置值（带配置来源）
+     */
+    private void compareConfig(String key, String apolloValue, String actualValue, String source) {
         String apollo = apolloValue != null ? apolloValue : "未配置";
-        if (apollo.equals(actualValue) || apollo.equals(actualValue.replace("ms", ""))) {
-            log.info("[DatabaseConfig]   {}: Apollo={}, 实际={} ✅", key, apollo, actualValue);
+        String sourceInfo = source != null && !source.isEmpty() ? "[" + source + "]" : "";
+        
+        // 处理数值比较（去掉ms后缀）
+        String apolloNum = apollo.replace("ms", "").trim();
+        String actualNum = actualValue.replace("ms", "").trim();
+        
+        if (apolloNum.equals(actualNum)) {
+            log.info("[DatabaseConfig]   {}: Apollo{}={}, 实际={} ✅", key, sourceInfo, apollo, actualValue);
         } else {
-            log.warn("[DatabaseConfig]   {}: Apollo={}, 实际={} ⚠️ 配置不一致！", key, apollo, actualValue);
+            log.warn("[DatabaseConfig]   {}: Apollo{}={}, 实际={} ⚠️ 配置不一致！", key, sourceInfo, apollo, actualValue);
         }
     }
 
