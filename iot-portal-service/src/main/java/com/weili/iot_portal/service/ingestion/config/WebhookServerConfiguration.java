@@ -111,15 +111,23 @@ public class WebhookServerConfiguration implements AsyncConfigurer {
         // 这样可以创建背压，减缓请求速度，避免数据丢失
         // 相比 DiscardPolicy（静默丢弃），CallerRunsPolicy 能保证任务被执行
         executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy() {
+            // 频率限制：每10秒最多记录一次警告，避免日志刷屏
+            private volatile long lastLogTime = 0;
+            private static final long LOG_INTERVAL_MS = 10_000; // 10秒
+            
             @Override
             public void rejectedExecution(Runnable r, ThreadPoolExecutor e) {
-                // 记录警告日志，便于监控系统负载情况
-                String taskInfo = r.getClass().getSimpleName();
-                if (r.toString().length() < 200) {
-                    taskInfo = r.toString();
+                long currentTime = System.currentTimeMillis();
+                // 频率限制：避免高并发时日志刷屏
+                if (currentTime - lastLogTime >= LOG_INTERVAL_MS) {
+                    lastLogTime = currentTime;
+                    String taskInfo = r.getClass().getSimpleName();
+                    if (r.toString().length() < 200) {
+                        taskInfo = r.toString();
+                    }
+                    log.warn("[Webhook-Server] 异步任务队列已满，由调用线程执行（背压生效）: activeThreads={}, queueSize={}, poolSize={}, task={}",
+                            e.getActiveCount(), e.getQueue().size(), e.getPoolSize(), taskInfo);
                 }
-                log.warn("[Webhook-Server] 异步任务队列已满，由调用线程执行: activeThreads={}, queueSize={}, poolSize={}, task={}",
-                        e.getActiveCount(), e.getQueue().size(), e.getPoolSize(), taskInfo);
                 super.rejectedExecution(r, e);
             }
         });

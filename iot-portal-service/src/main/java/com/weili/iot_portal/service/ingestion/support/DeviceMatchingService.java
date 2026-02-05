@@ -1,5 +1,7 @@
 package com.weili.iot_portal.service.ingestion.support;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import com.weili.basic.common.util.JsonUtils;
 import com.weili.basic.redis.client.RedisClient;
 import com.weili.iot_portal.common.constant.RedisConstant;
@@ -9,9 +11,12 @@ import com.weili.iot_portal.dal.repository.device.DeviceInfoRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import jakarta.annotation.PostConstruct;
 import java.time.Duration;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -35,8 +40,6 @@ import java.util.concurrent.TimeUnit;
 @Service
 @RequiredArgsConstructor
 public class DeviceMatchingService {
-
-    private static final long CACHE_TTL_SECONDS = Duration.ofHours(1).toSeconds();
 
     /**
      * 未匹配设备 WARN 日志的最小输出间隔（毫秒）
@@ -65,6 +68,18 @@ public class DeviceMatchingService {
     private final RedisClient redisClient;
 
     /**
+     * 本地缓存（Caffeine）：二级缓存，减少Redis查询
+     * Key: deviceCode
+     * Value: DeviceInfoDO
+     * 
+     * 优势：
+     * - 零延迟访问（内存访问）
+     * - 减少Redis网络开销
+     * - 提高缓存命中率
+     */
+    private Cache<String, DeviceInfoDO> localCache;
+
+    /**
      * 记录每个未匹配设备上次输出 WARN 日志的时间戳（毫秒）
      * key: deviceCode
      * value: lastWarnTimeMillis
@@ -79,12 +94,164 @@ public class DeviceMatchingService {
     private final ConcurrentMap<String, TbDeviceIdUpdateInfo> tbDeviceIdUpdateHistory = new ConcurrentHashMap<>();
 
     /**
-     * 匹配设备（带缓存）
+     * Redis缓存TTL（秒）
+     * 默认值：1小时（3600秒）
+     */
+    @Value("${device.matching.redis-cache-ttl-seconds:3600}")
+    private long redisCacheTtlSeconds;
+
+    /**
+     * 本地缓存最大大小
+     * 默认值：10000（支持10000个设备的本地缓存）
+     */
+    @Value("${device.matching.local-cache-max-size:10000}")
+    private int localCacheMaxSize;
+
+    /**
+     * 本地缓存TTL（分钟）
+     * 默认值：10分钟（比Redis缓存短，作为热点数据缓存）
+     */
+    @Value("${device.matching.local-cache-ttl-minutes:10}")
+    private int localCacheTtlMinutes;
+
+    /**
+     * 是否启用缓存预热
+     * 默认值：false（预热会增加启动时间，可根据需要开启）
+     */
+    @Value("${device.matching.cache-warmup-enabled:false}")
+    private boolean cacheWarmupEnabled;
+
+    /**
+     * 缓存预热设备数量
+     * 默认值：100（预热前100个活跃设备）
+     */
+    @Value("${device.matching.cache-warmup-size:100}")
+    private int cacheWarmupSize;
+
+    /**
+     * 初始化本地缓存
+     */
+    @PostConstruct
+    public void initLocalCache() {
+        localCache = Caffeine.newBuilder()
+                .maximumSize(localCacheMaxSize)
+                .expireAfterWrite(localCacheTtlMinutes, TimeUnit.MINUTES)
+                .recordStats() // 启用统计，便于监控缓存命中率
+                .build();
+        log.info("[DeviceMatching] 本地缓存初始化完成: maxSize={}, ttl={}分钟, redisCacheTtl={}秒", 
+                localCacheMaxSize, localCacheTtlMinutes, redisCacheTtlSeconds);
+        
+        // 启动缓存统计定时任务（每5分钟输出一次）
+        startCacheStatsTask();
+        
+        // 缓存预热（异步执行，不阻塞启动）
+        if (cacheWarmupEnabled) {
+            warmupCacheAsync();
+        }
+    }
+
+    /**
+     * 异步缓存预热
+     * 预加载热点设备到本地缓存，提高缓存命中率
+     */
+    private void warmupCacheAsync() {
+        java.util.concurrent.ExecutorService executor = 
+                java.util.concurrent.Executors.newSingleThreadExecutor(r -> {
+                    Thread t = new Thread(r, "device-matching-cache-warmup");
+                    t.setDaemon(true);
+                    return t;
+                });
+        
+        executor.submit(() -> {
+            try {
+                log.info("[DeviceMatching] 开始缓存预热: warmupSize={}", cacheWarmupSize);
+                long startTime = System.currentTimeMillis();
+                
+                // 查询活跃且监控中的设备（优先预热热点设备）
+                // 注意：这里只预热前N个设备，避免启动时间过长
+                List<DeviceInfoDO> activeDevices = deviceInfoRepository.findAllActive();
+                int warmedCount = 0;
+                
+                for (DeviceInfoDO device : activeDevices) {
+                    if (warmedCount >= cacheWarmupSize) {
+                        break;
+                    }
+                    
+                    // 只预热活跃且监控中的设备（这些设备更可能被访问）
+                    if (Boolean.TRUE.equals(device.getIsMonitored()) 
+                            && "ACTIVE".equals(device.getDeviceStatus())
+                            && !Boolean.TRUE.equals(device.getDeleted())) {
+                        String deviceCode = device.getDeviceCode();
+                        if (StringUtils.isNotBlank(deviceCode)) {
+                            // 写入本地缓存
+                            localCache.put(deviceCode, device);
+                            // 写入Redis缓存
+                            cacheDeviceInfo(deviceCode, device);
+                            warmedCount++;
+                        }
+                    }
+                }
+                
+                long cost = System.currentTimeMillis() - startTime;
+                log.info("[DeviceMatching] 缓存预热完成: 预热设备数={}, 总设备数={}, 耗时={}ms", 
+                        warmedCount, activeDevices.size(), cost);
+            } catch (Exception e) {
+                log.warn("[DeviceMatching] 缓存预热失败", e);
+            }
+        });
+    }
+
+    /**
+     * 启动缓存统计定时任务
+     * 定期输出缓存命中率等统计信息，便于监控和优化
+     */
+    private void startCacheStatsTask() {
+        java.util.concurrent.ScheduledExecutorService scheduler = 
+                java.util.concurrent.Executors.newSingleThreadScheduledExecutor(r -> {
+                    Thread t = new Thread(r, "device-matching-cache-stats");
+                    t.setDaemon(true);
+                    return t;
+                });
+        
+        // 每5分钟输出一次缓存统计
+        scheduler.scheduleWithFixedDelay(this::logCacheStats, 5, 5, TimeUnit.MINUTES);
+    }
+
+    /**
+     * 输出缓存统计信息
+     */
+    private void logCacheStats() {
+        if (localCache == null) {
+            return;
+        }
+        
+        com.github.benmanes.caffeine.cache.stats.CacheStats stats = localCache.stats();
+        long hitCount = stats.hitCount();
+        long missCount = stats.missCount();
+        long requestCount = hitCount + missCount;
+        double hitRate = requestCount > 0 ? (double) hitCount / requestCount * 100 : 0.0;
+        long evictionCount = stats.evictionCount();
+        long size = localCache.estimatedSize();
+        
+        log.info("[DeviceMatching] 缓存统计: 命中率={:.2f}% (命中={}, 未命中={}, 总请求={}), " +
+                "缓存大小={}, 淘汰次数={}, 最大容量={}",
+                hitRate, hitCount, missCount, requestCount, size, evictionCount, localCacheMaxSize);
+    }
+
+    /**
+     * 匹配设备（带二级缓存）
      * <p>
-     * 缓存策略：
-     * 1. 先查Redis缓存
-     * 2. 缓存未命中时查询数据库
-     * 3. 查询结果写入缓存
+     * 优化后的缓存策略（三级缓存）：
+     * 1. 先查本地缓存（Caffeine）- 最快，零延迟
+     * 2. 本地缓存未命中，查Redis缓存 - 分布式共享
+     * 3. Redis缓存未命中，查数据库 - 最慢，需要优化
+     * 4. 查询结果写入本地缓存和Redis缓存
+     * </p>
+     * <p>
+     * 性能提升：
+     * - 本地缓存命中：0ms（内存访问）
+     * - Redis缓存命中：1-2ms（网络延迟）
+     * - 数据库查询：10-50ms（取决于数据库负载）
      * </p>
      *
      * @param deviceCode 设备编号
@@ -96,32 +263,46 @@ public class DeviceMatchingService {
             return Optional.empty();
         }
 
-        // 1. 尝试从缓存获取
-        Optional<DeviceInfoDO> cached = getFromCache(deviceCode);
-        if (cached.isPresent()) {
-            return cached;
+        // 1. 先查本地缓存（最快）
+        DeviceInfoDO localCached = localCache.getIfPresent(deviceCode);
+        if (localCached != null) {
+            if (log.isDebugEnabled()) {
+                log.debug("[DeviceMatching] 本地缓存命中: deviceCode={}, deviceId={}", 
+                        deviceCode, localCached.getId());
+            }
+            return Optional.of(localCached);
         }
 
-        // 2. 从数据库查询
+        // 2. 本地缓存未命中，查Redis缓存
+        Optional<DeviceInfoDO> redisCached = getFromRedisCache(deviceCode);
+        if (redisCached.isPresent()) {
+            DeviceInfoDO device = redisCached.get();
+            // 写入本地缓存，下次直接命中
+            localCache.put(deviceCode, device);
+            return redisCached;
+        }
+
+        // 3. Redis缓存未命中，查数据库
         Optional<DeviceInfoDO> deviceOpt = queryFromDatabase(deviceCode);
         if (deviceOpt.isEmpty()) {
             return Optional.empty();
         }
 
-        // 3. 写入缓存
+        // 4. 写入本地缓存和Redis缓存
         DeviceInfoDO device = deviceOpt.get();
+        localCache.put(deviceCode, device);
         cacheDeviceInfo(deviceCode, device);
 
         return Optional.of(device);
     }
 
     /**
-     * 从缓存获取设备信息
+     * 从Redis缓存获取设备信息
      *
      * @param deviceCode 设备编号
      * @return 设备信息，如果缓存未命中或无效则返回空
      */
-    private Optional<DeviceInfoDO> getFromCache(String deviceCode) {
+    private Optional<DeviceInfoDO> getFromRedisCache(String deviceCode) {
         String cacheKey = buildCacheKey(deviceCode);
         String cached;
         try {
@@ -173,6 +354,11 @@ public class DeviceMatchingService {
 
     /**
      * 从数据库查询设备信息
+     * <p>
+     * 优化：减少不必要的数据库查询
+     * - 优先使用 findActiveMonitoredByDeviceCode（单次查询，带条件）
+     * - 仅在需要详细日志时（且满足节流条件）才查询详细信息
+     * </p>
      *
      * @param deviceCode 设备编号
      * @return 设备信息，如果未匹配则返回空
@@ -180,18 +366,17 @@ public class DeviceMatchingService {
     private Optional<DeviceInfoDO> queryFromDatabase(String deviceCode) {
         DeviceInfoDO device = deviceInfoRepository.findActiveMonitoredByDeviceCode(deviceCode).orElse(null);
         if (device == null) {
-            // 添加详细调试日志：查询设备详细信息，分析未匹配原因
-            Optional<DeviceInfoDO> rawDevice = deviceInfoRepository.findByDeviceCode(deviceCode);
-            if (rawDevice.isPresent()) {
-                DeviceInfoDO raw = rawDevice.get();
-
-                // 根据设备编号节流 WARN 日志，避免刷屏
-                long now = System.currentTimeMillis();
-                Long lastWarnTime = unmatchedDeviceLastWarnTime.get(deviceCode);
-                boolean shouldWarn = lastWarnTime == null
-                        || (now - lastWarnTime) >= UNMATCHED_WARN_INTERVAL_MILLIS;
-
-                if (shouldWarn) {
+            // 优化：仅在需要输出WARN日志时才查询详细信息，减少数据库查询
+            long now = System.currentTimeMillis();
+            Long lastWarnTime = unmatchedDeviceLastWarnTime.get(deviceCode);
+            boolean shouldWarn = lastWarnTime == null
+                    || (now - lastWarnTime) >= UNMATCHED_WARN_INTERVAL_MILLIS;
+            
+            if (shouldWarn) {
+                // 仅在需要输出WARN日志时查询详细信息
+                Optional<DeviceInfoDO> rawDevice = deviceInfoRepository.findByDeviceCode(deviceCode);
+                if (rawDevice.isPresent()) {
+                    DeviceInfoDO raw = rawDevice.get();
                     unmatchedDeviceLastWarnTime.put(deviceCode, now);
                     log.warn("[DeviceMatching] 设备未匹配: deviceCode={}, id={}, deleted={}, deviceStatus={}, isMonitored={}, tbDeviceId={}",
                             deviceCode, raw.getId(), raw.getDeleted(), raw.getDeviceStatus(), raw.getIsMonitored(), raw.getTbDeviceId());
@@ -207,24 +392,13 @@ public class DeviceMatchingService {
                     if (reasons.length() > 0) {
                         log.warn("[DeviceMatching] 设备未匹配原因: deviceCode={}, 原因={}", deviceCode, reasons.toString());
                     }
-                } else if (log.isDebugEnabled()) {
-                    // 在节流窗口内，仅输出 DEBUG 级别日志，避免 WARN 刷屏
-                    log.debug("[DeviceMatching] 设备未匹配(节流中): deviceCode={}, id={}, deleted={}, deviceStatus={}, isMonitored={}, tbDeviceId={}",
-                            deviceCode, raw.getId(), raw.getDeleted(), raw.getDeviceStatus(), raw.getIsMonitored(), raw.getTbDeviceId());
-                }
-
-            } else {
-                long now = System.currentTimeMillis();
-                Long lastWarnTime = unmatchedDeviceLastWarnTime.get(deviceCode);
-                boolean shouldWarn = lastWarnTime == null
-                        || (now - lastWarnTime) >= UNMATCHED_WARN_INTERVAL_MILLIS;
-
-                if (shouldWarn) {
+                } else {
                     unmatchedDeviceLastWarnTime.put(deviceCode, now);
                     log.warn("[DeviceMatching] 设备未匹配: deviceCode={}, 数据库中不存在该设备", deviceCode);
-                } else if (log.isDebugEnabled()) {
-                    log.debug("[DeviceMatching] 设备未匹配(节流中): deviceCode={}, 数据库中不存在该设备", deviceCode);
                 }
+            } else if (log.isDebugEnabled()) {
+                // 在节流窗口内，不查询详细信息，仅输出 DEBUG 级别日志
+                log.debug("[DeviceMatching] 设备未匹配(节流中，跳过详细查询): deviceCode={}", deviceCode);
             }
             return Optional.empty();
         }
@@ -256,14 +430,26 @@ public class DeviceMatchingService {
 
         String deviceCode = device.getDeviceCode();
         
-        // 优化1：先检查缓存中的tb_device_id是否匹配
+        // 优化1：先检查本地缓存和Redis缓存中的tb_device_id是否匹配
         // 如果缓存中的tb_device_id与请求的tbDeviceId匹配，直接返回，不更新
-        Optional<DeviceInfoDO> cachedDevice = getFromCache(deviceCode);
-        if (cachedDevice.isPresent()) {
-            String cachedTbDeviceId = cachedDevice.get().getTbDeviceId();
+        DeviceInfoDO localCached = localCache != null ? localCache.getIfPresent(deviceCode) : null;
+        if (localCached != null) {
+            String cachedTbDeviceId = localCached.getTbDeviceId();
             if (StringUtils.isNotBlank(cachedTbDeviceId) && tbDeviceId.equals(cachedTbDeviceId)) {
-                // 缓存中的tb_device_id已匹配，直接返回，不更新
-                log.debug("[DeviceMatching] 缓存中的tb_device_id已匹配，跳过更新: deviceCode={}, tbDeviceId={}",
+                // 本地缓存中的tb_device_id已匹配，直接返回，不更新
+                log.debug("[DeviceMatching] 本地缓存中的tb_device_id已匹配，跳过更新: deviceCode={}, tbDeviceId={}",
+                        deviceCode, tbDeviceId);
+                return;
+            }
+        }
+        
+        // 如果本地缓存未命中，再查Redis缓存
+        Optional<DeviceInfoDO> redisCached = getFromRedisCache(deviceCode);
+        if (redisCached.isPresent()) {
+            String cachedTbDeviceId = redisCached.get().getTbDeviceId();
+            if (StringUtils.isNotBlank(cachedTbDeviceId) && tbDeviceId.equals(cachedTbDeviceId)) {
+                // Redis缓存中的tb_device_id已匹配，直接返回，不更新
+                log.debug("[DeviceMatching] Redis缓存中的tb_device_id已匹配，跳过更新: deviceCode={}, tbDeviceId={}",
                         deviceCode, tbDeviceId);
                 return;
             }
@@ -365,8 +551,11 @@ public class DeviceMatchingService {
                 currentDevice.setIsMonitored(true);
                 deviceInfoRepository.update(currentDevice);
 
-                // 优化：更新缓存而不是清除缓存，提高下次连接的缓存命中率
+                // 优化：更新本地缓存和Redis缓存，提高下次连接的缓存命中率
                 // 这样可以避免下次连接时缓存未命中，减少数据库查询
+                if (localCache != null) {
+                    localCache.put(deviceCode, currentDevice);
+                }
                 cacheDeviceInfo(deviceCode, currentDevice);
 
                 // 记录更新历史
@@ -404,16 +593,23 @@ public class DeviceMatchingService {
      * @param deviceCode 设备编号
      * @param device     设备信息
      */
+    /**
+     * 缓存设备信息到Redis（本地缓存已在match方法中处理）
+     *
+     * @param deviceCode 设备编号
+     * @param device     设备信息
+     */
     private void cacheDeviceInfo(String deviceCode, DeviceInfoDO device) {
         try {
             CachedDeviceInfo cachedInfo = CachedDeviceInfo.fromDeviceInfoDO(device);
             String cacheKey = buildCacheKey(deviceCode);
-            redisClient.set(cacheKey, JsonUtils.toJsonString(cachedInfo), CACHE_TTL_SECONDS, TimeUnit.SECONDS);
+            redisClient.set(cacheKey, JsonUtils.toJsonString(cachedInfo), redisCacheTtlSeconds, TimeUnit.SECONDS);
             if (log.isDebugEnabled()) {
-                log.debug("[DeviceMatching] 设备信息已缓存: deviceCode={}, deviceId={}", deviceCode, device.getId());
+                log.debug("[DeviceMatching] 设备信息已缓存到Redis: deviceCode={}, deviceId={}, ttl={}秒", 
+                        deviceCode, device.getId(), redisCacheTtlSeconds);
             }
         } catch (Exception e) {
-            log.warn("[DeviceMatching] 缓存设备信息失败: deviceCode={}, error={}", deviceCode, e.getMessage());
+            log.warn("[DeviceMatching] 缓存设备信息到Redis失败: deviceCode={}, error={}", deviceCode, e.getMessage());
         }
     }
 
@@ -436,15 +632,27 @@ public class DeviceMatchingService {
      * 清除设备信息缓存（内部方法，不检查参数）
      * <p>
      * 用于内部调用，参数已由调用方验证
+     * 同时清除本地缓存和Redis缓存
      * </p>
      *
      * @param deviceCode 设备编号（非空）
      */
     private void evictCacheUnchecked(String deviceCode) {
+        // 清除本地缓存
+        if (localCache != null) {
+            localCache.invalidate(deviceCode);
+        }
+        
+        // 清除Redis缓存
         String cacheKey = buildCacheKey(deviceCode);
-        redisClient.delete(cacheKey);
+        try {
+            redisClient.delete(cacheKey);
+        } catch (Exception e) {
+            log.warn("[DeviceMatching] 清除Redis缓存失败: deviceCode={}, error={}", deviceCode, e.getMessage());
+        }
+        
         if (log.isDebugEnabled()) {
-            log.debug("[DeviceMatching] 设备信息缓存已清除: deviceCode={}", deviceCode);
+            log.debug("[DeviceMatching] 设备信息缓存已清除（本地+Redis）: deviceCode={}", deviceCode);
         }
     }
 

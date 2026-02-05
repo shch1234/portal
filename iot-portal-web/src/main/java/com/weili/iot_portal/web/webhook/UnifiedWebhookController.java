@@ -6,6 +6,7 @@ import com.weili.basic.common.util.JsonUtils;
 import com.weili.iot_portal.domain.ingestion.WebhookRequest;
 import com.weili.iot_portal.service.ingestion.WebhookReceiveService;
 import com.weili.iot_portal.service.ingestion.WebhookSecurityService;
+import com.weili.iot_portal.service.ingestion.support.WebhookRateLimiter;
 import com.weili.iot_portal.service.ingestion.support.WebhookRequestValidator;
 import jakarta.annotation.security.PermitAll;
 import lombok.extern.slf4j.Slf4j;
@@ -32,6 +33,9 @@ public class UnifiedWebhookController {
 
     @Autowired
     private WebhookRequestValidator webhookRequestValidator;
+
+    @Autowired(required = false)
+    private WebhookRateLimiter webhookRateLimiter;
 
     @Autowired(required = false)
     @Qualifier("webhookAsyncExecutor")
@@ -77,6 +81,12 @@ public class UnifiedWebhookController {
                 signature != null ? signature.substring(0, Math.min(8, signature.length())) + "..." : "null",
                 timestamp, nonce, headerSecret != null ? "***" : "null");
             log.debug("[Webhook-接收] 原始请求体大小: {} bytes", rawBody != null ? rawBody.length() : 0);
+            
+            // 限流检查（在参数校验之前，快速失败）
+            if (webhookRateLimiter != null && !webhookRateLimiter.tryAcquire()) {
+                log.warn("[Webhook-接收] 请求被限流: category={}, eventType={}", category, eventType);
+                return ResponseEntity.status(429).body("Too Many Requests");
+            }
             
             // 校验请求参数和安全
             webhookRequestValidator.validate(rawBody, signature, timestamp, nonce, headerSecret);

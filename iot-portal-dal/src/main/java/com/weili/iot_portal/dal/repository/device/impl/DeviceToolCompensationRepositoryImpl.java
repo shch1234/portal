@@ -7,6 +7,7 @@ import com.weili.iot_portal.dal.mapper.device.DeviceToolCompensationMapper;
 import com.weili.iot_portal.dal.repository.device.DeviceToolCompensationRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.CannotAcquireLockException;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Repository;
 
@@ -38,8 +39,17 @@ public class DeviceToolCompensationRepositoryImpl implements DeviceToolCompensat
                 .eq(DeviceToolCompensationDO::getToolHolderNo, toolHolderNo)
                 .eq(DeviceToolCompensationDO::getActive, 1)
                 .orderByDesc(DeviceToolCompensationDO::getStartTs)
-                .last("LIMIT 1 FOR UPDATE");
-        return mapper.selectOne(wrapper);
+                // 使用 NOWAIT 避免长时间等待，如果锁被占用则立即返回 null
+                // 这样可以避免锁等待超时，由分布式锁和重试机制来处理并发
+                .last("LIMIT 1 FOR UPDATE NOWAIT");
+        try {
+            return mapper.selectOne(wrapper);
+        } catch (org.springframework.dao.CannotAcquireLockException e) {
+            // 如果无法获取锁（NOWAIT），返回 null，由调用方处理
+            log.debug("[DeviceToolCompensationRepository] 无法获取行锁（NOWAIT）: deviceId={}, toolHolderNo={}", 
+                    deviceId, toolHolderNo);
+            return null;
+        }
     }
 
     @Override

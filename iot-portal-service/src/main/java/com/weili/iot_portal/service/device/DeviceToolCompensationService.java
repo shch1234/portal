@@ -103,10 +103,16 @@ public class DeviceToolCompensationService {
             }
 
             // 2. 缓存未命中或值不同，查询数据库（使用行锁防止并发修改）
-            // 使用 SELECT FOR UPDATE 锁定行，防止并发修改导致的唯一约束冲突
+            // 使用 SELECT FOR UPDATE NOWAIT 锁定行，避免长时间等待导致锁超时
             DeviceToolCompensationDO active;
             try {
                 active = deviceToolCompensationRepository.findActiveWithLock(deviceId, holderNumber);
+            } catch (org.springframework.dao.CannotAcquireLockException e) {
+                // 行锁获取失败（NOWAIT），可能是其他事务正在处理，记录日志并跳过
+                // 由于已有分布式锁保护，这种情况应该很少发生，如果发生则跳过本次写入
+                log.warn("{} 无法获取数据库行锁，跳过写入（可能其他事务正在处理）: deviceId={}, holderNumber={}",
+                        logPrefix, deviceId, holderNumber);
+                return;
             } catch (RecoverableDataAccessException e) {
                 // 数据库连接失败，无法继续处理，抛出异常让调用方处理（可能需要重试或记录到队列）
                 log.error("{} 数据库连接失败，无法查询或写入补偿数据: deviceId={}, holderNumber={}, error={}",

@@ -201,8 +201,9 @@ public final class DeviceToolEventFields {
     /**
      * 分布式锁超时时间（秒）：刀具变更
      * 刀具变更操作的锁超时时间，防止死锁
+     * 从 5 秒增加到 15 秒，以应对高并发场景下的锁竞争
      */
-    public static final long LOCK_TIMEOUT_SECONDS_TOOL_CHANGE = 5L;
+    public static final long LOCK_TIMEOUT_SECONDS_TOOL_CHANGE = 15L;
 
     /**
      * 错误类型：刀具不匹配
