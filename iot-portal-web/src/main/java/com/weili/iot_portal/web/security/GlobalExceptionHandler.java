@@ -5,6 +5,7 @@ import com.weili.basic.common.exception.BaseException;
 import com.weili.basic.common.exception.ServiceException;
 import com.weili.basic.common.model.CommonResult;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import lombok.AllArgsConstructor;
@@ -19,6 +20,8 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.context.request.ServletRequestAttributes;
+import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.NoHandlerFoundException;
 
@@ -152,12 +155,148 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * 处理响应写入异常（如 Content-Type 不匹配、响应已提交等）
+     * <p>
+     * 这通常发生在客户端断开连接后，响应已经部分写入，无法再写入新的响应体
+     * </p>
+     */
+    @ExceptionHandler(value = org.springframework.http.converter.HttpMessageNotWritableException.class)
+    public void httpMessageNotWritableExceptionHandler(org.springframework.http.converter.HttpMessageNotWritableException ex) {
+        // 检查是否是客户端断开连接导致的
+        if (isClientAbortException(ex) || isResponseCommitted()) {
+            // 客户端已断开或响应已提交，静默处理
+            if (log.isDebugEnabled()) {
+                log.debug("[GlobalExceptionHandler] 响应写入失败（客户端断开或响应已提交），跳过处理: {}", ex.getMessage());
+            }
+            // 不返回任何值，让 Spring 跳过响应写入
+            return;
+        }
+        // 其他原因导致的写入失败，记录警告
+        log.warn("[GlobalExceptionHandler] 响应写入失败: {}", ex.getMessage());
+    }
+
+    /**
      * 处理系统异常，兜底处理所有的一切
+     * <p>
+     * 优化：检查客户端断开连接异常，如果是客户端断开，静默处理（不记录错误日志）
+     * 这是正常情况，不是错误，符合 webhook "fire and forget" 模式的最佳实践
+     * </p>
      */
     @ExceptionHandler(value = Exception.class)
     public CommonResult<?> defaultExceptionHandler(Throwable ex) {
+        // 优先检查响应是否已提交（防止在响应已写入后尝试返回 CommonResult）
+        if (isResponseCommitted()) {
+            // 响应已提交，无法写入新的响应体
+            // 这通常发生在客户端断开连接后，响应已经部分写入
+            if (isClientAbortException(ex)) {
+                // 客户端断开，静默处理
+                if (log.isDebugEnabled()) {
+                    log.debug("[GlobalExceptionHandler] 客户端已断开连接且响应已提交，跳过异常处理: {}", ex.getClass().getSimpleName());
+                }
+            } else {
+                // 其他异常但响应已提交，记录警告
+                log.warn("[GlobalExceptionHandler] 响应已提交，无法返回错误响应: {}", ex.getClass().getSimpleName());
+            }
+            // 返回 null，Spring 会跳过响应写入
+            return null;
+        }
+        
+        // 检查是否是客户端断开连接异常（响应未提交的情况）
+        if (isClientAbortException(ex)) {
+            // 客户端已断开，静默处理（DEBUG 级别日志）
+            // 这是正常情况，不是错误，不应记录 ERROR 日志
+            // 符合行业最佳实践：GitHub、Stripe、AWS 等 webhook 服务都采用这种方式
+            if (log.isDebugEnabled()) {
+                log.debug("[GlobalExceptionHandler] 客户端已断开连接，跳过异常处理: {}", ex.getMessage());
+            }
+            // 返回 null，让 Spring 跳过响应写入
+            return null;
+        }
+        
+        // 其他异常正常处理
         log.error("[defaultExceptionHandler]", ex);
         return CommonResult.error(INTERNAL_SERVER_ERROR.getCode(), INTERNAL_SERVER_ERROR.getMsg());
+    }
+
+    /**
+     * 检查是否是客户端断开连接异常
+     * <p>
+     * 客户端断开连接是正常情况，不是错误：
+     * - 客户端可能设置了较短的超时时间
+     * - 服务器已立即返回响应，异步处理继续执行
+     * - 这是 webhook "fire and forget" 模式的标准行为
+     * </p>
+     *
+     * @param ex 异常对象
+     * @return true 如果是客户端断开连接异常
+     */
+    private boolean isClientAbortException(Throwable ex) {
+        if (ex == null) {
+            return false;
+        }
+        
+        // 检查异常类型
+        if (ex instanceof org.springframework.web.context.request.async.AsyncRequestNotUsableException) {
+            return true;
+        }
+        
+        // 检查异常消息
+        String message = ex.getMessage();
+        if (message != null && (
+                message.contains("Broken pipe")
+                || message.contains("ClientAbortException")
+                || message.contains("Connection reset by peer")
+                || message.contains("java.io.IOException: Broken pipe")
+        )) {
+            return true;
+        }
+        
+        // 检查 cause
+        Throwable cause = ex.getCause();
+        if (cause != null) {
+            if (cause instanceof org.apache.catalina.connector.ClientAbortException) {
+                return true;
+            }
+            if (cause instanceof java.io.IOException 
+                    && cause.getMessage() != null 
+                    && (cause.getMessage().contains("Broken pipe")
+                        || cause.getMessage().contains("Connection reset"))) {
+                return true;
+            }
+            // 递归检查嵌套的 cause
+            if (isClientAbortException(cause)) {
+                return true;
+            }
+        }
+        
+        return false;
+    }
+
+    /**
+     * 检查响应是否已提交
+     * <p>
+     * 如果响应已提交，则无法再写入响应体，尝试写入会导致异常
+     * </p>
+     *
+     * @return true 如果响应已提交
+     */
+    private boolean isResponseCommitted() {
+        try {
+            ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+            if (attributes != null) {
+                HttpServletResponse response = attributes.getResponse();
+                if (response != null) {
+                    return response.isCommitted();
+                }
+            }
+        } catch (Exception e) {
+            // 如果无法获取响应对象，假设响应未提交
+            // 这通常发生在异常处理过程中，响应对象可能已经失效
+            if (log.isDebugEnabled()) {
+                log.debug("[GlobalExceptionHandler] 无法检查响应状态: {}", e.getMessage());
+            }
+        }
+        return false;
     }
 
 }
