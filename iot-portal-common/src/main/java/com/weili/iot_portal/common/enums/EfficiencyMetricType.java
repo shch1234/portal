@@ -42,6 +42,21 @@ public enum EfficiencyMetricType {
      */
     DOWNTIME_RATE("downtimeRate", "停机率", "%");
 
+    /**
+     * 指标代码（对应device_metrics_shift.metrics中的key）
+     */
+    private final String code;
+
+    /**
+     * 指标显示名称
+     */
+    private final String displayName;
+
+    /**
+     * 指标单位
+     */
+    private final String unit;
+
     private static final Map<String, EfficiencyMetricType> CACHE = new ConcurrentHashMap<>();
 
     static {
@@ -57,20 +72,5 @@ public enum EfficiencyMetricType {
         }
         return CACHE.get(code.toLowerCase());
     }
-
-    /**
-     * 指标代码（对应device_metrics_shift.metrics中的key）
-     */
-    private final String code;
-
-    /**
-     * 指标显示名称
-     */
-    private final String displayName;
-
-    /**
-     * 指标单位
-     */
-    private final String unit;
 }
 
