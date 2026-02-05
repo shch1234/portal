@@ -165,6 +165,9 @@ public class DeviceMetricsService implements IDeviceMetricsService {
         List<Long> newProcessedIds = new ArrayList<>();
         long startTime = System.currentTimeMillis();
 
+        // 创建告警收集器（用于批次告警聚合，避免日志刷屏）
+        MetricsWarningCollector warningCollector = new MetricsWarningCollector();
+        
         for (int i = 0; i < remainingDevices.size(); i += batchSize) {
             int endIndex = Math.min(i + batchSize, remainingDevices.size());
             List<DeviceInfoDO> batch = remainingDevices.subList(i, endIndex);
@@ -173,7 +176,7 @@ public class DeviceMetricsService implements IDeviceMetricsService {
                 try {
                     // 使用预加载的参数配置数据
                     List<DeviceParamConfigDO> deviceParams = deviceParamsMap.getOrDefault(device.getId(), Collections.emptyList());
-                    calculateDeviceMetricsWithParams(device, deviceParams);
+                    calculateDeviceMetricsWithParams(device, deviceParams, warningCollector);
                     successCount++;
                     newProcessedIds.add(device.getId());
                     processedDeviceIds.add(device.getId());
@@ -201,6 +204,9 @@ public class DeviceMetricsService implements IDeviceMetricsService {
             }
         }
 
+        // 输出告警汇总（批次处理完成后统一输出，避免日志刷屏）
+        warningCollector.logSummary(factoryId);
+        
         // 所有设备都处理完成，清除检查点
         if (processedDeviceIds.size() >= devices.size()) {
             checkpointService.clearCheckpoint(factoryId, calculationTimeSeconds);
@@ -248,6 +254,154 @@ public class DeviceMetricsService implements IDeviceMetricsService {
         }
 
         return MetricsCalculationResult.of(success, error);
+    }
+    
+    // ==================== 告警聚合器（行业最佳实践：批次汇总，采样输出）====================
+    
+    /**
+     * 指标计算告警收集器
+     * <p>
+     * 行业最佳实践：
+     * 1. 批次汇总：收集所有告警，在批次处理完成后统一输出
+     * 2. 采样输出：只输出前N个设备的详细信息，其余只统计数量
+     * 3. 分类统计：按告警类型分类统计，便于快速定位问题
+     * </p>
+     */
+    private static class MetricsWarningCollector {
+        private static final int MAX_DETAILED_SAMPLES = 5; // 最多输出前5个设备的详细信息
+        
+        // 理论节拍缺失告警（只保存前N个设备的详细信息，其余只计数）
+        private final List<WarningInfo> theoreticalCycleMissing = new ArrayList<>();
+        private int theoreticalCycleMissingTotalCount = 0;
+        
+        // 性能率为0（理论节拍缺失）告警
+        private final List<WarningInfo> performanceRateZeroTheoreticalCycleMissing = new ArrayList<>();
+        private int performanceRateZeroTheoreticalCycleMissingTotalCount = 0;
+        
+        // 性能率为0（产量缺失）告警
+        private final List<WarningInfo> performanceRateZeroOutputMissing = new ArrayList<>();
+        private int performanceRateZeroOutputMissingTotalCount = 0;
+        
+        /**
+         * 添加理论节拍缺失告警
+         */
+        void addTheoreticalCycleMissing(Long deviceId, long theoreticalCycle) {
+            theoreticalCycleMissingTotalCount++;
+            if (theoreticalCycleMissing.size() < MAX_DETAILED_SAMPLES) {
+                theoreticalCycleMissing.add(new WarningInfo(deviceId, theoreticalCycle));
+            }
+            // 超过采样数量后，只计数不保存详细信息（节省内存）
+        }
+        
+        /**
+         * 添加性能率为0（理论节拍缺失）告警
+         */
+        void addPerformanceRateZeroTheoreticalCycleMissing(Long deviceId, long theoreticalCycle) {
+            performanceRateZeroTheoreticalCycleMissingTotalCount++;
+            if (performanceRateZeroTheoreticalCycleMissing.size() < MAX_DETAILED_SAMPLES) {
+                performanceRateZeroTheoreticalCycleMissing.add(new WarningInfo(deviceId, theoreticalCycle));
+            }
+            // 超过采样数量后，只计数不保存详细信息（节省内存）
+        }
+        
+        /**
+         * 添加性能率为0（产量缺失）告警
+         */
+        void addPerformanceRateZeroOutputMissing(Long deviceId, long theoreticalCycle) {
+            performanceRateZeroOutputMissingTotalCount++;
+            if (performanceRateZeroOutputMissing.size() < MAX_DETAILED_SAMPLES) {
+                performanceRateZeroOutputMissing.add(new WarningInfo(deviceId, theoreticalCycle));
+            }
+            // 超过采样数量后，只计数不保存详细信息（节省内存）
+        }
+        
+        /**
+         * 输出告警汇总（批次处理完成后统一输出）
+         */
+        void logSummary(Long factoryId) {
+            boolean hasWarnings = false;
+            
+            // 1. 理论节拍缺失告警
+            if (theoreticalCycleMissingTotalCount > 0) {
+                hasWarnings = true;
+                int sampleCount = theoreticalCycleMissing.size();
+                
+                log.warn("实时指标计算[工厂={}]: 理论节拍参数缺失或无效（<=0），将导致性能率和OEE为0: 共{}台设备",
+                        factoryId, theoreticalCycleMissingTotalCount);
+                
+                // 输出前N个设备的详细信息
+                for (int i = 0; i < sampleCount; i++) {
+                    WarningInfo info = theoreticalCycleMissing.get(i);
+                    log.warn("实时指标计算: 理论节拍参数缺失或无效（<=0）: deviceId={}, theoreticalCycle={}",
+                            info.deviceId, info.theoreticalCycle);
+                }
+                
+                // 如果还有更多设备，只输出统计信息
+                if (theoreticalCycleMissingTotalCount > sampleCount) {
+                    log.warn("实时指标计算: 还有{}台设备存在理论节拍参数缺失问题（已省略详细信息）",
+                            theoreticalCycleMissingTotalCount - sampleCount);
+                }
+            }
+            
+            // 2. 性能率为0（理论节拍缺失）告警
+            if (performanceRateZeroTheoreticalCycleMissingTotalCount > 0) {
+                hasWarnings = true;
+                int sampleCount = performanceRateZeroTheoreticalCycleMissing.size();
+                
+                log.warn("实时指标计算[工厂={}]: 性能率为0（理论节拍缺失）: 共{}台设备",
+                        factoryId, performanceRateZeroTheoreticalCycleMissingTotalCount);
+                
+                // 输出前N个设备的详细信息
+                for (int i = 0; i < sampleCount; i++) {
+                    WarningInfo info = performanceRateZeroTheoreticalCycleMissing.get(i);
+                    log.warn("实时指标计算: 性能率为0（理论节拍缺失）: deviceId={}, theoreticalCycle={}",
+                            info.deviceId, info.theoreticalCycle);
+                }
+                
+                // 如果还有更多设备，只输出统计信息
+                if (performanceRateZeroTheoreticalCycleMissingTotalCount > sampleCount) {
+                    log.warn("实时指标计算: 还有{}台设备存在性能率为0（理论节拍缺失）问题（已省略详细信息）",
+                            performanceRateZeroTheoreticalCycleMissingTotalCount - sampleCount);
+                }
+            }
+            
+            // 3. 性能率为0（产量缺失）告警
+            if (performanceRateZeroOutputMissingTotalCount > 0) {
+                hasWarnings = true;
+                int sampleCount = performanceRateZeroOutputMissing.size();
+                
+                log.warn("实时指标计算[工厂={}]: 性能率为0（产量缺失，产量为0但设备有运行时间）: 共{}台设备",
+                        factoryId, performanceRateZeroOutputMissingTotalCount);
+                
+                // 输出前N个设备的详细信息
+                for (int i = 0; i < sampleCount; i++) {
+                    WarningInfo info = performanceRateZeroOutputMissing.get(i);
+                    log.warn("实时指标计算: 性能率为0（产量缺失，产量为0但设备有运行时间）: deviceId={}, theoreticalCycle={}",
+                            info.deviceId, info.theoreticalCycle);
+                }
+                
+                // 如果还有更多设备，只输出统计信息
+                if (performanceRateZeroOutputMissingTotalCount > sampleCount) {
+                    log.warn("实时指标计算: 还有{}台设备存在性能率为0（产量缺失）问题（已省略详细信息）",
+                            performanceRateZeroOutputMissingTotalCount - sampleCount);
+                }
+            }
+            
+            // 如果没有告警，不输出任何日志（避免噪音）
+        }
+        
+        /**
+         * 告警信息
+         */
+        private static class WarningInfo {
+            final Long deviceId;
+            final long theoreticalCycle;
+            
+            WarningInfo(Long deviceId, long theoreticalCycle) {
+                this.deviceId = deviceId;
+                this.theoreticalCycle = theoreticalCycle;
+            }
+        }
     }
     
     // ==================== 工具方法 ====================
@@ -304,8 +458,10 @@ public class DeviceMetricsService implements IDeviceMetricsService {
      * 
      * @param device 设备信息
      * @param deviceParams 设备参数配置列表（已预加载）
+     * @param warningCollector 告警收集器（可选，用于批量处理时的告警聚合）
      */
-    private void calculateDeviceMetricsWithParams(DeviceInfoDO device, List<DeviceParamConfigDO> deviceParams) {
+    private void calculateDeviceMetricsWithParams(DeviceInfoDO device, List<DeviceParamConfigDO> deviceParams, 
+                                                   MetricsWarningCollector warningCollector) {
         // 1. 准备数据（使用预加载的参数配置）
         RealtimeCalculationData data = prepareCalculationDataWithParams(device, deviceParams);
         if (data == null) {
@@ -313,7 +469,7 @@ public class DeviceMetricsService implements IDeviceMetricsService {
         }
         
         // 2. 验证数据并告警
-        validateAndWarn(data);
+        validateAndWarn(data, warningCollector);
         
         // 3. 构建计算上下文
         MetricCalculationContext context = buildCalculationContext(data);
@@ -322,7 +478,7 @@ public class DeviceMetricsService implements IDeviceMetricsService {
         MetricCalculationResult result = MetricCalculator.calculate(context);
         
         // 5. 验证性能率为0的原因并告警
-        warnPerformanceRateZero(result, data);
+        warnPerformanceRateZero(result, data, warningCollector);
         
         // 6. 转换并写入缓存（通过缓存服务）
         RealtimeMetricsPercentages percentages = convertToPercentages(result);
@@ -336,6 +492,16 @@ public class DeviceMetricsService implements IDeviceMetricsService {
                         data.getNowMs() / MILLIS_PER_SECOND
                 );
         deviceMetricsCacheService.saveRealtimeMetrics(data.getFactoryId(), data.getDeviceId(), snapshot);
+    }
+    
+    /**
+     * 使用预加载的参数配置计算设备指标（单设备调用版本，兼容旧接口）
+     * 
+     * @param device 设备信息
+     * @param deviceParams 设备参数配置列表（已预加载）
+     */
+    private void calculateDeviceMetricsWithParams(DeviceInfoDO device, List<DeviceParamConfigDO> deviceParams) {
+        calculateDeviceMetricsWithParams(device, deviceParams, null);
     }
 
     // ==================== 数据准备层 ====================
@@ -617,14 +783,18 @@ public class DeviceMetricsService implements IDeviceMetricsService {
      * 验证数据并记录告警
      * 
      * @param data 实时计算数据
+     * @param warningCollector 告警收集器（可选，用于批量处理时的告警聚合）
      */
-    private void validateAndWarn(RealtimeCalculationData data) {
+    private void validateAndWarn(RealtimeCalculationData data, MetricsWarningCollector warningCollector) {
         // 验证理论节拍
         if (data.getTheoreticalCycle() <= 0) {
-            log.warn("实时指标计算: 理论节拍参数缺失或无效（<=0），将导致性能率和OEE为0: deviceId={}, factoryId={}, " +
-                    "shiftStartTs={}, shiftEndTs={}, theoreticalCycle={}",
-                    data.getDeviceId(), data.getFactoryId(), 
-                    data.getShiftStartMillis(), data.getShiftEndMillis(), data.getTheoreticalCycle());
+            if (warningCollector != null) {
+                warningCollector.addTheoreticalCycleMissing(data.getDeviceId(), data.getTheoreticalCycle());
+            } else {
+                // 单设备调用场景，直接输出日志
+                log.warn("实时指标计算: 理论节拍参数缺失或无效（<=0），将导致性能率和OEE为0: deviceId={}, theoreticalCycle={}",
+                        data.getDeviceId(), data.getTheoreticalCycle());
+            }
         }
         
         // 验证产量数据（降级为debug，避免与性能率为0的警告重复）
@@ -642,23 +812,30 @@ public class DeviceMetricsService implements IDeviceMetricsService {
      * 
      * @param result 指标计算结果
      * @param data 实时计算数据
+     * @param warningCollector 告警收集器（可选，用于批量处理时的告警聚合）
      */
-    private void warnPerformanceRateZero(MetricCalculationResult result, RealtimeCalculationData data) {
+    private void warnPerformanceRateZero(MetricCalculationResult result, RealtimeCalculationData data, 
+                                         MetricsWarningCollector warningCollector) {
         long actualRuntimeSec = data.getActualRuntimeMillis() / MILLIS_PER_SECOND;
         if (result.getPerformance().compareTo(BigDecimal.ZERO) == 0 && actualRuntimeSec > 0) {
             // 合并警告：统一输出性能率为0的原因，避免重复日志
             if (data.getTheoreticalCycle() <= 0) {
-                log.warn("实时指标计算: 性能率为0（理论节拍缺失）: deviceId={}, factoryId={}, " +
-                        "shiftStartTs={}, shiftEndTs={}, actualRuntimeSec={}, theoreticalCycle={}",
-                        data.getDeviceId(), data.getFactoryId(), 
-                        data.getShiftStartMillis(), data.getShiftEndMillis(), actualRuntimeSec, data.getTheoreticalCycle());
+                if (warningCollector != null) {
+                    warningCollector.addPerformanceRateZeroTheoreticalCycleMissing(data.getDeviceId(), data.getTheoreticalCycle());
+                } else {
+                    // 单设备调用场景，直接输出日志
+                    log.warn("实时指标计算: 性能率为0（理论节拍缺失）: deviceId={}, theoreticalCycle={}",
+                            data.getDeviceId(), data.getTheoreticalCycle());
+                }
             } else if (data.getActualOutput() <= 0) {
                 // 合并产量缺失警告：包含产量缺失和性能率为0的信息
-                log.warn("实时指标计算: 性能率为0（产量缺失，产量为0但设备有运行时间）: deviceId={}, factoryId={}, " +
-                        "shiftStartTs={}, shiftEndTs={}, actualRuntimeSec={}, actualOutput={}, theoreticalCycle={}",
-                        data.getDeviceId(), data.getFactoryId(), 
-                        data.getShiftStartMillis(), data.getShiftEndMillis(), actualRuntimeSec, 
-                        data.getActualOutput(), data.getTheoreticalCycle());
+                if (warningCollector != null) {
+                    warningCollector.addPerformanceRateZeroOutputMissing(data.getDeviceId(), data.getTheoreticalCycle());
+                } else {
+                    // 单设备调用场景，直接输出日志
+                    log.warn("实时指标计算: 性能率为0（产量缺失，产量为0但设备有运行时间）: deviceId={}, theoreticalCycle={}",
+                            data.getDeviceId(), data.getTheoreticalCycle());
+                }
             }
         }
     }

@@ -367,17 +367,37 @@ public class DeviceMatchingService {
         DeviceInfoDO device = deviceInfoRepository.findActiveMonitoredByDeviceCode(deviceCode).orElse(null);
         if (device == null) {
             // 优化：仅在需要输出WARN日志时才查询详细信息，减少数据库查询
+            // 使用原子操作确保同一设备在同一时间窗口内只输出一次日志（避免并发竞态条件）
             long now = System.currentTimeMillis();
-            Long lastWarnTime = unmatchedDeviceLastWarnTime.get(deviceCode);
-            boolean shouldWarn = lastWarnTime == null
-                    || (now - lastWarnTime) >= UNMATCHED_WARN_INTERVAL_MILLIS;
+            
+            // 使用 compute 原子性地检查和更新时间戳
+            // 返回值是更新前的旧值（如果首次记录则为null）
+            Long previousTime = unmatchedDeviceLastWarnTime.compute(deviceCode, (key, oldValue) -> {
+                // 如果首次记录或时间间隔已过，更新为当前时间
+                if (oldValue == null || (now - oldValue) >= UNMATCHED_WARN_INTERVAL_MILLIS) {
+                    return now; // 更新为当前时间
+                }
+                // 时间间隔未过，保持原值
+                return oldValue;
+            });
+            
+            // 判断是否需要输出日志：
+            // 1. 如果 previousTime == null，说明这是首次记录，当前线程成功更新了，应该输出
+            // 2. 如果 previousTime != null 且 (now - previousTime) >= UNMATCHED_WARN_INTERVAL_MILLIS，
+            //    说明时间间隔已过，当前线程成功更新了时间戳，应该输出
+            // 3. 如果 previousTime != null 且 (now - previousTime) < UNMATCHED_WARN_INTERVAL_MILLIS，
+            //    说明时间间隔未过，compute 返回了旧值，不应该输出
+            // 
+            // 注意：即使多个线程几乎同时调用 compute，也只有一个线程能成功将时间戳从 oldValue 更新为 now
+            // 因为 compute 是原子操作，多个线程会串行执行，后面的线程会看到前面线程已经更新的值
+            boolean shouldWarn = previousTime == null 
+                    || (now - previousTime) >= UNMATCHED_WARN_INTERVAL_MILLIS;
             
             if (shouldWarn) {
                 // 仅在需要输出WARN日志时查询详细信息
                 Optional<DeviceInfoDO> rawDevice = deviceInfoRepository.findByDeviceCode(deviceCode);
                 if (rawDevice.isPresent()) {
                     DeviceInfoDO raw = rawDevice.get();
-                    unmatchedDeviceLastWarnTime.put(deviceCode, now);
                     log.warn("[DeviceMatching] 设备未匹配: deviceCode={}, id={}, deleted={}, deviceStatus={}, isMonitored={}, tbDeviceId={}",
                             deviceCode, raw.getId(), raw.getDeleted(), raw.getDeviceStatus(), raw.getIsMonitored(), raw.getTbDeviceId());
 
@@ -393,7 +413,6 @@ public class DeviceMatchingService {
                         log.warn("[DeviceMatching] 设备未匹配原因: deviceCode={}, 原因={}", deviceCode, reasons.toString());
                     }
                 } else {
-                    unmatchedDeviceLastWarnTime.put(deviceCode, now);
                     log.warn("[DeviceMatching] 设备未匹配: deviceCode={}, 数据库中不存在该设备", deviceCode);
                 }
             } else if (log.isDebugEnabled()) {

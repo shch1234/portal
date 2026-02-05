@@ -579,13 +579,46 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
                 }
             }
 
-            // 直接更新数据库
-            stateTimelineRepository.update(latestState);
-
-            // 优化：使用 isDebugEnabled 检查，避免字符串拼接开销
-            if (log.isDebugEnabled()) {
-                log.debug("[DeviceStateEventHandler] 更新超长状态记录（超过12小时，不拆分）: 状态={}({}), endTs={}, durationS={}, durationHours={}",
-                        latestStateEnum.name(), latestState.getStateCode(), latestState.getEndTs(), latestState.getDurationS(), durationHours);
+            // 直接更新数据库（添加超时异常处理，使用快速失败策略）
+            try {
+                long updateStartTime = System.currentTimeMillis();
+                stateTimelineRepository.update(latestState);
+                long updateTime = System.currentTimeMillis() - updateStartTime;
+                
+                if (updateTime > 3000) {
+                    log.warn("[DeviceStateEventHandler] 更新超长状态记录耗时较长: recordId={}, updateTime={}ms, messageId={}, " +
+                            "可能被表锁阻塞或存在死锁，建议检查数据库性能",
+                            latestState.getId(), updateTime, context.request().getMessageId());
+                } else if (log.isDebugEnabled()) {
+                    log.debug("[DeviceStateEventHandler] 更新超长状态记录（超过12小时，不拆分）: 状态={}({}), endTs={}, durationS={}, durationHours={}",
+                            latestStateEnum.name(), latestState.getStateCode(), latestState.getEndTs(), latestState.getDurationS(), durationHours);
+                }
+            } catch (org.springframework.dao.CannotAcquireLockException e) {
+                // 锁超时异常：记录可能正在被其他事务处理
+                log.warn("[DeviceStateEventHandler] 更新超长状态记录时发生锁超时: recordId={}, messageId={}, error={}, " +
+                        "将插入新记录以保证数据不丢失",
+                        latestState.getId(), context.request().getMessageId(), e.getMessage());
+                // 快速失败：插入新记录，保证数据不丢失
+                strategy_insertNewStateRecord(context.deviceInfoId(), context.orgFactoryId(), context.eventData(), 
+                        context.precomputedNewRecordShiftInfo(), context.precomputedNewRecordShiftRange());
+                return new StateTransitionResult(true, true);
+            } catch (Exception e) {
+                // 统一处理所有超时异常（包括 QueryTimeoutException、MySQLTimeoutException、TransactionTimedOutException 等）
+                if (isTimeoutException(e)) {
+                    // UPDATE 操作超时：快速失败，插入新记录，保证数据不丢失
+                    log.error("[DeviceStateEventHandler] 更新超长状态记录时发生超时（快速失败）: recordId={}, messageId={}, error={}, " +
+                            "可能原因：表锁竞争、索引更新耗时、数据库负载过高，建议检查数据库性能和索引。将插入新记录以保证数据不丢失。",
+                            latestState.getId(), context.request().getMessageId(), e.getMessage());
+                    // 快速失败：插入新记录，保证数据不丢失
+                    strategy_insertNewStateRecord(context.deviceInfoId(), context.orgFactoryId(), context.eventData(), 
+                            context.precomputedNewRecordShiftInfo(), context.precomputedNewRecordShiftRange());
+                    return new StateTransitionResult(true, true);
+                }
+                
+                // 非超时异常：重新抛出，让事务正常回滚
+                log.error("[DeviceStateEventHandler] 更新超长状态记录时发生异常: recordId={}, messageId={}, error={}", 
+                        latestState.getId(), context.request().getMessageId(), e.getMessage(), e);
+                throw e;
             }
             // 超过12小时的记录不拆分，createdNewRecord 保持为 false
         } else {
@@ -685,13 +718,46 @@ public class DeviceStateEventHandler implements WebhookEventHandler {
                     // 这避免了在锁内进行数据库查询，减少锁持有时间10-30ms
                 }
                 
-                // 直接更新数据库
-                stateTimelineRepository.update(latestState);
-                
-                // 优化：使用 isDebugEnabled 检查，避免字符串拼接开销
-                if (log.isDebugEnabled()) {
-                    log.debug("[DeviceStateEventHandler] 更新旧状态记录（不跨班次）: 状态={}({}), endTs={}, durationS={}",
-                            latestStateEnum.name(), latestState.getStateCode(), latestState.getEndTs(), latestState.getDurationS());
+                // 直接更新数据库（添加超时异常处理，使用快速失败策略）
+                try {
+                    long updateStartTime = System.currentTimeMillis();
+                    stateTimelineRepository.update(latestState);
+                    long updateTime = System.currentTimeMillis() - updateStartTime;
+                    
+                    if (updateTime > 3000) {
+                        log.warn("[DeviceStateEventHandler] 更新旧状态记录耗时较长: recordId={}, updateTime={}ms, messageId={}, " +
+                                "可能被表锁阻塞或存在死锁，建议检查数据库性能",
+                                latestState.getId(), updateTime, context.request().getMessageId());
+                    } else if (log.isDebugEnabled()) {
+                        log.debug("[DeviceStateEventHandler] 更新旧状态记录（不跨班次）: 状态={}({}), endTs={}, durationS={}",
+                                latestStateEnum.name(), latestState.getStateCode(), latestState.getEndTs(), latestState.getDurationS());
+                    }
+                } catch (org.springframework.dao.CannotAcquireLockException e) {
+                    // 锁超时异常：记录可能正在被其他事务处理
+                    log.warn("[DeviceStateEventHandler] 更新旧状态记录时发生锁超时: recordId={}, messageId={}, error={}, " +
+                            "将插入新记录以保证数据不丢失",
+                            latestState.getId(), context.request().getMessageId(), e.getMessage());
+                    // 快速失败：插入新记录，保证数据不丢失
+                    strategy_insertNewStateRecord(context.deviceInfoId(), context.orgFactoryId(), context.eventData(), 
+                            context.precomputedNewRecordShiftInfo(), context.precomputedNewRecordShiftRange());
+                    return new StateTransitionResult(true, true);
+                } catch (Exception e) {
+                    // 统一处理所有超时异常（包括 QueryTimeoutException、MySQLTimeoutException、TransactionTimedOutException 等）
+                    if (isTimeoutException(e)) {
+                        // UPDATE 操作超时：快速失败，插入新记录，保证数据不丢失
+                        log.error("[DeviceStateEventHandler] 更新旧状态记录时发生超时（快速失败）: recordId={}, messageId={}, error={}, " +
+                                "可能原因：表锁竞争、索引更新耗时、数据库负载过高，建议检查数据库性能和索引。将插入新记录以保证数据不丢失。",
+                                latestState.getId(), context.request().getMessageId(), e.getMessage());
+                        // 快速失败：插入新记录，保证数据不丢失
+                        strategy_insertNewStateRecord(context.deviceInfoId(), context.orgFactoryId(), context.eventData(), 
+                                context.precomputedNewRecordShiftInfo(), context.precomputedNewRecordShiftRange());
+                        return new StateTransitionResult(true, true);
+                    }
+                    
+                    // 非超时异常：重新抛出，让事务正常回滚
+                    log.error("[DeviceStateEventHandler] 更新旧状态记录时发生异常: recordId={}, messageId={}, error={}", 
+                            latestState.getId(), context.request().getMessageId(), e.getMessage(), e);
+                    throw e;
                 }
             }
         }

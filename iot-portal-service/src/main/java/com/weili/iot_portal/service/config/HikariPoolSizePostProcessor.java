@@ -38,17 +38,19 @@ public class HikariPoolSizePostProcessor {
     @PostConstruct
     public void adjustPoolSize() {
         if (dataSource == null) {
-            log.warn("[HikariPoolSize] DataSource 未找到，跳过处理");
+            log.debug("[HikariPoolSize] DataSource 未找到，跳过处理");
             return;
         }
 
         if (environment == null) {
-            log.warn("[HikariPoolSize] Environment 未注入，跳过处理");
+            log.debug("[HikariPoolSize] Environment 未注入，跳过处理");
             return;
         }
 
-        log.info("[HikariPoolSize] 开始调整连接池大小: dataSourceType={}", 
-                dataSource.getClass().getName());
+        if (log.isDebugEnabled()) {
+            log.debug("[HikariPoolSize] 开始调整连接池大小: dataSourceType={}", 
+                    dataSource.getClass().getName());
+        }
         
         processDataSource(dataSource, "dataSource");
     }
@@ -58,12 +60,14 @@ public class HikariPoolSizePostProcessor {
      */
     private void processDataSource(DataSource dataSource, String beanName) {
         if (environment == null) {
-            log.warn("[HikariPoolSize] Environment 未注入，跳过处理: beanName={}", beanName);
+            log.debug("[HikariPoolSize] Environment 未注入，跳过处理: beanName={}", beanName);
             return;
         }
 
-        log.debug("[HikariPoolSize] 开始处理数据源: beanName={}, type={}", 
-                beanName, dataSource.getClass().getName());
+        if (log.isDebugEnabled()) {
+            log.debug("[HikariPoolSize] 开始处理数据源: beanName={}, type={}", 
+                    beanName, dataSource.getClass().getName());
+        }
         
         HikariDataSource hikariDataSource = extractHikariDataSource(dataSource);
         if (hikariDataSource == null) {
@@ -71,8 +75,10 @@ public class HikariPoolSizePostProcessor {
             return;
         }
         
-        log.debug("[HikariPoolSize] 成功提取 HikariCP 数据源: beanName={}, poolName={}", 
-                beanName, hikariDataSource.getPoolName());
+        if (log.isDebugEnabled()) {
+            log.debug("[HikariPoolSize] 成功提取 HikariCP 数据源: beanName={}, poolName={}", 
+                    beanName, hikariDataSource.getPoolName());
+        }
 
         // 读取 Apollo 配置
         String masterMaxPoolSize = environment.getProperty("spring.datasource.master.hikari.maximum-pool-size");
@@ -94,8 +100,10 @@ public class HikariPoolSizePostProcessor {
                 int newMaxPoolSize = Integer.parseInt(maxPoolSizeStr);
                 if (newMaxPoolSize != currentMaxPoolSize) {
                     hikariDataSource.setMaximumPoolSize(newMaxPoolSize);
-                    log.info("[HikariPoolSize] 更新连接池最大大小: beanName={}, 从 {} 改为 {}", 
-                            beanName, currentMaxPoolSize, newMaxPoolSize);
+                    if (log.isDebugEnabled()) {
+                        log.debug("[HikariPoolSize] 更新连接池最大大小: 从 {} 改为 {}", 
+                                currentMaxPoolSize, newMaxPoolSize);
+                    }
                     updated = true;
                 }
             } catch (NumberFormatException e) {
@@ -108,8 +116,10 @@ public class HikariPoolSizePostProcessor {
                 int newMinIdle = Integer.parseInt(minIdleStr);
                 if (newMinIdle != currentMinIdle) {
                     hikariDataSource.setMinimumIdle(newMinIdle);
-                    log.info("[HikariPoolSize] 更新连接池最小空闲: beanName={}, 从 {} 改为 {}", 
-                            beanName, currentMinIdle, newMinIdle);
+                    if (log.isDebugEnabled()) {
+                        log.debug("[HikariPoolSize] 更新连接池最小空闲: 从 {} 改为 {}", 
+                                currentMinIdle, newMinIdle);
+                    }
                     updated = true;
                 }
             } catch (NumberFormatException e) {
@@ -118,13 +128,11 @@ public class HikariPoolSizePostProcessor {
         }
 
         if (updated) {
-            log.info("[HikariPoolSize] ✅ 连接池配置已更新: beanName={}, maximumPoolSize={}, minimumIdle={}", 
-                    beanName, hikariDataSource.getMaximumPoolSize(), hikariDataSource.getMinimumIdle());
-        } else {
-            log.debug("[HikariPoolSize] 连接池配置无需更新: beanName={}, maximumPoolSize={}, minimumIdle={}, " +
-                    "Apollo配置: maxPoolSize={}, minIdle={}", 
-                    beanName, currentMaxPoolSize, currentMinIdle, maxPoolSizeStr, minIdleStr);
+            // 配置已更新：输出关键信息（INFO级别）
+            log.info("[HikariPoolSize] ✅ 连接池配置已更新: maximumPoolSize={}, minimumIdle={}", 
+                    hikariDataSource.getMaximumPoolSize(), hikariDataSource.getMinimumIdle());
         }
+        // 配置无需更新时不再输出日志（降级：正常情况不需要关注）
     }
 
     /**
