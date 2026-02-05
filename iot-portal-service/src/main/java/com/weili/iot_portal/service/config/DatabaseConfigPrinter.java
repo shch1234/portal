@@ -58,7 +58,7 @@ public class DatabaseConfigPrinter {
         String masterDatabase = environment.getProperty("spring.datasource.master.database", "未配置");
         log.info("[DatabaseConfig]   spring.datasource.master.database = {}", masterDatabase);
         
-        // HikariCP 配置
+        // HikariCP 配置（通用配置）
         String maxPoolSize = environment.getProperty("spring.datasource.hikari.maximum-pool-size", "未配置");
         String minIdle = environment.getProperty("spring.datasource.hikari.minimum-idle", "未配置");
         String connectionTimeout = environment.getProperty("spring.datasource.hikari.connection-timeout", "未配置");
@@ -74,6 +74,15 @@ public class DatabaseConfigPrinter {
         log.info("[DatabaseConfig]   spring.datasource.hikari.idle-timeout = {}ms", idleTimeout);
         log.info("[DatabaseConfig]   spring.datasource.hikari.validation-timeout = {}ms", validationTimeout);
         log.info("[DatabaseConfig]   spring.datasource.hikari.leak-detection-threshold = {}ms", leakDetectionThreshold);
+        
+        // 动态数据源配置（master数据源）
+        String masterMaxPoolSize = environment.getProperty("spring.datasource.master.hikari.maximum-pool-size", "未配置");
+        String masterMinIdle = environment.getProperty("spring.datasource.master.hikari.minimum-idle", "未配置");
+        if (!"未配置".equals(masterMaxPoolSize) || !"未配置".equals(masterMinIdle)) {
+            log.info("[DatabaseConfig] 【动态数据源 master 配置】");
+            log.info("[DatabaseConfig]   spring.datasource.master.hikari.maximum-pool-size = {}", masterMaxPoolSize);
+            log.info("[DatabaseConfig]   spring.datasource.master.hikari.minimum-idle = {}", masterMinIdle);
+        }
     }
 
     /**
@@ -151,6 +160,20 @@ public class DatabaseConfigPrinter {
             return (HikariDataSource) dataSource;
         }
 
+        // 处理 ItemDataSource（动态数据源的包装类）
+        if (dataSource.getClass().getName().equals("com.baomidou.dynamic.datasource.ds.ItemDataSource")) {
+            try {
+                java.lang.reflect.Field dataSourceField = dataSource.getClass().getDeclaredField("dataSource");
+                dataSourceField.setAccessible(true);
+                DataSource wrappedDataSource = (DataSource) dataSourceField.get(dataSource);
+                log.debug("[DatabaseConfig] 从 ItemDataSource 中提取内部数据源: {}", 
+                        wrappedDataSource != null ? wrappedDataSource.getClass().getName() : "null");
+                return extractHikariDataSource(wrappedDataSource);
+            } catch (Exception e) {
+                log.debug("[DatabaseConfig] 从 ItemDataSource 提取数据源失败: {}", e.getMessage());
+            }
+        }
+
         // 动态数据源：尝试提取
         if (dataSource.getClass().getName().equals("com.baomidou.dynamic.datasource.DynamicRoutingDataSource")) {
             try {
@@ -169,17 +192,21 @@ public class DatabaseConfigPrinter {
                 String[] primaryKeys = {"master", "primary", "default"};
                 for (String key : primaryKeys) {
                     DataSource ds = dataSources.get(key);
-                    if (ds instanceof HikariDataSource) {
+                    if (ds != null) {
+                        HikariDataSource hikariDs = extractHikariDataSource(ds);
+                        if (hikariDs != null) {
                         log.info("[DatabaseConfig] 使用主数据源: {}", key);
-                        return (HikariDataSource) ds;
+                            return hikariDs;
+                        }
                     }
                 }
 
                 // 获取第一个 HikariCP 数据源
                 for (Map.Entry<String, DataSource> entry : dataSources.entrySet()) {
-                    if (entry.getValue() instanceof HikariDataSource) {
+                    HikariDataSource hikariDs = extractHikariDataSource(entry.getValue());
+                    if (hikariDs != null) {
                         log.info("[DatabaseConfig] 使用数据源: {}", entry.getKey());
-                        return (HikariDataSource) entry.getValue();
+                        return hikariDs;
                     }
                 }
 
