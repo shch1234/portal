@@ -27,9 +27,25 @@ public class WebhookAsyncConfig {
     /**
      * 队列容量
      * Apollo 配置：webhook.server.async.queue-capacity
-     * 默认值：1000
+     * 默认值：2000（已从1000增加到2000，提供更多缓冲）
      */
-    private Integer queueCapacity = 1000;
+    private Integer queueCapacity = 10000;
+
+    /**
+     * 线程保活时间（秒）
+     * Apollo 配置：webhook.server.async.keep-alive-seconds
+     * 默认值：60
+     * 当线程空闲超过此时间时会被回收（仅当allowCoreThreadTimeOut=true时，核心线程也会被回收）
+     */
+    private Integer keepAliveSeconds = 60;
+
+    /**
+     * 是否允许核心线程超时
+     * Apollo 配置：webhook.server.async.allow-core-thread-timeout
+     * 默认值：false
+     * 如果为true，核心线程在空闲超过keepAliveSeconds时也会被回收
+     */
+    private Boolean allowCoreThreadTimeOut = false;
 
     /**
      * 线程名前缀

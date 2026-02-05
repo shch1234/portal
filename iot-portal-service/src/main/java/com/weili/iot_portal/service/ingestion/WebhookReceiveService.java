@@ -454,10 +454,13 @@ public class WebhookReceiveService {
      * <p>
      * 通过状态字段（PENDING -> PROCESSING）保证幂等性，避免重复处理
      * </p>
+     * <p>
+     * 注意：指定使用 webhookAsyncExecutor，确保使用优化后的线程池配置
+     * </p>
      *
      * @param messageId 消息ID
      */
-    @Async
+    @Async("webhookAsyncExecutor")
     public void processMessageAsync(String messageId) {
         // 注意：@Async 方法会在新线程中执行，MDC 不会自动传递
         // 但这里调用的是 webhookProcessService.processSingle，它内部会设置 MDC

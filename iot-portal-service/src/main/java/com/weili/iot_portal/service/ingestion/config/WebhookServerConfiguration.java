@@ -10,6 +10,7 @@ import org.springframework.boot.web.server.WebServerFactoryCustomizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.task.TaskDecorator;
+import org.springframework.scheduling.annotation.AsyncConfigurer;
 import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
@@ -35,9 +36,15 @@ import java.util.concurrent.ThreadPoolExecutor;
 @RequiredArgsConstructor
 @EnableConfigurationProperties(WebhookServerConfig.class)
 @ConditionalOnWebApplication
-public class WebhookServerConfiguration {
+public class WebhookServerConfiguration implements AsyncConfigurer {
 
     private final WebhookServerConfig webhookServerConfig;
+    
+    /**
+     * 存储 webhookAsyncExecutor 的引用，用于 getAsyncExecutor()
+     * 避免在 getAsyncExecutor() 中重复创建 Bean
+     */
+    private Executor webhookAsyncExecutorRef;
 
     /**
      * 配置 Tomcat 线程池
@@ -91,15 +98,28 @@ public class WebhookServerConfiguration {
         executor.setQueueCapacity(async.getQueueCapacity());
         executor.setThreadNamePrefix(async.getThreadNamePrefix());
         
-        // 优化：对于非关键操作（缓存更新、日志记录），使用 DiscardPolicy
-        // 当队列满时，直接丢弃任务，避免阻塞主线程
-        // 注意：如果希望更严格的控制，可以使用 AbortPolicy（抛出异常）
-        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.DiscardPolicy() {
+        // 设置线程保活时间（秒），当线程空闲超过此时间时会被回收
+        // 默认60秒，可通过配置调整
+        executor.setKeepAliveSeconds(async.getKeepAliveSeconds() != null ? 
+                async.getKeepAliveSeconds() : 60);
+        
+        // 允许核心线程超时，当线程空闲超过keepAliveSeconds时会被回收
+        executor.setAllowCoreThreadTimeOut(async.getAllowCoreThreadTimeOut() != null ? 
+                async.getAllowCoreThreadTimeOut() : false);
+        
+        // 使用 CallerRunsPolicy 拒绝策略：当队列满时，由调用线程执行任务
+        // 这样可以创建背压，减缓请求速度，避免数据丢失
+        // 相比 DiscardPolicy（静默丢弃），CallerRunsPolicy 能保证任务被执行
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy() {
             @Override
             public void rejectedExecution(Runnable r, ThreadPoolExecutor e) {
-                // 记录警告日志，便于监控
-                log.warn("[Webhook-Server] 异步任务被拒绝（队列已满）: activeThreads={}, queueSize={}, poolSize={}",
-                        e.getActiveCount(), e.getQueue().size(), e.getPoolSize());
+                // 记录警告日志，便于监控系统负载情况
+                String taskInfo = r.getClass().getSimpleName();
+                if (r.toString().length() < 200) {
+                    taskInfo = r.toString();
+                }
+                log.warn("[Webhook-Server] 异步任务队列已满，由调用线程执行: activeThreads={}, queueSize={}, poolSize={}, task={}",
+                        e.getActiveCount(), e.getQueue().size(), e.getPoolSize(), taskInfo);
                 super.rejectedExecution(r, e);
             }
         });
@@ -112,11 +132,32 @@ public class WebhookServerConfiguration {
         
         executor.initialize();
 
-        log.info("[Webhook-Server] 异步线程池配置完成: coreSize={}, maxSize={}, queueCapacity={}, threadNamePrefix={}, " +
-                "rejectedPolicy=DiscardPolicy（队列满时丢弃任务，避免阻塞主线程）",
-                async.getCoreSize(), async.getMaxSize(), async.getQueueCapacity(), async.getThreadNamePrefix());
+        log.info("[Webhook-Server] 异步线程池配置完成: coreSize={}, maxSize={}, queueCapacity={}, " +
+                "keepAliveSeconds={}, allowCoreThreadTimeOut={}, threadNamePrefix={}, " +
+                "rejectedPolicy=CallerRunsPolicy（队列满时由调用线程执行，避免数据丢失）",
+                async.getCoreSize(), async.getMaxSize(), async.getQueueCapacity(),
+                async.getKeepAliveSeconds() != null ? async.getKeepAliveSeconds() : 60,
+                async.getAllowCoreThreadTimeOut() != null ? async.getAllowCoreThreadTimeOut() : false,
+                async.getThreadNamePrefix());
 
+        // 保存引用，用于 getAsyncExecutor()
+        webhookAsyncExecutorRef = executor;
+        
         return executor;
+    }
+
+    /**
+     * 配置默认的异步执行器
+     * <p>
+     * 当 @Async 未指定 executor 时，使用 webhookAsyncExecutor
+     * 这样可以确保所有异步方法都使用优化后的线程池配置
+     * </p>
+     */
+    @Override
+    public Executor getAsyncExecutor() {
+        // 如果 webhookAsyncExecutor 还未初始化，返回 null（使用 Spring 默认）
+        // 正常情况下，webhookAsyncExecutor() 会在 getAsyncExecutor() 之前被调用
+        return webhookAsyncExecutorRef != null ? webhookAsyncExecutorRef : null;
     }
     
     /**
