@@ -7,7 +7,9 @@ import com.weili.iot_portal.service.cache.DeviceToolCacheService;
 import com.weili.iot_portal.service.ingestion.handler.fields.DeviceToolEventFields;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.CannotAcquireLockException;
 import org.springframework.dao.DataAccessException;
+import org.springframework.dao.QueryTimeoutException;
 import org.springframework.dao.RecoverableDataAccessException;
 import org.springframework.stereotype.Service;
 
@@ -103,15 +105,22 @@ public class DeviceToolCompensationService {
             }
 
             // 2. 缓存未命中或值不同，查询数据库（使用行锁防止并发修改）
-            // 使用 SELECT FOR UPDATE NOWAIT 锁定行，避免长时间等待导致锁超时
+            // 使用 SELECT FOR UPDATE 锁定行，防止并发修改
+            // 注意：为了兼容旧版本MySQL（8.0.1以下不支持NOWAIT），使用 FOR UPDATE
+            // 锁等待超时由事务的 innodb_lock_wait_timeout 控制，由于已有分布式锁保护，实际锁等待应该很短
             DeviceToolCompensationDO active;
             try {
                 active = deviceToolCompensationRepository.findActiveWithLock(deviceId, holderNumber);
             } catch (org.springframework.dao.CannotAcquireLockException e) {
-                // 行锁获取失败（NOWAIT），可能是其他事务正在处理，记录日志并跳过
+                // 行锁获取失败（锁等待超时），可能是其他事务正在处理，记录日志并跳过
                 // 由于已有分布式锁保护，这种情况应该很少发生，如果发生则跳过本次写入
-                log.warn("{} 无法获取数据库行锁，跳过写入（可能其他事务正在处理）: deviceId={}, holderNumber={}",
-                        logPrefix, deviceId, holderNumber);
+                log.warn("{} 无法获取数据库行锁（锁等待超时），跳过写入: deviceId={}, holderNumber={}, error={}",
+                        logPrefix, deviceId, holderNumber, e.getMessage());
+                return;
+            } catch (org.springframework.dao.QueryTimeoutException e) {
+                // 查询超时，可能是锁等待超时
+                log.warn("{} 查询超时（可能是锁等待超时），跳过写入: deviceId={}, holderNumber={}, error={}",
+                        logPrefix, deviceId, holderNumber, e.getMessage());
                 return;
             } catch (RecoverableDataAccessException e) {
                 // 数据库连接失败，无法继续处理，抛出异常让调用方处理（可能需要重试或记录到队列）

@@ -9,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.CannotAcquireLockException;
 import org.springframework.dao.DuplicateKeyException;
+import org.springframework.dao.QueryTimeoutException;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -39,16 +40,36 @@ public class DeviceToolCompensationRepositoryImpl implements DeviceToolCompensat
                 .eq(DeviceToolCompensationDO::getToolHolderNo, toolHolderNo)
                 .eq(DeviceToolCompensationDO::getActive, 1)
                 .orderByDesc(DeviceToolCompensationDO::getStartTs)
-                // 使用 NOWAIT 避免长时间等待，如果锁被占用则立即返回 null
-                // 这样可以避免锁等待超时，由分布式锁和重试机制来处理并发
-                .last("LIMIT 1 FOR UPDATE NOWAIT");
+                // 使用 FOR UPDATE 锁定行，防止并发修改
+                // 注意：FOR UPDATE NOWAIT 只在 MySQL 8.0.1+ 支持，为了兼容旧版本，使用 FOR UPDATE
+                // 锁等待超时由事务的 innodb_lock_wait_timeout 控制（默认50秒）
+                // 由于已有分布式锁保护，实际锁等待应该很短
+                .last("LIMIT 1 FOR UPDATE");
         try {
             return mapper.selectOne(wrapper);
         } catch (org.springframework.dao.CannotAcquireLockException e) {
-            // 如果无法获取锁（NOWAIT），返回 null，由调用方处理
-            log.debug("[DeviceToolCompensationRepository] 无法获取行锁（NOWAIT）: deviceId={}, toolHolderNo={}", 
-                    deviceId, toolHolderNo);
+            // 如果无法获取锁（锁等待超时），返回 null，由调用方处理
+            // 这种情况应该很少发生，因为已有分布式锁保护
+            log.warn("[DeviceToolCompensationRepository] 无法获取行锁（锁等待超时）: deviceId={}, toolHolderNo={}, error={}", 
+                    deviceId, toolHolderNo, e.getMessage());
             return null;
+        } catch (org.springframework.dao.QueryTimeoutException e) {
+            // 查询超时，可能是锁等待超时
+            log.warn("[DeviceToolCompensationRepository] 查询超时（可能是锁等待超时）: deviceId={}, toolHolderNo={}, error={}", 
+                    deviceId, toolHolderNo, e.getMessage());
+            return null;
+        } catch (Exception e) {
+            // 检查是否是锁等待超时相关的异常
+            String errorMsg = e.getMessage();
+            if (errorMsg != null && (errorMsg.contains("Lock wait timeout") 
+                    || errorMsg.contains("lock wait timeout exceeded")
+                    || errorMsg.contains("1205"))) {
+                log.warn("[DeviceToolCompensationRepository] 锁等待超时: deviceId={}, toolHolderNo={}, error={}", 
+                        deviceId, toolHolderNo, e.getMessage());
+                return null;
+            }
+            // 其他异常，重新抛出
+            throw e;
         }
     }
 
