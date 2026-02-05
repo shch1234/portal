@@ -20,6 +20,7 @@ import java.util.Map;
  */
 @Slf4j
 @Component
+@org.springframework.context.annotation.DependsOn("hikariPoolSizePostProcessor")
 public class DatabaseConfigPrinter {
 
     @Autowired(required = false)
@@ -140,12 +141,28 @@ public class DatabaseConfigPrinter {
                         String.valueOf(connectionTimeout) + "ms", "通用");
                 
                 // 如果配置不一致，给出提示
-                if (maximumPoolSize != 250 || minimumIdle != 50) {
+                // 检查实际配置是否与 Apollo 配置一致
+                boolean maxPoolSizeMismatch = apolloMaxPoolSize != null && 
+                        !apolloMaxPoolSize.equals(String.valueOf(maximumPoolSize));
+                boolean minIdleMismatch = apolloMinIdle != null && 
+                        !apolloMinIdle.equals(String.valueOf(minimumIdle));
+                
+                if (maxPoolSizeMismatch || minIdleMismatch) {
                     log.warn("[DatabaseConfig] ⚠️ 配置未生效！请检查：");
+                    if (maxPoolSizeMismatch) {
+                        log.warn("[DatabaseConfig]   maximum-pool-size: Apollo={}, 实际={}", 
+                                apolloMaxPoolSize, maximumPoolSize);
+                    }
+                    if (minIdleMismatch) {
+                        log.warn("[DatabaseConfig]   minimum-idle: Apollo={}, 实际={}", 
+                                apolloMinIdle, minimumIdle);
+                    }
                     log.warn("[DatabaseConfig]   1. Apollo配置路径是否正确：spring.datasource.master.hikari.*");
                     log.warn("[DatabaseConfig]   2. 动态数据源是否正确加载了Apollo配置");
                     log.warn("[DatabaseConfig]   3. 是否有其他配置覆盖了Apollo配置");
                     log.warn("[DatabaseConfig]   4. 建议检查动态数据源的自动配置类");
+                } else {
+                    log.info("[DatabaseConfig] ✅ 所有配置已正确生效！");
                 }
             }
             
